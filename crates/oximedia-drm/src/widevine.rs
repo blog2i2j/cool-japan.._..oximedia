@@ -454,8 +454,8 @@ mod tests {
         pssh_data.add_key_id(vec![1, 2, 3, 4]);
         pssh_data.add_key_id(vec![5, 6, 7, 8]);
 
-        let bytes = pssh_data.to_bytes().unwrap();
-        let parsed = WidevinePsshData::from_bytes(&bytes).unwrap();
+        let bytes = pssh_data.to_bytes().expect("operation should succeed");
+        let parsed = WidevinePsshData::from_bytes(&bytes).expect("operation should succeed");
 
         assert_eq!(parsed.key_ids.len(), 2);
         assert_eq!(parsed.key_ids[0], vec![1, 2, 3, 4]);
@@ -493,8 +493,8 @@ mod tests {
 
         let request = WidevineLicenseRequest::new(LicenseType::Streaming, content_id, vec![key_id]);
 
-        let bytes = request.to_bytes().unwrap();
-        let parsed = WidevineLicenseRequest::from_bytes(&bytes).unwrap();
+        let bytes = request.to_bytes().expect("operation should succeed");
+        let parsed = WidevineLicenseRequest::from_bytes(&bytes).expect("operation should succeed");
 
         assert_eq!(parsed.license_type, request.license_type);
         assert_eq!(parsed.content_id, request.content_id);
@@ -530,7 +530,7 @@ mod tests {
 
         let request = cdm
             .generate_request(LicenseType::Streaming, content_id, vec![key_id.clone()])
-            .unwrap();
+            .expect("operation should succeed");
 
         assert_eq!(request.client_id, Some(client_id));
 
@@ -538,7 +538,8 @@ mod tests {
         let response = WidevineLicenseResponse::new(vec![widevine_key]);
 
         let session_id = vec![20, 21, 22, 23];
-        cdm.process_response(session_id.clone(), &response).unwrap();
+        cdm.process_response(session_id.clone(), &response)
+            .expect("operation should succeed");
 
         assert_eq!(cdm.get_key(&session_id, &key_id), Some(key));
         assert_eq!(cdm.session_count(), 1);
@@ -559,7 +560,9 @@ mod tests {
         let request =
             WidevineLicenseRequest::new(LicenseType::Streaming, content_id, vec![key_id.clone()]);
 
-        let response = server.process_request(&request).unwrap();
+        let response = server
+            .process_request(&request)
+            .expect("operation should succeed");
 
         assert_eq!(response.status, "OK");
         assert_eq!(response.keys.len(), 1);

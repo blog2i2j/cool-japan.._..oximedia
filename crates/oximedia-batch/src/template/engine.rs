@@ -203,7 +203,7 @@ mod tests {
 
         let result = engine.render("Output: {filename}", &context);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "Output: test.mp4");
+        assert_eq!(result.expect("result should be valid"), "Output: test.mp4");
     }
 
     #[test]
@@ -215,7 +215,7 @@ mod tests {
 
         let result = engine.render("{name}.{ext}", &context);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "video.mp4");
+        assert_eq!(result.expect("result should be valid"), "video.mp4");
     }
 
     #[test]
@@ -226,7 +226,7 @@ mod tests {
         let result = engine.render("{missing}", &context);
         assert!(result.is_ok());
         // Missing variables are left as-is
-        assert_eq!(result.unwrap(), "{missing}");
+        assert_eq!(result.expect("result should be valid"), "{missing}");
     }
 
     #[test]
@@ -237,7 +237,7 @@ mod tests {
 
         let result = engine.render("{if enabled}yes{endif}", &context);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "yes");
+        assert_eq!(result.expect("result should be valid"), "yes");
     }
 
     #[test]
@@ -247,7 +247,7 @@ mod tests {
 
         let result = engine.render("{if enabled}yes{endif}", &context);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "");
+        assert_eq!(result.expect("result should be valid"), "");
     }
 
     #[test]
@@ -258,7 +258,7 @@ mod tests {
 
         let result = engine.render("{if enabled}yes{else}no{endif}", &context);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "no");
+        assert_eq!(result.expect("result should be valid"), "no");
     }
 
     #[test]
@@ -268,7 +268,7 @@ mod tests {
 
         let result = engine.render("{if !missing}not set{endif}", &context);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "not set");
+        assert_eq!(result.expect("result should be valid"), "not set");
     }
 
     #[test]
@@ -279,7 +279,7 @@ mod tests {
 
         let result = engine.render("{if codec==h264}mp4{else}other{endif}", &context);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "mp4");
+        assert_eq!(result.expect("result should be valid"), "mp4");
     }
 
     #[test]
@@ -290,7 +290,7 @@ mod tests {
 
         let result = engine.render("{if codec!=h264}not-h264{endif}", &context);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "not-h264");
+        assert_eq!(result.expect("result should be valid"), "not-h264");
     }
 
     #[test]
@@ -301,6 +301,6 @@ mod tests {
 
         let result = engine.render("{if count}has items{else}empty{endif}", &context);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "empty");
+        assert_eq!(result.expect("result should be valid"), "empty");
     }
 }

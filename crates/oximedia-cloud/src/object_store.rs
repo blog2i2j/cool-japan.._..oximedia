@@ -294,7 +294,7 @@ mod tests {
         assert_eq!(
             store
                 .get(&ObjectKey::new("bucket", "a.mp4"))
-                .unwrap()
+                .expect("test expectation failed")
                 .size_bytes,
             200
         );

@@ -1083,12 +1083,12 @@ mod tests {
             frame_size: 4096,
         };
 
-        let encoder = FlacEncoder::new(&config).unwrap();
-        let streaminfo = encoder.generate_streaminfo(441000).unwrap();
+        let encoder = FlacEncoder::new(&config).expect("should succeed");
+        let streaminfo = encoder.generate_streaminfo(441000).expect("should succeed");
         assert_eq!(streaminfo.len(), 34);
 
         // Verify we can parse it back
-        let parsed = StreamInfo::parse(&streaminfo).unwrap();
+        let parsed = StreamInfo::parse(&streaminfo).expect("should succeed");
         assert_eq!(parsed.sample_rate, 44100);
         assert_eq!(parsed.channels, 2);
         assert_eq!(parsed.total_samples, 441000);
@@ -1104,7 +1104,7 @@ mod tests {
             frame_size: 4096,
         };
 
-        let encoder = FlacEncoder::new(&config).unwrap();
+        let encoder = FlacEncoder::new(&config).expect("should succeed");
 
         assert!(encoder.is_constant(&[100, 100, 100, 100]));
         assert!(!encoder.is_constant(&[100, 101, 100, 100]));
@@ -1121,7 +1121,7 @@ mod tests {
             frame_size: 4096,
         };
 
-        let encoder = FlacEncoder::new(&config).unwrap();
+        let encoder = FlacEncoder::new(&config).expect("should succeed");
         let samples = vec![0, 1, 2, 3, 4, 5];
 
         // Order 1: first difference

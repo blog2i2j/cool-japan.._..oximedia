@@ -135,7 +135,11 @@ impl AutoLane {
                 if time <= self.points[0].time {
                     return self.points[0].value;
                 }
-                let last = self.points.last().unwrap();
+                // Safety: match arm guarantees len() >= 2, so last() is always Some
+                let last = match self.points.last() {
+                    Some(p) => p,
+                    None => return self.default_value,
+                };
                 if time >= last.time {
                     return last.value;
                 }
@@ -172,7 +176,12 @@ impl AutoLane {
         if self.points.is_empty() {
             None
         } else {
-            Some((self.points[0].time, self.points.last().unwrap().time))
+            let last_time = self
+                .points
+                .last()
+                .map(|p| p.time)
+                .unwrap_or(self.points[0].time);
+            Some((self.points[0].time, last_time))
         }
     }
 }
@@ -311,7 +320,7 @@ mod tests {
         assert!(lane.time_span().is_none());
         lane.add_point(LanePoint::new(1.0, 0.0));
         lane.add_point(LanePoint::new(5.0, 1.0));
-        let (start, end) = lane.time_span().unwrap();
+        let (start, end) = lane.time_span().expect("time_span should succeed");
         assert!((start - 1.0).abs() < 1e-9);
         assert!((end - 5.0).abs() < 1e-9);
     }

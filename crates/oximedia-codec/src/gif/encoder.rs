@@ -427,7 +427,7 @@ impl GifEncoderState {
                 .enumerate()
                 .max_by_key(|(_, b)| b.len())
                 .map(|(i, _)| i)
-                .unwrap();
+                .expect("buckets is non-empty inside the while loop");
 
             let bucket = buckets.remove(largest_idx);
             if bucket.is_empty() {

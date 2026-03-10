@@ -17,8 +17,8 @@
 //! let results = analyzer.finalize();
 //!
 //! // Generate reports
-//! let json_report = results.to_json().unwrap();
-//! let html_report = results.to_html().unwrap();
+//! let json_report = results.to_json()?;
+//! let html_report = results.to_html()?;
 //! ```
 
 use crate::{AnalysisResult, AnalysisResults};
@@ -384,7 +384,7 @@ mod tests {
             temporal_analysis: None,
         };
 
-        let html = generate_html_report(&results).unwrap();
+        let html = generate_html_report(&results).expect("HTML report generation should succeed");
         assert!(html.contains("<!DOCTYPE html>"));
         assert!(html.contains("OxiMedia Analysis Report"));
         assert!(html.contains("1000")); // Frame count
@@ -407,7 +407,7 @@ mod tests {
             temporal_analysis: None,
         };
 
-        let html = generate_html_report(&results).unwrap();
+        let html = generate_html_report(&results).expect("HTML report generation should succeed");
         assert!(html.contains("<!DOCTYPE html>"));
         assert!(html.contains("0")); // Frame count
     }

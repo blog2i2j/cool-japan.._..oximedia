@@ -5,7 +5,7 @@
 
 use crate::error::{StabilizeError, StabilizeResult};
 use crate::Frame;
-use ndarray::Array2;
+use scirs2_core::ndarray::Array2;
 use std::collections::HashMap;
 
 /// A tracked feature point in an image.
@@ -700,7 +700,7 @@ pub mod matching {
 
 /// Feature descriptor computation.
 pub mod descriptors {
-    use ndarray::Array2;
+    use scirs2_core::ndarray::Array2;
 
     /// Compute BRIEF descriptor for a feature.
     #[must_use]

@@ -397,7 +397,10 @@ mod tests {
             "/out".to_string(),
         );
         m.set_metadata("operator".to_string(), "Jane".to_string());
-        assert_eq!(m.metadata.get("operator").unwrap(), "Jane");
+        assert_eq!(
+            m.metadata.get("operator").expect("get should succeed"),
+            "Jane"
+        );
     }
 
     #[test]

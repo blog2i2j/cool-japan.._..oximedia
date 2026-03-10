@@ -229,7 +229,11 @@ impl TapeLibrary {
         self.cartridges
             .iter()
             .filter(|c| c.status.is_writable() && c.available_gb() >= required_gb)
-            .min_by(|a, b| a.available_gb().partial_cmp(&b.available_gb()).unwrap())
+            .min_by(|a, b| {
+                a.available_gb()
+                    .partial_cmp(&b.available_gb())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
     }
 }
 
@@ -345,6 +349,6 @@ mod tests {
         lib.add_cartridge(TapeCartridge::new("T002", TapeFormat::Lto9));
         let w = lib.find_writable(100.0);
         assert!(w.is_some());
-        assert_eq!(w.unwrap().barcode, "T002");
+        assert_eq!(w.expect("test expectation failed").barcode, "T002");
     }
 }

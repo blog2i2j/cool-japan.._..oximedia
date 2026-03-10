@@ -267,11 +267,11 @@ impl SipBuilder {
         Ok(SipDescriptor {
             package_id: self.package_id,
             title: self.title,
-            producer: self.producer.unwrap(),
+            producer: self.producer.expect("producer validated: is_none check passed above"),
             files: self.files,
             descriptive_metadata: self.descriptive_metadata,
             agreement_status: self.agreement_status,
-            submission_time: self.submission_time.unwrap(),
+            submission_time: self.submission_time.expect("submission_time set on line above"),
             total_size_bytes: self.total_size_bytes(),
         })
     }
@@ -458,14 +458,14 @@ mod tests {
     fn test_sip_descriptor_content_categories() {
         let mut builder = valid_builder();
         builder.add_file(sample_file("audio.wav", 500, ContentCategory::Audio));
-        let sip = builder.build().unwrap();
+        let sip = builder.build().expect("operation should succeed");
         let cats = sip.content_categories();
         assert_eq!(cats.len(), 2);
     }
 
     #[test]
     fn test_sip_descriptor_find_file() {
-        let sip = valid_builder().build().unwrap();
+        let sip = valid_builder().build().expect("operation should succeed");
         assert!(sip.find_file(Path::new("video.mkv")).is_some());
         assert!(sip.find_file(Path::new("nonexistent.txt")).is_none());
     }

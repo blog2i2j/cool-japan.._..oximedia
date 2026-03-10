@@ -454,7 +454,7 @@ mod tests {
         assert!(mgr.active_profile().is_none());
         assert!(mgr.set_active(idx));
         assert!(mgr.active_profile().is_some());
-        assert_eq!(mgr.active_profile().unwrap().name, "Test");
+        assert_eq!(mgr.active_profile().expect("active_profile should succeed").name, "Test");
     }
 
     #[test]
@@ -476,7 +476,7 @@ mod tests {
         assert!(mgr.remove_profile(0));
         assert_eq!(mgr.profile_count(), 1);
         // Active adjusted
-        assert_eq!(mgr.active_profile().unwrap().name, "B");
+        assert_eq!(mgr.active_profile().expect("active_profile should succeed").name, "B");
     }
 
     #[test]

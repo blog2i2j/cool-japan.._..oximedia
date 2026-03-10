@@ -314,7 +314,10 @@ mod tests {
         let owner = User::new("Alice".to_string(), UserRole::Owner);
         let project_id = Uuid::new_v4();
 
-        let session_id = server.create_session(project_id, owner).await.unwrap();
+        let session_id = server
+            .create_session(project_id, owner)
+            .await
+            .expect("collab test operation should succeed");
         assert!(server.get_session(session_id).is_ok());
     }
 
@@ -327,18 +330,23 @@ mod tests {
         let session_id = server
             .create_session(project_id, owner.clone())
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
 
         let editor = User::new("Bob".to_string(), UserRole::Editor);
         server
             .join_session(session_id, editor.clone())
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
 
-        let session = server.get_session(session_id).unwrap();
+        let session = server
+            .get_session(session_id)
+            .expect("collab test operation should succeed");
         assert_eq!(session.user_count().await, 2);
 
-        server.leave_session(session_id, editor.id).await.unwrap();
+        server
+            .leave_session(session_id, editor.id)
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(session.user_count().await, 1);
     }
 

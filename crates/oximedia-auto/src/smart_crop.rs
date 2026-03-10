@@ -267,7 +267,7 @@ mod tests {
     #[test]
     fn test_config_aspect_ratio() {
         let cfg = SmartCropConfig::default();
-        let ratio = cfg.aspect_ratio().unwrap();
+        let ratio = cfg.aspect_ratio().expect("ratio should be valid");
         assert!((ratio - 16.0 / 9.0).abs() < 1e-6);
     }
 

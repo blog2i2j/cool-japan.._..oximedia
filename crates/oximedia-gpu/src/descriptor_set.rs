@@ -248,7 +248,9 @@ mod tests {
         set.add_binding(DescriptorBinding::new(0, BindingType::StorageBuffer));
         assert_eq!(set.binding_count(), 1);
         assert_eq!(
-            set.get_binding(0).unwrap().binding_type,
+            set.get_binding(0)
+                .expect("binding should exist")
+                .binding_type,
             BindingType::StorageBuffer
         );
     }

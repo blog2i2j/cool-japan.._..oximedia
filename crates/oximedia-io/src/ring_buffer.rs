@@ -300,7 +300,7 @@ mod tests {
     fn test_byte_ring_pop_exact_success() {
         let mut brb = ByteRingBuffer::new(8);
         brb.push_slice(&[10, 20, 30, 40]);
-        let out = brb.pop_exact(3).unwrap();
+        let out = brb.pop_exact(3).expect("pop_exact should succeed");
         assert_eq!(out, vec![10, 20, 30]);
         assert_eq!(brb.len(), 1);
     }

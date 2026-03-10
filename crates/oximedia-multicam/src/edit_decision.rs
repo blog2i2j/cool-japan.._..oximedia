@@ -174,7 +174,12 @@ mod tests {
         edl.add(EditDecision::new(2, 0, 99));
         let found = edl.at_frame(50);
         assert!(found.is_some());
-        assert_eq!(found.unwrap().camera_id, 2);
+        assert_eq!(
+            found
+                .expect("multicam test operation should succeed")
+                .camera_id,
+            2
+        );
     }
 
     #[test]

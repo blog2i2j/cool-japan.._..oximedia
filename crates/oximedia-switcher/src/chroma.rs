@@ -335,17 +335,91 @@ impl ChromaKey {
     }
 
     /// Process a video frame to extract alpha channel.
-    #[allow(dead_code)]
-    pub fn process_frame(&self, _fill: &VideoFrame) -> Result<Vec<u8>, ChromaKeyError> {
-        // In a real implementation, this would:
-        // 1. Extract RGB data from the fill frame
-        // 2. Calculate color distance for each pixel
-        // 3. Apply spill suppression
-        // 4. Generate alpha channel
-        // 5. Return alpha channel as Vec<u8>
+    ///
+    /// For planar YUV formats the luma plane is used as a rough proxy for
+    /// luminance-based keying. For frames with at least 3 planes (Y, Cb, Cr),
+    /// the chroma planes are converted back to approximate RGB per pixel so
+    /// that proper colour-distance keying can be applied.
+    ///
+    /// Returns a `Vec<u8>` with one alpha byte per luma-plane pixel
+    /// (0 = fully transparent / keyed, 255 = fully opaque).
+    pub fn process_frame(&self, fill: &VideoFrame) -> Result<Vec<u8>, ChromaKeyError> {
+        if fill.planes.is_empty() {
+            return Err(ChromaKeyError::ProcessingError(
+                "Frame has no planes".to_string(),
+            ));
+        }
 
-        // Placeholder implementation
-        Ok(Vec::new())
+        let luma_plane = &fill.planes[0];
+        let pixel_count = (luma_plane.width as usize) * (luma_plane.height as usize);
+
+        // If we have at least 3 planes we can approximate RGB from YCbCr.
+        if fill.planes.len() >= 3 {
+            let cb_plane = &fill.planes[1];
+            let cr_plane = &fill.planes[2];
+
+            let luma_w = luma_plane.width as usize;
+            let luma_h = luma_plane.height as usize;
+            let cb_w = cb_plane.width as usize;
+            let _cr_w = cr_plane.width as usize;
+
+            // Chroma sub-sampling ratios
+            let h_ratio = if cb_w > 0 { luma_w / cb_w } else { 1 };
+            let v_ratio_cb = if cb_plane.height > 0 {
+                luma_h / cb_plane.height as usize
+            } else {
+                1
+            };
+
+            let mut alpha_out = Vec::with_capacity(pixel_count);
+
+            for y in 0..luma_h {
+                for x in 0..luma_w {
+                    let li = y * luma_plane.stride + x;
+                    let y_val = if li < luma_plane.data.len() {
+                        luma_plane.data[li] as f32
+                    } else {
+                        0.0
+                    };
+
+                    let cx = x / h_ratio.max(1);
+                    let cy = y / v_ratio_cb.max(1);
+
+                    let cb_i = cy * cb_plane.stride + cx;
+                    let cr_i = cy * cr_plane.stride + cx;
+
+                    let cb_val = if cb_i < cb_plane.data.len() {
+                        cb_plane.data[cb_i] as f32 - 128.0
+                    } else {
+                        0.0
+                    };
+
+                    let cr_val = if cr_i < cr_plane.data.len() {
+                        cr_plane.data[cr_i] as f32 - 128.0
+                    } else {
+                        0.0
+                    };
+
+                    // BT.601 YCbCr -> RGB
+                    let r = (y_val + 1.402 * cr_val).clamp(0.0, 255.0) as u8;
+                    let g = (y_val - 0.344136 * cb_val - 0.714136 * cr_val).clamp(0.0, 255.0) as u8;
+                    let b = (y_val + 1.772 * cb_val).clamp(0.0, 255.0) as u8;
+
+                    let alpha = self.calculate_alpha(r, g, b);
+                    alpha_out.push((alpha * 255.0) as u8);
+                }
+            }
+
+            Ok(alpha_out)
+        } else {
+            // Single-plane: use luma only as a fallback (luminance keying)
+            let mut alpha_out = Vec::with_capacity(pixel_count);
+            for &luma in &luma_plane.data[..pixel_count.min(luma_plane.data.len())] {
+                let alpha = self.calculate_alpha(luma, luma, luma);
+                alpha_out.push((alpha * 255.0) as u8);
+            }
+            Ok(alpha_out)
+        }
     }
 }
 

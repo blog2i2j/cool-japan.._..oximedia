@@ -208,7 +208,7 @@ mod tests {
         let result = nlmeans_filter(&frame, 0.5);
         assert!(result.is_ok());
 
-        let filtered = result.unwrap();
+        let filtered = result.expect("filtered should be valid");
         assert_eq!(filtered.width, 24);
         assert_eq!(filtered.height, 24);
     }

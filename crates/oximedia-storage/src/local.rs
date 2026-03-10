@@ -489,8 +489,10 @@ mod tests {
     use tempfile::TempDir;
 
     async fn make_store() -> (LocalStorage, TempDir) {
-        let dir = TempDir::new().unwrap();
-        let store = LocalStorage::new(dir.path()).await.unwrap();
+        let dir = TempDir::new().expect("temp dir should be created");
+        let store = LocalStorage::new(dir.path())
+            .await
+            .expect("valid local storage");
         (store, dir)
     }
 
@@ -513,7 +515,13 @@ mod tests {
         // SHA-256 of "hello world"
         let expected = "b94d27b9934d3e08a52e52d7da7dabfac484efe04294e576fd6a23b71b0b1a36";
         // The hash should be non-empty and hex
-        assert_eq!(key.content_hash.as_deref().unwrap().len(), 64);
+        assert_eq!(
+            key.content_hash
+                .as_deref()
+                .expect("content hash should exist")
+                .len(),
+            64
+        );
         let _ = expected; // suppress unused warning
     }
 
@@ -605,11 +613,11 @@ mod tests {
         let key = StorageKey::from_path("test/file.bin");
         let data = b"hello, oximedia!";
 
-        let meta = store.put(&key, data).await.unwrap();
+        let meta = store.put(&key, data).await.expect("put should succeed");
         assert_eq!(meta.size, data.len() as u64);
         assert!(meta.etag.is_some());
 
-        let read_back = store.get(&key).await.unwrap();
+        let read_back = store.get(&key).await.expect("get should succeed");
         assert_eq!(read_back, data);
     }
 
@@ -618,8 +626,8 @@ mod tests {
         let (store, _dir) = make_store().await;
         let key = StorageKey::from_path("del/file.txt");
 
-        store.put(&key, b"data").await.unwrap();
-        store.delete(&key).await.unwrap();
+        store.put(&key, b"data").await.expect("put should succeed");
+        store.delete(&key).await.expect("delete should succeed");
 
         let result = store.get(&key).await;
         assert!(result.is_err());
@@ -632,20 +640,20 @@ mod tests {
         store
             .put(&StorageKey::from_path("a/1.txt"), b"1")
             .await
-            .unwrap();
+            .expect("should succeed");
         store
             .put(&StorageKey::from_path("a/2.txt"), b"2")
             .await
-            .unwrap();
+            .expect("should succeed");
         store
             .put(&StorageKey::from_path("b/3.txt"), b"3")
             .await
-            .unwrap();
+            .expect("should succeed");
 
-        let all = store.list(None).await.unwrap();
+        let all = store.list(None).await.expect("list should succeed");
         assert_eq!(all.len(), 3);
 
-        let under_a = store.list(Some("a")).await.unwrap();
+        let under_a = store.list(Some("a")).await.expect("list should succeed");
         assert_eq!(under_a.len(), 2);
     }
 
@@ -654,9 +662,15 @@ mod tests {
         let (store, _dir) = make_store().await;
         let key = StorageKey::from_path("exists.bin");
 
-        assert!(!store.object_exists(key.key_str()).await.unwrap());
-        store.put(&key, b"x").await.unwrap();
-        assert!(store.object_exists(key.key_str()).await.unwrap());
+        assert!(!store
+            .object_exists(key.key_str())
+            .await
+            .expect("object exists check should succeed"));
+        store.put(&key, b"x").await.expect("put should succeed");
+        assert!(store
+            .object_exists(key.key_str())
+            .await
+            .expect("object exists check should succeed"));
     }
 
     #[tokio::test]
@@ -665,10 +679,16 @@ mod tests {
         store
             .put(&StorageKey::from_path("src.bin"), b"copy me")
             .await
-            .unwrap();
-        store.copy_object("src.bin", "dst.bin").await.unwrap();
+            .expect("should succeed");
+        store
+            .copy_object("src.bin", "dst.bin")
+            .await
+            .expect("copy should succeed");
 
-        let dst = store.get(&StorageKey::from_path("dst.bin")).await.unwrap();
+        let dst = store
+            .get(&StorageKey::from_path("dst.bin"))
+            .await
+            .expect("get should succeed");
         assert_eq!(dst, b"copy me");
     }
 
@@ -678,9 +698,12 @@ mod tests {
         store
             .put(&StorageKey::from_path("meta.txt"), b"content")
             .await
-            .unwrap();
+            .expect("should succeed");
 
-        let meta = store.get_metadata("meta.txt").await.unwrap();
+        let meta = store
+            .get_metadata("meta.txt")
+            .await
+            .expect("get metadata should succeed");
         assert_eq!(meta.size, 7);
         assert_eq!(meta.key, "meta.txt");
     }
@@ -691,21 +714,24 @@ mod tests {
         store
             .put(&StorageKey::from_path("video/a.mp4"), b"v1")
             .await
-            .unwrap();
+            .expect("should succeed");
         store
             .put(&StorageKey::from_path("video/b.mp4"), b"v2")
             .await
-            .unwrap();
+            .expect("should succeed");
         store
             .put(&StorageKey::from_path("audio/c.mp3"), b"a1")
             .await
-            .unwrap();
+            .expect("should succeed");
 
         let opts = ListOptions {
             prefix: Some("video".to_string()),
             ..Default::default()
         };
-        let result = store.list_objects(opts).await.unwrap();
+        let result = store
+            .list_objects(opts)
+            .await
+            .expect("list objects should succeed");
         assert_eq!(result.objects.len(), 2);
     }
 

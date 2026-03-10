@@ -167,7 +167,9 @@ mod tests {
     #[test]
     fn test_assess_file() {
         let assessor = RiskAssessor::new();
-        let risk = assessor.assess_file(&PathBuf::from("test.flv")).unwrap();
+        let risk = assessor
+            .assess_file(&PathBuf::from("test.flv"))
+            .expect("operation should succeed");
 
         assert_eq!(risk.risk_level, RiskLevel::Critical);
     }

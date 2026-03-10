@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_timecode_creation() {
-        let tc = Timecode::new(1, 30, 45, 12, 24.0, false).unwrap();
+        let tc = Timecode::new(1, 30, 45, 12, 24.0, false).expect("failed to create");
         assert_eq!(tc.hours, 1);
         assert_eq!(tc.minutes, 30);
         assert_eq!(tc.seconds, 45);
@@ -168,13 +168,13 @@ mod tests {
 
     #[test]
     fn test_timecode_to_frames() {
-        let tc = Timecode::new(1, 0, 0, 0, 24.0, false).unwrap();
+        let tc = Timecode::new(1, 0, 0, 0, 24.0, false).expect("failed to create");
         assert_eq!(tc.to_frames(), 3600 * 24);
     }
 
     #[test]
     fn test_timecode_to_seconds() {
-        let tc = Timecode::new(0, 1, 0, 0, 24.0, false).unwrap();
+        let tc = Timecode::new(0, 1, 0, 0, 24.0, false).expect("failed to create");
         assert!((tc.to_seconds() - 60.0).abs() < 1e-6);
     }
 
@@ -194,13 +194,13 @@ mod tests {
 
     #[test]
     fn test_timecode_display() {
-        let tc = Timecode::new(1, 30, 45, 12, 24.0, false).unwrap();
+        let tc = Timecode::new(1, 30, 45, 12, 24.0, false).expect("failed to create");
         assert_eq!(format!("{tc}"), "01:30:45:12");
     }
 
     #[test]
     fn test_timecode_display_drop_frame() {
-        let tc = Timecode::new(1, 30, 45, 12, 29.97, true).unwrap();
+        let tc = Timecode::new(1, 30, 45, 12, 29.97, true).expect("failed to create");
         assert_eq!(format!("{tc}"), "01:30:45;12");
     }
 

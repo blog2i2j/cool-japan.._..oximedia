@@ -420,7 +420,7 @@ mod tests {
         g2.add_edge(MergeEdge::new(mn(2), mn(3)));
 
         let config = MergeConfig::default();
-        let mapping = g1.merge(&g2, &config).unwrap();
+        let mapping = g1.merge(&g2, &config).expect("merge should succeed");
         assert_eq!(g1.node_count(), 4);
         assert_eq!(g1.edge_count(), 2);
         assert!(!mapping.has_remaps());
@@ -438,7 +438,7 @@ mod tests {
             conflict_strategy: ConflictStrategy::Remap,
             ..Default::default()
         };
-        let mapping = g1.merge(&g2, &config).unwrap();
+        let mapping = g1.merge(&g2, &config).expect("merge should succeed");
         assert_eq!(g1.node_count(), 2);
         assert!(mapping.has_remaps());
     }
@@ -455,9 +455,12 @@ mod tests {
             conflict_strategy: ConflictStrategy::KeepFirst,
             ..Default::default()
         };
-        g1.merge(&g2, &config).unwrap();
+        g1.merge(&g2, &config).expect("merge should succeed");
         assert_eq!(g1.node_count(), 1);
-        assert_eq!(g1.get_node(mn(0)).unwrap().label, "A");
+        assert_eq!(
+            g1.get_node(mn(0)).expect("value should be valid").label,
+            "A"
+        );
     }
 
     #[test]
@@ -472,9 +475,12 @@ mod tests {
             conflict_strategy: ConflictStrategy::KeepSecond,
             ..Default::default()
         };
-        g1.merge(&g2, &config).unwrap();
+        g1.merge(&g2, &config).expect("merge should succeed");
         assert_eq!(g1.node_count(), 1);
-        assert_eq!(g1.get_node(mn(0)).unwrap().label, "B");
+        assert_eq!(
+            g1.get_node(mn(0)).expect("value should be valid").label,
+            "B"
+        );
     }
 
     #[test]
@@ -505,7 +511,7 @@ mod tests {
             cross_links: vec![(mn(0), mn(1))],
             ..Default::default()
         };
-        g1.merge(&g2, &config).unwrap();
+        g1.merge(&g2, &config).expect("merge should succeed");
         assert_eq!(g1.edge_count(), 1);
     }
 

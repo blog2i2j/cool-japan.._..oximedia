@@ -371,7 +371,10 @@ mod tests {
 
         job.status = JobStatus::Running;
         assert!(reg.update(job));
-        assert_eq!(reg.get(id).unwrap().status, JobStatus::Running);
+        assert_eq!(
+            reg.get(id).expect("get should succeed").status,
+            JobStatus::Running
+        );
     }
 
     #[test]

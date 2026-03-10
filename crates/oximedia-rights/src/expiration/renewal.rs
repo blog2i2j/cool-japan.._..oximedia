@@ -70,15 +70,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_extend_grant() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("rights test operation should succeed");
         let db_path = format!("sqlite://{}/test.db", temp_dir.path().display());
-        let db = RightsDatabase::new(&db_path).await.unwrap();
+        let db = RightsDatabase::new(&db_path)
+            .await
+            .expect("rights test operation should succeed");
 
         // Create asset and owner first
         let asset = crate::rights::Asset::new("Test Asset", crate::rights::AssetType::Video);
-        asset.save(&db).await.unwrap();
+        asset
+            .save(&db)
+            .await
+            .expect("rights test operation should succeed");
         let owner = crate::rights::RightsOwner::new("Test Owner");
-        owner.save(&db).await.unwrap();
+        owner
+            .save(&db)
+            .await
+            .expect("rights test operation should succeed");
 
         let now = Utc::now();
         let grant = RightsGrant::new(
@@ -90,13 +98,23 @@ mod tests {
             false,
         );
         let grant_id = grant.id.clone();
-        grant.save(&db).await.unwrap();
+        grant
+            .save(&db)
+            .await
+            .expect("rights test operation should succeed");
 
         let manager = RenewalManager::new(&db);
-        let renewed = manager.extend_grant(&grant_id, 30).await.unwrap();
+        let renewed = manager
+            .extend_grant(&grant_id, 30)
+            .await
+            .expect("rights test operation should succeed");
 
         assert!(renewed.end_date.is_some());
-        let days_diff = (renewed.end_date.unwrap() - now).num_days();
+        let days_diff = (renewed
+            .end_date
+            .expect("rights test operation should succeed")
+            - now)
+            .num_days();
         assert!((59..=61).contains(&days_diff)); // Around 60 days
     }
 }

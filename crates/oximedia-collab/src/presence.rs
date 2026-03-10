@@ -245,7 +245,9 @@ mod tests {
     fn test_register_and_get_user() {
         let mut mgr = PresenceManager::new();
         mgr.register_user("alice", "Alice", [255, 0, 0], 1_000);
-        let u = mgr.get_user("alice").unwrap();
+        let u = mgr
+            .get_user("alice")
+            .expect("collab test operation should succeed");
         assert_eq!(u.display_name, "Alice");
         assert_eq!(u.avatar_color, [255, 0, 0]);
     }
@@ -263,7 +265,12 @@ mod tests {
         let mut mgr = PresenceManager::new();
         mgr.register_user("bob", "Bob", [0; 3], 0);
         mgr.update_presence("bob", PresenceState::Away);
-        assert_eq!(mgr.get_user("bob").unwrap().state(), PresenceState::Away);
+        assert_eq!(
+            mgr.get_user("bob")
+                .expect("collab test operation should succeed")
+                .state(),
+            PresenceState::Away
+        );
     }
 
     #[test]
@@ -282,7 +289,11 @@ mod tests {
         let mut mgr = PresenceManager::new();
         mgr.register_user("c", "C", [0; 3], 0);
         mgr.update_cursor("c", 10.5, 20.3);
-        let pos = mgr.get_user("c").unwrap().cursor_position.unwrap();
+        let pos = mgr
+            .get_user("c")
+            .expect("collab test operation should succeed")
+            .cursor_position
+            .expect("collab test operation should succeed");
         assert!((pos.0 - 10.5).abs() < 1e-9);
         assert!((pos.1 - 20.3).abs() < 1e-9);
     }

@@ -988,7 +988,7 @@ mod tests {
         let result = analyzer.analyze(&gradient, stride);
 
         assert!(result.texture_metrics.is_some());
-        let texture = result.texture_metrics.unwrap();
+        let texture = result.texture_metrics.expect("should succeed");
         assert!(texture.high_texture_ratio >= 0.0 && texture.high_texture_ratio <= 1.0);
         assert!(texture.low_texture_ratio >= 0.0 && texture.low_texture_ratio <= 1.0);
     }

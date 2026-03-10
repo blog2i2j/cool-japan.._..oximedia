@@ -1,7 +1,7 @@
 # oximedia-core
 
 ![Status: Stable](https://img.shields.io/badge/status-stable-green)
-![Version: 0.1.0](https://img.shields.io/badge/version-0.1.0-blue)
+![Version: 0.1.1](https://img.shields.io/badge/version-0.1.1-blue)
 
 Core types and traits for OxiMedia.
 

@@ -287,7 +287,7 @@ mod tests {
         let builder = PesPacketBuilder::new(CodecId::Av1, 0);
         let payload = vec![0x01, 0x02, 0x03, 0x04];
 
-        let pes_packet = builder.build(&payload).unwrap();
+        let pes_packet = builder.build(&payload).expect("operation should succeed");
 
         // Check start code
         assert_eq!(&pes_packet[0..3], PES_START_CODE_PREFIX);
@@ -308,7 +308,7 @@ mod tests {
         let builder = PesPacketBuilder::new(CodecId::Av1, 0).with_pts(90000);
         let payload = vec![0x01, 0x02, 0x03];
 
-        let pes_packet = builder.build(&payload).unwrap();
+        let pes_packet = builder.build(&payload).expect("operation should succeed");
 
         // Check flags
         assert_eq!(pes_packet[7] & 0xC0, 0x80); // PTS only
@@ -327,7 +327,7 @@ mod tests {
             .with_dts(89000);
         let payload = vec![0x01, 0x02, 0x03];
 
-        let pes_packet = builder.build(&payload).unwrap();
+        let pes_packet = builder.build(&payload).expect("operation should succeed");
 
         // Check flags
         assert_eq!(pes_packet[7] & 0xC0, 0xC0); // Both PTS and DTS
@@ -356,7 +356,9 @@ mod tests {
         let builder = PesPacketBuilder::new(CodecId::Av1, 0).with_pts(90000);
         let payload = vec![0u8; 1000];
 
-        let packets = builder.build_chunked(&payload, 300).unwrap();
+        let packets = builder
+            .build_chunked(&payload, 300)
+            .expect("operation should succeed");
 
         // Should create 4 chunks: 300, 300, 300, 100
         assert_eq!(packets.len(), 4);

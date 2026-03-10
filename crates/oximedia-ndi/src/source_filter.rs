@@ -216,7 +216,7 @@ mod tests {
     use super::*;
 
     fn make_addr(ip: &str) -> SocketAddr {
-        format!("{ip}:5960").parse().unwrap()
+        format!("{ip}:5960").parse().expect("expected valid parse")
     }
 
     #[test]
@@ -325,7 +325,7 @@ mod tests {
 
     #[test]
     fn test_scan_subnet_candidates_count() {
-        let base = "192.168.1.0".parse().unwrap();
+        let base = "192.168.1.0".parse().expect("expected valid parse");
         let candidates = scan_subnet_candidates(base, 5960);
         assert_eq!(candidates.len(), 254);
         assert_eq!(candidates[0].port(), 5960);
@@ -333,7 +333,7 @@ mod tests {
 
     #[test]
     fn test_scan_subnet_candidates_range() {
-        let base = "10.0.0.0".parse().unwrap();
+        let base = "10.0.0.0".parse().expect("expected valid parse");
         let candidates = scan_subnet_candidates(base, 5960);
         let first_ip = match candidates[0].ip() {
             std::net::IpAddr::V4(v4) => v4.octets()[3],
@@ -351,14 +351,14 @@ mod tests {
     fn test_parse_ndi_address_with_port() {
         let addr = parse_ndi_address("192.168.1.100:5961");
         assert!(addr.is_some());
-        assert_eq!(addr.unwrap().port(), 5961);
+        assert_eq!(addr.expect("expected addr to be Some/Ok").port(), 5961);
     }
 
     #[test]
     fn test_parse_ndi_address_without_port() {
         let addr = parse_ndi_address("192.168.1.100");
         assert!(addr.is_some());
-        assert_eq!(addr.unwrap().port(), 5960);
+        assert_eq!(addr.expect("expected addr to be Some/Ok").port(), 5960);
     }
 
     #[test]

@@ -704,7 +704,7 @@ mod tests {
         let pool = ReferenceFramePool::new();
         let free = pool.find_free_buffer();
         assert!(free.is_some());
-        assert_eq!(free.unwrap(), 0);
+        assert_eq!(free.expect("should succeed"), 0);
     }
 
     #[test]

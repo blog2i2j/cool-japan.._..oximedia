@@ -208,9 +208,9 @@ mod tests {
         q.push(task(3, 5));
 
         // Owner pops LIFO (last pushed = first out)
-        assert_eq!(q.pop().unwrap().id, 3);
-        assert_eq!(q.pop().unwrap().id, 2);
-        assert_eq!(q.pop().unwrap().id, 1);
+        assert_eq!(q.pop().expect("pop should return a value").id, 3);
+        assert_eq!(q.pop().expect("pop should return a value").id, 2);
+        assert_eq!(q.pop().expect("pop should return a value").id, 1);
         assert!(q.pop().is_none());
     }
 
@@ -222,9 +222,9 @@ mod tests {
         q.push(task(3, 5));
 
         // Thief steals FIFO (first pushed = first stolen)
-        assert_eq!(q.steal().unwrap().id, 1);
-        assert_eq!(q.steal().unwrap().id, 2);
-        assert_eq!(q.steal().unwrap().id, 3);
+        assert_eq!(q.steal().expect("steal should return a task").id, 1);
+        assert_eq!(q.steal().expect("steal should return a task").id, 2);
+        assert_eq!(q.steal().expect("steal should return a task").id, 3);
         assert!(q.steal().is_none());
     }
 
@@ -286,7 +286,7 @@ mod tests {
         sched.submit_task(0, task(2, 5));
 
         // Steal FIFO (task 1 was pushed first)
-        let stolen = sched.steal_from(0).unwrap();
+        let stolen = sched.steal_from(0).expect("steal_from should succeed");
         assert_eq!(stolen.id, 1);
         assert_eq!(sched.total_pending(), 1);
     }
@@ -312,7 +312,7 @@ mod tests {
         sched.submit_task(0, task(2, 5));
 
         // Owner pops LIFO (task 2 was pushed last)
-        let t = sched.pop_for(0).unwrap();
+        let t = sched.pop_for(0).expect("pop_for should return a task");
         assert_eq!(t.id, 2);
     }
 

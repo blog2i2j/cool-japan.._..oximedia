@@ -71,7 +71,7 @@ impl NoiseAnalyzer {
 
         // Use lower percentile of amplitudes as noise floor estimate
         let mut amplitudes: Vec<f32> = samples.iter().map(|&x| x.abs()).collect();
-        amplitudes.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        amplitudes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         // 10th percentile as noise floor
         let percentile_idx = (amplitudes.len() as f32 * 0.1) as usize;
@@ -106,7 +106,7 @@ mod tests {
         let result = analyzer.analyze_consistency(&samples, 44100.0);
         assert!(result.is_ok());
 
-        let consistency = result.unwrap();
+        let consistency = result.expect("expected successful result");
         assert!(consistency.is_consistent);
     }
 

@@ -384,9 +384,9 @@ mod tests {
         let mut mgr = TopologyManager::new();
         mgr.add_node(TopologyNode::new("n1", loc("us", "dc1", "r1", "h1")));
         mgr.set_available("n1", false);
-        assert!(!mgr.get_node("n1").unwrap().available);
+        assert!(!mgr.get_node("n1").expect("node should exist").available);
         mgr.set_available("n1", true);
-        assert!(mgr.get_node("n1").unwrap().available);
+        assert!(mgr.get_node("n1").expect("node should exist").available);
     }
 
     #[test]

@@ -153,7 +153,8 @@ pub fn ycbcr_to_rgb(pixel: YcbcrPixel, standard: ColorStandard, range: RangeMode
     };
 
     let r = y_f + 2.0 * (1.0 - kr) * cr_f;
-    let g = y_f - 2.0 * kb * (1.0 - kb) / (1.0 - kr - kb) * cb_f
+    let g = y_f
+        - 2.0 * kb * (1.0 - kb) / (1.0 - kr - kb) * cb_f
         - 2.0 * kr * (1.0 - kr) / (1.0 - kr - kb) * cr_f;
     let b = y_f + 2.0 * (1.0 - kb) * cb_f;
 
@@ -167,11 +168,7 @@ pub fn ycbcr_to_rgb(pixel: YcbcrPixel, standard: ColorStandard, range: RangeMode
 /// Batch-convert RGB buffer to YCbCr buffer (packed RGB -> packed YCbCr).
 ///
 /// Input buffer must have length divisible by 3.
-pub fn batch_rgb_to_ycbcr(
-    rgb: &[u8],
-    standard: ColorStandard,
-    range: RangeMode,
-) -> Vec<u8> {
+pub fn batch_rgb_to_ycbcr(rgb: &[u8], standard: ColorStandard, range: RangeMode) -> Vec<u8> {
     let mut out = Vec::with_capacity(rgb.len());
     let mut i = 0;
     while i + 2 < rgb.len() {
@@ -191,11 +188,7 @@ pub fn batch_rgb_to_ycbcr(
 /// Batch-convert YCbCr buffer to RGB buffer (packed YCbCr -> packed RGB).
 ///
 /// Input buffer must have length divisible by 3.
-pub fn batch_ycbcr_to_rgb(
-    ycbcr: &[u8],
-    standard: ColorStandard,
-    range: RangeMode,
-) -> Vec<u8> {
+pub fn batch_ycbcr_to_rgb(ycbcr: &[u8], standard: ColorStandard, range: RangeMode) -> Vec<u8> {
     let mut out = Vec::with_capacity(ycbcr.len());
     let mut i = 0;
     while i + 2 < ycbcr.len() {

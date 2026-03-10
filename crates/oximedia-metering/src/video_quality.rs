@@ -385,24 +385,28 @@ mod tests {
 
     #[test]
     fn test_psnr_identical_frames() {
-        let calc = PsnrCalculator::new(100, 100, 1.0).unwrap();
+        let calc = PsnrCalculator::new(100, 100, 1.0).expect("calc should be valid");
 
         let frame1 = Array2::from_elem((100, 100), 0.5);
         let frame2 = Array2::from_elem((100, 100), 0.5);
 
-        let psnr = calc.calculate(&frame1, &frame2).unwrap();
+        let psnr = calc
+            .calculate(&frame1, &frame2)
+            .expect("psnr should be valid");
 
         assert!(psnr.is_infinite()); // Perfect match
     }
 
     #[test]
     fn test_psnr_different_frames() {
-        let calc = PsnrCalculator::new(100, 100, 1.0).unwrap();
+        let calc = PsnrCalculator::new(100, 100, 1.0).expect("calc should be valid");
 
         let frame1 = Array2::from_elem((100, 100), 0.5);
         let frame2 = Array2::from_elem((100, 100), 0.6);
 
-        let psnr = calc.calculate(&frame1, &frame2).unwrap();
+        let psnr = calc
+            .calculate(&frame1, &frame2)
+            .expect("psnr should be valid");
 
         assert!(psnr.is_finite());
         assert!(psnr > 0.0);
@@ -410,7 +414,7 @@ mod tests {
 
     #[test]
     fn test_mse() {
-        let calc = PsnrCalculator::new(100, 100, 1.0).unwrap();
+        let calc = PsnrCalculator::new(100, 100, 1.0).expect("calc should be valid");
 
         let frame1 = Array2::from_elem((100, 100), 0.5);
         let frame2 = Array2::from_elem((100, 100), 0.6);
@@ -423,35 +427,39 @@ mod tests {
 
     #[test]
     fn test_ssim_identical_frames() {
-        let calc = SsimCalculator::new(100, 100, 1.0).unwrap();
+        let calc = SsimCalculator::new(100, 100, 1.0).expect("calc should be valid");
 
         let frame1 = Array2::from_elem((100, 100), 0.5);
         let frame2 = Array2::from_elem((100, 100), 0.5);
 
-        let ssim = calc.calculate(&frame1, &frame2).unwrap();
+        let ssim = calc
+            .calculate(&frame1, &frame2)
+            .expect("ssim should be valid");
 
         assert!((ssim - 1.0).abs() < 0.01); // Should be very close to 1.0
     }
 
     #[test]
     fn test_blockiness_detector() {
-        let detector = BlockinessDetector::new(64, 64, 8).unwrap();
+        let detector = BlockinessDetector::new(64, 64, 8).expect("detector should be valid");
 
         let frame = Array2::from_elem((64, 64), 0.5);
 
-        let blockiness = detector.detect(&frame).unwrap();
+        let blockiness = detector.detect(&frame).expect("blockiness should be valid");
 
         assert_eq!(blockiness, 0.0); // Uniform frame has no blockiness
     }
 
     #[test]
     fn test_quality_analyzer() {
-        let analyzer = QualityAnalyzer::new(100, 100, 1.0).unwrap();
+        let analyzer = QualityAnalyzer::new(100, 100, 1.0).expect("analyzer should be valid");
 
         let reference = Array2::from_elem((100, 100), 0.5);
         let distorted = Array2::from_elem((100, 100), 0.52);
 
-        let metrics = analyzer.analyze(&reference, &distorted).unwrap();
+        let metrics = analyzer
+            .analyze(&reference, &distorted)
+            .expect("metrics should be valid");
 
         assert!(metrics.psnr.is_finite());
         assert!(metrics.ssim >= 0.0 && metrics.ssim <= 1.0);

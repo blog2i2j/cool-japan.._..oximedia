@@ -262,13 +262,27 @@ mod tests {
 
     #[test]
     fn test_condition_value_as_f64_int() {
-        assert!((ConditionValue::Int(5).as_f64().unwrap() - 5.0).abs() < f64::EPSILON);
+        assert!(
+            (ConditionValue::Int(5)
+                .as_f64()
+                .expect("as_f64 should succeed")
+                - 5.0)
+                .abs()
+                < f64::EPSILON
+        );
     }
 
     #[test]
     fn test_condition_value_as_f64_float() {
         let test_value = std::f64::consts::PI;
-        assert!((ConditionValue::Float(test_value).as_f64().unwrap() - test_value).abs() < 1e-9);
+        assert!(
+            (ConditionValue::Float(test_value)
+                .as_f64()
+                .expect("as_f64 should succeed")
+                - test_value)
+                .abs()
+                < 1e-9
+        );
     }
 
     #[test]

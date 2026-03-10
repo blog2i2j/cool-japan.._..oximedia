@@ -210,7 +210,11 @@ impl ImagePyramid {
             }
 
             let mut level = PyramidLevel::new(cur_width, cur_height, cur_scale);
-            level.downsample_from(self.levels.last().unwrap());
+            level.downsample_from(
+                self.levels
+                    .last()
+                    .expect("levels is non-empty by construction"),
+            );
             self.levels.push(level);
         }
     }

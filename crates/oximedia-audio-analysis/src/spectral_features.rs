@@ -239,7 +239,9 @@ mod tests {
         let mut flux = SpectralFlux::new(false);
         let mags = vec![1.0, 1.0, 1.0];
         flux.compute_flux(&mags);
-        let f = flux.compute_flux(&mags).unwrap();
+        let f = flux
+            .compute_flux(&mags)
+            .expect("flux computation should succeed");
         assert!(f.abs() < 1e-6, "flux={f}");
     }
 
@@ -247,7 +249,9 @@ mod tests {
     fn test_flux_increasing_energy() {
         let mut flux = SpectralFlux::new(false);
         flux.compute_flux(&[0.0, 0.0, 0.0]);
-        let f = flux.compute_flux(&[1.0, 1.0, 1.0]).unwrap();
+        let f = flux
+            .compute_flux(&[1.0, 1.0, 1.0])
+            .expect("flux computation should succeed");
         assert!(f > 0.0, "Expected positive flux, got {f}");
     }
 
@@ -262,8 +266,12 @@ mod tests {
         flux_full.compute_flux(&frame1);
         flux_half.compute_flux(&frame1);
 
-        let full = flux_full.compute_flux(&frame2).unwrap();
-        let half = flux_half.compute_flux(&frame2).unwrap();
+        let full = flux_full
+            .compute_flux(&frame2)
+            .expect("flux computation should succeed");
+        let half = flux_half
+            .compute_flux(&frame2)
+            .expect("flux computation should succeed");
 
         // Half-wave should be 0 (energy drop suppressed)
         assert!(half.abs() < 1e-6, "half={half}");

@@ -546,7 +546,10 @@ fn find_connected_components(binary: &[u8], width: u32, height: u32) -> Vec<Sali
                     labels[y * w + x] = next_label;
                     next_label += 1;
                 } else {
-                    labels[y * w + x] = *neighbors.iter().min().unwrap();
+                    labels[y * w + x] = *neighbors
+                        .iter()
+                        .min()
+                        .expect("neighbors is non-empty by construction");
                 }
             }
         }
@@ -610,21 +613,24 @@ mod tests {
     #[test]
     fn test_edge_saliency() {
         let image = vec![128u8; 100];
-        let result = compute_edge_saliency(&image, 10, 10).unwrap();
+        let result =
+            compute_edge_saliency(&image, 10, 10).expect("compute_edge_saliency should succeed");
         assert_eq!(result.len(), 100);
     }
 
     #[test]
     fn test_frequency_tuned() {
         let image = vec![128u8; 100];
-        let result = compute_frequency_tuned(&image, 10, 10).unwrap();
+        let result = compute_frequency_tuned(&image, 10, 10)
+            .expect("compute_frequency_tuned should succeed");
         assert_eq!(result.len(), 100);
     }
 
     #[test]
     fn test_combined_saliency() {
         let image = vec![128u8; 100];
-        let result = compute_combined_saliency(&image, 10, 10).unwrap();
+        let result = compute_combined_saliency(&image, 10, 10)
+            .expect("compute_combined_saliency should succeed");
         assert_eq!(result.len(), 100);
     }
 

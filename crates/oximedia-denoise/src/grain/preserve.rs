@@ -207,7 +207,7 @@ mod tests {
         let mut frame = VideoFrame::new(PixelFormat::Yuv420p, 64, 64);
         frame.allocate();
 
-        let grain_map = analyze_grain(&frame).unwrap();
+        let grain_map = analyze_grain(&frame).expect("grain_map should be valid");
         let result = preserve_grain_denoise(&frame, &grain_map, 0.5);
         assert!(result.is_ok());
     }
@@ -217,7 +217,7 @@ mod tests {
         let mut frame = VideoFrame::new(PixelFormat::Yuv420p, 64, 64);
         frame.allocate();
 
-        let grain_map = analyze_grain(&frame).unwrap();
+        let grain_map = analyze_grain(&frame).expect("grain_map should be valid");
         let result = adaptive_grain_preserve(&frame, &grain_map, 0.5);
         assert!(result.is_ok());
     }

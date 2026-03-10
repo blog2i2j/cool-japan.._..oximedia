@@ -505,7 +505,9 @@ mod tests {
         let range1 = TimelineRange::new(Position::new(10), 50);
         let range2 = TimelineRange::new(Position::new(40), 30);
 
-        let intersection = range1.intersection(&range2).unwrap();
+        let intersection = range1
+            .intersection(&range2)
+            .expect("intersection should be valid");
         assert_eq!(intersection.start.0, 40);
         assert_eq!(intersection.duration, 20);
     }

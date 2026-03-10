@@ -415,7 +415,7 @@ mod tests {
         let mut catalog = ShardCatalog::new();
         let key = ShardKey::new("shard-0");
         catalog.upsert(ShardMetadata::new(key.clone(), "n0", 512, 100));
-        let meta = catalog.get(&key).unwrap();
+        let meta = catalog.get(&key).expect("get should return a value");
         assert_eq!(meta.size_bytes, 512);
     }
 
@@ -426,7 +426,13 @@ mod tests {
         catalog.upsert(ShardMetadata::new(key.clone(), "n0", 512, 100));
         catalog.upsert(ShardMetadata::new(key.clone(), "n1", 1024, 200));
         assert_eq!(catalog.len(), 1);
-        assert_eq!(catalog.get(&key).unwrap().size_bytes, 1024);
+        assert_eq!(
+            catalog
+                .get(&key)
+                .expect("get should return a value")
+                .size_bytes,
+            1024
+        );
     }
 
     #[test]

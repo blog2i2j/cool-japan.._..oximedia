@@ -338,7 +338,7 @@ mod tests {
         // 120 BPM → period = 0.5 s
         let times: Vec<f32> = (0..10).map(|i| i as f32 * 0.5).collect();
         let onsets = make_onsets(&times);
-        let est = estimate_tempo(&onsets, 40.0, 200.0).unwrap();
+        let est = estimate_tempo(&onsets, 40.0, 200.0).expect("tempo estimation should succeed");
         assert!((est.bpm - 120.0).abs() < 1.0, "bpm = {}", est.bpm);
         assert!(est.confidence > 0.8);
     }
@@ -347,7 +347,7 @@ mod tests {
     fn test_estimate_tempo_result_plausible() {
         let times: Vec<f32> = (0..8).map(|i| i as f32 * 0.6).collect(); // 100 BPM
         let onsets = make_onsets(&times);
-        let est = estimate_tempo(&onsets, 40.0, 200.0).unwrap();
+        let est = estimate_tempo(&onsets, 40.0, 200.0).expect("tempo estimation should succeed");
         assert!(est.is_plausible());
     }
 
@@ -362,7 +362,7 @@ mod tests {
         let times: Vec<f32> = (0..8).map(|i| i as f32 * 0.5).collect();
         let onsets = make_onsets(&times);
         let tempo = TempoEstimate::from_bpm(120.0, 1.0);
-        let grid = build_beat_grid(&onsets, tempo, 4.0).unwrap();
+        let grid = build_beat_grid(&onsets, tempo, 4.0).expect("beat grid should succeed");
         assert_eq!(grid.all_beat_times().len() as u32, grid.beat_count);
     }
 
@@ -371,7 +371,7 @@ mod tests {
         let times: Vec<f32> = (0..8).map(|i| i as f32 * 0.5).collect();
         let onsets = make_onsets(&times);
         let tempo = TempoEstimate::from_bpm(120.0, 1.0);
-        let grid = build_beat_grid(&onsets, tempo, 4.0).unwrap();
+        let grid = build_beat_grid(&onsets, tempo, 4.0).expect("beat grid should succeed");
         let beats = grid.all_beat_times();
         for w in beats.windows(2) {
             let diff = w[1] - w[0];
@@ -384,7 +384,7 @@ mod tests {
         let times: Vec<f32> = (0..16).map(|i| i as f32 * 0.5).collect();
         let onsets = make_onsets(&times);
         let tempo = TempoEstimate::from_bpm(120.0, 1.0);
-        let grid = build_beat_grid(&onsets, tempo, 8.0).unwrap();
+        let grid = build_beat_grid(&onsets, tempo, 8.0).expect("beat grid should succeed");
         let sigs = detect_time_signature(&onsets, &grid);
         assert!(!sigs.is_empty());
         // Sorted by confidence descending
@@ -399,7 +399,7 @@ mod tests {
         let times: Vec<f32> = (0..32).map(|i| i as f32 * 0.5).collect();
         let onsets = make_onsets(&times);
         let tempo = TempoEstimate::from_bpm(120.0, 1.0);
-        let grid = build_beat_grid(&onsets, tempo, 16.0).unwrap();
+        let grid = build_beat_grid(&onsets, tempo, 16.0).expect("beat grid should succeed");
         let sigs = detect_time_signature(&onsets, &grid);
         assert!(!sigs.is_empty());
         // Top candidate has numerator 2 or 4 (both valid for very regular signals)

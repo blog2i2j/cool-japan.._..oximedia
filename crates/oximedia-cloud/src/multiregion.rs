@@ -262,7 +262,9 @@ mod tests {
         let cfg = MultiRegionConfig::new(CloudRegion::UsEast1).with_secondary(CloudRegion::EuWest1);
         let mut router = MultiRegionRouter::new();
         router.update_health(RegionHealth::new(CloudRegion::UsEast1, 30, 0.0, true));
-        let selected = router.select_region(&cfg).unwrap();
+        let selected = router
+            .select_region(&cfg)
+            .expect("selected should be valid");
         assert_eq!(selected, &CloudRegion::UsEast1);
     }
 
@@ -274,7 +276,9 @@ mod tests {
         router.update_health(RegionHealth::new(CloudRegion::UsEast1, 600, 0.0, true));
         // Secondary healthy.
         router.update_health(RegionHealth::new(CloudRegion::EuWest1, 80, 0.0, true));
-        let selected = router.select_region(&cfg).unwrap();
+        let selected = router
+            .select_region(&cfg)
+            .expect("selected should be valid");
         assert_eq!(selected, &CloudRegion::EuWest1);
     }
 
@@ -299,7 +303,9 @@ mod tests {
     fn test_router_no_health_data_selects_primary() {
         let cfg = MultiRegionConfig::new(CloudRegion::UsEast1);
         let router = MultiRegionRouter::new();
-        let selected = router.select_region(&cfg).unwrap();
+        let selected = router
+            .select_region(&cfg)
+            .expect("selected should be valid");
         assert_eq!(selected, &CloudRegion::UsEast1);
     }
 }

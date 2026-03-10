@@ -73,6 +73,7 @@ pub mod metrics;
 pub mod percentile_tracker;
 pub mod perf_comparison;
 pub mod pipeline_bench;
+pub mod regression;
 pub mod regression_bench;
 pub mod regression_detect;
 pub mod report;
@@ -719,7 +720,7 @@ mod tests {
             .build();
 
         assert!(config.is_ok());
-        let config = config.unwrap();
+        let config = config.expect("config should be valid");
         assert_eq!(config.codecs.len(), 2);
         assert_eq!(config.parallel_jobs, 4);
         assert!(config.enable_psnr);
@@ -1282,23 +1283,32 @@ mod extended_tests {
 
     #[test]
     fn test_parse_bitrate() {
-        assert_eq!(BenchmarkUtils::parse_bitrate("2000kbps").unwrap(), 2000);
-        assert_eq!(BenchmarkUtils::parse_bitrate("5Mbps").unwrap(), 5000);
-        assert_eq!(BenchmarkUtils::parse_bitrate("1500").unwrap(), 1500);
+        assert_eq!(
+            BenchmarkUtils::parse_bitrate("2000kbps").expect("test expectation failed"),
+            2000
+        );
+        assert_eq!(
+            BenchmarkUtils::parse_bitrate("5Mbps").expect("test expectation failed"),
+            5000
+        );
+        assert_eq!(
+            BenchmarkUtils::parse_bitrate("1500").expect("test expectation failed"),
+            1500
+        );
     }
 
     #[test]
     fn test_parse_codec() {
         assert!(matches!(
-            CliHelpers::parse_codec("av1").unwrap(),
+            CliHelpers::parse_codec("av1").expect("test expectation failed"),
             CodecId::Av1
         ));
         assert!(matches!(
-            CliHelpers::parse_codec("vp9").unwrap(),
+            CliHelpers::parse_codec("vp9").expect("test expectation failed"),
             CodecId::Vp9
         ));
         assert!(matches!(
-            CliHelpers::parse_codec("vp8").unwrap(),
+            CliHelpers::parse_codec("vp8").expect("test expectation failed"),
             CodecId::Vp8
         ));
     }

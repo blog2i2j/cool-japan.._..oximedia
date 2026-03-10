@@ -313,14 +313,14 @@ mod tests {
     fn test_spd_from_pairs() {
         let spd = SpectralDistribution::from_pairs([(550, 1.0), (600, 0.8)]);
         assert_eq!(spd.len(), 2);
-        assert!((spd.get(550).unwrap() - 1.0).abs() < f64::EPSILON);
+        assert!((spd.get(550).expect("spectral value should exist") - 1.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn test_spd_set_get() {
         let mut spd = SpectralDistribution::new();
         spd.set(500, 0.5);
-        assert!((spd.get(500).unwrap() - 0.5).abs() < f64::EPSILON);
+        assert!((spd.get(500).expect("spectral value should exist") - 0.5).abs() < f64::EPSILON);
         assert!(spd.get(501).is_none());
     }
 
@@ -366,15 +366,15 @@ mod tests {
     fn test_scaled() {
         let spd = SpectralDistribution::from_pairs([(500, 2.0)]);
         let scaled = spd.scaled(0.5);
-        assert!((scaled.get(500).unwrap() - 1.0).abs() < f64::EPSILON);
+        assert!((scaled.get(500).expect("spectral value should exist") - 1.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn test_normalized() {
         let spd = SpectralDistribution::from_pairs([(500, 4.0), (600, 2.0)]);
         let norm = spd.normalized();
-        assert!((norm.get(500).unwrap() - 1.0).abs() < f64::EPSILON);
-        assert!((norm.get(600).unwrap() - 0.5).abs() < f64::EPSILON);
+        assert!((norm.get(500).expect("spectral value should exist") - 1.0).abs() < f64::EPSILON);
+        assert!((norm.get(600).expect("spectral value should exist") - 0.5).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -382,8 +382,8 @@ mod tests {
         let a = SpectralDistribution::from_pairs([(500, 1.0)]);
         let b = SpectralDistribution::from_pairs([(500, 0.5), (600, 0.3)]);
         let c = a.add(&b);
-        assert!((c.get(500).unwrap() - 1.5).abs() < f64::EPSILON);
-        assert!((c.get(600).unwrap() - 0.3).abs() < f64::EPSILON);
+        assert!((c.get(500).expect("spectral value should exist") - 1.5).abs() < f64::EPSILON);
+        assert!((c.get(600).expect("spectral value should exist") - 0.3).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -398,7 +398,7 @@ mod tests {
     fn test_d65_illuminant() {
         let d65 = d65_illuminant();
         assert!(!d65.is_empty());
-        assert!(d65.get(560).unwrap() > 0.0);
+        assert!(d65.get(560).expect("spectral value should exist") > 0.0);
     }
 
     #[test]

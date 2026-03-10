@@ -163,7 +163,7 @@ mod tests {
                 Timestamp::from_secs(3),
                 "Test".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
         let renderer = CaptionRenderer::new(1920, 1080);
         let active = renderer.get_active_captions(&track, Timestamp::from_secs(2));

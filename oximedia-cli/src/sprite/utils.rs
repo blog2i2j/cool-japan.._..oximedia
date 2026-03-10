@@ -36,7 +36,11 @@ pub fn parse_duration(s: &str) -> Result<f64> {
     }
 
     // Check for suffix
-    let last_char = s.chars().last().unwrap();
+    // Safety: `s` is non-empty — verified by the `is_empty()` guard above.
+    let last_char = s
+        .chars()
+        .last()
+        .expect("s is non-empty: guarded by the is_empty() check above");
 
     if last_char.is_ascii_digit() || last_char == '.' {
         // No suffix, assume seconds

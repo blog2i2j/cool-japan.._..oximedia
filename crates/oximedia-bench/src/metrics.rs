@@ -15,7 +15,7 @@
 //!
 //! # fn example(original: &VideoFrame, encoded: &VideoFrame) {
 //! let calculator = MetricsCalculator::new(true, true, false);
-//! let metrics = calculator.calculate(original, encoded).unwrap();
+//! let metrics = calculator.calculate(original, encoded)?;
 //!
 //! println!("PSNR: {:?} dB", metrics.psnr);
 //! println!("SSIM: {:?}", metrics.ssim);

@@ -359,23 +359,23 @@ mod tests {
     #[test]
     fn test_encoder_codec_id() {
         let config = EncoderConfig::av1(1920, 1080);
-        let encoder = Av1Encoder::new(config).unwrap();
+        let encoder = Av1Encoder::new(config).expect("should succeed");
         assert_eq!(encoder.codec(), CodecId::Av1);
     }
 
     #[test]
     fn test_encode_frame() {
         let config = EncoderConfig::av1(320, 240);
-        let mut encoder = Av1Encoder::new(config).unwrap();
+        let mut encoder = Av1Encoder::new(config).expect("should succeed");
 
         let mut frame = VideoFrame::new(PixelFormat::Yuv420p, 320, 240);
         frame.allocate();
 
         assert!(encoder.send_frame(&frame).is_ok());
 
-        let packet = encoder.receive_packet().unwrap();
+        let packet = encoder.receive_packet().expect("should succeed");
         assert!(packet.is_some());
-        let packet = packet.unwrap();
+        let packet = packet.expect("should succeed");
         assert!(packet.keyframe);
         assert!(!packet.data.is_empty());
     }
@@ -383,7 +383,7 @@ mod tests {
     #[test]
     fn test_frame_dimension_mismatch() {
         let config = EncoderConfig::av1(320, 240);
-        let mut encoder = Av1Encoder::new(config).unwrap();
+        let mut encoder = Av1Encoder::new(config).expect("should succeed");
 
         let frame = VideoFrame::new(PixelFormat::Yuv420p, 640, 480);
         let result = encoder.send_frame(&frame);

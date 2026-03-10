@@ -908,8 +908,8 @@ mod tests {
         let video = create_video_stream();
         let audio = create_audio_stream();
 
-        let idx1 = muxer.add_stream(video).unwrap();
-        let idx2 = muxer.add_stream(audio).unwrap();
+        let idx1 = muxer.add_stream(video).expect("operation should succeed");
+        let idx2 = muxer.add_stream(audio).expect("operation should succeed");
 
         assert_eq!(idx1, 0);
         assert_eq!(idx2, 1);
@@ -923,8 +923,12 @@ mod tests {
         let mut muxer = MatroskaMuxer::new(sink, config);
 
         // VP9 + Opus = WebM
-        muxer.add_stream(create_video_stream()).unwrap();
-        muxer.add_stream(create_audio_stream()).unwrap();
+        muxer
+            .add_stream(create_video_stream())
+            .expect("operation should succeed");
+        muxer
+            .add_stream(create_audio_stream())
+            .expect("operation should succeed");
         muxer.determine_output_format();
 
         assert_eq!(muxer.output_format, ContainerFormat::WebM);
@@ -935,7 +939,9 @@ mod tests {
         let mut muxer2 = MatroskaMuxer::new(sink2, config2);
 
         let flac_stream = StreamInfo::new(0, CodecId::Flac, Rational::new(1, 48000));
-        muxer2.add_stream(flac_stream).unwrap();
+        muxer2
+            .add_stream(flac_stream)
+            .expect("operation should succeed");
         muxer2.determine_output_format();
 
         assert_eq!(muxer2.output_format, ContainerFormat::Matroska);
@@ -971,7 +977,7 @@ mod tests {
         let mut muxer = MatroskaMuxer::new(sink, config);
 
         let video = create_video_stream();
-        muxer.add_stream(video).unwrap();
+        muxer.add_stream(video).expect("operation should succeed");
 
         let result = muxer.write_header().await;
         assert!(result.is_ok());
@@ -995,8 +1001,11 @@ mod tests {
         let mut muxer = MatroskaMuxer::new(sink, config);
 
         let video = create_video_stream();
-        muxer.add_stream(video).unwrap();
-        muxer.write_header().await.unwrap();
+        muxer.add_stream(video).expect("operation should succeed");
+        muxer
+            .write_header()
+            .await
+            .expect("operation should succeed");
 
         let packet = Packet::new(
             0,
@@ -1016,8 +1025,11 @@ mod tests {
         let mut muxer = MatroskaMuxer::new(sink, config);
 
         let video = create_video_stream();
-        muxer.add_stream(video).unwrap();
-        muxer.write_header().await.unwrap();
+        muxer.add_stream(video).expect("operation should succeed");
+        muxer
+            .write_header()
+            .await
+            .expect("operation should succeed");
 
         let packet = Packet::new(
             0,
@@ -1025,7 +1037,10 @@ mod tests {
             Timestamp::new(0, Rational::new(1, 1000)),
             crate::PacketFlags::KEYFRAME,
         );
-        muxer.write_packet(&packet).await.unwrap();
+        muxer
+            .write_packet(&packet)
+            .await
+            .expect("operation should succeed");
 
         let result = muxer.write_trailer().await;
         assert!(result.is_ok());

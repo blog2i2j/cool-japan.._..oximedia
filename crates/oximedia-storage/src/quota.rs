@@ -383,7 +383,9 @@ mod tests {
         let mut mgr = QuotaManager::new();
         mgr.set_quota(QuotaScope::Department, "eng", simple_policy(10));
         mgr.update_usage(QuotaScope::Department, "eng", -999_999_999, -999_999);
-        let entry = mgr.get_entry(QuotaScope::Department, "eng").unwrap();
+        let entry = mgr
+            .get_entry(QuotaScope::Department, "eng")
+            .expect("entry should exist");
         assert_eq!(entry.usage.used_bytes, 0);
         assert_eq!(entry.usage.file_count, 0);
     }

@@ -1,8 +1,8 @@
 //! Camera movement detection and analysis.
 
 use crate::error::{ShotError, ShotResult};
+use crate::frame_buffer::{FrameBuffer, GrayImage};
 use crate::types::{CameraMovement, MovementType};
-use ndarray::Array3;
 
 /// Camera movement detector.
 pub struct MovementDetector {
@@ -27,7 +27,7 @@ impl MovementDetector {
     /// # Errors
     ///
     /// Returns error if frames are invalid or have mismatched dimensions.
-    pub fn detect_movements(&self, frames: &[Array3<u8>]) -> ShotResult<Vec<CameraMovement>> {
+    pub fn detect_movements(&self, frames: &[FrameBuffer]) -> ShotResult<Vec<CameraMovement>> {
         if frames.len() < 2 {
             return Ok(Vec::new());
         }
@@ -70,8 +70,8 @@ impl MovementDetector {
     /// Calculate optical flow between two frames (simplified Lucas-Kanade).
     fn calculate_optical_flow(
         &self,
-        frame1: &Array3<u8>,
-        frame2: &Array3<u8>,
+        frame1: &FrameBuffer,
+        frame2: &FrameBuffer,
     ) -> ShotResult<(f32, f32)> {
         if frame1.dim() != frame2.dim() {
             return Err(ShotError::InvalidFrame(
@@ -88,8 +88,8 @@ impl MovementDetector {
         let mut count = 0;
 
         // Sample grid points
-        for y in (5..shape.0 - 5).step_by(10) {
-            for x in (5..shape.1 - 5).step_by(10) {
+        for y in (5..shape.0.saturating_sub(5)).step_by(10) {
+            for x in (5..shape.1.saturating_sub(5)).step_by(10) {
                 if let Some((dx, dy)) = self.compute_local_flow(&gray1, &gray2, x, y) {
                     dx_sum += dx;
                     dy_sum += dy;
@@ -108,8 +108,8 @@ impl MovementDetector {
     /// Compute local optical flow at a point.
     fn compute_local_flow(
         &self,
-        gray1: &ndarray::Array2<u8>,
-        gray2: &ndarray::Array2<u8>,
+        gray1: &GrayImage,
+        gray2: &GrayImage,
         x: usize,
         y: usize,
     ) -> Option<(f32, f32)> {
@@ -125,9 +125,9 @@ impl MovementDetector {
         }
 
         // Compute image gradients
-        let ix = (f32::from(gray1[[y, x + 1]]) - f32::from(gray1[[y, x - 1]])) / 2.0;
-        let iy = (f32::from(gray1[[y + 1, x]]) - f32::from(gray1[[y - 1, x]])) / 2.0;
-        let it = f32::from(gray2[[y, x]]) - f32::from(gray1[[y, x]]);
+        let ix = (f32::from(gray1.get(y, x + 1)) - f32::from(gray1.get(y, x - 1))) / 2.0;
+        let iy = (f32::from(gray1.get(y + 1, x)) - f32::from(gray1.get(y - 1, x))) / 2.0;
+        let it = f32::from(gray2.get(y, x)) - f32::from(gray1.get(y, x));
 
         // Solve for flow using least squares
         let denom = ix * ix + iy * iy;
@@ -220,16 +220,16 @@ impl MovementDetector {
     }
 
     /// Convert RGB to grayscale.
-    fn to_grayscale(&self, frame: &Array3<u8>) -> ndarray::Array2<u8> {
+    fn to_grayscale(&self, frame: &FrameBuffer) -> GrayImage {
         let shape = frame.dim();
-        let mut gray = ndarray::Array2::zeros((shape.0, shape.1));
+        let mut gray = GrayImage::zeros(shape.0, shape.1);
 
         for y in 0..shape.0 {
             for x in 0..shape.1 {
-                let r = f32::from(frame[[y, x, 0]]);
-                let g = f32::from(frame[[y, x, 1]]);
-                let b = f32::from(frame[[y, x, 2]]);
-                gray[[y, x]] = ((r * 0.299) + (g * 0.587) + (b * 0.114)) as u8;
+                let r = f32::from(frame.get(y, x, 0));
+                let g = f32::from(frame.get(y, x, 1));
+                let b = f32::from(frame.get(y, x, 2));
+                gray.set(y, x, ((r * 0.299) + (g * 0.587) + (b * 0.114)) as u8);
             }
         }
 
@@ -256,16 +256,18 @@ mod tests {
     #[test]
     fn test_no_movement_single_frame() {
         let detector = MovementDetector::new();
-        let frames = vec![Array3::zeros((100, 100, 3))];
+        let frames = vec![FrameBuffer::zeros(100, 100, 3)];
         let result = detector.detect_movements(&frames);
         assert!(result.is_ok());
-        assert!(result.expect("should succeed in test").is_empty());
+        if let Ok(movements) = result {
+            assert!(movements.is_empty());
+        }
     }
 
     #[test]
     fn test_static_frames() {
         let detector = MovementDetector::new();
-        let frames = vec![Array3::zeros((100, 100, 3)); 10];
+        let frames = vec![FrameBuffer::zeros(100, 100, 3); 10];
         let result = detector.detect_movements(&frames);
         assert!(result.is_ok());
     }

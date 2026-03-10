@@ -349,11 +349,11 @@ impl RepairEngine {
                 .ok_or_else(|| RepairError::InvalidOptions("Invalid file path".to_string()))?;
             output_dir.join(filename)
         } else {
-            let temp_path = self.temp_dir.join(format!(
-                "repaired_{}",
-                path.file_name().unwrap().to_string_lossy()
-            ));
-            temp_path
+            let filename = path
+                .file_name()
+                .ok_or_else(|| RepairError::InvalidOptions("Invalid file path".to_string()))?;
+            self.temp_dir
+                .join(format!("repaired_{}", filename.to_string_lossy()))
         };
 
         // Perform repairs

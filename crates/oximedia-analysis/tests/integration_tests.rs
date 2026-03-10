@@ -41,12 +41,14 @@ fn test_complete_analysis_pipeline() {
                 height,
                 Rational::new(30, 1),
             )
-            .unwrap();
+            .expect("unexpected None/Err");
     }
 
     // Process some audio
     let audio = vec![0.1f32; 48000];
-    analyzer.process_audio_samples(&audio, 48000).unwrap();
+    analyzer
+        .process_audio_samples(&audio, 48000)
+        .expect("audio processing should succeed");
 
     // Finalize
     let results = analyzer.finalize();
@@ -98,7 +100,7 @@ fn test_scene_detection_only() {
                 height,
                 Rational::new(30, 1),
             )
-            .unwrap();
+            .expect("unexpected None/Err");
     }
 
     let results = analyzer.finalize();
@@ -130,7 +132,7 @@ fn test_quality_assessment_only() {
                 height,
                 Rational::new(30, 1),
             )
-            .unwrap();
+            .expect("unexpected None/Err");
     }
 
     let results = analyzer.finalize();
@@ -169,7 +171,7 @@ fn test_black_frame_detection() {
                 height,
                 Rational::new(30, 1),
             )
-            .unwrap();
+            .expect("unexpected None/Err");
     }
 
     let results = analyzer.finalize();
@@ -203,12 +205,14 @@ fn test_content_classification() {
                 height,
                 Rational::new(30, 1),
             )
-            .unwrap();
+            .expect("unexpected None/Err");
     }
 
     let results = analyzer.finalize();
     assert!(results.content_classification.is_some());
-    let classification = results.content_classification.unwrap();
+    let classification = results
+        .content_classification
+        .expect("expected content_classification to be Some/Ok");
     assert!(classification.confidence >= 0.0 && classification.confidence <= 1.0);
 }
 
@@ -237,7 +241,7 @@ fn test_thumbnail_generation() {
                 height,
                 Rational::new(30, 1),
             )
-            .unwrap();
+            .expect("unexpected None/Err");
     }
 
     let results = analyzer.finalize();
@@ -285,12 +289,14 @@ fn test_motion_analysis() {
                 height,
                 Rational::new(30, 1),
             )
-            .unwrap();
+            .expect("unexpected None/Err");
     }
 
     let results = analyzer.finalize();
     assert!(results.motion_stats.is_some());
-    let motion = results.motion_stats.unwrap();
+    let motion = results
+        .motion_stats
+        .expect("expected motion_stats to be Some/Ok");
     assert!(motion.avg_motion > 0.0);
 }
 
@@ -318,12 +324,14 @@ fn test_color_analysis() {
                 height,
                 Rational::new(30, 1),
             )
-            .unwrap();
+            .expect("unexpected None/Err");
     }
 
     let results = analyzer.finalize();
     assert!(results.color_analysis.is_some());
-    let color = results.color_analysis.unwrap();
+    let color = results
+        .color_analysis
+        .expect("expected color_analysis to be Some/Ok");
     assert!(!color.dominant_colors.is_empty());
 }
 
@@ -340,11 +348,15 @@ fn test_audio_analysis() {
         audio.push(sample);
     }
 
-    analyzer.process_audio_samples(&audio, 48000).unwrap();
+    analyzer
+        .process_audio_samples(&audio, 48000)
+        .expect("audio processing should succeed");
 
     let results = analyzer.finalize();
     assert!(results.audio_analysis.is_some());
-    let audio_analysis = results.audio_analysis.unwrap();
+    let audio_analysis = results
+        .audio_analysis
+        .expect("expected audio_analysis to be Some/Ok");
     assert!(audio_analysis.peak_dbfs < 0.0);
     assert!(audio_analysis.rms_dbfs < audio_analysis.peak_dbfs);
 }
@@ -374,12 +386,14 @@ fn test_temporal_analysis() {
                 height,
                 Rational::new(30, 1),
             )
-            .unwrap();
+            .expect("unexpected None/Err");
     }
 
     let results = analyzer.finalize();
     assert!(results.temporal_analysis.is_some());
-    let temporal = results.temporal_analysis.unwrap();
+    let temporal = results
+        .temporal_analysis
+        .expect("expected temporal_analysis to be Some/Ok");
     assert!(temporal.consistency > 0.8); // Should be very consistent
 }
 
@@ -390,12 +404,14 @@ fn test_report_generation() {
     let results = analyzer.finalize();
 
     // Test JSON report
-    let json = results.to_json().unwrap();
+    let json = results
+        .to_json()
+        .expect("JSON serialization should succeed");
     assert!(json.contains("frame_count"));
     assert!(json.contains("frame_rate"));
 
     // Test HTML report
-    let html = results.to_html().unwrap();
+    let html = results.to_html().expect("HTML generation should succeed");
     assert!(html.contains("<!DOCTYPE html>"));
     assert!(html.contains("OxiMedia Analysis Report"));
 }
@@ -462,7 +478,7 @@ fn test_single_frame_analysis() {
             height,
             Rational::new(30, 1),
         )
-        .unwrap();
+        .expect("unexpected None/Err");
 
     let results = analyzer.finalize();
     assert_eq!(results.frame_count, 1);
@@ -497,7 +513,7 @@ fn test_high_frame_count() {
                 height,
                 Rational::new(30, 1),
             )
-            .unwrap();
+            .expect("unexpected None/Err");
     }
 
     let results = analyzer.finalize();
@@ -558,7 +574,7 @@ fn test_different_frame_rates() {
 
         analyzer
             .process_video_frame(&y_plane, &u_plane, &v_plane, width, height, frame_rate)
-            .unwrap();
+            .expect("unexpected None/Err");
 
         let results = analyzer.finalize();
         assert_eq!(results.frame_rate, frame_rate);
@@ -599,20 +615,20 @@ fn test_concurrent_analysis() {
                             height,
                             Rational::new(30, 1),
                         )
-                        .unwrap();
+                        .expect("unexpected None/Err");
                 }
 
                 let analysis_result = analyzer.finalize();
-                results.lock().unwrap().push(analysis_result);
+                results.lock().expect("lock poisoned").push(analysis_result);
             })
         })
         .collect();
 
     for handle in handles {
-        handle.join().unwrap();
+        handle.join().expect("thread join should succeed");
     }
 
-    let final_results = results.lock().unwrap();
+    let final_results = results.lock().expect("lock poisoned");
     assert_eq!(final_results.len(), 4);
 
     for result in final_results.iter() {

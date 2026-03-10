@@ -109,7 +109,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     playlist_manager.set_active(playlist_id)?;
     println!(
         "   ✓ Playlist created with {} items",
-        playlist_manager.get_active().unwrap().items.len()
+        playlist_manager
+            .get_active()
+            .expect("get_active should succeed")
+            .items
+            .len()
     );
 
     // 5. Setup playback engine

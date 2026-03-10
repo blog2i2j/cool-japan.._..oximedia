@@ -67,7 +67,7 @@ impl RhythmAnalyzer {
 
         // Median IOI as beat period estimate
         let mut sorted_iois = iois.to_vec();
-        sorted_iois.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted_iois.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         let median_ioi = sorted_iois[sorted_iois.len() / 2];
 

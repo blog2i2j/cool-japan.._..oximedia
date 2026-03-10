@@ -250,7 +250,10 @@ mod tests {
         let old = reg.register(make_cam("Dup", CameraType::Consumer, 3840, 2160, 60.0));
         assert!(old.is_some());
         assert_eq!(reg.count(), 1);
-        assert!(reg.find_by_model("Dup").unwrap().is_4k());
+        assert!(reg
+            .find_by_model("Dup")
+            .expect("multicam test operation should succeed")
+            .is_4k());
     }
 
     #[test]

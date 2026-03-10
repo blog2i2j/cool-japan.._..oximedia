@@ -392,7 +392,13 @@ mod tests {
         router.add_destination(RouteDestination::new("pgm", "Program", MediaType::Video));
         let result = router.connect("cam1", "pgm");
         assert!(result.is_ok());
-        assert_eq!(router.get_connection("pgm").unwrap().as_str(), "cam1");
+        assert_eq!(
+            router
+                .get_connection("pgm")
+                .expect("get_connection should succeed")
+                .as_str(),
+            "cam1"
+        );
     }
 
     #[test]
@@ -428,8 +434,10 @@ mod tests {
         let mut router = MediaRouter::new();
         router.add_source(RouteSource::new("cam1", "Camera 1", MediaType::Video));
         router.add_destination(RouteDestination::new("pgm", "Program", MediaType::Video));
-        router.connect("cam1", "pgm").unwrap();
-        router.disconnect("pgm").unwrap();
+        router
+            .connect("cam1", "pgm")
+            .expect("connect should succeed");
+        router.disconnect("pgm").expect("disconnect should succeed");
         assert!(router.get_connection("pgm").is_none());
     }
 
@@ -446,10 +454,24 @@ mod tests {
         salvo.add_route(Route::new("cam2", "pvw"));
         router.add_salvo(salvo);
 
-        let applied = router.execute_salvo("preset1").unwrap();
+        let applied = router
+            .execute_salvo("preset1")
+            .expect("execute_salvo should succeed");
         assert_eq!(applied, 2);
-        assert_eq!(router.get_connection("pgm").unwrap().as_str(), "cam1");
-        assert_eq!(router.get_connection("pvw").unwrap().as_str(), "cam2");
+        assert_eq!(
+            router
+                .get_connection("pgm")
+                .expect("get_connection should succeed")
+                .as_str(),
+            "cam1"
+        );
+        assert_eq!(
+            router
+                .get_connection("pvw")
+                .expect("get_connection should succeed")
+                .as_str(),
+            "cam2"
+        );
     }
 
     #[test]
@@ -458,7 +480,9 @@ mod tests {
         router.add_source(RouteSource::new("cam1", "Camera 1", MediaType::Video));
         router.add_destination(RouteDestination::new("pgm", "Program", MediaType::Video));
         router.add_destination(RouteDestination::new("pvw", "Preview", MediaType::Video));
-        router.connect("cam1", "pgm").unwrap();
+        router
+            .connect("cam1", "pgm")
+            .expect("connect should succeed");
         let conns = router.active_connections();
         assert_eq!(conns.len(), 1);
     }

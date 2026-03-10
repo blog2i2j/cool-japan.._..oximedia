@@ -155,8 +155,9 @@ impl QuarantineRecord {
     /// Mark as restored
     pub async fn mark_restored(&mut self, pool: &sqlx::SqlitePool) -> ArchiveResult<()> {
         self.restored = true;
-        self.restore_date = Some(Utc::now());
-        let restore_date_str = self.restore_date.as_ref().unwrap().to_rfc3339();
+        let now = Utc::now();
+        self.restore_date = Some(now);
+        let restore_date_str = now.to_rfc3339();
 
         sqlx::query(
             r"

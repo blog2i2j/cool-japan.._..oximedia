@@ -329,7 +329,7 @@ mod tests {
             .with_label("env", "prod");
         assert_eq!(s.name, "test");
         assert!((s.value - 42.0).abs() < 1e-9);
-        assert_eq!(s.labels.get("env").unwrap(), "prod");
+        assert_eq!(s.labels.get("env").expect("failed to get value"), "prod");
     }
 
     #[test]
@@ -397,7 +397,7 @@ mod tests {
     #[test]
     fn test_metric_summary_compute() {
         let vals = vec![10.0, 20.0, 30.0, 40.0, 50.0];
-        let s = MetricSummary::compute(&vals).unwrap();
+        let s = MetricSummary::compute(&vals).expect("operation should succeed");
         assert_eq!(s.count, 5);
         assert!((s.sum - 150.0).abs() < 1e-9);
         assert!((s.min - 10.0).abs() < 1e-9);

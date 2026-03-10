@@ -687,7 +687,7 @@ mod tests {
 
         for (bits, expected) in test_cases {
             let mut iter = bits.into_iter();
-            let result = parse_ue(&mut iter).unwrap();
+            let result = parse_ue(&mut iter).expect("result should be valid");
             assert_eq!(result, expected);
         }
     }
@@ -704,7 +704,7 @@ mod tests {
 
         for (bits, expected) in test_cases {
             let mut iter = bits.into_iter();
-            let result = parse_se(&mut iter).unwrap();
+            let result = parse_se(&mut iter).expect("result should be valid");
             assert_eq!(result, expected);
         }
     }

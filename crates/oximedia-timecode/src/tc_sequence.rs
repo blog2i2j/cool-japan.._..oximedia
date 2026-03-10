@@ -137,7 +137,9 @@ impl TimecodeSequence {
         let mut merged: Vec<TimecodeRun> = Vec::with_capacity(self.runs.len());
         merged.push(self.runs[0].clone());
         for run in self.runs.iter().skip(1) {
-            let last = merged.last_mut().unwrap();
+            let last = merged
+                .last_mut()
+                .expect("merged is non-empty: initial element was pushed before this loop");
             if last.start.frame_rate == run.start.frame_rate {
                 let last_end = last.start.to_frames() + last.frame_count;
                 if last_end == run.start.to_frames() {
@@ -197,12 +199,12 @@ mod tests {
     use super::*;
 
     fn tc(h: u8, m: u8, s: u8, f: u8) -> Timecode {
-        Timecode::new(h, m, s, f, FrameRate::Fps25).unwrap()
+        Timecode::new(h, m, s, f, FrameRate::Fps25).expect("valid timecode")
     }
 
     #[test]
     fn test_run_creation() {
-        let run = TimecodeRun::new(tc(1, 0, 0, 0), 100).unwrap();
+        let run = TimecodeRun::new(tc(1, 0, 0, 0), 100).expect("valid timecode run");
         assert_eq!(run.frame_count, 100);
     }
 
@@ -214,14 +216,14 @@ mod tests {
 
     #[test]
     fn test_run_duration_secs() {
-        let run = TimecodeRun::new(tc(0, 0, 0, 0), 50).unwrap();
+        let run = TimecodeRun::new(tc(0, 0, 0, 0), 50).expect("valid timecode run");
         let dur = run.duration_secs();
         assert!((dur - 2.0).abs() < 1e-9);
     }
 
     #[test]
     fn test_run_contains() {
-        let run = TimecodeRun::new(tc(0, 0, 0, 0), 25).unwrap();
+        let run = TimecodeRun::new(tc(0, 0, 0, 0), 25).expect("valid timecode run");
         assert!(run.contains(&tc(0, 0, 0, 10)));
         assert!(run.contains(&tc(0, 0, 0, 24)));
         assert!(!run.contains(&tc(0, 0, 1, 0)));
@@ -230,8 +232,8 @@ mod tests {
     #[test]
     fn test_sequence_push_and_total() {
         let mut seq = TimecodeSequence::new();
-        seq.push(TimecodeRun::new(tc(0, 0, 0, 0), 25).unwrap());
-        seq.push(TimecodeRun::new(tc(0, 0, 1, 0), 25).unwrap());
+        seq.push(TimecodeRun::new(tc(0, 0, 0, 0), 25).expect("valid timecode run"));
+        seq.push(TimecodeRun::new(tc(0, 0, 1, 0), 25).expect("valid timecode run"));
         assert_eq!(seq.total_frames(), 50);
         assert_eq!(seq.run_count(), 2);
     }
@@ -239,24 +241,24 @@ mod tests {
     #[test]
     fn test_sequence_is_contiguous() {
         let mut seq = TimecodeSequence::new();
-        seq.push(TimecodeRun::new(tc(0, 0, 0, 0), 25).unwrap());
-        seq.push(TimecodeRun::new(tc(0, 0, 1, 0), 25).unwrap());
+        seq.push(TimecodeRun::new(tc(0, 0, 0, 0), 25).expect("valid timecode run"));
+        seq.push(TimecodeRun::new(tc(0, 0, 1, 0), 25).expect("valid timecode run"));
         assert!(seq.is_contiguous(0, 1));
     }
 
     #[test]
     fn test_sequence_not_contiguous() {
         let mut seq = TimecodeSequence::new();
-        seq.push(TimecodeRun::new(tc(0, 0, 0, 0), 10).unwrap());
-        seq.push(TimecodeRun::new(tc(0, 0, 1, 0), 10).unwrap());
+        seq.push(TimecodeRun::new(tc(0, 0, 0, 0), 10).expect("valid timecode run"));
+        seq.push(TimecodeRun::new(tc(0, 0, 1, 0), 10).expect("valid timecode run"));
         assert!(!seq.is_contiguous(0, 1));
     }
 
     #[test]
     fn test_find_run_at_offset() {
         let mut seq = TimecodeSequence::new();
-        seq.push(TimecodeRun::new(tc(0, 0, 0, 0), 25).unwrap());
-        seq.push(TimecodeRun::new(tc(0, 0, 1, 0), 25).unwrap());
+        seq.push(TimecodeRun::new(tc(0, 0, 0, 0), 25).expect("valid timecode run"));
+        seq.push(TimecodeRun::new(tc(0, 0, 1, 0), 25).expect("valid timecode run"));
         assert_eq!(seq.find_run_at_offset(0), Some((0, 0)));
         assert_eq!(seq.find_run_at_offset(24), Some((0, 24)));
         assert_eq!(seq.find_run_at_offset(25), Some((1, 0)));
@@ -266,8 +268,8 @@ mod tests {
     #[test]
     fn test_compact_merges_contiguous() {
         let mut seq = TimecodeSequence::new();
-        seq.push(TimecodeRun::new(tc(0, 0, 0, 0), 25).unwrap());
-        seq.push(TimecodeRun::new(tc(0, 0, 1, 0), 25).unwrap());
+        seq.push(TimecodeRun::new(tc(0, 0, 0, 0), 25).expect("valid timecode run"));
+        seq.push(TimecodeRun::new(tc(0, 0, 1, 0), 25).expect("valid timecode run"));
         assert_eq!(seq.run_count(), 2);
         seq.compact();
         assert_eq!(seq.run_count(), 1);
@@ -277,8 +279,8 @@ mod tests {
     #[test]
     fn test_compact_preserves_gaps() {
         let mut seq = TimecodeSequence::new();
-        seq.push(TimecodeRun::new(tc(0, 0, 0, 0), 10).unwrap());
-        seq.push(TimecodeRun::new(tc(0, 0, 2, 0), 10).unwrap());
+        seq.push(TimecodeRun::new(tc(0, 0, 0, 0), 10).expect("valid timecode run"));
+        seq.push(TimecodeRun::new(tc(0, 0, 2, 0), 10).expect("valid timecode run"));
         seq.compact();
         assert_eq!(seq.run_count(), 2);
     }
@@ -286,8 +288,8 @@ mod tests {
     #[test]
     fn test_detect_gaps() {
         let mut seq = TimecodeSequence::new();
-        seq.push(TimecodeRun::new(tc(0, 0, 0, 0), 10).unwrap());
-        seq.push(TimecodeRun::new(tc(0, 0, 1, 0), 10).unwrap());
+        seq.push(TimecodeRun::new(tc(0, 0, 0, 0), 10).expect("valid timecode run"));
+        seq.push(TimecodeRun::new(tc(0, 0, 1, 0), 10).expect("valid timecode run"));
         let gaps = seq.detect_gaps();
         assert_eq!(gaps.len(), 1);
         assert_eq!(gaps[0].0, 0);
@@ -297,7 +299,7 @@ mod tests {
     #[test]
     fn test_build_sequence() {
         let items = vec![(tc(0, 0, 0, 0), 25u64), (tc(0, 0, 1, 0), 50)];
-        let seq = build_sequence(&items).unwrap();
+        let seq = build_sequence(&items).expect("build sequence should succeed");
         assert_eq!(seq.run_count(), 2);
         assert_eq!(seq.total_frames(), 75);
     }
@@ -305,16 +307,16 @@ mod tests {
     #[test]
     fn test_total_duration_secs() {
         let mut seq = TimecodeSequence::new();
-        seq.push(TimecodeRun::new(tc(0, 0, 0, 0), 25).unwrap());
-        seq.push(TimecodeRun::new(tc(0, 0, 1, 0), 50).unwrap());
+        seq.push(TimecodeRun::new(tc(0, 0, 0, 0), 25).expect("valid timecode run"));
+        seq.push(TimecodeRun::new(tc(0, 0, 1, 0), 50).expect("valid timecode run"));
         let dur = seq.total_duration_secs();
         assert!((dur - 3.0).abs() < 1e-9);
     }
 
     #[test]
     fn test_end_timecode() {
-        let run = TimecodeRun::new(tc(0, 0, 0, 0), 26).unwrap();
-        let end = run.end_timecode(FrameRate::Fps25).unwrap();
+        let run = TimecodeRun::new(tc(0, 0, 0, 0), 26).expect("valid timecode run");
+        let end = run.end_timecode(FrameRate::Fps25).expect("end timecode should succeed");
         assert_eq!(end.hours, 0);
         assert_eq!(end.minutes, 0);
         assert_eq!(end.seconds, 1);

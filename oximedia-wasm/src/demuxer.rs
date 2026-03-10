@@ -164,7 +164,7 @@ impl WasmDemuxer {
     /// ```
     pub fn read_packet(&mut self) -> Result<Option<WasmPacket>, JsValue> {
         if !self.probed {
-            return Err(JsValue::from_str(
+            return Err(crate::utils::js_err(
                 "Must call probe() before reading packets",
             ));
         }
@@ -181,7 +181,7 @@ impl WasmDemuxer {
             Some(ContainerFormat::Flac) => self.read_flac_packet(),
             Some(ContainerFormat::Wav) => self.read_wav_packet(),
             Some(ContainerFormat::Mp4) => self.read_mp4_packet(),
-            None => Err(JsValue::from_str("No format detected")),
+            None => Err(crate::utils::js_err("No format detected")),
         }
     }
 
@@ -214,7 +214,7 @@ impl WasmDemuxer {
             Some(ContainerFormat::Flac) => self.parse_flac_headers(),
             Some(ContainerFormat::Wav) => self.parse_wav_headers(),
             Some(ContainerFormat::Mp4) => self.parse_mp4_headers(),
-            None => Err(JsValue::from_str("No format detected")),
+            None => Err(crate::utils::js_err("No format detected")),
         }
     }
 
@@ -354,7 +354,9 @@ mod tests {
     fn test_demuxer_probe() {
         let data = vec![0x1A, 0x45, 0xDF, 0xA3, 0, 0, 0, 0];
         let mut demuxer = WasmDemuxer::new(&data);
-        let result = demuxer.probe().unwrap();
+        let result = demuxer
+            .probe()
+            .expect("probe should succeed for Matroska header");
         assert_eq!(result.format(), "Matroska");
     }
 }

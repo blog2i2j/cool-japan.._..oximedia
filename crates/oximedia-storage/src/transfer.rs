@@ -427,12 +427,20 @@ impl<S: CloudStorage + 'static> TransferManager<S> {
 
         // Create temporary directory for chunks
         let temp_dir = file_path.parent().unwrap_or_else(|| Path::new("."));
-        let temp_prefix = format!(".{}.part", file_path.file_name().unwrap().to_string_lossy());
+        let file_name = file_path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "chunk".to_string());
+        let temp_prefix = format!(".{file_name}.part");
 
         let mut tasks = Vec::new();
 
         for chunk_idx in 0..num_chunks {
-            let permit = semaphore.clone().acquire_owned().await.unwrap();
+            let permit = semaphore.clone().acquire_owned().await.map_err(|e| {
+                StorageError::ProviderError(format!(
+                    "Semaphore closed during parallel download: {e}"
+                ))
+            })?;
             let storage = self.storage.clone();
             let key = key.to_string();
             let chunk_file = temp_dir.join(format!("{temp_prefix}.{chunk_idx}"));

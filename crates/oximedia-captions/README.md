@@ -31,9 +31,9 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-captions = "0.1.0"
+oximedia-captions = "0.1.1"
 # or with specific format support:
-oximedia-captions = { version = "0.1.0", features = ["cea", "web", "broadcast"] }
+oximedia-captions = { version = "0.1.1", features = ["cea", "web", "broadcast"] }
 ```
 
 ```rust

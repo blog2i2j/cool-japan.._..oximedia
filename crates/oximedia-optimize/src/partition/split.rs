@@ -145,7 +145,8 @@ mod tests {
     #[test]
     fn test_split_optimizer_creation() {
         let config = OptimizerConfig::default();
-        let optimizer = SplitOptimizer::new(&config).unwrap();
+        let optimizer =
+            SplitOptimizer::new(&config).expect("split optimizer creation should succeed");
         assert_eq!(optimizer.min_block_size, 8);
     }
 
@@ -158,7 +159,8 @@ mod tests {
     #[test]
     fn test_min_block_size_no_split() {
         let config = OptimizerConfig::default();
-        let optimizer = SplitOptimizer::new(&config).unwrap();
+        let optimizer =
+            SplitOptimizer::new(&config).expect("split optimizer creation should succeed");
         let pixels = vec![128u8; 64];
         let decision = optimizer.decide(&pixels, 8, 50.0);
         assert_eq!(decision.mode, PartitionMode::None);
@@ -168,7 +170,8 @@ mod tests {
     #[test]
     fn test_high_complexity_split() {
         let config = OptimizerConfig::default();
-        let optimizer = SplitOptimizer::new(&config).unwrap();
+        let optimizer =
+            SplitOptimizer::new(&config).expect("split optimizer creation should succeed");
         let pixels = vec![128u8; 256]; // Larger block
         let decision = optimizer.decide(&pixels, 32, 500.0); // High complexity
                                                              // May or may not split depending on cost evaluation

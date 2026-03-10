@@ -296,8 +296,8 @@ mod tests {
         ));
         assert!(sched.get("g1").is_some());
         assert!(sched.get("missing").is_none());
-        let entry = sched.get_mut("g1").unwrap();
+        let entry = sched.get_mut("g1").expect("get_mut should succeed");
         entry.mark_triggered();
-        assert_eq!(sched.get("g1").unwrap().run_count(), 1);
+        assert_eq!(sched.get("g1").expect("failed to get value").run_count(), 1);
     }
 }

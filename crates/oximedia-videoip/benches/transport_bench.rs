@@ -24,7 +24,7 @@ fn bench_packet_encoding(c: &mut Criterion) {
                     .with_timestamp(12345)
                     .with_stream_type(StreamType::Program)
                     .build(payload.clone())
-                    .unwrap();
+                    .expect("test expectation failed");
 
                 black_box(packet.encode())
             });
@@ -41,12 +41,16 @@ fn bench_packet_decoding(c: &mut Criterion) {
         group.throughput(Throughput::Bytes(size as u64));
         group.bench_function(format!("decode_{}", size), |b| {
             let payload = Bytes::from(vec![0u8; size]);
-            let packet = PacketBuilder::new(0).video().build(payload).unwrap();
+            let packet = PacketBuilder::new(0)
+                .video()
+                .build(payload)
+                .expect("packet should be valid");
 
             let encoded = packet.encode();
 
             b.iter(|| {
-                let decoded = oximedia_videoip::packet::Packet::decode(&encoded[..]).unwrap();
+                let decoded = oximedia_videoip::packet::Packet::decode(&encoded[..])
+                    .expect("decoded should be valid");
                 black_box(decoded)
             });
         });
@@ -56,7 +60,7 @@ fn bench_packet_decoding(c: &mut Criterion) {
 }
 
 fn bench_udp_send_receive(c: &mut Criterion) {
-    let rt = Runtime::new().unwrap();
+    let rt = Runtime::new().expect("rt should be valid");
     let mut group = c.benchmark_group("udp_transport");
 
     for size in [1024, 4096] {
@@ -64,21 +68,31 @@ fn bench_udp_send_receive(c: &mut Criterion) {
         group.bench_function(format!("send_receive_{}", size), |b| {
             b.iter(|| {
                 rt.block_on(async {
-                    let addr1: SocketAddr = "127.0.0.1:0".parse().unwrap();
-                    let addr2: SocketAddr = "127.0.0.1:0".parse().unwrap();
+                    let addr1: SocketAddr = "127.0.0.1:0".parse().expect("parse should succeed");
+                    let addr2: SocketAddr = "127.0.0.1:0".parse().expect("parse should succeed");
 
-                    let mut transport1 = UdpTransport::bind(addr1).await.unwrap();
-                    let mut transport2 = UdpTransport::bind(addr2).await.unwrap();
+                    let mut transport1 = UdpTransport::bind(addr1)
+                        .await
+                        .expect("test expectation failed");
+                    let mut transport2 = UdpTransport::bind(addr2)
+                        .await
+                        .expect("test expectation failed");
 
                     let packet = PacketBuilder::new(0)
                         .video()
                         .build(Bytes::from(vec![0u8; size]))
-                        .unwrap();
+                        .expect("test expectation failed");
 
                     let dest = transport2.local_addr();
-                    transport1.send_packet(&packet, dest).await.unwrap();
+                    transport1
+                        .send_packet(&packet, dest)
+                        .await
+                        .expect("test expectation failed");
 
-                    let (received, _) = transport2.recv_packet().await.unwrap();
+                    let (received, _) = transport2
+                        .recv_packet()
+                        .await
+                        .expect("test expectation failed");
                     black_box(received)
                 })
             });
@@ -98,9 +112,11 @@ fn bench_jitter_buffer(c: &mut Criterion) {
             let packet = PacketBuilder::new(0)
                 .video()
                 .build(Bytes::from_static(b"test"))
-                .unwrap();
+                .expect("test expectation failed");
 
-            buffer.add_packet(packet).unwrap();
+            buffer
+                .add_packet(packet)
+                .expect("add_packet should succeed");
             buffer.clear();
         });
     });
@@ -113,8 +129,10 @@ fn bench_jitter_buffer(c: &mut Criterion) {
             let packet = PacketBuilder::new(i)
                 .video()
                 .build(Bytes::from_static(b"test"))
-                .unwrap();
-            buffer.add_packet(packet).unwrap();
+                .expect("test expectation failed");
+            buffer
+                .add_packet(packet)
+                .expect("add_packet should succeed");
         }
 
         b.iter(|| {
@@ -132,21 +150,21 @@ fn bench_fec_encoding(c: &mut Criterion) {
     let mut group = c.benchmark_group("fec");
 
     group.bench_function("encode_10_2", |b| {
-        let encoder = FecEncoder::new(10, 2).unwrap();
+        let encoder = FecEncoder::new(10, 2).expect("encoder should be valid");
 
         let packets: Vec<_> = (0..10)
             .map(|i| {
                 PacketBuilder::new(i)
                     .video()
                     .build(Bytes::from(vec![0u8; 1000]))
-                    .unwrap()
+                    .expect("test expectation failed")
             })
             .collect();
 
         b.iter(|| {
             let parity = encoder
                 .encode(&packets, 100, 12345, StreamType::Program)
-                .unwrap();
+                .expect("test expectation failed");
             black_box(parity)
         });
     });

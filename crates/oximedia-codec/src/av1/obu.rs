@@ -279,14 +279,14 @@ mod tests {
     fn test_leb128_single_byte() {
         let data = [0x7F];
         let mut reader = BitReader::new(&data);
-        assert_eq!(parse_leb128(&mut reader).unwrap(), 127);
+        assert_eq!(parse_leb128(&mut reader).expect("should succeed"), 127);
     }
 
     #[test]
     fn test_leb128_multi_byte() {
         let data = [0x80, 0x01];
         let mut reader = BitReader::new(&data);
-        assert_eq!(parse_leb128(&mut reader).unwrap(), 128);
+        assert_eq!(parse_leb128(&mut reader).expect("should succeed"), 128);
     }
 
     #[test]

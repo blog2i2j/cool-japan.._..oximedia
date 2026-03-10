@@ -466,9 +466,9 @@ mod tests {
         q.submit(low, 1);
         q.submit(high, 200);
         // High-priority job should come out first
-        let first = q.next().unwrap();
+        let first = q.next().expect("first should be valid");
         assert_eq!(first.id, "high");
-        let second = q.next().unwrap();
+        let second = q.next().expect("second should be valid");
         assert_eq!(second.id, "low");
         assert!(q.is_empty());
     }
@@ -481,7 +481,7 @@ mod tests {
         q.submit(make_job("j1"), 10);
         q.submit(make_job("j2"), 20);
         assert_eq!(q.len(), 2);
-        assert_eq!(q.peek().unwrap().id, "j2");
+        assert_eq!(q.peek().expect("peek should succeed").id, "j2");
     }
 
     // 10. Queue next on empty returns None

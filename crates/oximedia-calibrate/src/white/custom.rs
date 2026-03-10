@@ -85,7 +85,7 @@ mod tests {
         let result = CustomWhiteBalance::from_gray_patch(&patch);
 
         assert!(result.is_ok());
-        let mult = result.unwrap();
+        let mult = result.expect("expected successful result");
 
         assert!((mult[0] - 1.0).abs() < 1e-10);
         assert!((mult[1] - 1.0).abs() < 1e-10);
@@ -98,7 +98,7 @@ mod tests {
         let result = CustomWhiteBalance::from_gray_patch(&patch);
 
         assert!(result.is_ok());
-        let mult = result.unwrap();
+        let mult = result.expect("expected successful result");
 
         // Should boost blue and green relative to red
         assert!(mult[0] < mult[2]);

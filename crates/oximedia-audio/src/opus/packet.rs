@@ -542,7 +542,7 @@ mod tests {
     fn test_single_frame_packet() {
         // TOC: config 0, mono, 1 frame + 10 bytes of data
         let data = vec![0b00000000, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        let packet = OpusPacket::parse(&data).unwrap();
+        let packet = OpusPacket::parse(&data).expect("should succeed");
         assert_eq!(packet.config.frame_count, 1);
         assert_eq!(packet.frames.len(), 1);
         assert_eq!(packet.frames[0].len(), 10);
@@ -552,7 +552,7 @@ mod tests {
     fn test_two_equal_frames_packet() {
         // TOC: config 0, mono, 2 equal frames + 10 bytes of data
         let data = vec![0b00000001, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        let packet = OpusPacket::parse(&data).unwrap();
+        let packet = OpusPacket::parse(&data).expect("should succeed");
         assert_eq!(packet.config.frame_count, 2);
         assert_eq!(packet.frames.len(), 2);
         assert_eq!(packet.frames[0].len(), 5);

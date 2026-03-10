@@ -316,7 +316,9 @@ mod tests {
         preprocessor.define("WORKGROUP_SIZE", "256");
 
         let source = "#define WORKGROUP_SIZE 64\nfn main() {}";
-        let processed = preprocessor.process(source).unwrap();
+        let processed = preprocessor
+            .process(source)
+            .expect("preprocessing should succeed");
 
         assert!(processed.contains("256"));
     }

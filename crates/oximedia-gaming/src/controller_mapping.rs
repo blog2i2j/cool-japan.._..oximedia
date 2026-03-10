@@ -363,7 +363,7 @@ mod tests {
 
     #[test]
     fn test_dead_zone_apply_inside() {
-        let dz = DeadZoneConfig::new(0.2, 0.9).unwrap();
+        let dz = DeadZoneConfig::new(0.2, 0.9).expect("valid dead zone config");
         let result = dz.apply(0.1);
         assert!(
             (result).abs() < f32::EPSILON,
@@ -373,7 +373,7 @@ mod tests {
 
     #[test]
     fn test_dead_zone_apply_outside() {
-        let dz = DeadZoneConfig::new(0.2, 0.9).unwrap();
+        let dz = DeadZoneConfig::new(0.2, 0.9).expect("valid dead zone config");
         let result = dz.apply(0.95);
         assert!(
             (result - 1.0).abs() < f32::EPSILON,
@@ -383,7 +383,7 @@ mod tests {
 
     #[test]
     fn test_dead_zone_apply_negative() {
-        let dz = DeadZoneConfig::new(0.2, 0.9).unwrap();
+        let dz = DeadZoneConfig::new(0.2, 0.9).expect("valid dead zone config");
         let result = dz.apply(-0.95);
         assert!(
             (result + 1.0).abs() < f32::EPSILON,
@@ -393,7 +393,7 @@ mod tests {
 
     #[test]
     fn test_dead_zone_apply_mid_range() {
-        let dz = DeadZoneConfig::new(0.2, 0.8).unwrap();
+        let dz = DeadZoneConfig::new(0.2, 0.8).expect("valid dead zone config");
         let result = dz.apply(0.5);
         // (0.5 - 0.2) / (0.8 - 0.2) = 0.3 / 0.6 = 0.5
         assert!((result - 0.5).abs() < 0.01);
@@ -486,10 +486,20 @@ mod tests {
         mgr.add_profile(p2);
 
         assert_eq!(mgr.profile_count(), 2);
-        assert_eq!(mgr.active_profile().unwrap().name, "Default");
+        assert_eq!(
+            mgr.active_profile()
+                .expect("active profile should exist")
+                .name,
+            "Default"
+        );
 
         assert!(mgr.set_active(1));
-        assert_eq!(mgr.active_profile().unwrap().name, "Racing");
+        assert_eq!(
+            mgr.active_profile()
+                .expect("active profile should exist")
+                .name,
+            "Racing"
+        );
 
         assert!(!mgr.set_active(99));
     }
@@ -504,10 +514,15 @@ mod tests {
 
         let removed = mgr.remove_profile(1);
         assert!(removed.is_some());
-        assert_eq!(removed.unwrap().name, "B");
+        assert_eq!(removed.expect("should succeed").name, "B");
         assert_eq!(mgr.profile_count(), 2);
         // Active should reset to 0 since the active was removed
-        assert_eq!(mgr.active_profile().unwrap().name, "A");
+        assert_eq!(
+            mgr.active_profile()
+                .expect("active profile should exist")
+                .name,
+            "A"
+        );
     }
 
     #[test]

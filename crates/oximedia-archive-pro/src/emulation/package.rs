@@ -118,10 +118,10 @@ mod tests {
 
     #[test]
     fn test_create_emulation_package() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("operation should succeed");
         let pkg_root = temp_dir.path().join("emulation");
 
-        let packager = EmulationPackager::new(pkg_root.clone()).unwrap();
+        let packager = EmulationPackager::new(pkg_root.clone()).expect("operation should succeed");
 
         let prep = EmulationPreparation {
             format: "mkv".to_string(),
@@ -132,7 +132,9 @@ mod tests {
             timestamp: chrono::Utc::now(),
         };
 
-        let package = packager.create_package(prep).unwrap();
+        let package = packager
+            .create_package(prep)
+            .expect("operation should succeed");
         assert_eq!(package.root, pkg_root);
         assert!(pkg_root.join("README.md").exists());
         assert!(pkg_root.join("emulation-prep.json").exists());

@@ -1,6 +1,6 @@
 //! Skeleton tracking for motion capture
 
-use nalgebra::Point3;
+use crate::math::Point3;
 
 /// Skeleton joint
 #[derive(Debug, Clone)]

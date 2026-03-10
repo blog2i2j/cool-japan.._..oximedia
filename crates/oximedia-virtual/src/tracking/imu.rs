@@ -4,8 +4,8 @@
 //! accelerometer data with sensor fusion.
 
 use super::CameraPose;
+use crate::math::{Point3, Unit, UnitQuaternion, Vector3};
 use crate::{Result, VirtualProductionError};
-use nalgebra::{Point3, UnitQuaternion, Vector3};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 
@@ -123,8 +123,7 @@ impl ImuSensor {
         let angle = angular_velocity.norm() * dt;
         if angle > 1e-10 {
             let axis = angular_velocity / angular_velocity.norm();
-            let rotation =
-                UnitQuaternion::from_axis_angle(&nalgebra::Unit::new_normalize(axis), angle);
+            let rotation = UnitQuaternion::from_axis_angle(&Unit::new_normalize(axis), angle);
             self.current_orientation *= rotation;
         }
     }

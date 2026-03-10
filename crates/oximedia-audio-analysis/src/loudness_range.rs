@@ -297,7 +297,9 @@ mod tests {
     fn test_constant_amplitude_lra_zero() {
         let samples = sine_samples(440.0, 44100.0, 10.0, 0.5);
         let analyzer = LoudnessRangeAnalyzer::default_ebu();
-        let result = analyzer.analyze(&samples, 44100.0).unwrap();
+        let result = analyzer
+            .analyze(&samples, 44100.0)
+            .expect("analysis should succeed");
         // Constant amplitude => LRA should be very small (ideally 0).
         assert!(
             result.lra_lu < 1.0,
@@ -314,7 +316,9 @@ mod tests {
         let mut samples = quiet;
         samples.extend(loud);
         let analyzer = LoudnessRangeAnalyzer::default_ebu();
-        let result = analyzer.analyze(&samples, 44100.0).unwrap();
+        let result = analyzer
+            .analyze(&samples, 44100.0)
+            .expect("analysis should succeed");
         assert!(
             result.lra_lu > 1.0,
             "LRA should be > 1 for varying amplitude"
@@ -327,7 +331,9 @@ mod tests {
         let sr = 44100.0;
         let samples = sine_samples(440.0, sr, dur_s, 0.5);
         let analyzer = LoudnessRangeAnalyzer::default_ebu();
-        let result = analyzer.analyze(&samples, sr).unwrap();
+        let result = analyzer
+            .analyze(&samples, sr)
+            .expect("analysis should succeed");
         // With 3-second blocks and 1-second hop over 10 seconds:
         // positions 0,1,2,...,7 => 8 blocks
         assert!(result.block_count >= 7);

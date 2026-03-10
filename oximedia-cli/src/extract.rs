@@ -414,18 +414,30 @@ mod tests {
 
     #[test]
     fn test_image_format_parsing() {
-        assert_eq!(ImageFormat::from_str("png").unwrap(), ImageFormat::Png);
-        assert_eq!(ImageFormat::from_str("jpg").unwrap(), ImageFormat::Jpeg);
-        assert_eq!(ImageFormat::from_str("jpeg").unwrap(), ImageFormat::Jpeg);
-        assert_eq!(ImageFormat::from_str("ppm").unwrap(), ImageFormat::Ppm);
+        assert_eq!(
+            ImageFormat::from_str("png").expect("ImageFormat::from_str should succeed"),
+            ImageFormat::Png
+        );
+        assert_eq!(
+            ImageFormat::from_str("jpg").expect("ImageFormat::from_str should succeed"),
+            ImageFormat::Jpeg
+        );
+        assert_eq!(
+            ImageFormat::from_str("jpeg").expect("ImageFormat::from_str should succeed"),
+            ImageFormat::Jpeg
+        );
+        assert_eq!(
+            ImageFormat::from_str("ppm").expect("ImageFormat::from_str should succeed"),
+            ImageFormat::Ppm
+        );
         assert!(ImageFormat::from_str("bmp").is_err());
     }
 
     #[test]
     fn test_parse_time() {
-        assert_eq!(parse_time("30").unwrap(), 30.0);
-        assert_eq!(parse_time("1:30").unwrap(), 90.0);
-        assert_eq!(parse_time("1:01:30").unwrap(), 3690.0);
+        assert_eq!(parse_time("30").expect("parse should succeed"), 30.0);
+        assert_eq!(parse_time("1:30").expect("parse should succeed"), 90.0);
+        assert_eq!(parse_time("1:01:30").expect("parse should succeed"), 3690.0);
     }
 
     #[test]
@@ -458,13 +470,19 @@ mod tests {
             quality: 90,
         };
 
-        assert_eq!(determine_format(&options).unwrap(), ImageFormat::Png);
+        assert_eq!(
+            determine_format(&options).expect("format determination should succeed"),
+            ImageFormat::Png
+        );
 
         let options_jpg = ExtractOptions {
             output_pattern: "frame_%04d.jpg".to_string(),
             ..options
         };
 
-        assert_eq!(determine_format(&options_jpg).unwrap(), ImageFormat::Jpeg);
+        assert_eq!(
+            determine_format(&options_jpg).expect("format determination should succeed"),
+            ImageFormat::Jpeg
+        );
     }
 }

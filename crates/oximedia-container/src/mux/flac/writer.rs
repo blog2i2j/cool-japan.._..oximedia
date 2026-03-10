@@ -731,7 +731,7 @@ mod tests {
         let mut muxer = FlacMuxer::new(sink, config);
 
         let flac = create_flac_stream();
-        let idx = muxer.add_stream(flac).unwrap();
+        let idx = muxer.add_stream(flac).expect("operation should succeed");
 
         assert_eq!(idx, 0);
         assert_eq!(muxer.streams.len(), 1);
@@ -746,7 +746,7 @@ mod tests {
         let flac1 = create_flac_stream();
         let flac2 = create_flac_stream();
 
-        muxer.add_stream(flac1).unwrap();
+        muxer.add_stream(flac1).expect("operation should succeed");
         let result = muxer.add_stream(flac2);
 
         assert!(result.is_err());
@@ -771,7 +771,7 @@ mod tests {
         let mut muxer = FlacMuxer::new(sink, config);
 
         let flac = create_flac_stream();
-        muxer.add_stream(flac).unwrap();
+        muxer.add_stream(flac).expect("operation should succeed");
 
         let result = muxer.write_header().await;
         assert!(result.is_ok());
@@ -785,8 +785,11 @@ mod tests {
         let mut muxer = FlacMuxer::new(sink, config);
 
         let flac = create_flac_stream();
-        muxer.add_stream(flac).unwrap();
-        muxer.write_header().await.unwrap();
+        muxer.add_stream(flac).expect("operation should succeed");
+        muxer
+            .write_header()
+            .await
+            .expect("operation should succeed");
 
         // Create a minimal FLAC frame (just test data)
         let packet = Packet::new(
@@ -807,8 +810,11 @@ mod tests {
         let mut muxer = FlacMuxer::new(sink, config);
 
         let flac = create_flac_stream();
-        muxer.add_stream(flac).unwrap();
-        muxer.write_header().await.unwrap();
+        muxer.add_stream(flac).expect("operation should succeed");
+        muxer
+            .write_header()
+            .await
+            .expect("operation should succeed");
 
         let result = muxer.write_trailer().await;
         assert!(result.is_ok());
@@ -821,7 +827,7 @@ mod tests {
         let mut muxer = FlacMuxer::new(sink, config);
 
         let flac = create_flac_stream();
-        muxer.add_stream(flac).unwrap();
+        muxer.add_stream(flac).expect("operation should succeed");
 
         let result = muxer.write_header().await;
         assert!(result.is_ok());
@@ -834,8 +840,11 @@ mod tests {
         let mut muxer = FlacMuxer::new(sink, config);
 
         let flac = create_flac_stream();
-        muxer.add_stream(flac).unwrap();
-        muxer.write_header().await.unwrap();
+        muxer.add_stream(flac).expect("operation should succeed");
+        muxer
+            .write_header()
+            .await
+            .expect("operation should succeed");
 
         // Write some test packets
         for i in 0..10 {
@@ -845,11 +854,17 @@ mod tests {
                 Timestamp::new(i64::from(i) * 4096, Rational::new(1, 44_100)),
                 crate::PacketFlags::KEYFRAME,
             );
-            muxer.write_packet(&packet).await.unwrap();
+            muxer
+                .write_packet(&packet)
+                .await
+                .expect("operation should succeed");
         }
 
         // The MD5 should be calculated during trailer
-        muxer.write_trailer().await.unwrap();
+        muxer
+            .write_trailer()
+            .await
+            .expect("operation should succeed");
 
         // Verify MD5 is non-zero (it was calculated)
         if let Some(ref info) = muxer.stream_info {

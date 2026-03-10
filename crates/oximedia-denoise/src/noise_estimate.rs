@@ -106,10 +106,10 @@ fn slice_mad(pixels: &[u8]) -> f32 {
         return 0.0;
     }
     let mut vals: Vec<f32> = pixels.iter().map(|&p| p as f32).collect();
-    vals.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    vals.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let median = vals[vals.len() / 2];
     let mut deviations: Vec<f32> = vals.iter().map(|&v| (v - median).abs()).collect();
-    deviations.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    deviations.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     // σ ≈ MAD / 0.6745 for Gaussian noise
     deviations[deviations.len() / 2] / 0.6745
 }
@@ -231,7 +231,7 @@ impl NoiseEstimator {
         }
 
         // Use the 10th percentile of local variances as noise estimate
-        variances.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        variances.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let idx = (variances.len() as f32 * 0.1) as usize;
         let sigma = variances[idx].sqrt();
         let confidence = (variances.len() as f32 / 100.0).min(1.0);
@@ -329,7 +329,7 @@ mod tests {
         let e = NoiseEstimate::new(3.0, NoiseEstimateMethod::LocalVariance, 0.8)
             .with_channels([3.0, 1.5, 1.5]);
         assert!(e.channel_sigma.is_some());
-        let ch = e.channel_sigma.unwrap();
+        let ch = e.channel_sigma.expect("ch should be valid");
         assert!((ch[0] - 3.0).abs() < 1e-5);
     }
 

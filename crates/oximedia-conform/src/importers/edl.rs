@@ -120,7 +120,8 @@ mod tests {
 
     #[test]
     fn test_convert_timecode() {
-        let edl_tc = EdlTimecode::new(1, 23, 45, 12, EdlFrameRate::Fps25).unwrap();
+        let edl_tc =
+            EdlTimecode::new(1, 23, 45, 12, EdlFrameRate::Fps25).expect("edl_tc should be valid");
         let tc = EdlImporter::convert_timecode(&edl_tc);
         assert_eq!(tc.hours, 1);
         assert_eq!(tc.minutes, 23);
@@ -130,8 +131,8 @@ mod tests {
 
     #[test]
     fn test_event_to_clip() {
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 10, 0, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).expect("tc1 should be valid");
+        let tc2 = EdlTimecode::new(1, 0, 10, 0, EdlFrameRate::Fps25).expect("tc2 should be valid");
 
         let event = EdlEvent::new(
             1,

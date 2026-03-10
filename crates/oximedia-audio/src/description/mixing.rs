@@ -765,7 +765,7 @@ mod tests {
 
         mixer
             .mix_interleaved(&main_audio, &ad_audio, &mut output, 100, false)
-            .unwrap();
+            .expect("should succeed");
 
         assert!(output.iter().any(|&s| s > 0.0));
     }

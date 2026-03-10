@@ -521,6 +521,6 @@ mod tests {
         history.take_snapshot("v2".to_string(), vec![sample_clip("A", true)]);
         let diff = history.diff_by_index(0, 1);
         assert!(diff.is_some());
-        assert!(diff.unwrap().has_changes());
+        assert!(diff.expect("test expectation failed").has_changes());
     }
 }

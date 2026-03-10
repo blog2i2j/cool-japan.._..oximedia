@@ -536,7 +536,7 @@ mod tests {
         a.push_frame(&make_frame(4, 4, 110), 4, 4);
         let seg = a.current_segment_stats();
         assert!(seg.is_some());
-        let seg = seg.unwrap();
+        let seg = seg.expect("expected seg to be Some/Ok");
         assert!((seg.avg_luma - 105.0).abs() < 0.01);
     }
 

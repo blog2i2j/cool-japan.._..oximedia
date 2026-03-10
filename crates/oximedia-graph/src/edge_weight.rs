@@ -264,7 +264,7 @@ mod tests {
         let mut map = EdgeWeightMap::new();
         map.insert(WeightedEdge::new(0, 1, 200_000.0));
         map.insert(WeightedEdge::new(1, 2, 50_000.0));
-        let min = map.min_weight().unwrap();
+        let min = map.min_weight().expect("min_weight should succeed");
         assert!((min.bandwidth_bps() - 50_000.0).abs() < 1.0);
     }
 

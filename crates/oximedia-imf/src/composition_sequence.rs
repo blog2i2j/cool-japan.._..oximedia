@@ -234,7 +234,7 @@ mod tests {
     #[test]
     fn test_segment_edit_rate_fps() {
         let seg = CompositionSegment::new("s1", "ref", 0, 10, (30000, 1001));
-        let fps = seg.edit_rate_fps().unwrap();
+        let fps = seg.edit_rate_fps().expect("fps should be valid");
         assert!((fps - 29.97).abs() < 0.01);
     }
 

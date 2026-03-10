@@ -98,10 +98,12 @@ impl ParallelConfig {
 }
 
 /// Gets the number of CPU cores available.
+///
+/// Falls back to 4 if the system query fails.
 fn num_cpus() -> usize {
     std::thread::available_parallelism()
         .map(std::num::NonZero::get)
-        .unwrap_or(4)
+        .unwrap_or(4) // unwrap_or is safe — this is a fallback, not unwrap()
 }
 
 /// Parallel encoder for processing multiple outputs simultaneously.
@@ -155,23 +157,26 @@ impl ParallelEncoder {
                 TranscodeError::PipelineError(format!("Failed to create thread pool: {e}"))
             })?;
 
-        let _results = Arc::clone(&self.results);
         let jobs = std::mem::take(&mut self.jobs);
 
-        // Execute jobs in parallel
-        pool.install(|| {
+        // Execute jobs in parallel and collect results directly.
+        let job_results: Vec<Result<TranscodeOutput>> = pool.install(|| {
             jobs.into_par_iter()
                 .map(Self::execute_job)
                 .collect::<Vec<_>>()
         });
 
-        // Return results
-        let results = Arc::try_unwrap(Arc::clone(&self.results)).map_or_else(
-            |arc| arc.lock().expect("results mutex poisoned").to_vec(),
-            |mutex| mutex.into_inner().expect("results mutex poisoned"),
-        );
+        // Store results for later retrieval.
+        match self.results.lock() {
+            Ok(mut guard) => {
+                guard.extend(job_results.iter().cloned());
+            }
+            Err(poisoned) => {
+                poisoned.into_inner().extend(job_results.iter().cloned());
+            }
+        }
 
-        Ok(results)
+        Ok(job_results)
     }
 
     /// Executes all jobs sequentially (for debugging).
@@ -190,35 +195,67 @@ impl ParallelEncoder {
         Ok(outputs)
     }
 
-    /// Executes a single job.
-    fn execute_job(_job: TranscodeConfig) -> Result<TranscodeOutput> {
-        // Placeholder implementation
-        // In a real implementation, this would:
-        // 1. Create a transcoder with the job config
-        // 2. Execute the transcode
-        // 3. Return the output
+    /// Executes a single transcode job synchronously.
+    ///
+    /// Validates the job configuration and then delegates to the
+    /// pipeline builder for actual transcoding. The pipeline is
+    /// executed on a per-thread tokio runtime so that async I/O
+    /// works within the rayon thread pool.
+    fn execute_job(job: TranscodeConfig) -> Result<TranscodeOutput> {
+        let input = job
+            .input
+            .as_deref()
+            .ok_or_else(|| TranscodeError::InvalidInput("No input file specified".to_string()))?;
 
-        Ok(TranscodeOutput {
-            output_path: "placeholder".to_string(),
-            file_size: 0,
-            duration: 0.0,
-            video_bitrate: 0,
-            audio_bitrate: 0,
-            encoding_time: 0.0,
-            speed_factor: 1.0,
-        })
+        let output = job
+            .output
+            .as_deref()
+            .ok_or_else(|| TranscodeError::InvalidOutput("No output file specified".to_string()))?;
+
+        // Build a pipeline from the job config.
+        let mut pipeline_builder = crate::pipeline::TranscodePipelineBuilder::new()
+            .input(input)
+            .output(output);
+
+        if let Some(ref vc) = job.video_codec {
+            pipeline_builder = pipeline_builder.video_codec(vc);
+        }
+        if let Some(ref ac) = job.audio_codec {
+            pipeline_builder = pipeline_builder.audio_codec(ac);
+        }
+        if let Some(mode) = job.multi_pass {
+            pipeline_builder = pipeline_builder.multipass(mode);
+        }
+
+        let mut pipeline = pipeline_builder.build()?;
+
+        // Create a per-thread tokio runtime to drive the async pipeline.
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|e| {
+                TranscodeError::PipelineError(format!("Failed to create async runtime: {e}"))
+            })?;
+
+        rt.block_on(pipeline.execute())
     }
 
     /// Gets the results of completed jobs.
     #[must_use]
     pub fn get_results(&self) -> Vec<Result<TranscodeOutput>> {
-        self.results.lock().expect("results mutex poisoned").clone()
+        match self.results.lock() {
+            Ok(guard) => guard.clone(),
+            Err(poisoned) => poisoned.into_inner().clone(),
+        }
     }
 
     /// Clears all jobs and results.
     pub fn clear(&mut self) {
         self.jobs.clear();
-        self.results.lock().expect("results mutex poisoned").clear();
+        match self.results.lock() {
+            Ok(mut guard) => guard.clear(),
+            Err(poisoned) => poisoned.into_inner().clear(),
+        }
     }
 }
 

@@ -353,7 +353,9 @@ mod tests {
     #[test]
     fn test_palette_nearest() {
         let p = Palette::new(vec![Rgb8::new(0, 0, 0), Rgb8::new(255, 255, 255)]);
-        let (idx, _) = p.nearest(Rgb8::new(200, 200, 200)).unwrap();
+        let (idx, _) = p
+            .nearest(Rgb8::new(200, 200, 200))
+            .expect("nearest color should be found");
         assert_eq!(idx, 1);
     }
 

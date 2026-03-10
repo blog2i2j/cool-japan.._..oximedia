@@ -439,7 +439,7 @@ mod tests {
             sample_endpoint("gcs", "b"),
         );
         plan.add_item("f.mp4", 1000);
-        plan.complete_item(0).unwrap();
+        plan.complete_item(0).expect("complete item should succeed");
         let prog = plan.progress();
         assert_eq!(prog.completed, 1);
         assert_eq!(prog.remaining, 0);
@@ -454,7 +454,7 @@ mod tests {
             sample_endpoint("gcs", "b"),
         );
         plan.add_item("f.mp4", 1000);
-        plan.fail_item(0, "network timeout").unwrap();
+        plan.fail_item(0, "network timeout").expect("fail item should succeed");
         let prog = plan.progress();
         assert_eq!(prog.failed, 1);
     }
@@ -520,8 +520,8 @@ mod tests {
         plan.add_item("a.mp4", 100);
         plan.add_item("b.mp4", 200);
         plan.add_item("c.mp4", 300);
-        plan.complete_item(0).unwrap();
-        plan.fail_item(1, "err").unwrap();
+        plan.complete_item(0).expect("complete item should succeed");
+        plan.fail_item(1, "err").expect("fail item should succeed");
         let m = plan.items_by_state();
         assert_eq!(m.get(&MigrationItemState::Completed), Some(&1));
         assert_eq!(m.get(&MigrationItemState::Failed), Some(&1));

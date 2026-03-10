@@ -47,27 +47,42 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Starting Soon
     manager.switch_to("Starting Soon")?;
-    println!("→ Switched to: {}", manager.active_scene().unwrap());
+    println!(
+        "→ Switched to: {}",
+        manager.active_scene().expect("active scene should exist")
+    );
     tokio::time::sleep(Duration::from_secs(2)).await;
 
     // Gameplay
     manager.switch_to("Gameplay")?;
-    println!("→ Switched to: {}", manager.active_scene().unwrap());
+    println!(
+        "→ Switched to: {}",
+        manager.active_scene().expect("active scene should exist")
+    );
     tokio::time::sleep(Duration::from_secs(5)).await;
 
     // BRB
     manager.switch_to("BRB")?;
-    println!("→ Switched to: {}", manager.active_scene().unwrap());
+    println!(
+        "→ Switched to: {}",
+        manager.active_scene().expect("active scene should exist")
+    );
     tokio::time::sleep(Duration::from_secs(2)).await;
 
     // Back to Gameplay
     manager.switch_to("Gameplay")?;
-    println!("→ Switched to: {}", manager.active_scene().unwrap());
+    println!(
+        "→ Switched to: {}",
+        manager.active_scene().expect("active scene should exist")
+    );
     tokio::time::sleep(Duration::from_secs(3)).await;
 
     // End Screen
     manager.switch_to("End Screen")?;
-    println!("→ Switched to: {}", manager.active_scene().unwrap());
+    println!(
+        "→ Switched to: {}",
+        manager.active_scene().expect("active scene should exist")
+    );
 
     println!("\nScene switching complete!");
 

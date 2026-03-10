@@ -1437,7 +1437,7 @@ mod tests {
     fn test_parse_block_header() {
         // Track number 1, timecode 0, keyframe, no lacing
         let data = [0x81, 0x00, 0x00, 0x80];
-        let (header, size) = parse_block_header(&data).unwrap();
+        let (header, size) = parse_block_header(&data).expect("operation should succeed");
 
         assert_eq!(header.track_number, 1);
         assert_eq!(header.timecode, 0);
@@ -1452,7 +1452,7 @@ mod tests {
     fn test_parse_block_header_with_lacing() {
         // Track number 1, timecode 33, Xiph lacing
         let data = [0x81, 0x00, 0x21, 0x02];
-        let (header, _) = parse_block_header(&data).unwrap();
+        let (header, _) = parse_block_header(&data).expect("operation should succeed");
 
         assert_eq!(header.track_number, 1);
         assert_eq!(header.timecode, 33);
@@ -1462,16 +1462,46 @@ mod tests {
 
     #[test]
     fn test_map_codec_id_green_list() {
-        assert_eq!(map_codec_id("V_VP9").unwrap(), CodecId::Vp9);
-        assert_eq!(map_codec_id("V_VP8").unwrap(), CodecId::Vp8);
-        assert_eq!(map_codec_id("V_AV1").unwrap(), CodecId::Av1);
-        assert_eq!(map_codec_id("V_THEORA").unwrap(), CodecId::Theora);
-        assert_eq!(map_codec_id("A_OPUS").unwrap(), CodecId::Opus);
-        assert_eq!(map_codec_id("A_VORBIS").unwrap(), CodecId::Vorbis);
-        assert_eq!(map_codec_id("A_FLAC").unwrap(), CodecId::Flac);
-        assert_eq!(map_codec_id("A_PCM/INT/LIT").unwrap(), CodecId::Pcm);
-        assert_eq!(map_codec_id("S_TEXT/WEBVTT").unwrap(), CodecId::WebVtt);
-        assert_eq!(map_codec_id("S_TEXT/ASS").unwrap(), CodecId::Ass);
+        assert_eq!(
+            map_codec_id("V_VP9").expect("operation should succeed"),
+            CodecId::Vp9
+        );
+        assert_eq!(
+            map_codec_id("V_VP8").expect("operation should succeed"),
+            CodecId::Vp8
+        );
+        assert_eq!(
+            map_codec_id("V_AV1").expect("operation should succeed"),
+            CodecId::Av1
+        );
+        assert_eq!(
+            map_codec_id("V_THEORA").expect("operation should succeed"),
+            CodecId::Theora
+        );
+        assert_eq!(
+            map_codec_id("A_OPUS").expect("operation should succeed"),
+            CodecId::Opus
+        );
+        assert_eq!(
+            map_codec_id("A_VORBIS").expect("operation should succeed"),
+            CodecId::Vorbis
+        );
+        assert_eq!(
+            map_codec_id("A_FLAC").expect("operation should succeed"),
+            CodecId::Flac
+        );
+        assert_eq!(
+            map_codec_id("A_PCM/INT/LIT").expect("operation should succeed"),
+            CodecId::Pcm
+        );
+        assert_eq!(
+            map_codec_id("S_TEXT/WEBVTT").expect("operation should succeed"),
+            CodecId::WebVtt
+        );
+        assert_eq!(
+            map_codec_id("S_TEXT/ASS").expect("operation should succeed"),
+            CodecId::Ass
+        );
     }
 
     #[test]
@@ -1510,7 +1540,7 @@ mod tests {
     fn test_parse_fixed_size_lacing() {
         // 2 frames, each 4 bytes
         let data = [0x01, 1, 2, 3, 4, 5, 6, 7, 8];
-        let frames = parse_fixed_size_lacing(&data).unwrap();
+        let frames = parse_fixed_size_lacing(&data).expect("operation should succeed");
 
         assert_eq!(frames.len(), 2);
         assert_eq!(frames[0], vec![1, 2, 3, 4]);
@@ -1521,7 +1551,7 @@ mod tests {
     fn test_parse_xiph_lacing() {
         // 2 frames: first 3 bytes, second 5 bytes
         let data = [0x01, 3, 1, 2, 3, 4, 5, 6, 7, 8];
-        let frames = parse_xiph_lacing(&data).unwrap();
+        let frames = parse_xiph_lacing(&data).expect("operation should succeed");
 
         assert_eq!(frames.len(), 2);
         assert_eq!(frames[0], vec![1, 2, 3]);
@@ -1532,7 +1562,7 @@ mod tests {
     fn test_parse_simple_block() {
         // Track 1, timecode 0, keyframe, no lacing, 4 bytes data
         let data = [0x81, 0x00, 0x00, 0x80, 1, 2, 3, 4];
-        let block = parse_simple_block(&data).unwrap();
+        let block = parse_simple_block(&data).expect("operation should succeed");
 
         assert_eq!(block.header.track_number, 1);
         assert!(block.header.keyframe);
@@ -1554,7 +1584,7 @@ mod tests {
             0x42, 0x82, 0x84, b'w', b'e', b'b', b'm', // DocType: "webm"
         ];
 
-        let (header, consumed) = parse_ebml_header(&data).unwrap();
+        let (header, consumed) = parse_ebml_header(&data).expect("operation should succeed");
 
         assert_eq!(header.version, 1);
         assert_eq!(header.read_version, 1);

@@ -630,7 +630,7 @@ mod tests {
         let dict = Dictionary::new();
         let class = dict.get_class(&Auid::CLASS_HEADER);
         assert!(class.is_some());
-        assert_eq!(class.unwrap().name, "Header");
+        assert_eq!(class.expect("test expectation failed").name, "Header");
     }
 
     #[test]
@@ -638,7 +638,10 @@ mod tests {
         let dict = Dictionary::new();
         let class = dict.get_class_by_name("CompositionMob");
         assert!(class.is_some());
-        assert_eq!(class.unwrap().auid, Auid::CLASS_COMPOSITION_MOB);
+        assert_eq!(
+            class.expect("test expectation failed").auid,
+            Auid::CLASS_COMPOSITION_MOB
+        );
     }
 
     #[test]

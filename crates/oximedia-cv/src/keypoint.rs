@@ -484,7 +484,10 @@ mod tests {
     fn test_keypoint_with_descriptor() {
         let kp = Keypoint::new(5.0, 5.0, 0.5).with_descriptor(vec![1.0, 2.0, 3.0]);
         assert!(kp.descriptor.is_some());
-        assert_eq!(kp.descriptor.as_ref().unwrap().len(), 3);
+        assert_eq!(
+            kp.descriptor.as_ref().expect("as_ref should succeed").len(),
+            3
+        );
     }
 
     #[test]

@@ -197,10 +197,14 @@ mod tests {
 
         let takes = vec![take1.clone(), take2.clone(), take3.clone()];
 
-        let best = TakeSelector::HighestRated.select(&takes).unwrap();
+        let best = TakeSelector::HighestRated
+            .select(&takes)
+            .expect("select should succeed");
         assert_eq!(best.take_number, 2);
 
-        let first_good = TakeSelector::FirstGood.select(&takes).unwrap();
+        let first_good = TakeSelector::FirstGood
+            .select(&takes)
+            .expect("select should succeed");
         assert_eq!(first_good.take_number, 2);
 
         let good_takes = TakeSelector::select_good(&takes);

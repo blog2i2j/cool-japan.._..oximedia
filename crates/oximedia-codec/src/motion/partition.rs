@@ -723,7 +723,7 @@ mod tests {
         ));
 
         assert_eq!(list.len(), 2);
-        assert_eq!(list.get(0).unwrap().mv.dx, 10);
+        assert_eq!(list.get(0).expect("get should return value").mv.dx, 10);
     }
 
     #[test]

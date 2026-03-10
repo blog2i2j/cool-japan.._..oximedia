@@ -114,7 +114,7 @@ mod tests {
     fn test_parse_srt() {
         let srt = b"1\n00:00:01,000 --> 00:00:03,000\nFirst caption\n\n2\n00:00:05,000 --> 00:00:07,500\nSecond caption\n\n";
         let parser = SrtParser;
-        let track = parser.parse(srt).unwrap();
+        let track = parser.parse(srt).expect("parsing should succeed");
 
         assert_eq!(track.captions.len(), 2);
         assert_eq!(track.captions[0].text, "First caption");
@@ -130,11 +130,11 @@ mod tests {
                 Timestamp::from_secs(3),
                 "Test caption".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
         let writer = SrtWriter;
-        let output = writer.write(&track).unwrap();
-        let text = String::from_utf8(output).unwrap();
+        let output = writer.write(&track).expect("writing should succeed");
+        let text = String::from_utf8(output).expect("output should be valid UTF-8");
 
         assert!(text.contains("1\n"));
         assert!(text.contains("Test caption"));
@@ -143,7 +143,7 @@ mod tests {
 
     #[test]
     fn test_timestamp_parsing() {
-        let (_, ts) = srt_timestamp("00:01:30,500").unwrap();
+        let (_, ts) = srt_timestamp("00:01:30,500").expect("timestamp parsing should succeed");
         assert_eq!(ts.as_hmsm(), (0, 1, 30, 500));
     }
 }

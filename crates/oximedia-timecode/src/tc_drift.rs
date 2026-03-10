@@ -336,7 +336,7 @@ mod tests {
         det.add_sample(DriftSample::new(0.0, 0, 0));
         det.add_sample(DriftSample::new(1.0, 25, 25));
         det.add_sample(DriftSample::new(2.0, 50, 50));
-        let analysis = det.analyze().unwrap();
+        let analysis = det.analyze().expect("analysis should succeed");
         assert!(analysis.within_tolerance);
         assert!((analysis.drift_ppm).abs() < 1.0);
         assert_eq!(analysis.recommended_strategy, CorrectionStrategy::None);
@@ -349,7 +349,7 @@ mod tests {
         det.add_sample(DriftSample::new(0.0, 0, 0));
         det.add_sample(DriftSample::new(1.0, 26, 25));
         det.add_sample(DriftSample::new(2.0, 52, 50));
-        let analysis = det.analyze().unwrap();
+        let analysis = det.analyze().expect("analysis should succeed");
         assert!(!analysis.within_tolerance);
         assert!(analysis.max_drift_frames >= 1);
     }
@@ -357,8 +357,10 @@ mod tests {
     #[test]
     fn test_correct_timecode_forward() {
         let det = DriftDetector::new(DriftConfig::new(FrameRate::Fps25));
-        let tc = Timecode::new(0, 0, 1, 0, FrameRate::Fps25).unwrap();
-        let corrected = det.correct_timecode(&tc, 5).unwrap();
+        let tc = Timecode::new(0, 0, 1, 0, FrameRate::Fps25).expect("valid timecode");
+        let corrected = det
+            .correct_timecode(&tc, 5)
+            .expect("correction should succeed");
         assert_eq!(corrected.seconds, 1);
         assert_eq!(corrected.frames, 5);
     }
@@ -366,8 +368,10 @@ mod tests {
     #[test]
     fn test_correct_timecode_backward() {
         let det = DriftDetector::new(DriftConfig::new(FrameRate::Fps25));
-        let tc = Timecode::new(0, 0, 1, 5, FrameRate::Fps25).unwrap();
-        let corrected = det.correct_timecode(&tc, -5).unwrap();
+        let tc = Timecode::new(0, 0, 1, 5, FrameRate::Fps25).expect("valid timecode");
+        let corrected = det
+            .correct_timecode(&tc, -5)
+            .expect("correction should succeed");
         assert_eq!(corrected.seconds, 1);
         assert_eq!(corrected.frames, 0);
     }

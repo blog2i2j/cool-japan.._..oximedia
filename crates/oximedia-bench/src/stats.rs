@@ -266,7 +266,10 @@ mod tests {
         assert_eq!(stats.mean_encoding_fps, 35.0);
         assert_eq!(stats.median_encoding_fps, 35.0);
         assert!(stats.mean_psnr.is_some());
-        assert!((stats.mean_psnr.unwrap() - 36.333_333_333_333_336).abs() < 1e-9);
+        assert!(
+            (stats.mean_psnr.expect("test expectation failed") - 36.333_333_333_333_336).abs()
+                < 1e-9
+        );
     }
 
     #[test]

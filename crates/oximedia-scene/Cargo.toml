@@ -20,5 +20,5 @@ oximedia-core = { workspace = true }
 oximedia-cv = { workspace = true }
 thiserror = { workspace = true }
 serde = { workspace = true }
-ndarray = { workspace = true }
+scirs2-core = { workspace = true }
 rayon = { workspace = true }

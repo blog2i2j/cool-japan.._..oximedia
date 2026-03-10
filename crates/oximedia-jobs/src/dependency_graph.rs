@@ -242,7 +242,7 @@ mod tests {
         g.add_dependency(3, 4);
         let order = g.topological_sort();
         assert_eq!(order[0], 1);
-        assert_eq!(*order.last().unwrap(), 4);
+        assert_eq!(*order.last().expect("last should succeed"), 4);
         assert_eq!(order.len(), 4);
     }
 

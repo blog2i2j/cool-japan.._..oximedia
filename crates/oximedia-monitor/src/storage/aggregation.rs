@@ -53,18 +53,18 @@ impl Aggregator {
         match function {
             AggregateFunction::Min => values
                 .iter()
-                .min_by(|a, b| a.partial_cmp(b).unwrap())
+                .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
                 .copied(),
             AggregateFunction::Max => values
                 .iter()
-                .max_by(|a, b| a.partial_cmp(b).unwrap())
+                .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
                 .copied(),
             AggregateFunction::Avg => Some(values.iter().sum::<f64>() / values.len() as f64),
             AggregateFunction::Sum => Some(values.iter().sum()),
             AggregateFunction::Count => Some(values.len() as f64),
             AggregateFunction::Percentile(p) => {
                 let mut sorted = values.to_vec();
-                sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
                 let idx = ((sorted.len() as f64 - 1.0) * (f64::from(p) / 100.0)) as usize;
                 Some(sorted[idx])
             }
@@ -167,7 +167,8 @@ mod tests {
         let timestamp = Utc::now();
         let values = vec![1.0, 2.0, 3.0, 4.0, 5.0];
 
-        let aggregated = Aggregator::aggregate_full(timestamp, &values).unwrap();
+        let aggregated =
+            Aggregator::aggregate_full(timestamp, &values).expect("operation should succeed");
 
         assert_eq!(aggregated.min, 1.0);
         assert_eq!(aggregated.max, 5.0);

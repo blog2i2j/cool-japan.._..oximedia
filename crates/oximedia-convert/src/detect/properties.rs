@@ -195,7 +195,9 @@ mod tests {
     #[test]
     fn test_aspect_ratio() {
         let props = create_test_properties();
-        let ratio = props.aspect_ratio().unwrap();
+        let ratio = props
+            .aspect_ratio()
+            .expect("aspect ratio should be computable");
         assert!((ratio - 16.0 / 9.0).abs() < 0.01);
     }
 
@@ -271,7 +273,9 @@ mod tests {
     #[test]
     fn test_calculated_bitrate() {
         let props = create_test_properties();
-        let bitrate = props.calculated_bitrate().unwrap();
+        let bitrate = props
+            .calculated_bitrate()
+            .expect("bitrate should be calculable");
         // 10 MB over 60 seconds = ~1.4 Mbps
         assert!(bitrate > 1_000_000);
         assert!(bitrate < 2_000_000);

@@ -187,10 +187,10 @@ mod tests {
         use tempfile::NamedTempFile;
 
         let policy = PreservationPolicy::default();
-        let file = NamedTempFile::new().unwrap();
+        let file = NamedTempFile::new().expect("operation should succeed");
 
-        policy.save(file.path()).unwrap();
-        let loaded = PreservationPolicy::load(file.path()).unwrap();
+        policy.save(file.path()).expect("operation should succeed");
+        let loaded = PreservationPolicy::load(file.path()).expect("operation should succeed");
 
         assert_eq!(loaded.name, policy.name);
         assert_eq!(loaded.min_versions, policy.min_versions);

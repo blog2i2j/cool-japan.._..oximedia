@@ -14,7 +14,7 @@ workspace = true
 
 [dependencies]
 oximedia-core = { workspace = true }
-oximedia-codec = { workspace = true }
+oximedia-codec = { workspace = true, default-features = true }
 oximedia-audio = { workspace = true }
 oximedia-graph = { workspace = true }
 thiserror = { workspace = true }

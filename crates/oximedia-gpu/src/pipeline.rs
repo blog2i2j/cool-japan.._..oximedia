@@ -340,7 +340,7 @@ mod tests {
         let mut p = GpuPipeline::new();
         p.add_node(make_node(1, PipelineStage::Decode));
         p.add_node(make_node(2, PipelineStage::Encode));
-        p.connect(1, 2).unwrap();
+        p.connect(1, 2).expect("pipeline connection should succeed");
         assert!(p.connect(1, 2).is_err());
     }
 
@@ -350,8 +350,8 @@ mod tests {
         p.add_node(make_node(1, PipelineStage::Decode));
         p.add_node(make_node(2, PipelineStage::Filter));
         p.add_node(make_node(3, PipelineStage::Encode));
-        p.connect(1, 2).unwrap();
-        p.connect(2, 3).unwrap();
+        p.connect(1, 2).expect("pipeline connection should succeed");
+        p.connect(2, 3).expect("pipeline connection should succeed");
         assert!(p.connect(3, 1).is_err());
     }
 
@@ -383,9 +383,17 @@ mod tests {
         let mut p = GpuPipeline::new();
         p.add_node(make_node(1, PipelineStage::Decode));
         p.add_node(make_node(2, PipelineStage::Encode));
-        p.connect(1, 2).unwrap();
-        let n1 = p.nodes().iter().find(|n| n.id == 1).unwrap();
-        let n2 = p.nodes().iter().find(|n| n.id == 2).unwrap();
+        p.connect(1, 2).expect("pipeline connection should succeed");
+        let n1 = p
+            .nodes()
+            .iter()
+            .find(|n| n.id == 1)
+            .expect("find should return a result");
+        let n2 = p
+            .nodes()
+            .iter()
+            .find(|n| n.id == 2)
+            .expect("find should return a result");
         assert_eq!(n1.output_count, 1);
         assert_eq!(n2.input_count, 1);
     }

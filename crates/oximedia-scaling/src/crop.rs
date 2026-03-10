@@ -66,6 +66,154 @@ impl CropMode {
     }
 }
 
+/// Compute a gradient-magnitude saliency map using Sobel operators and weight
+/// it by a 2D Gaussian centred on the image with σ = 0.3 × min(width, height).
+///
+/// `pixels` must be a row-major, single-channel byte slice of length `w × h`.
+/// Returns a `Vec<f32>` of the same length with values in [0, 1].
+fn compute_saliency(pixels: &[u8], w: u32, h: u32) -> Vec<f32> {
+    let w = w as usize;
+    let h = h as usize;
+    let len = w * h;
+
+    if len == 0 {
+        return Vec::new();
+    }
+
+    // --- Sobel gradient magnitude ---
+    let mut grad = vec![0.0f32; len];
+    let mut max_grad = 0.0f32;
+
+    for y in 1..h.saturating_sub(1) {
+        for x in 1..w.saturating_sub(1) {
+            let get = |dy: isize, dx: isize| -> f32 {
+                let row = (y as isize + dy) as usize;
+                let col = (x as isize + dx) as usize;
+                pixels[row * w + col] as f32 / 255.0
+            };
+            let gx = -get(-1, -1) - 2.0 * get(0, -1) - get(1, -1)
+                + get(-1, 1)
+                + 2.0 * get(0, 1)
+                + get(1, 1);
+            let gy = -get(-1, -1) - 2.0 * get(-1, 0) - get(-1, 1)
+                + get(1, -1)
+                + 2.0 * get(1, 0)
+                + get(1, 1);
+            let mag = gx.abs() + gy.abs(); // L1 norm is cheaper and sufficient
+            grad[y * w + x] = mag;
+            if mag > max_grad {
+                max_grad = mag;
+            }
+        }
+    }
+
+    // Normalise gradient magnitude to [0, 1].
+    // The threshold 1e-3 guards against normalising pure f32 rounding noise:
+    // for a u8 image, a genuine gradient of 1 grey-level step produces a Sobel
+    // magnitude of at least 1/255 ≈ 0.004 before weighting, so anything below
+    // that is effectively zero for our purposes.
+    if max_grad > 1e-3 {
+        for g in &mut grad {
+            *g /= max_grad;
+        }
+    } else {
+        // Treat sub-threshold gradients as zero — no salient edges detected.
+        for g in &mut grad {
+            *g = 0.0;
+        }
+    }
+
+    // --- Gaussian centre-prior weight ---
+    let cx = w as f32 / 2.0;
+    let cy = h as f32 / 2.0;
+    let sigma = 0.3 * (w.min(h)) as f32;
+    let two_sigma2 = 2.0 * sigma * sigma;
+
+    let mut saliency = vec![0.0f32; len];
+    for y in 0..h {
+        for x in 0..w {
+            let dx = x as f32 - cx;
+            let dy = y as f32 - cy;
+            let weight = (-(dx * dx + dy * dy) / two_sigma2).exp();
+            saliency[y * w + x] = grad[y * w + x] * weight;
+        }
+    }
+
+    saliency
+}
+
+/// Compute the optimal smart-crop rectangle for `pixels` given a desired output
+/// size `(crop_w, crop_h)`.
+///
+/// Uses gradient-magnitude saliency weighted by a Gaussian centre prior.  A
+/// sliding-window search finds the candidate crop position that maximises the
+/// sum of saliency values within the window.
+///
+/// If the requested crop is larger than the source image the crop is centred
+/// instead.
+///
+/// `pixels` — row-major single-channel byte slice of length `src_w × src_h`.
+pub fn smart_crop(pixels: &[u8], src_w: u32, src_h: u32, crop_w: u32, crop_h: u32) -> CropRect {
+    // Clamp crop to source dimensions.
+    let crop_w = crop_w.min(src_w);
+    let crop_h = crop_h.min(src_h);
+
+    // Degenerate: source is exactly the crop size (or smaller).
+    if crop_w == src_w && crop_h == src_h {
+        return CropRect::new(0, 0, crop_w, crop_h);
+    }
+
+    let sw = src_w as usize;
+    let sh = src_h as usize;
+    let cw = crop_w as usize;
+    let ch = crop_h as usize;
+
+    // Compute weighted saliency map.
+    let saliency = compute_saliency(pixels, src_w, src_h);
+
+    // Pre-compute integral image of the saliency map for O(1) window sums.
+    // ii[y * (sw+1) + x] = sum of saliency over rectangle [0..y, 0..x).
+    let ii_w = sw + 1;
+    let ii_h = sh + 1;
+    let mut ii = vec![0.0f64; ii_w * ii_h];
+
+    for y in 1..ii_h {
+        for x in 1..ii_w {
+            ii[y * ii_w + x] = saliency[(y - 1) * sw + (x - 1)] as f64
+                + ii[(y - 1) * ii_w + x]
+                + ii[y * ii_w + (x - 1)]
+                - ii[(y - 1) * ii_w + (x - 1)];
+        }
+    }
+
+    // Sliding-window search.
+    let max_ox = sw.saturating_sub(cw);
+    let max_oy = sh.saturating_sub(ch);
+
+    let mut best_x = max_ox / 2;
+    let mut best_y = max_oy / 2;
+    let mut best_sum = f64::NEG_INFINITY;
+
+    for oy in 0..=max_oy {
+        for ox in 0..=max_ox {
+            // Sum over [oy..oy+ch, ox..ox+cw] using the integral image.
+            let x0 = ox;
+            let y0 = oy;
+            let x1 = ox + cw;
+            let y1 = oy + ch;
+            let sum =
+                ii[y1 * ii_w + x1] - ii[y0 * ii_w + x1] - ii[y1 * ii_w + x0] + ii[y0 * ii_w + x0];
+            if sum > best_sum {
+                best_sum = sum;
+                best_x = ox;
+                best_y = oy;
+            }
+        }
+    }
+
+    CropRect::new(best_x as u32, best_y as u32, crop_w, crop_h)
+}
+
 /// Applies a crop to a source frame and reports output dimensions.
 #[derive(Debug, Clone)]
 pub struct CropOperation {
@@ -185,5 +333,65 @@ mod tests {
     #[test]
     fn test_centered_crop_too_large() {
         assert!(CropOperation::centered(1280, 720, 1920, 1080).is_none());
+    }
+
+    #[test]
+    fn test_smart_crop_exact_size() {
+        let pixels = vec![128u8; 100 * 80];
+        let rect = smart_crop(&pixels, 100, 80, 100, 80);
+        assert_eq!(rect.x, 0);
+        assert_eq!(rect.y, 0);
+        assert_eq!(rect.w, 100);
+        assert_eq!(rect.h, 80);
+    }
+
+    #[test]
+    fn test_smart_crop_clamps_to_source() {
+        // crop size > source → clamped to source
+        let pixels = vec![128u8; 50 * 50];
+        let rect = smart_crop(&pixels, 50, 50, 200, 200);
+        assert!(rect.fits_in(50, 50));
+    }
+
+    #[test]
+    fn test_smart_crop_uniform_image_returns_valid_rect() {
+        // Uniform image: saliency is zero everywhere, result should still be valid.
+        let pixels = vec![128u8; 100 * 100];
+        let rect = smart_crop(&pixels, 100, 100, 60, 60);
+        assert!(rect.is_valid());
+        assert!(rect.fits_in(100, 100));
+    }
+
+    #[test]
+    fn test_smart_crop_prefers_high_saliency_region() {
+        // Create a 20×20 image that is dark (low saliency) except for a bright
+        // patch in the top-left (rows 0-5, cols 0-5 = value 255, rest = 0).
+        // A 10×10 crop should move towards the bright region.
+        let w = 20usize;
+        let h = 20usize;
+        let mut pixels = vec![0u8; w * h];
+        for y in 0..6 {
+            for x in 0..6 {
+                pixels[y * w + x] = 255;
+            }
+        }
+        let rect = smart_crop(&pixels, w as u32, h as u32, 10, 10);
+        // The crop x position should be on the left half.
+        assert!(
+            rect.x <= 10,
+            "expected crop to favour left side, got x={}",
+            rect.x
+        );
+        assert!(rect.fits_in(w as u32, h as u32));
+    }
+
+    #[test]
+    fn test_compute_saliency_uniform() {
+        let pixels = vec![128u8; 10 * 10];
+        let s = compute_saliency(&pixels, 10, 10);
+        // Uniform image: all gradients are zero.
+        for &v in &s {
+            assert!(v.abs() < f32::EPSILON, "expected zero saliency, got {v}");
+        }
     }
 }

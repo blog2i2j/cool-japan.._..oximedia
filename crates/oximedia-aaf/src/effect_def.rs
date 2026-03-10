@@ -305,7 +305,9 @@ mod tests {
         assert!(reg.len() >= 4);
         assert!(reg.get_by_name("VideoDissolve").is_some());
         assert!(reg.get_by_name("VideoSpeedControl").is_some());
-        let speed = reg.get_by_name("VideoSpeedControl").unwrap();
+        let speed = reg
+            .get_by_name("VideoSpeedControl")
+            .expect("speed should be valid");
         assert!(speed.is_time_warp);
     }
 
@@ -371,7 +373,9 @@ mod tests {
     #[test]
     fn test_color_correct_parameters() {
         let reg = EffectTypeRegistry::with_defaults();
-        let cc = reg.get_by_name("VideoColorCorrect").unwrap();
+        let cc = reg
+            .get_by_name("VideoColorCorrect")
+            .expect("cc should be valid");
         assert!(cc.parameter_names.contains(&"Brightness".to_string()));
         assert!(cc.parameter_names.contains(&"Contrast".to_string()));
         assert!(cc.parameter_names.contains(&"Saturation".to_string()));
@@ -380,7 +384,9 @@ mod tests {
     #[test]
     fn test_wipe_parameters() {
         let reg = EffectTypeRegistry::with_defaults();
-        let wipe = reg.get_by_name("SMPTEVideoWipe").unwrap();
+        let wipe = reg
+            .get_by_name("SMPTEVideoWipe")
+            .expect("wipe should be valid");
         assert_eq!(wipe.num_inputs, 2);
         assert!(wipe.parameter_names.contains(&"WipeCode".to_string()));
     }

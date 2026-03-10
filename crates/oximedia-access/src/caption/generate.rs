@@ -368,7 +368,7 @@ mod tests {
 
         let captions = generator
             .generate_from_transcript(transcript, &timestamps)
-            .unwrap();
+            .expect("test expectation failed");
         assert_eq!(captions.len(), 2);
     }
 

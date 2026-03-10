@@ -528,7 +528,7 @@ mod tests {
         data.extend_from_slice(b"vorbis");
         data.extend_from_slice(&[0x00, 0x00]);
 
-        let header = VorbisHeader::parse(&data).unwrap();
+        let header = VorbisHeader::parse(&data).expect("should succeed");
         assert_eq!(header.header_type, HeaderType::Identification);
     }
 
@@ -545,7 +545,7 @@ mod tests {
     #[test]
     fn test_identification_header_parse() {
         let data = make_id_header();
-        let header = IdentificationHeader::parse(&data).unwrap();
+        let header = IdentificationHeader::parse(&data).expect("should succeed");
 
         assert_eq!(header.vorbis_version, 0);
         assert_eq!(header.audio_channels, 2);
@@ -559,7 +559,7 @@ mod tests {
     #[test]
     fn test_identification_header_block_sizes() {
         let data = make_id_header();
-        let header = IdentificationHeader::parse(&data).unwrap();
+        let header = IdentificationHeader::parse(&data).expect("should succeed");
 
         assert_eq!(header.block_size_0_samples(), 256);
         assert_eq!(header.block_size_1_samples(), 256);
@@ -582,7 +582,7 @@ mod tests {
     #[test]
     fn test_mode_block_size() {
         let data = make_id_header();
-        let id_header = IdentificationHeader::parse(&data).unwrap();
+        let id_header = IdentificationHeader::parse(&data).expect("should succeed");
 
         let mode_small = Mode {
             block_flag: false,
@@ -603,7 +603,7 @@ mod tests {
         data.extend_from_slice(b"vorbis");
         data.push(0x00); // codebook_count - 1
 
-        let header = SetupHeader::parse(&data).unwrap();
+        let header = SetupHeader::parse(&data).expect("should succeed");
         assert_eq!(header.codebook_count, 1);
     }
 }

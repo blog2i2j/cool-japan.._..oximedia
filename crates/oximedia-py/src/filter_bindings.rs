@@ -353,7 +353,12 @@ mod tests {
             .with_param("width", ParamValue::Int(1920))
             .with_param("height", ParamValue::Int(1080));
         assert_eq!(n.param_count(), 2);
-        assert_eq!(n.get_param("width").unwrap().as_int(), Some(1920));
+        assert_eq!(
+            n.get_param("width")
+                .expect("get_param should succeed")
+                .as_int(),
+            Some(1920)
+        );
     }
 
     #[test]
@@ -409,7 +414,7 @@ mod tests {
         let mut c = FilterChain::new();
         c.push(FilterNode::new("f1", "scale", FilterDomain::Video));
         assert_eq!(c.len(), 1);
-        assert_eq!(c.get(0).unwrap().filter_name, "scale");
+        assert_eq!(c.get(0).expect("get should succeed").filter_name, "scale");
     }
 
     #[test]

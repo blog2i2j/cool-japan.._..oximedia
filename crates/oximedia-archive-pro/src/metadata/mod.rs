@@ -178,7 +178,7 @@ mod tests {
     fn test_dublin_core_xml() {
         let dc = DublinCore::new().with_title("Test").with_creator("Author");
 
-        let xml = dc.to_xml().unwrap();
+        let xml = dc.to_xml().expect("operation should succeed");
         assert!(xml.contains("<dc:title>Test</dc:title>"));
         assert!(xml.contains("<dc:creator>Author</dc:creator>"));
     }

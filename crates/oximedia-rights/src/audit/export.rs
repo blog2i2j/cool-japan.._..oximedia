@@ -61,7 +61,7 @@ impl<'a> AuditExporter<'a> {
                     user_id: r.get("user_id"),
                     changes,
                     timestamp: DateTime::parse_from_rfc3339(r.get("timestamp"))
-                        .unwrap()
+                        .unwrap_or_else(|_| Utc::now().fixed_offset())
                         .with_timezone(&Utc),
                     ip_address: r.get("ip_address"),
                 }
@@ -77,13 +77,18 @@ mod tests {
 
     #[tokio::test]
     async fn test_audit_export() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("rights test operation should succeed");
         let db_path = format!("sqlite://{}/test.db", temp_dir.path().display());
-        let db = RightsDatabase::new(&db_path).await.unwrap();
+        let db = RightsDatabase::new(&db_path)
+            .await
+            .expect("rights test operation should succeed");
 
         let trail = AuditTrail::new(&db);
         let entry = crate::audit::AuditEntry::new("asset", "asset1", "create");
-        trail.log(entry).await.unwrap();
+        trail
+            .log(entry)
+            .await
+            .expect("rights test operation should succeed");
 
         let exporter = AuditExporter::new(&db);
         let now = Utc::now();
@@ -93,7 +98,7 @@ mod tests {
                 now + chrono::Duration::hours(1),
             )
             .await
-            .unwrap();
+            .expect("rights test operation should succeed");
 
         assert!(json.contains("asset1"));
     }

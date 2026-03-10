@@ -115,8 +115,8 @@ impl ThroughputMeter {
         if self.samples.len() < 2 {
             return 0.0;
         }
-        let first_ts = self.samples.first().unwrap().0;
-        let last_ts = self.samples.last().unwrap().0;
+        let first_ts = self.samples.first().map(|s| s.0).unwrap_or(0);
+        let last_ts = self.samples.last().map(|s| s.0).unwrap_or(0);
         let duration_ms = last_ts.saturating_sub(first_ts);
         if duration_ms == 0 {
             return 0.0;
@@ -414,7 +414,7 @@ mod tests {
     fn test_set_and_get_allocation() {
         let mut t = BandwidthThrottle::new(10_000);
         t.set_allocation("key1", 5000);
-        let alloc = t.get_allocation("key1").unwrap();
+        let alloc = t.get_allocation("key1").expect("allocation should exist");
         assert_eq!(alloc.bps, 5000);
     }
 

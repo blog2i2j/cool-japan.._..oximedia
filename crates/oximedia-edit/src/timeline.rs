@@ -141,7 +141,11 @@ impl Timeline {
         track.sort_clips();
 
         // Update clip map
-        let clip_index = track.clips.iter().position(|c| c.id == clip_id).unwrap();
+        let clip_index = track
+            .clips
+            .iter()
+            .position(|c| c.id == clip_id)
+            .expect("clip was just inserted into this track");
         self.clip_map.insert(clip_id, (track_index, clip_index));
 
         // Update timeline duration
@@ -196,7 +200,11 @@ impl Timeline {
         clip.timeline_start = new_start;
 
         // Re-sort the track
-        let (track_index, _) = self.clip_map.get(&clip_id).copied().unwrap();
+        let (track_index, _) = self
+            .clip_map
+            .get(&clip_id)
+            .copied()
+            .expect("clip_id confirmed present via get_clip_mut check above");
         self.tracks[track_index].sort_clips();
         self.rebuild_clip_map();
 

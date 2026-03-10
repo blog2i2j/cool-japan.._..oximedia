@@ -475,7 +475,7 @@ mod tests {
         let mut pipe = SplicePipe::with_defaults();
         let result = pipe
             .transfer(&mut reader, &mut writer, data.len() as u64)
-            .unwrap();
+            .expect("operation should succeed");
 
         assert_eq!(result.bytes_transferred, data.len() as u64);
         assert!(result.completed);
@@ -489,7 +489,9 @@ mod tests {
         let mut writer: Vec<u8> = Vec::new();
 
         let mut pipe = SplicePipe::with_defaults();
-        let result = pipe.transfer(&mut reader, &mut writer, 500).unwrap();
+        let result = pipe
+            .transfer(&mut reader, &mut writer, 500)
+            .expect("transfer should succeed");
 
         assert_eq!(result.bytes_transferred, 500);
         assert_eq!(writer.len(), 500);
@@ -502,7 +504,8 @@ mod tests {
         let mut writer: Vec<u8> = Vec::new();
 
         let mut pipe = SplicePipe::with_defaults();
-        pipe.transfer(&mut reader, &mut writer, 100).unwrap();
+        pipe.transfer(&mut reader, &mut writer, 100)
+            .expect("transfer should succeed");
 
         let cum = pipe.cumulative_result();
         assert!(cum.bytes_transferred > 0);

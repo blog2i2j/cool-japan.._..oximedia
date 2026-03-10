@@ -589,10 +589,22 @@ mod tests {
 
     #[test]
     fn test_priority_from_i32() {
-        assert_eq!(Priority::try_from(0).unwrap(), Priority::Low);
-        assert_eq!(Priority::try_from(1).unwrap(), Priority::Normal);
-        assert_eq!(Priority::try_from(2).unwrap(), Priority::High);
-        assert_eq!(Priority::try_from(3).unwrap(), Priority::Critical);
+        assert_eq!(
+            Priority::try_from(0).expect("operation should succeed"),
+            Priority::Low
+        );
+        assert_eq!(
+            Priority::try_from(1).expect("operation should succeed"),
+            Priority::Normal
+        );
+        assert_eq!(
+            Priority::try_from(2).expect("operation should succeed"),
+            Priority::High
+        );
+        assert_eq!(
+            Priority::try_from(3).expect("operation should succeed"),
+            Priority::Critical
+        );
         assert!(Priority::try_from(4).is_err());
     }
 

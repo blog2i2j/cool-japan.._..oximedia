@@ -253,7 +253,7 @@ mod tests {
     fn test_parse_webvtt() {
         let vtt = b"WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nFirst caption\n\n00:05.000 --> 00:07.500\nSecond caption\n\n";
         let parser = WebVttParser;
-        let track = parser.parse(vtt).unwrap();
+        let track = parser.parse(vtt).expect("parsing should succeed");
 
         assert_eq!(track.captions.len(), 2);
         assert_eq!(track.captions[0].text, "First caption");
@@ -269,11 +269,11 @@ mod tests {
                 Timestamp::from_secs(3),
                 "Test caption".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
         let writer = WebVttWriter;
-        let output = writer.write(&track).unwrap();
-        let text = String::from_utf8(output).unwrap();
+        let output = writer.write(&track).expect("writing should succeed");
+        let text = String::from_utf8(output).expect("output should be valid UTF-8");
 
         assert!(text.starts_with("WEBVTT\n"));
         assert!(text.contains("Test caption"));
@@ -285,7 +285,7 @@ mod tests {
         let vtt =
             b"WEBVTT\n\n00:00:01.000 --> 00:00:03.000 align:left position:20%\nLeft aligned\n\n";
         let parser = WebVttParser;
-        let track = parser.parse(vtt).unwrap();
+        let track = parser.parse(vtt).expect("parsing should succeed");
 
         assert_eq!(track.captions.len(), 1);
         assert_eq!(track.captions[0].style.alignment, Alignment::Left);

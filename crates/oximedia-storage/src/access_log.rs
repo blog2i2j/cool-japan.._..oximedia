@@ -279,7 +279,7 @@ mod tests {
             100,
             10,
         );
-        let entry = log.get(0).unwrap();
+        let entry = log.get(0).expect("get should succeed");
         assert_eq!(entry.kind, AccessKind::Write);
         assert_eq!(entry.key, "k1");
         assert!(log.get(99).is_none());
@@ -345,8 +345,14 @@ mod tests {
         log.record(2, AccessKind::Read, "b", "u", AccessStatus::Success, 0, 0);
         log.record(3, AccessKind::Delete, "c", "u", AccessStatus::Success, 0, 0);
         let counts = log.counts_by_kind();
-        assert_eq!(*counts.get(&AccessKind::Read).unwrap(), 2);
-        assert_eq!(*counts.get(&AccessKind::Delete).unwrap(), 1);
+        assert_eq!(
+            *counts.get(&AccessKind::Read).expect("get should succeed"),
+            2
+        );
+        assert_eq!(
+            *counts.get(&AccessKind::Delete).expect("get should succeed"),
+            1
+        );
     }
 
     #[test]

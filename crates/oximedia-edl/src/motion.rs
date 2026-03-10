@@ -341,7 +341,8 @@ mod tests {
 
     #[test]
     fn test_m2_comment_parsing() {
-        let effect = MotionEffect::from_m2_comment("M2 REEL1 0.50 100").unwrap();
+        let effect =
+            MotionEffect::from_m2_comment("M2 REEL1 0.50 100").expect("operation should succeed");
         assert!((effect.speed - 0.5).abs() < f64::EPSILON);
     }
 
@@ -355,11 +356,15 @@ mod tests {
     #[test]
     fn test_interpolation_parsing() {
         assert_eq!(
-            "NEAREST".parse::<InterpolationMethod>().unwrap(),
+            "NEAREST"
+                .parse::<InterpolationMethod>()
+                .expect("operation should succeed"),
             InterpolationMethod::Nearest
         );
         assert_eq!(
-            "BLEND".parse::<InterpolationMethod>().unwrap(),
+            "BLEND"
+                .parse::<InterpolationMethod>()
+                .expect("operation should succeed"),
             InterpolationMethod::Blend
         );
     }

@@ -170,29 +170,47 @@ mod tests {
     #[test]
     fn test_is_root_true() {
         let (tree, root) = make_tree();
-        let v = tree.versions.iter().find(|v| v.id == root).unwrap();
+        let v = tree
+            .versions
+            .iter()
+            .find(|v| v.id == root)
+            .expect("iter should succeed");
         assert!(v.is_root());
     }
 
     #[test]
     fn test_is_root_false_for_branch() {
         let (mut tree, root) = make_tree();
-        let branch = tree.create_branch(root, "colour grade", 2_000).unwrap();
-        let v = tree.versions.iter().find(|v| v.id == branch).unwrap();
+        let branch = tree
+            .create_branch(root, "colour grade", 2_000)
+            .expect("create_branch should succeed");
+        let v = tree
+            .versions
+            .iter()
+            .find(|v| v.id == branch)
+            .expect("iter should succeed");
         assert!(!v.is_root());
     }
 
     #[test]
     fn test_age_ms_normal() {
         let (tree, root) = make_tree();
-        let v = tree.versions.iter().find(|v| v.id == root).unwrap();
+        let v = tree
+            .versions
+            .iter()
+            .find(|v| v.id == root)
+            .expect("iter should succeed");
         assert_eq!(v.age_ms(5_000), 4_000);
     }
 
     #[test]
     fn test_age_ms_future_creation() {
         let (tree, root) = make_tree();
-        let v = tree.versions.iter().find(|v| v.id == root).unwrap();
+        let v = tree
+            .versions
+            .iter()
+            .find(|v| v.id == root)
+            .expect("iter should succeed");
         // now_ms < created_ms → saturating sub returns 0
         assert_eq!(v.age_ms(0), 0);
     }
@@ -223,7 +241,9 @@ mod tests {
     #[test]
     fn test_ancestors_single_parent() {
         let (mut tree, root) = make_tree();
-        let b1 = tree.create_branch(root, "b1", 2_000).unwrap();
+        let b1 = tree
+            .create_branch(root, "b1", 2_000)
+            .expect("create_branch should succeed");
         let ancestors = tree.ancestors(b1);
         assert_eq!(ancestors.len(), 1);
         assert_eq!(ancestors[0].id, root);
@@ -232,8 +252,12 @@ mod tests {
     #[test]
     fn test_ancestors_chain() {
         let (mut tree, root) = make_tree();
-        let b1 = tree.create_branch(root, "b1", 2_000).unwrap();
-        let b2 = tree.create_branch(b1, "b2", 3_000).unwrap();
+        let b1 = tree
+            .create_branch(root, "b1", 2_000)
+            .expect("create_branch should succeed");
+        let b2 = tree
+            .create_branch(b1, "b2", 3_000)
+            .expect("create_branch should succeed");
         let ancestors = tree.ancestors(b2);
         // Should return b1 then root
         assert_eq!(ancestors.len(), 2);
@@ -251,9 +275,15 @@ mod tests {
     #[test]
     fn test_descendants_from_root() {
         let (mut tree, root) = make_tree();
-        let b1 = tree.create_branch(root, "b1", 2_000).unwrap();
-        let b2 = tree.create_branch(root, "b2", 2_500).unwrap();
-        let b1b = tree.create_branch(b1, "b1b", 3_000).unwrap();
+        let b1 = tree
+            .create_branch(root, "b1", 2_000)
+            .expect("create_branch should succeed");
+        let b2 = tree
+            .create_branch(root, "b2", 2_500)
+            .expect("create_branch should succeed");
+        let b1b = tree
+            .create_branch(b1, "b1b", 3_000)
+            .expect("create_branch should succeed");
         let desc = tree.descendants(root);
         let ids: Vec<u64> = desc.iter().map(|v| v.id).collect();
         assert!(ids.contains(&b1));
@@ -281,8 +311,12 @@ mod tests {
     #[test]
     fn test_tip_versions_after_branching() {
         let (mut tree, root) = make_tree();
-        let b1 = tree.create_branch(root, "b1", 2_000).unwrap();
-        let b2 = tree.create_branch(root, "b2", 2_500).unwrap();
+        let b1 = tree
+            .create_branch(root, "b1", 2_000)
+            .expect("create_branch should succeed");
+        let b2 = tree
+            .create_branch(root, "b2", 2_500)
+            .expect("create_branch should succeed");
         let tips = tree.tip_versions();
         // root now has children; b1 and b2 are tips
         let tip_ids: Vec<u64> = tips.iter().map(|v| v.id).collect();
@@ -294,10 +328,20 @@ mod tests {
     #[test]
     fn test_version_numbers_increment() {
         let (mut tree, root) = make_tree();
-        let root_v = tree.versions.iter().find(|v| v.id == root).unwrap();
+        let root_v = tree
+            .versions
+            .iter()
+            .find(|v| v.id == root)
+            .expect("iter should succeed");
         assert_eq!(root_v.version_number, 1);
-        let branch = tree.create_branch(root, "v2", 0).unwrap();
-        let branch_v = tree.versions.iter().find(|v| v.id == branch).unwrap();
+        let branch = tree
+            .create_branch(root, "v2", 0)
+            .expect("create_branch should succeed");
+        let branch_v = tree
+            .versions
+            .iter()
+            .find(|v| v.id == branch)
+            .expect("iter should succeed");
         assert_eq!(branch_v.version_number, 2);
     }
 }

@@ -414,7 +414,7 @@ mod tests {
     fn test_edl_export() {
         let aaf = create_test_aaf();
         let exporter = EdlExporter::new("Test EDL", EditRate::PAL_25);
-        let edl = exporter.export(&aaf).unwrap();
+        let edl = exporter.export(&aaf).expect("edl should be valid");
 
         assert!(edl.contains("TITLE: Test EDL"));
         assert!(edl.contains("FCM:"));
@@ -424,7 +424,7 @@ mod tests {
     fn test_xml_export() {
         let aaf = create_test_aaf();
         let exporter = XmlExporter::new();
-        let xml = exporter.export(&aaf).unwrap();
+        let xml = exporter.export(&aaf).expect("xml should be valid");
 
         assert!(xml.contains("<?xml"));
         assert!(xml.contains("<aaf>"));
@@ -435,7 +435,7 @@ mod tests {
     #[test]
     fn test_timeline_conversion() {
         let aaf = create_test_aaf();
-        let timeline = TimelineConverter::convert(&aaf).unwrap();
+        let timeline = TimelineConverter::convert(&aaf).expect("timeline should be valid");
 
         assert_eq!(timeline.name, "Test Composition");
         assert_eq!(timeline.tracks.len(), 1);
@@ -445,7 +445,7 @@ mod tests {
     #[test]
     fn test_timeline_track_conversion() {
         let aaf = create_test_aaf();
-        let timeline = TimelineConverter::convert(&aaf).unwrap();
+        let timeline = TimelineConverter::convert(&aaf).expect("timeline should be valid");
 
         let track = &timeline.tracks[0];
         assert_eq!(track.name, "Video");
@@ -455,7 +455,7 @@ mod tests {
     #[test]
     fn test_timeline_clip() {
         let aaf = create_test_aaf();
-        let timeline = TimelineConverter::convert(&aaf).unwrap();
+        let timeline = TimelineConverter::convert(&aaf).expect("timeline should be valid");
 
         let clip = &timeline.tracks[0].clips[0];
         assert_eq!(clip.start.0, 0);

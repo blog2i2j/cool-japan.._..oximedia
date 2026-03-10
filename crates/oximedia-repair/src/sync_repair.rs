@@ -555,7 +555,7 @@ mod tests {
             .enumerate()
             .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .map(|(i, _)| i)
-            .unwrap();
+            .expect("unexpected None/Err");
         assert_eq!(peak_idx, zero_lag);
     }
 

@@ -483,7 +483,7 @@ mod tests {
         let db = manager.get_default();
         assert!(db.is_ok());
 
-        let db = db.unwrap();
+        let db = db.expect("should succeed");
         assert!(!db.is_empty());
     }
 
@@ -494,7 +494,7 @@ mod tests {
         let hrir = db.interpolate(0.0, 0.0);
         assert!(hrir.is_some());
 
-        let hrir = hrir.unwrap();
+        let hrir = hrir.expect("should succeed");
         assert!(!hrir.is_empty());
     }
 }

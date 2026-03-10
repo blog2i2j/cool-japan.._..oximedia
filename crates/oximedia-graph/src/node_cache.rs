@@ -299,7 +299,7 @@ mod tests {
         let mut cache = NodeCache::lru(1024);
         let key = CacheKey::new(1, 0, 1);
         cache.insert(key.clone(), vec![1, 2, 3, 4]);
-        let data = cache.get(&key).unwrap();
+        let data = cache.get(&key).expect("get should succeed");
         assert_eq!(data, &[1, 2, 3, 4]);
     }
 

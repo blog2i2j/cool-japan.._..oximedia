@@ -390,7 +390,10 @@ mod tests {
         let is_new2 = store.store_chunk(h.clone(), d.clone());
         assert!(!is_new2);
         // ref count should be 2 now
-        assert_eq!(store.get_chunk(&h).unwrap().ref_count, 2);
+        assert_eq!(
+            store.get_chunk(&h).expect("chunk should exist").ref_count,
+            2
+        );
     }
 
     #[test]
@@ -411,7 +414,7 @@ mod tests {
         store.store_chunk(h.clone(), d);
         let obj = DedupObject::new("video.mp4", vec![h.clone()], 512);
         store.put_object(obj);
-        let fetched = store.get_object("video.mp4").unwrap();
+        let fetched = store.get_object("video.mp4").expect("object should exist");
         assert_eq!(fetched.chunk_count(), 1);
         assert_eq!(fetched.logical_size, 512);
     }
@@ -424,7 +427,10 @@ mod tests {
         let obj = DedupObject::new("img.png", vec![h.clone()], 100);
         store.put_object(obj);
         // put_object increments ref; store_chunk starts at 1 → total 2
-        assert_eq!(store.get_chunk(&h).unwrap().ref_count, 2);
+        assert_eq!(
+            store.get_chunk(&h).expect("chunk should exist").ref_count,
+            2
+        );
         store.delete_object("img.png");
         // After delete, ref_count drops by 1 → 1 (store_chunk added 1)
         assert!(store.has_chunk(&h));

@@ -433,7 +433,11 @@ impl OrbDetector {
         }
 
         // Keep top N features by response
-        keypoints.sort_by(|a, b| b.response.partial_cmp(&a.response).unwrap());
+        keypoints.sort_by(|a, b| {
+            b.response
+                .partial_cmp(&a.response)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         keypoints.truncate(self.max_features);
 
         // Extract BRIEF descriptors
@@ -599,7 +603,7 @@ impl FeatureMatcher {
         }
 
         let mut sorted = values.to_vec();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         let mid = sorted.len() / 2;
         if sorted.len() % 2 == 0 {
@@ -874,7 +878,11 @@ impl AdaptiveNMS {
 
         let mut result: Vec<Keypoint> = Vec::new();
         let mut sorted = keypoints.to_vec();
-        sorted.sort_by(|a, b| b.response.partial_cmp(&a.response).unwrap());
+        sorted.sort_by(|a, b| {
+            b.response
+                .partial_cmp(&a.response)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         for candidate in &sorted {
             if result.len() >= self.num_features {

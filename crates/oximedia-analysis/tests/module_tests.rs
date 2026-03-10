@@ -21,13 +21,17 @@ mod scene_detection_tests {
         // First scene: dark
         for i in 0..10 {
             let frame = vec![30u8; width * height];
-            detector.process_frame(&frame, width, height, i).unwrap();
+            detector
+                .process_frame(&frame, width, height, i)
+                .expect("frame processing should succeed");
         }
 
         // Hard cut to bright scene
         for i in 10..20 {
             let frame = vec![220u8; width * height];
-            detector.process_frame(&frame, width, height, i).unwrap();
+            detector
+                .process_frame(&frame, width, height, i)
+                .expect("frame processing should succeed");
         }
 
         let scenes = detector.finalize();
@@ -53,7 +57,9 @@ mod scene_detection_tests {
         for i in 0..20 {
             let brightness = (30 + (190 * i / 20)) as u8;
             let frame = vec![brightness; width * height];
-            detector.process_frame(&frame, width, height, i).unwrap();
+            detector
+                .process_frame(&frame, width, height, i)
+                .expect("frame processing should succeed");
         }
 
         let scenes = detector.finalize();
@@ -73,7 +79,9 @@ mod scene_detection_tests {
         // All identical frames
         for i in 0..10 {
             let frame = vec![128u8; width * height];
-            detector.process_frame(&frame, width, height, i).unwrap();
+            detector
+                .process_frame(&frame, width, height, i)
+                .expect("frame processing should succeed");
         }
 
         let scenes = detector.finalize();
@@ -97,7 +105,7 @@ mod scene_detection_tests {
                 let frame_num = scene_id * 5 + i;
                 detector
                     .process_frame(&frame, width, height, frame_num)
-                    .unwrap();
+                    .expect("unexpected None/Err");
             }
         }
 
@@ -126,7 +134,9 @@ mod scene_detection_tests {
                     };
                 }
             }
-            detector.process_frame(&frame, width, height, i).unwrap();
+            detector
+                .process_frame(&frame, width, height, i)
+                .expect("frame processing should succeed");
         }
 
         // Second scene with different pattern
@@ -141,7 +151,9 @@ mod scene_detection_tests {
                     };
                 }
             }
-            detector.process_frame(&frame, width, height, i).unwrap();
+            detector
+                .process_frame(&frame, width, height, i)
+                .expect("frame processing should succeed");
         }
 
         let scenes = detector.finalize();
@@ -163,7 +175,9 @@ mod quality_tests {
 
         // Uniform frame (no artifacts)
         let frame = vec![128u8; width * height];
-        assessor.process_frame(&frame, width, height, 0).unwrap();
+        assessor
+            .process_frame(&frame, width, height, 0)
+            .expect("frame processing should succeed");
 
         let stats = assessor.finalize();
 
@@ -192,7 +206,9 @@ mod quality_tests {
             }
         }
 
-        assessor.process_frame(&frame, width, height, 0).unwrap();
+        assessor
+            .process_frame(&frame, width, height, 0)
+            .expect("frame processing should succeed");
 
         let stats = assessor.finalize();
 
@@ -225,7 +241,9 @@ mod quality_tests {
             }
         }
 
-        assessor.process_frame(&frame, width, height, 0).unwrap();
+        assessor
+            .process_frame(&frame, width, height, 0)
+            .expect("frame processing should succeed");
 
         let stats = assessor.finalize();
 
@@ -243,7 +261,9 @@ mod quality_tests {
         // Process frames with varying quality
         for i in 0..10 {
             let frame = vec![128u8; width * height];
-            assessor.process_frame(&frame, width, height, i).unwrap();
+            assessor
+                .process_frame(&frame, width, height, i)
+                .expect("frame processing should succeed");
         }
 
         let stats = assessor.finalize();
@@ -275,7 +295,9 @@ mod content_classification_tests {
         // Static frames
         for i in 0..10 {
             let frame = vec![128u8; width * height];
-            classifier.process_frame(&frame, width, height, i).unwrap();
+            classifier
+                .process_frame(&frame, width, height, i)
+                .expect("frame processing should succeed");
         }
 
         let classification = classifier.finalize();
@@ -296,7 +318,9 @@ mod content_classification_tests {
         for i in 0..10 {
             let brightness = (i * 5 % 256) as u8;
             let frame = vec![brightness; width * height];
-            classifier.process_frame(&frame, width, height, i).unwrap();
+            classifier
+                .process_frame(&frame, width, height, i)
+                .expect("frame processing should succeed");
         }
 
         let classification = classifier.finalize();
@@ -324,7 +348,9 @@ mod content_classification_tests {
                     };
                 }
             }
-            classifier.process_frame(&frame, width, height, i).unwrap();
+            classifier
+                .process_frame(&frame, width, height, i)
+                .expect("frame processing should succeed");
         }
 
         let classification = classifier.finalize();
@@ -351,7 +377,9 @@ mod thumbnail_tests {
         for i in 0..20 {
             let brightness = (128 + (i % 50)) as u8;
             let frame = vec![brightness; width * height];
-            selector.process_frame(&frame, width, height, i).unwrap();
+            selector
+                .process_frame(&frame, width, height, i)
+                .expect("frame processing should succeed");
         }
 
         let thumbnails = selector.finalize();
@@ -370,7 +398,9 @@ mod thumbnail_tests {
 
         for i in 0..20 {
             let frame = vec![128u8; width * height];
-            selector.process_frame(&frame, width, height, i).unwrap();
+            selector
+                .process_frame(&frame, width, height, i)
+                .expect("frame processing should succeed");
         }
 
         let thumbnails = selector.finalize();
@@ -381,7 +411,7 @@ mod thumbnail_tests {
                 .windows(2)
                 .map(|w| w[1].frame - w[0].frame)
                 .min()
-                .unwrap();
+                .expect("unexpected None/Err");
 
             assert!(min_distance > 5); // Should have some spacing
         }
@@ -402,7 +432,9 @@ mod thumbnail_tests {
                 128u8 // Good
             };
             let frame = vec![brightness; width * height];
-            selector.process_frame(&frame, width, height, i).unwrap();
+            selector
+                .process_frame(&frame, width, height, i)
+                .expect("frame processing should succeed");
         }
 
         let thumbnails = selector.finalize();
@@ -430,7 +462,9 @@ mod motion_tests {
         // Static frames
         for i in 0..10 {
             let frame = vec![128u8; width * height];
-            analyzer.process_frame(&frame, width, height, i).unwrap();
+            analyzer
+                .process_frame(&frame, width, height, i)
+                .expect("frame processing should succeed");
         }
 
         let stats = analyzer.finalize();
@@ -458,7 +492,9 @@ mod motion_tests {
                 }
             }
 
-            analyzer.process_frame(&frame, width, height, i).unwrap();
+            analyzer
+                .process_frame(&frame, width, height, i)
+                .expect("frame processing should succeed");
         }
 
         let stats = analyzer.finalize();
@@ -489,7 +525,9 @@ mod motion_tests {
                 }
             }
 
-            analyzer.process_frame(&frame, width, height, i).unwrap();
+            analyzer
+                .process_frame(&frame, width, height, i)
+                .expect("frame processing should succeed");
         }
 
         let stats = analyzer.finalize();
@@ -522,7 +560,7 @@ mod color_tests {
 
             analyzer
                 .process_frame(&y_plane, &u_plane, &v_plane, width, height, i)
-                .unwrap();
+                .expect("unexpected None/Err");
         }
 
         let analysis = analyzer.finalize();
@@ -552,7 +590,7 @@ mod color_tests {
 
             analyzer
                 .process_frame(&y_plane, &u_plane, &v_plane, width, height, i)
-                .unwrap();
+                .expect("unexpected None/Err");
         }
 
         let analysis = analyzer.finalize();
@@ -580,7 +618,9 @@ mod audio_tests {
             samples.push(sample);
         }
 
-        analyzer.process_samples(&samples, 48000).unwrap();
+        analyzer
+            .process_samples(&samples, 48000)
+            .expect("sample processing should succeed");
 
         let analysis = analyzer.finalize();
 
@@ -616,7 +656,9 @@ mod audio_tests {
             samples.push(sample);
         }
 
-        analyzer.process_samples(&samples, 48000).unwrap();
+        analyzer
+            .process_samples(&samples, 48000)
+            .expect("sample processing should succeed");
 
         let analysis = analyzer.finalize();
 
@@ -636,7 +678,9 @@ mod audio_tests {
             samples.push(sample.clamp(-1.0, 1.0)); // Clipped
         }
 
-        analyzer.process_samples(&samples, 48000).unwrap();
+        analyzer
+            .process_samples(&samples, 48000)
+            .expect("sample processing should succeed");
 
         let analysis = analyzer.finalize();
 
@@ -650,7 +694,9 @@ mod audio_tests {
 
         // Low dynamic range (compressed)
         let samples = vec![0.5f32; 48000];
-        analyzer.process_samples(&samples, 48000).unwrap();
+        analyzer
+            .process_samples(&samples, 48000)
+            .expect("sample processing should succeed");
 
         let analysis = analyzer.finalize();
 
@@ -674,7 +720,9 @@ mod temporal_tests {
         // Stable frames
         for i in 0..10 {
             let frame = vec![128u8; width * height];
-            analyzer.process_frame(&frame, width, height, i).unwrap();
+            analyzer
+                .process_frame(&frame, width, height, i)
+                .expect("frame processing should succeed");
         }
 
         let analysis = analyzer.finalize();
@@ -695,7 +743,9 @@ mod temporal_tests {
         for i in 0..35 {
             let brightness = if i % 2 == 0 { 100u8 } else { 150u8 };
             let frame = vec![brightness; width * height];
-            analyzer.process_frame(&frame, width, height, i).unwrap();
+            analyzer
+                .process_frame(&frame, width, height, i)
+                .expect("frame processing should succeed");
         }
 
         let analysis = analyzer.finalize();
@@ -715,7 +765,9 @@ mod temporal_tests {
         for i in 0..10 {
             let brightness = (100 + i) as u8;
             let frame = vec![brightness; width * height];
-            analyzer.process_frame(&frame, width, height, i).unwrap();
+            analyzer
+                .process_frame(&frame, width, height, i)
+                .expect("frame processing should succeed");
         }
 
         let analysis = analyzer.finalize();
@@ -806,7 +858,7 @@ mod report_tests {
             temporal_analysis: None,
         };
 
-        let html = generate_html_report(&results).unwrap();
+        let html = generate_html_report(&results).expect("HTML report generation should succeed");
 
         assert!(html.contains("<!DOCTYPE html>"));
         assert!(html.contains("OxiMedia Analysis Report"));
@@ -829,7 +881,9 @@ mod report_tests {
             temporal_analysis: None,
         };
 
-        let json = results.to_json().unwrap();
+        let json = results
+            .to_json()
+            .expect("JSON serialization should succeed");
 
         assert!(json.contains("frame_count"));
         assert!(json.contains("50"));

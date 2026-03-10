@@ -394,7 +394,10 @@ mod tests {
         let req = CheckRequest::new("asset-001", ActionKind::Stream, "US", "web", 100);
         let result = checker.check(&req);
         assert!(result.denial_reason().is_some());
-        assert!(result.denial_reason().unwrap().contains("asset-001"));
+        assert!(result
+            .denial_reason()
+            .expect("rights test operation should succeed")
+            .contains("asset-001"));
     }
 
     #[test]

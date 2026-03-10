@@ -538,36 +538,36 @@ mod tests {
     #[test]
     fn test_phash() {
         let img = create_test_image(64, 64);
-        let hash = compute_phash(&img, 64, 64, 8).unwrap();
+        let hash = compute_phash(&img, 64, 64, 8).expect("compute_phash should succeed");
         assert!(hash > 0);
     }
 
     #[test]
     fn test_ahash() {
         let img = create_test_image(64, 64);
-        let hash = compute_ahash(&img, 64, 64, 8).unwrap();
+        let hash = compute_ahash(&img, 64, 64, 8).expect("compute_ahash should succeed");
         assert!(hash > 0);
     }
 
     #[test]
     fn test_dhash() {
         let img = create_test_image(64, 64);
-        let hash = compute_dhash(&img, 64, 64, 8).unwrap();
+        let hash = compute_dhash(&img, 64, 64, 8).expect("compute_dhash should succeed");
         assert!(hash > 0);
     }
 
     #[test]
     fn test_whash() {
         let img = create_test_image(64, 64);
-        let hash = compute_whash(&img, 64, 64, 8).unwrap();
+        let hash = compute_whash(&img, 64, 64, 8).expect("compute_whash should succeed");
         assert!(hash > 0);
     }
 
     #[test]
     fn test_identical_images() {
         let img = create_test_image(64, 64);
-        let hash1 = compute_phash(&img, 64, 64, 8).unwrap();
-        let hash2 = compute_phash(&img, 64, 64, 8).unwrap();
+        let hash1 = compute_phash(&img, 64, 64, 8).expect("compute_phash should succeed");
+        let hash2 = compute_phash(&img, 64, 64, 8).expect("compute_phash should succeed");
 
         assert_eq!(hash1, hash2);
         assert_eq!(hamming_distance(hash1, hash2), 0);
@@ -630,7 +630,7 @@ mod tests {
 
         let result = find_best_match(0, &database, 0.95);
         assert!(result.is_some());
-        let (idx, sim) = result.unwrap();
+        let (idx, sim) = result.expect("operation should succeed");
         assert_eq!(idx, 0);
         assert_eq!(sim, 1.0);
     }
@@ -649,7 +649,7 @@ mod tests {
             (64, 64, create_test_image(64, 64)),
         ];
 
-        let hashes = compute_hashes(&images, 8).unwrap();
+        let hashes = compute_hashes(&images, 8).expect("compute_hashes should succeed");
         assert_eq!(hashes.len(), 2);
     }
 
@@ -661,7 +661,8 @@ mod tests {
             (64, 64, create_test_image(64, 64)),
         ];
 
-        let hashes = compute_hashes_parallel(&images, 8).unwrap();
+        let hashes =
+            compute_hashes_parallel(&images, 8).expect("compute_hashes_parallel should succeed");
         assert_eq!(hashes.len(), 3);
     }
 

@@ -415,7 +415,7 @@ mod tests {
         m.register(mobile_reg("d-find"));
         let found = m.find_device("d-find");
         assert!(found.is_some());
-        assert_eq!(found.unwrap().device_id, "d-find");
+        assert_eq!(found.expect("device should be found").device_id, "d-find");
     }
 
     #[test]

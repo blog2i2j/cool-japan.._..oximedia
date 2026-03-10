@@ -122,7 +122,16 @@ impl LoudnessTrend {
         if self.samples.len() < 2 {
             return 0.0;
         }
-        self.samples.last().unwrap().time_seconds - self.samples.first().unwrap().time_seconds
+        // SAFETY: len >= 2 is checked above, so last() and first() are always Some
+        self.samples
+            .last()
+            .expect("samples non-empty after len check")
+            .time_seconds
+            - self
+                .samples
+                .first()
+                .expect("samples non-empty after len check")
+                .time_seconds
     }
 
     /// Compute overall statistics.
@@ -190,7 +199,12 @@ impl LoudnessTrend {
         }
         // Close any open segment
         if in_exceed {
-            let end = self.samples.last().unwrap().time_seconds;
+            // SAFETY: we entered `in_exceed` only via iterating self.samples, so it is non-empty
+            let end = self
+                .samples
+                .last()
+                .expect("samples non-empty when in_exceed is true")
+                .time_seconds;
             segments.push(ExceedanceSegment {
                 start_time,
                 end_time: end,
@@ -208,7 +222,12 @@ impl LoudnessTrend {
         }
         let total_dur = self.duration();
         let num_segments = ((total_dur / segment_seconds).ceil() as usize).max(1);
-        let start = self.samples.first().unwrap().time_seconds;
+        // SAFETY: is_empty() is checked above
+        let start = self
+            .samples
+            .first()
+            .expect("samples non-empty after is_empty check")
+            .time_seconds;
 
         let mut results = Vec::new();
         for i in 0..num_segments {

@@ -113,9 +113,8 @@ impl CounterSet {
     pub fn register(&mut self, name: impl Into<String>, counter_type: CounterType) -> &Counter {
         let name = name.into();
         self.counters
-            .entry(name.clone())
-            .or_insert_with(|| Counter::new(counter_type));
-        self.counters.get(&name).unwrap()
+            .entry(name)
+            .or_insert_with(|| Counter::new(counter_type))
     }
 
     /// Increment a named counter by 1. Creates it as a Custom counter if it

@@ -444,7 +444,7 @@ mod tests {
         frame.planes[0][0] = 0xFF;
         frame.pts_us = 42_000;
 
-        let out = conv.convert(&frame).unwrap();
+        let out = conv.convert(&frame).expect("out should be valid");
         assert_eq!(out.planes[0][0], 0xFF);
         assert_eq!(out.pts_us, 42_000);
         assert_eq!(conv.stats().frames_converted, 1);

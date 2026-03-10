@@ -314,7 +314,9 @@ mod tests {
         // Process a few frames
         let frame = vec![128u8; 64 * 64];
         for i in 0..5 {
-            assessor.process_frame(&frame, 64, 64, i).unwrap();
+            assessor
+                .process_frame(&frame, 64, 64, i)
+                .expect("frame processing should succeed");
         }
 
         let stats = assessor.finalize();

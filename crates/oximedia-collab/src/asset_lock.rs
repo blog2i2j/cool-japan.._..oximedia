@@ -280,7 +280,9 @@ mod tests {
     #[test]
     fn test_acquire_write_lock_on_free_asset() {
         let mut mgr = LockManager::new();
-        let token = mgr.acquire("a1", "u1", LockType::Write).unwrap();
+        let token = mgr
+            .acquire("a1", "u1", LockType::Write)
+            .expect("collab test operation should succeed");
         assert!(!token.is_empty());
         assert!(mgr.is_locked("a1"));
     }
@@ -295,7 +297,8 @@ mod tests {
     #[test]
     fn test_acquire_write_blocked_by_existing_write() {
         let mut mgr = LockManager::new();
-        mgr.acquire("a1", "u1", LockType::Write).unwrap();
+        mgr.acquire("a1", "u1", LockType::Write)
+            .expect("collab test operation should succeed");
         let result = mgr.acquire("a1", "u2", LockType::Write);
         assert!(result.is_err());
     }
@@ -303,7 +306,8 @@ mod tests {
     #[test]
     fn test_acquire_read_blocked_by_write() {
         let mut mgr = LockManager::new();
-        mgr.acquire("a1", "u1", LockType::Write).unwrap();
+        mgr.acquire("a1", "u1", LockType::Write)
+            .expect("collab test operation should succeed");
         let result = mgr.acquire("a1", "u2", LockType::Read);
         assert!(result.is_err());
     }
@@ -311,7 +315,9 @@ mod tests {
     #[test]
     fn test_release_lock() {
         let mut mgr = LockManager::new();
-        let token = mgr.acquire("a1", "u1", LockType::Write).unwrap();
+        let token = mgr
+            .acquire("a1", "u1", LockType::Write)
+            .expect("collab test operation should succeed");
         assert!(mgr.release(&token));
         assert!(!mgr.is_locked("a1"));
     }
@@ -331,15 +337,18 @@ mod tests {
     #[test]
     fn test_active_lock_count() {
         let mut mgr = LockManager::new();
-        mgr.acquire("a1", "u1", LockType::Write).unwrap();
-        mgr.acquire("a2", "u2", LockType::Read).unwrap();
+        mgr.acquire("a1", "u1", LockType::Write)
+            .expect("collab test operation should succeed");
+        mgr.acquire("a2", "u2", LockType::Read)
+            .expect("collab test operation should succeed");
         assert_eq!(mgr.active_lock_count(), 2);
     }
 
     #[test]
     fn test_exclusive_blocks_all_others() {
         let mut mgr = LockManager::new();
-        mgr.acquire("a1", "u1", LockType::Exclusive).unwrap();
+        mgr.acquire("a1", "u1", LockType::Exclusive)
+            .expect("collab test operation should succeed");
         assert!(mgr.acquire("a1", "u2", LockType::Read).is_err());
         assert!(mgr.acquire("a1", "u2", LockType::Write).is_err());
     }

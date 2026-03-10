@@ -2,16 +2,15 @@
 
 use crate::checksum::{ChecksumAlgorithm, ChecksumGenerator};
 use crate::{Error, Result};
+use oxiarc_archive::zip::{ZipCompressionLevel, ZipReader, ZipWriter};
 use std::fs::File;
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use zip::write::FileOptions;
-use zip::{ZipArchive, ZipWriter};
 
 /// ZIP archiver with checksum support
 pub struct ZipArchiver {
     algorithm: ChecksumAlgorithm,
-    compression: zip::CompressionMethod,
+    compression: ZipCompressionLevel,
 }
 
 impl Default for ZipArchiver {
@@ -26,7 +25,7 @@ impl ZipArchiver {
     pub fn new() -> Self {
         Self {
             algorithm: ChecksumAlgorithm::Sha256,
-            compression: zip::CompressionMethod::Deflated,
+            compression: ZipCompressionLevel::Normal,
         }
     }
 
@@ -37,9 +36,9 @@ impl ZipArchiver {
         self
     }
 
-    /// Set compression method
+    /// Set compression level
     #[must_use]
-    pub fn with_compression(mut self, compression: zip::CompressionMethod) -> Self {
+    pub fn with_compression(mut self, compression: ZipCompressionLevel) -> Self {
         self.compression = compression;
         self
     }
@@ -56,18 +55,15 @@ impl ZipArchiver {
     ) -> Result<String> {
         let file = File::create(output)?;
         let mut zip = ZipWriter::new(file);
-
-        let options = FileOptions::<()>::default().compression_method(self.compression);
+        zip.set_compression(self.compression);
 
         for (source, dest) in files {
             let mut source_file = File::open(source)?;
             let mut buffer = Vec::new();
             source_file.read_to_end(&mut buffer)?;
 
-            zip.start_file(dest.to_string_lossy(), options)
+            zip.add_file(&dest.to_string_lossy(), &buffer)
                 .map_err(|e| Error::Archive(format!("Failed to add file: {e}")))?;
-            zip.write_all(&buffer)
-                .map_err(|e| Error::Archive(format!("Failed to write file: {e}")))?;
         }
 
         zip.finish()
@@ -112,12 +108,26 @@ impl ZipArchiver {
     /// Returns an error if extraction fails
     pub fn extract_archive(archive_path: &Path, output_dir: &Path) -> Result<()> {
         let file = File::open(archive_path)?;
-        let mut archive = ZipArchive::new(file)
+        let mut reader = ZipReader::new(file)
             .map_err(|e| Error::Archive(format!("Failed to open archive: {e}")))?;
 
-        archive
-            .extract(output_dir)
-            .map_err(|e| Error::Archive(format!("Failed to extract archive: {e}")))?;
+        std::fs::create_dir_all(output_dir)?;
+
+        for entry in reader.entries().to_vec() {
+            let data = reader
+                .extract(&entry)
+                .map_err(|e| Error::Archive(format!("Failed to extract entry: {e}")))?;
+
+            let entry_path = output_dir.join(&entry.name);
+            if let Some(parent) = entry_path.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+
+            if !entry.name.ends_with('/') {
+                let mut out_file = File::create(&entry_path)?;
+                out_file.write_all(&data)?;
+            }
+        }
 
         Ok(())
     }
@@ -129,17 +139,14 @@ impl ZipArchiver {
     /// Returns an error if the archive cannot be read
     pub fn list_contents(archive_path: &Path) -> Result<Vec<PathBuf>> {
         let file = File::open(archive_path)?;
-        let mut archive = ZipArchive::new(file)
+        let reader = ZipReader::new(file)
             .map_err(|e| Error::Archive(format!("Failed to open archive: {e}")))?;
 
-        let contents = (0..archive.len())
-            .filter_map(|i| {
-                archive.by_index(i).ok().and_then(|f| {
-                    f.enclosed_name()
-                        .as_deref()
-                        .map(std::path::Path::to_path_buf)
-                })
-            })
+        let contents = reader
+            .entries()
+            .iter()
+            .filter(|e| !e.name.ends_with('/'))
+            .map(|e| PathBuf::from(&e.name))
             .collect();
 
         Ok(contents)
@@ -172,7 +179,7 @@ impl ZipArchiver {
     /// Create uncompressed (stored) archive for preservation
     #[must_use]
     pub fn uncompressed() -> Self {
-        Self::new().with_compression(zip::CompressionMethod::Stored)
+        Self::new().with_compression(ZipCompressionLevel::Store)
     }
 }
 
@@ -184,15 +191,19 @@ mod tests {
 
     #[test]
     fn test_create_zip_archive() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("operation should succeed");
         let archive_path = temp_dir.path().join("test.zip");
 
-        let mut file1 = NamedTempFile::new().unwrap();
-        let mut file2 = NamedTempFile::new().unwrap();
-        file1.write_all(b"File 1 content").unwrap();
-        file2.write_all(b"File 2 content").unwrap();
-        file1.flush().unwrap();
-        file2.flush().unwrap();
+        let mut file1 = NamedTempFile::new().expect("operation should succeed");
+        let mut file2 = NamedTempFile::new().expect("operation should succeed");
+        file1
+            .write_all(b"File 1 content")
+            .expect("operation should succeed");
+        file2
+            .write_all(b"File 2 content")
+            .expect("operation should succeed");
+        file1.flush().expect("operation should succeed");
+        file2.flush().expect("operation should succeed");
 
         let files = vec![
             (file1.path().to_path_buf(), PathBuf::from("file1.txt")),
@@ -200,7 +211,9 @@ mod tests {
         ];
 
         let archiver = ZipArchiver::new();
-        let checksum = archiver.create_archive(&archive_path, &files).unwrap();
+        let checksum = archiver
+            .create_archive(&archive_path, &files)
+            .expect("operation should succeed");
 
         assert!(!checksum.is_empty());
         assert!(archive_path.exists());
@@ -208,56 +221,69 @@ mod tests {
 
     #[test]
     fn test_extract_zip_archive() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("operation should succeed");
         let archive_path = temp_dir.path().join("test.zip");
         let extract_dir = temp_dir.path().join("extracted");
 
-        let mut test_file = NamedTempFile::new().unwrap();
-        test_file.write_all(b"Extract test").unwrap();
-        test_file.flush().unwrap();
+        let mut test_file = NamedTempFile::new().expect("operation should succeed");
+        test_file
+            .write_all(b"Extract test")
+            .expect("operation should succeed");
+        test_file.flush().expect("operation should succeed");
 
         let files = vec![(test_file.path().to_path_buf(), PathBuf::from("test.txt"))];
 
         let archiver = ZipArchiver::new();
-        archiver.create_archive(&archive_path, &files).unwrap();
+        archiver
+            .create_archive(&archive_path, &files)
+            .expect("operation should succeed");
 
-        ZipArchiver::extract_archive(&archive_path, &extract_dir).unwrap();
+        ZipArchiver::extract_archive(&archive_path, &extract_dir)
+            .expect("operation should succeed");
 
         assert!(extract_dir.join("test.txt").exists());
     }
 
     #[test]
     fn test_list_zip_contents() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("operation should succeed");
         let archive_path = temp_dir.path().join("test.zip");
 
-        let mut test_file = NamedTempFile::new().unwrap();
-        test_file.write_all(b"List test").unwrap();
-        test_file.flush().unwrap();
+        let mut test_file = NamedTempFile::new().expect("operation should succeed");
+        test_file
+            .write_all(b"List test")
+            .expect("operation should succeed");
+        test_file.flush().expect("operation should succeed");
 
         let files = vec![(test_file.path().to_path_buf(), PathBuf::from("listed.txt"))];
 
         let archiver = ZipArchiver::new();
-        archiver.create_archive(&archive_path, &files).unwrap();
+        archiver
+            .create_archive(&archive_path, &files)
+            .expect("operation should succeed");
 
-        let contents = ZipArchiver::list_contents(&archive_path).unwrap();
+        let contents = ZipArchiver::list_contents(&archive_path).expect("operation should succeed");
         assert_eq!(contents.len(), 1);
         assert_eq!(contents[0], PathBuf::from("listed.txt"));
     }
 
     #[test]
     fn test_uncompressed_archive() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("operation should succeed");
         let archive_path = temp_dir.path().join("uncompressed.zip");
 
-        let mut test_file = NamedTempFile::new().unwrap();
-        test_file.write_all(b"Uncompressed test").unwrap();
-        test_file.flush().unwrap();
+        let mut test_file = NamedTempFile::new().expect("operation should succeed");
+        test_file
+            .write_all(b"Uncompressed test")
+            .expect("operation should succeed");
+        test_file.flush().expect("operation should succeed");
 
         let files = vec![(test_file.path().to_path_buf(), PathBuf::from("test.txt"))];
 
         let archiver = ZipArchiver::uncompressed();
-        let checksum = archiver.create_archive(&archive_path, &files).unwrap();
+        let checksum = archiver
+            .create_archive(&archive_path, &files)
+            .expect("operation should succeed");
 
         assert!(!checksum.is_empty());
         assert!(archive_path.exists());

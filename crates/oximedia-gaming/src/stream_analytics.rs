@@ -318,7 +318,9 @@ mod tests {
         let mut analytics = StreamAnalytics::new(60);
         analytics.record_viewer_event("v1", ViewerSegment::Returning, ViewerEventKind::Heartbeat);
         analytics.record_viewer_event("v1", ViewerSegment::Returning, ViewerEventKind::Heartbeat);
-        let stats = analytics.viewer_stats("v1").unwrap();
+        let stats = analytics
+            .viewer_stats("v1")
+            .expect("viewer stats should succeed");
         assert_eq!(stats.watch_time_secs, 120);
     }
 
@@ -343,7 +345,9 @@ mod tests {
         let mut analytics = StreamAnalytics::new(30);
         analytics.record_viewer_event("v1", ViewerSegment::Engaged, ViewerEventKind::Chat);
         analytics.record_viewer_event("v1", ViewerSegment::Engaged, ViewerEventKind::Chat);
-        let stats = analytics.viewer_stats("v1").unwrap();
+        let stats = analytics
+            .viewer_stats("v1")
+            .expect("viewer stats should succeed");
         assert_eq!(stats.chat_messages, 2);
     }
 

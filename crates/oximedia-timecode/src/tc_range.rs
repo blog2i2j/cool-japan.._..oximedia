@@ -287,7 +287,9 @@ pub fn merge_ranges(mut ranges: Vec<TcRange>) -> Vec<TcRange> {
     ranges.sort_by_key(|r| r.start_frames);
     let mut merged: Vec<TcRange> = vec![ranges[0].clone()];
     for r in &ranges[1..] {
-        let last = merged.last_mut().unwrap();
+        let last = merged
+            .last_mut()
+            .expect("merged is non-empty: element 0 was pushed above");
         if let Some(u) = last.union(r) {
             *last = u;
         } else {
@@ -310,7 +312,7 @@ mod tests {
     use super::*;
 
     fn make_range(start: u64, end: u64) -> TcRange {
-        TcRange::from_frames(start, end, 25, false).unwrap()
+        TcRange::from_frames(start, end, 25, false).expect("valid timecode range")
     }
 
     #[test]
@@ -376,7 +378,7 @@ mod tests {
     fn test_intersect() {
         let a = make_range(0, 50);
         let b = make_range(25, 75);
-        let inter = a.intersect(&b).unwrap();
+        let inter = a.intersect(&b).expect("intersect should succeed");
         assert_eq!(inter.start_frames(), 25);
         assert_eq!(inter.end_frames(), 50);
     }
@@ -392,7 +394,7 @@ mod tests {
     fn test_union() {
         let a = make_range(0, 50);
         let b = make_range(50, 100);
-        let u = a.union(&b).unwrap();
+        let u = a.union(&b).expect("union should succeed");
         assert_eq!(u.start_frames(), 0);
         assert_eq!(u.end_frames(), 100);
     }
@@ -401,8 +403,8 @@ mod tests {
     fn test_split_at_frame() {
         let r = make_range(0, 100);
         let split = r.split_at_frame(50);
-        let before = split.before.unwrap();
-        let after = split.after.unwrap();
+        let before = split.before.expect("should succeed");
+        let after = split.after.expect("should succeed");
         assert_eq!(before.duration_frames(), 50);
         assert_eq!(after.duration_frames(), 50);
     }
@@ -410,7 +412,7 @@ mod tests {
     #[test]
     fn test_offset_positive() {
         let r = make_range(10, 20);
-        let shifted = r.offset(5).unwrap();
+        let shifted = r.offset(5).expect("offset should succeed");
         assert_eq!(shifted.start_frames(), 15);
         assert_eq!(shifted.end_frames(), 25);
     }
@@ -418,7 +420,7 @@ mod tests {
     #[test]
     fn test_offset_negative() {
         let r = make_range(10, 20);
-        let shifted = r.offset(-5).unwrap();
+        let shifted = r.offset(-5).expect("offset should succeed");
         assert_eq!(shifted.start_frames(), 5);
         assert_eq!(shifted.end_frames(), 15);
     }
@@ -429,7 +431,7 @@ mod tests {
         let ext = r.extend(10, 10);
         assert_eq!(ext.start_frames(), 40);
         assert_eq!(ext.end_frames(), 110);
-        let trimmed = ext.trim(10, 10).unwrap();
+        let trimmed = ext.trim(10, 10).expect("trim should succeed");
         assert_eq!(trimmed.start_frames(), 50);
         assert_eq!(trimmed.end_frames(), 100);
     }

@@ -35,7 +35,7 @@ impl FourCC {
     /// # Example
     /// ```
     /// use oximedia_core::fourcc::FourCC;
-    /// let fcc = FourCC::parse("VP90").unwrap();
+    /// let fcc = FourCC::parse("VP90")?;
     /// assert!(fcc.is_video());
     /// ```
     #[must_use]
@@ -191,7 +191,7 @@ mod tests {
 
     #[test]
     fn test_from_str_valid() {
-        let fcc = FourCC::parse("VP90").unwrap();
+        let fcc = FourCC::parse("VP90").expect("should succeed");
         assert_eq!(fcc.as_bytes(), b"VP90");
     }
 
@@ -270,7 +270,7 @@ mod tests {
 
     #[test]
     fn test_try_from_str_ok() {
-        let fcc = FourCC::try_from("Opus").unwrap();
+        let fcc = FourCC::try_from("Opus").expect("try_from should succeed");
         assert!(fcc.is_audio());
     }
 
@@ -328,7 +328,7 @@ mod tests {
     #[test]
     fn test_equality() {
         let a = FourCC::from_bytes(*b"AV01");
-        let b = FourCC::parse("AV01").unwrap();
+        let b = FourCC::parse("AV01").expect("should succeed");
         assert_eq!(a, b);
     }
 }

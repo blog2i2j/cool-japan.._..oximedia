@@ -287,7 +287,7 @@ mod tests {
         let mut pacer = FramePacer::new(c, Duration::from_millis(2), 120);
         assert!(pacer.next_ideal_pts_ns().is_none());
         pacer.record_frame(0);
-        let next = pacer.next_ideal_pts_ns().unwrap();
+        let next = pacer.next_ideal_pts_ns().expect("pts should succeed");
         assert!(next > 0);
     }
 

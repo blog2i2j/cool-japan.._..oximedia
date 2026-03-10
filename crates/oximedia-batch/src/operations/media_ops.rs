@@ -368,7 +368,7 @@ mod tests {
         let temp_file = PathBuf::from("/tmp/test.mp4");
         let result = MediaOperationExecutor::extract_metadata(&temp_file);
         assert!(result.is_ok());
-        let metadata = result.unwrap();
+        let metadata = result.expect("result should be valid");
         assert!(metadata.get("video").is_some());
         assert!(metadata.get("audio").is_some());
     }
@@ -378,7 +378,7 @@ mod tests {
         let temp_file = PathBuf::from("/tmp/test.mp4");
         let result = MediaOperationExecutor::quality_control(&temp_file, "default");
         assert!(result.is_ok());
-        let qc = result.unwrap();
+        let qc = result.expect("result should be valid");
         assert_eq!(qc["passed"], serde_json::json!(true));
     }
 
@@ -387,7 +387,7 @@ mod tests {
         let temp_file = PathBuf::from("/tmp/test.mp4");
         let result = MediaOperationExecutor::analyze_media(&temp_file, &AnalysisType::VideoQuality);
         assert!(result.is_ok());
-        let analysis = result.unwrap();
+        let analysis = result.expect("result should be valid");
         assert!(analysis.get("vmaf_score").is_some());
     }
 
@@ -396,7 +396,7 @@ mod tests {
         let temp_file = PathBuf::from("/tmp/test.mp4");
         let result = MediaOperationExecutor::analyze_media(&temp_file, &AnalysisType::AudioLevel);
         assert!(result.is_ok());
-        let analysis = result.unwrap();
+        let analysis = result.expect("result should be valid");
         assert!(analysis.get("peak_dbfs").is_some());
     }
 
@@ -406,7 +406,7 @@ mod tests {
         let result =
             MediaOperationExecutor::analyze_media(&temp_file, &AnalysisType::LoudnessMeasurement);
         assert!(result.is_ok());
-        let analysis = result.unwrap();
+        let analysis = result.expect("result should be valid");
         assert!(analysis.get("integrated_lufs").is_some());
     }
 
@@ -416,7 +416,7 @@ mod tests {
         let output_dir = PathBuf::from("/tmp");
         let result = MediaOperationExecutor::generate_thumbnails(&input, &output_dir, 3, 320, 180);
         assert!(result.is_ok());
-        let thumbs = result.unwrap();
+        let thumbs = result.expect("result should be valid");
         assert_eq!(thumbs.len(), 3);
     }
 

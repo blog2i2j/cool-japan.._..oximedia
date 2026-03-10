@@ -348,7 +348,7 @@ mod tests {
 
     #[test]
     fn test_render_target_creation() {
-        let target = RenderTarget::new(1920, 1080).unwrap();
+        let target = RenderTarget::new(1920, 1080).expect("target should be valid");
         assert_eq!(target.width, 1920);
         assert_eq!(target.height, 1080);
         assert_eq!(target.data.len(), 1920 * 1080 * 4);
@@ -361,7 +361,7 @@ mod tests {
 
     #[test]
     fn test_render_target_clear() {
-        let mut target = RenderTarget::new(100, 100).unwrap();
+        let mut target = RenderTarget::new(100, 100).expect("test expectation failed");
         target.clear(Color::RED);
         assert_eq!(target.get_pixel(0, 0), Some(Color::RED));
         assert_eq!(target.get_pixel(50, 50), Some(Color::RED));
@@ -369,7 +369,7 @@ mod tests {
 
     #[test]
     fn test_render_target_pixel_ops() {
-        let mut target = RenderTarget::new(100, 100).unwrap();
+        let mut target = RenderTarget::new(100, 100).expect("test expectation failed");
         target.set_pixel(10, 20, Color::BLUE);
         assert_eq!(target.get_pixel(10, 20), Some(Color::BLUE));
         assert_eq!(target.get_pixel(100, 100), None);
@@ -387,7 +387,7 @@ mod tests {
     fn test_render_rect() {
         let font_manager = FontManager::new();
         let renderer = SoftwareRenderer::new(font_manager);
-        let mut target = RenderTarget::new(100, 100).unwrap();
+        let mut target = RenderTarget::new(100, 100).expect("test expectation failed");
 
         let rect = Rect::new(10.0, 10.0, 50.0, 50.0);
         let fill = Fill::Solid(Color::RED);
@@ -400,7 +400,7 @@ mod tests {
     fn test_render_circle() {
         let font_manager = FontManager::new();
         let renderer = SoftwareRenderer::new(font_manager);
-        let mut target = RenderTarget::new(100, 100).unwrap();
+        let mut target = RenderTarget::new(100, 100).expect("test expectation failed");
 
         let circle = Circle::new(50.0, 50.0, 25.0);
         let fill = Fill::Solid(Color::BLUE);

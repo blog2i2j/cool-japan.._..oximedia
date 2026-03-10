@@ -327,7 +327,7 @@ mod tests {
         let mut idx = LandmarkIndex::new(60_000);
         let id = idx.add(LandmarkKind::Chapter, 0, "Intro");
         assert_eq!(idx.len(), 1);
-        let lm = idx.get(id).unwrap();
+        let lm = idx.get(id).expect("lm should be valid");
         assert_eq!(lm.label, "Intro");
     }
 
@@ -369,10 +369,10 @@ mod tests {
         idx.add(LandmarkKind::Chapter, 30_000, "Ch2");
         idx.add(LandmarkKind::Chapter, 50_000, "Ch3");
 
-        let next = idx.next_landmark(15_000).unwrap();
+        let next = idx.next_landmark(15_000).expect("next should be valid");
         assert_eq!(next.start_ms, 30_000);
 
-        let prev = idx.prev_landmark(35_000).unwrap();
+        let prev = idx.prev_landmark(35_000).expect("prev should be valid");
         assert_eq!(prev.start_ms, 30_000);
     }
 

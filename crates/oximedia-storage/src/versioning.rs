@@ -355,7 +355,7 @@ mod tests {
         let v1 = h.add_version(1000, "abc123", "user1", "initial upload");
         assert_eq!(v1, 1);
         assert_eq!(h.version_count(), 1);
-        let cur = h.current().unwrap();
+        let cur = h.current().expect("current version should exist");
         assert_eq!(cur.status, VersionStatus::Active);
         assert_eq!(cur.size_bytes, 1000);
     }
@@ -365,9 +365,9 @@ mod tests {
         let mut h = ObjectVersionHistory::new("file.mp4");
         let v1 = h.add_version(1000, "aaa", "u", "v1");
         let _v2 = h.add_version(2000, "bbb", "u", "v2");
-        let old = h.get(v1).unwrap();
+        let old = h.get(v1).expect("get should succeed");
         assert_eq!(old.status, VersionStatus::Superseded);
-        let cur = h.current().unwrap();
+        let cur = h.current().expect("current version should exist");
         assert_eq!(cur.size_bytes, 2000);
     }
 
@@ -376,8 +376,8 @@ mod tests {
         let mut h = ObjectVersionHistory::new("file.mp4");
         let v1 = h.add_version(1000, "aaa", "u", "v1");
         let _v2 = h.add_version(2000, "bbb", "u", "v2");
-        h.rollback_to(v1).unwrap();
-        let cur = h.current().unwrap();
+        h.rollback_to(v1).expect("rollback should succeed");
+        let cur = h.current().expect("current version should exist");
         assert_eq!(cur.version_id, v1);
     }
 
@@ -386,7 +386,7 @@ mod tests {
         let mut h = ObjectVersionHistory::new("file.mp4");
         let v1 = h.add_version(1000, "aaa", "u", "v1");
         let _v2 = h.add_version(2000, "bbb", "u", "v2");
-        h.delete_version(v1).unwrap();
+        h.delete_version(v1).expect("delete version should succeed");
         let err = h.rollback_to(v1).unwrap_err();
         assert!(matches!(err, VersionError::VersionDeleted(_)));
     }
@@ -395,8 +395,8 @@ mod tests {
     fn test_delete_version() {
         let mut h = ObjectVersionHistory::new("file.mp4");
         let v1 = h.add_version(1000, "aaa", "u", "v1");
-        h.delete_version(v1).unwrap();
-        assert_eq!(h.get(v1).unwrap().status, VersionStatus::Deleted);
+        h.delete_version(v1).expect("delete version should succeed");
+        assert_eq!(h.get(v1).expect("get should succeed").status, VersionStatus::Deleted);
     }
 
     #[test]
@@ -409,9 +409,9 @@ mod tests {
     fn test_tag_version() {
         let mut h = ObjectVersionHistory::new("file.mp4");
         let v1 = h.add_version(1000, "aaa", "u", "v1");
-        h.tag_version(v1, "release").unwrap();
-        h.tag_version(v1, "release").unwrap(); // duplicate is ok
-        assert_eq!(h.get(v1).unwrap().tags, vec!["release"]);
+        h.tag_version(v1, "release").expect("tag should succeed");
+        h.tag_version(v1, "release").expect("tag should succeed"); // duplicate is ok
+        assert_eq!(h.get(v1).expect("get should succeed").tags, vec!["release"]);
     }
 
     #[test]
@@ -419,8 +419,8 @@ mod tests {
         let mut h = ObjectVersionHistory::new("file.mp4");
         let v1 = h.add_version(1000, "aaa", "u", "v1");
         let v2 = h.add_version(1500, "bbb", "u", "v2");
-        h.tag_version(v2, "approved").unwrap();
-        let d = h.diff(v1, v2).unwrap();
+        h.tag_version(v2, "approved").expect("tag should succeed");
+        let d = h.diff(v1, v2).expect("diff should succeed");
         assert_eq!(d.size_delta, 500);
         assert!(d.content_changed);
         assert_eq!(d.tags_added, vec!["approved"]);

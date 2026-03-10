@@ -407,7 +407,7 @@ mod tests {
         stats.record(Duration::from_millis(20), now);
         stats.record(Duration::from_millis(30), now);
         assert_eq!(stats.invocation_count, 3);
-        let avg = stats.average_ms().unwrap();
+        let avg = stats.average_ms().expect("avg should be valid");
         assert!((avg - 20.0).abs() < 0.1);
     }
 
@@ -418,8 +418,8 @@ mod tests {
         stats.record(Duration::from_millis(5), now);
         stats.record(Duration::from_millis(15), now);
         stats.record(Duration::from_millis(10), now);
-        assert!((stats.min_ms().unwrap() - 5.0).abs() < 0.01);
-        assert!((stats.max_ms().unwrap() - 15.0).abs() < 0.01);
+        assert!((stats.min_ms().expect("min_ms should succeed") - 5.0).abs() < 0.01);
+        assert!((stats.max_ms().expect("max_ms should succeed") - 15.0).abs() < 0.01);
     }
 
     #[test]
@@ -430,7 +430,7 @@ mod tests {
         stats.record(Duration::from_millis(30), now);
         stats.record(Duration::from_millis(20), now);
         // Sorted: 10, 20, 30 -> median = 20
-        let median = stats.recent_median_ms().unwrap();
+        let median = stats.recent_median_ms().expect("median should be valid");
         assert!((median - 20.0).abs() < 0.01);
     }
 
@@ -441,7 +441,7 @@ mod tests {
         stats.record(Duration::from_millis(10), now);
         stats.record(Duration::from_millis(20), now);
         // Sorted: 10, 20 -> median = 15
-        let median = stats.recent_median_ms().unwrap();
+        let median = stats.recent_median_ms().expect("median should be valid");
         assert!((median - 15.0).abs() < 0.01);
     }
 
@@ -485,9 +485,9 @@ mod tests {
     fn test_transfer_stats_throughput() {
         let mut stats = TransferStats::new(TransferDirection::DeviceToHost);
         stats.record(1_000_000, Duration::from_secs(1));
-        let bps = stats.throughput_bps().unwrap();
+        let bps = stats.throughput_bps().expect("bps should be valid");
         assert!((bps - 1_000_000.0).abs() < 1.0);
-        let mbps = stats.throughput_mbps().unwrap();
+        let mbps = stats.throughput_mbps().expect("mbps should be valid");
         assert!(mbps > 0.0);
     }
 
@@ -513,7 +513,7 @@ mod tests {
         let now = Instant::now();
         s.record_operation("scale", Duration::from_millis(5), now);
         s.record_operation("scale", Duration::from_millis(10), now);
-        let op = s.get_operation("scale").unwrap();
+        let op = s.get_operation("scale").expect("op should be valid");
         assert_eq!(op.invocation_count, 2);
     }
 
@@ -527,7 +527,7 @@ mod tests {
         assert_eq!(s.tasks_submitted, 2);
         assert_eq!(s.tasks_completed, 1);
         assert_eq!(s.tasks_failed, 1);
-        assert!((s.success_rate().unwrap() - 0.5).abs() < 1e-9);
+        assert!((s.success_rate().expect("success_rate should succeed") - 0.5).abs() < 1e-9);
     }
 
     #[test]

@@ -295,16 +295,22 @@ mod tests {
         // Process a few identical frames
         let frame1 = vec![100u8; 64 * 64];
         for i in 0..5 {
-            detector.process_frame(&frame1, 64, 64, i).unwrap();
+            detector
+                .process_frame(&frame1, 64, 64, i)
+                .expect("frame processing should succeed");
         }
 
         // Process a different frame (scene cut)
         let frame2 = vec![200u8; 64 * 64];
-        detector.process_frame(&frame2, 64, 64, 5).unwrap();
+        detector
+            .process_frame(&frame2, 64, 64, 5)
+            .expect("frame processing should succeed");
 
         // Process more identical frames
         for i in 6..10 {
-            detector.process_frame(&frame2, 64, 64, i).unwrap();
+            detector
+                .process_frame(&frame2, 64, 64, i)
+                .expect("frame processing should succeed");
         }
 
         let scenes = detector.finalize();

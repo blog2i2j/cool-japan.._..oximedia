@@ -274,6 +274,11 @@ mod tests {
         let updated = LicenseModel::new("excl-01", "Updated", LicenseType::Exclusive, false, false);
         reg.add(updated);
         assert_eq!(reg.len(), 1);
-        assert_eq!(reg.find("excl-01").unwrap().name, "Updated");
+        assert_eq!(
+            reg.find("excl-01")
+                .expect("rights test operation should succeed")
+                .name,
+            "Updated"
+        );
     }
 }

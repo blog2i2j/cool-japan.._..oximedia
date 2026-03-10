@@ -430,14 +430,20 @@ mod tests {
     fn test_onnx_runtime_new() {
         let runtime = OnnxRuntime::new();
         assert!(runtime.is_ok());
-        assert_eq!(runtime.unwrap().device(), DeviceType::Cpu);
+        assert_eq!(
+            runtime.expect("value should be valid").device(),
+            DeviceType::Cpu
+        );
     }
 
     #[test]
     fn test_onnx_runtime_with_device() {
         let runtime = OnnxRuntime::with_device(DeviceType::Cuda);
         assert!(runtime.is_ok());
-        assert_eq!(runtime.unwrap().device(), DeviceType::Cuda);
+        assert_eq!(
+            runtime.expect("value should be valid").device(),
+            DeviceType::Cuda
+        );
     }
 
     #[test]

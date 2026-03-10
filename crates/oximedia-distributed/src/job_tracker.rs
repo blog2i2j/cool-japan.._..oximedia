@@ -233,7 +233,7 @@ mod tests {
     fn test_tracker_submit_and_get() {
         let mut t = JobTracker::new();
         t.submit(job(10));
-        let j = t.get(10).unwrap();
+        let j = t.get(10).expect("get should return a value");
         assert_eq!(j.id, 10);
     }
 
@@ -241,8 +241,13 @@ mod tests {
     fn test_tracker_get_mut() {
         let mut t = JobTracker::new();
         t.submit(job(1));
-        t.get_mut(1).unwrap().assign(99, 2000);
-        assert!(matches!(t.get(1).unwrap().state, JobState::Assigned { .. }));
+        t.get_mut(1)
+            .expect("get_mut should return a value")
+            .assign(99, 2000);
+        assert!(matches!(
+            t.get(1).expect("get should return a value").state,
+            JobState::Assigned { .. }
+        ));
     }
 
     #[test]
@@ -250,7 +255,9 @@ mod tests {
         let mut t = JobTracker::new();
         t.submit(job(1));
         t.submit(job(2));
-        t.get_mut(1).unwrap().assign(7, 1001);
+        t.get_mut(1)
+            .expect("get_mut should return a value")
+            .assign(7, 1001);
         assert_eq!(t.queued_jobs().len(), 1);
         assert_eq!(t.queued_jobs()[0].id, 2);
     }
@@ -260,7 +267,9 @@ mod tests {
         let mut t = JobTracker::new();
         t.submit(job(1));
         t.submit(job(2));
-        t.get_mut(1).unwrap().update_progress(50.0, 1001);
+        t.get_mut(1)
+            .expect("get_mut should return a value")
+            .update_progress(50.0, 1001);
         assert_eq!(t.running_jobs().len(), 1);
     }
 
@@ -269,7 +278,9 @@ mod tests {
         let mut t = JobTracker::new();
         t.submit(job(1));
         t.submit(job(2));
-        t.get_mut(2).unwrap().fail("error", 1001);
+        t.get_mut(2)
+            .expect("get_mut should return a value")
+            .fail("error", 1001);
         assert_eq!(t.failed_jobs().len(), 1);
         assert_eq!(t.failed_jobs()[0].id, 2);
     }
@@ -285,7 +296,9 @@ mod tests {
         let mut t = JobTracker::new();
         for i in 1..=3 {
             t.submit(job(i));
-            t.get_mut(i).unwrap().complete("out", 2000);
+            t.get_mut(i)
+                .expect("get_mut should return a value")
+                .complete("out", 2000);
         }
         assert!((t.completion_rate() - 1.0).abs() < f64::EPSILON);
     }
@@ -295,7 +308,9 @@ mod tests {
         let mut t = JobTracker::new();
         t.submit(job(1));
         t.submit(job(2));
-        t.get_mut(1).unwrap().complete("out", 2000);
+        t.get_mut(1)
+            .expect("get_mut should return a value")
+            .complete("out", 2000);
         assert!((t.completion_rate() - 0.5).abs() < f64::EPSILON);
     }
 

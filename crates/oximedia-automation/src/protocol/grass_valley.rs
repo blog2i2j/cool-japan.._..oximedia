@@ -166,7 +166,7 @@ mod tests {
 
     #[test]
     fn test_parse_simple_command() {
-        let cmd = GvgParser::parse("PLAY CLIP").unwrap();
+        let cmd = GvgParser::parse("PLAY CLIP").expect("parse should succeed");
         assert_eq!(cmd.verb, "PLAY");
         assert_eq!(cmd.noun, "CLIP");
         assert!(cmd.params.is_empty());
@@ -174,7 +174,7 @@ mod tests {
 
     #[test]
     fn test_parse_command_with_params() {
-        let cmd = GvgParser::parse("LOAD CLIP id=clip001 channel=1").unwrap();
+        let cmd = GvgParser::parse("LOAD CLIP id=clip001 channel=1").expect("parse should succeed");
         assert_eq!(cmd.verb, "LOAD");
         assert_eq!(cmd.noun, "CLIP");
         assert_eq!(cmd.params.get("id").map(String::as_str), Some("clip001"));
@@ -210,10 +210,10 @@ mod tests {
     #[test]
     fn test_parse_format_roundtrip() {
         let original = "EJECT DECK slot=3";
-        let cmd = GvgParser::parse(original).unwrap();
+        let cmd = GvgParser::parse(original).expect("parse should succeed");
         let formatted = GvgProtocol::format_command(&cmd);
         // Re-parse and verify semantic equivalence
-        let reparsed = GvgParser::parse(&formatted).unwrap();
+        let reparsed = GvgParser::parse(&formatted).expect("parse should succeed");
         assert_eq!(reparsed.verb, cmd.verb);
         assert_eq!(reparsed.noun, cmd.noun);
         assert_eq!(reparsed.params, cmd.params);

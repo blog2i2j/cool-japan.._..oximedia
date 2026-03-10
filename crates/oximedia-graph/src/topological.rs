@@ -343,7 +343,7 @@ mod tests {
     fn test_single_node() {
         let mut graph = TopoGraph::new();
         graph.add_node(n(0));
-        let order = graph.sort_kahn().unwrap();
+        let order = graph.sort_kahn().expect("sort_kahn should succeed");
         assert_eq!(order, vec![n(0)]);
     }
 
@@ -353,7 +353,7 @@ mod tests {
         graph.add_edge(n(0), n(1));
         graph.add_edge(n(1), n(2));
         graph.add_edge(n(2), n(3));
-        let order = graph.sort_kahn().unwrap();
+        let order = graph.sort_kahn().expect("sort_kahn should succeed");
         assert_eq!(order, vec![n(0), n(1), n(2), n(3)]);
     }
 
@@ -364,7 +364,7 @@ mod tests {
         graph.add_edge(n(0), n(2));
         graph.add_edge(n(1), n(3));
         graph.add_edge(n(2), n(3));
-        let order = graph.sort_kahn().unwrap();
+        let order = graph.sort_kahn().expect("sort_kahn should succeed");
         assert_eq!(order[0], n(0));
         assert_eq!(order[3], n(3));
     }
@@ -396,13 +396,13 @@ mod tests {
         graph.add_edge(n(0), n(2));
         graph.add_edge(n(1), n(3));
         graph.add_edge(n(2), n(3));
-        let kahn = graph.sort_kahn().unwrap();
-        let dfs = graph.sort_dfs().unwrap();
+        let kahn = graph.sort_kahn().expect("sort_kahn should succeed");
+        let dfs = graph.sort_dfs().expect("sort_dfs should succeed");
         // Both should have 0 first and 3 last
         assert_eq!(kahn[0], n(0));
         assert_eq!(dfs[0], n(0));
-        assert_eq!(*kahn.last().unwrap(), n(3));
-        assert_eq!(*dfs.last().unwrap(), n(3));
+        assert_eq!(*kahn.last().expect("last should succeed"), n(3));
+        assert_eq!(*dfs.last().expect("last should succeed"), n(3));
     }
 
     #[test]
@@ -444,7 +444,10 @@ mod tests {
         graph.add_edge(n(0), n(1));
         graph.add_edge(n(1), n(2));
         graph.add_edge(n(0), n(2));
-        assert_eq!(graph.longest_path().unwrap(), 2);
+        assert_eq!(
+            graph.longest_path().expect("longest_path should succeed"),
+            2
+        );
     }
 
     #[test]
@@ -454,7 +457,7 @@ mod tests {
         graph.add_edge(n(0), n(2));
         graph.add_edge(n(1), n(3));
         graph.add_edge(n(2), n(3));
-        let depths = graph.node_depths().unwrap();
+        let depths = graph.node_depths().expect("node_depths should succeed");
         assert_eq!(depths[&n(0)], 0);
         assert_eq!(depths[&n(3)], 2);
     }

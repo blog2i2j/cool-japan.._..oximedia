@@ -299,7 +299,13 @@ mod tests {
         let items = vec![TickerItem::new("hello", None, 5)];
         let state = TickerState::new(items);
         assert!(state.current_item().is_some());
-        assert_eq!(state.current_item().unwrap().text, "hello");
+        assert_eq!(
+            state
+                .current_item()
+                .expect("current_item should succeed")
+                .text,
+            "hello"
+        );
     }
 
     #[test]
@@ -334,7 +340,7 @@ mod tests {
         q.push(TickerItem::new("A", None, 0));
         q.push(TickerItem::new("B", None, 0));
         assert_eq!(q.len(), 2);
-        let item = q.pop().unwrap();
+        let item = q.pop().expect("item should be valid");
         assert_eq!(item.text, "A");
         assert_eq!(q.len(), 1);
     }
@@ -345,7 +351,7 @@ mod tests {
         q.push(TickerItem::new("Normal", None, 0));
         q.insert_breaking(TickerItem::new("BREAKING", Some("BREAKING".to_string()), 0));
         // Breaking should be at front
-        let first = q.pop().unwrap();
+        let first = q.pop().expect("first should be valid");
         assert_eq!(first.priority, 255);
         assert_eq!(first.text, "BREAKING");
     }

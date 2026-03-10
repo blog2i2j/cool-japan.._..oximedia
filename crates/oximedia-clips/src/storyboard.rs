@@ -355,7 +355,12 @@ mod tests {
         let panels = gen.generate(&clips);
         for p in &panels {
             assert!(p.frame.caption.is_some());
-            assert!(p.frame.caption.as_ref().unwrap().contains("Interview"));
+            assert!(p
+                .frame
+                .caption
+                .as_ref()
+                .expect("as_ref should succeed")
+                .contains("Interview"));
         }
     }
 

@@ -337,7 +337,7 @@ mod tests {
             MediaTime::from_secs(2.0, 90_000),
             MediaTime::from_secs(6.0, 90_000),
         );
-        let inter = r1.intersection(&r2).unwrap();
+        let inter = r1.intersection(&r2).expect("intersection should exist");
         assert!((inter.start.to_secs() - 2.0).abs() < 1e-4);
         assert!((inter.end.to_secs() - 4.0).abs() < 1e-4);
     }

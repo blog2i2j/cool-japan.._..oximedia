@@ -227,7 +227,7 @@ mod tests {
         let state_str = job_state_to_string(state);
         assert_eq!(state_str, "running");
 
-        let parsed = string_to_job_state(&state_str).unwrap();
+        let parsed = string_to_job_state(&state_str).expect("operation should succeed");
         assert_eq!(parsed, state);
     }
 
@@ -237,15 +237,24 @@ mod tests {
         let priority_str = priority_to_string(priority);
         assert_eq!(priority_str, "high");
 
-        let parsed = string_to_priority(&priority_str).unwrap();
+        let parsed = string_to_priority(&priority_str).expect("operation should succeed");
         assert_eq!(parsed, priority);
     }
 
     #[test]
     fn test_parse_bitrate() {
-        assert_eq!(parse_bitrate("5000k").unwrap(), 5_000_000);
-        assert_eq!(parse_bitrate("2M").unwrap(), 2_000_000);
-        assert_eq!(parse_bitrate("1000").unwrap(), 1000);
+        assert_eq!(
+            parse_bitrate("5000k").expect("operation should succeed"),
+            5_000_000
+        );
+        assert_eq!(
+            parse_bitrate("2M").expect("operation should succeed"),
+            2_000_000
+        );
+        assert_eq!(
+            parse_bitrate("1000").expect("operation should succeed"),
+            1000
+        );
     }
 
     #[test]
@@ -257,7 +266,7 @@ mod tests {
 
     #[test]
     fn test_parse_resolution() {
-        let (width, height) = parse_resolution("1920x1080").unwrap();
+        let (width, height) = parse_resolution("1920x1080").expect("operation should succeed");
         assert_eq!(width, 1920);
         assert_eq!(height, 1080);
     }
@@ -269,8 +278,14 @@ mod tests {
 
     #[test]
     fn test_parse_framerate() {
-        assert_eq!(parse_framerate("30").unwrap(), 30.0);
-        assert_eq!(parse_framerate("29.97").unwrap(), 29.97);
+        assert_eq!(
+            parse_framerate("30").expect("operation should succeed"),
+            30.0
+        );
+        assert_eq!(
+            parse_framerate("29.97").expect("operation should succeed"),
+            29.97
+        );
     }
 
     #[test]

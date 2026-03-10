@@ -261,7 +261,7 @@ mod tests {
         // min_lag = ceil(44100 / 500) = 89, max_lag = floor(44100 / 400) = 110.
         let result = autocorrelation_pitch(&samples, 44100.0, 400.0, 500.0);
         assert!(result.is_some());
-        let r = result.unwrap();
+        let r = result.expect("should succeed");
         assert!(
             (r.frequency_hz - 440.0).abs() < 5.0,
             "freq={}",

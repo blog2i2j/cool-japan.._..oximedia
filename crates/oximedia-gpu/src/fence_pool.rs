@@ -396,7 +396,7 @@ mod tests {
     #[test]
     fn test_signal_fence() {
         let mut pool = FencePool::new();
-        let id = pool.acquire().unwrap();
+        let id = pool.acquire().expect("fence acquire should succeed");
         assert!(pool.signal(id));
         assert_eq!(pool.status(id), Some(FenceStatus::Signaled));
     }
@@ -405,7 +405,7 @@ mod tests {
     fn test_release_fence() {
         let mut pool = FencePool::new();
         let initial_available = pool.available_count();
-        let id = pool.acquire().unwrap();
+        let id = pool.acquire().expect("fence acquire should succeed");
         assert_eq!(pool.available_count(), initial_available - 1);
         pool.signal(id);
         pool.release(id);
@@ -416,8 +416,8 @@ mod tests {
     #[test]
     fn test_pending_fences() {
         let mut pool = FencePool::new();
-        let id1 = pool.acquire().unwrap();
-        let id2 = pool.acquire().unwrap();
+        let id1 = pool.acquire().expect("fence acquire should succeed");
+        let id2 = pool.acquire().expect("fence acquire should succeed");
         let pending = pool.pending_fences();
         assert_eq!(pending.len(), 2);
         assert!(pending.contains(&id1));
@@ -427,8 +427,8 @@ mod tests {
     #[test]
     fn test_flush_all() {
         let mut pool = FencePool::new();
-        let _id1 = pool.acquire().unwrap();
-        let _id2 = pool.acquire().unwrap();
+        let _id1 = pool.acquire().expect("fence acquire should succeed");
+        let _id2 = pool.acquire().expect("fence acquire should succeed");
         assert_eq!(pool.pending_fences().len(), 2);
         pool.flush_all();
         assert_eq!(pool.pending_fences().len(), 0);
@@ -445,8 +445,8 @@ mod tests {
             ..Default::default()
         };
         let mut pool = FencePool::with_config(config);
-        let _id1 = pool.acquire().unwrap();
-        let _id2 = pool.acquire().unwrap();
+        let _id1 = pool.acquire().expect("fence acquire should succeed");
+        let _id2 = pool.acquire().expect("fence acquire should succeed");
         // Pool exhausted, should auto-grow
         let id3 = pool.acquire();
         assert!(id3.is_some());
@@ -463,8 +463,8 @@ mod tests {
             ..Default::default()
         };
         let mut pool = FencePool::with_config(config);
-        let _id1 = pool.acquire().unwrap();
-        let _id2 = pool.acquire().unwrap();
+        let _id1 = pool.acquire().expect("fence acquire should succeed");
+        let _id2 = pool.acquire().expect("fence acquire should succeed");
         let _id3 = pool.acquire();
         // Should not exceed max
         assert!(pool.total_count() <= 3);
@@ -479,7 +479,7 @@ mod tests {
             ..Default::default()
         };
         let mut pool = FencePool::with_config(config);
-        let _id = pool.acquire().unwrap();
+        let _id = pool.acquire().expect("fence acquire should succeed");
         let id2 = pool.acquire();
         assert!(id2.is_none());
     }
@@ -487,8 +487,8 @@ mod tests {
     #[test]
     fn test_stats() {
         let mut pool = FencePool::new();
-        let id1 = pool.acquire().unwrap();
-        let _id2 = pool.acquire().unwrap();
+        let id1 = pool.acquire().expect("fence acquire should succeed");
+        let _id2 = pool.acquire().expect("fence acquire should succeed");
         pool.signal(id1);
         let stats = pool.stats();
         assert_eq!(stats.total_fences, 16);
@@ -517,8 +517,8 @@ mod tests {
     #[test]
     fn test_reset_pool() {
         let mut pool = FencePool::new();
-        let _id1 = pool.acquire().unwrap();
-        let _id2 = pool.acquire().unwrap();
+        let _id1 = pool.acquire().expect("fence acquire should succeed");
+        let _id2 = pool.acquire().expect("fence acquire should succeed");
         pool.reset();
         assert_eq!(pool.available_count(), pool.total_count());
     }
@@ -557,7 +557,7 @@ mod tests {
         };
         let mut pool = FencePool::with_config(config);
         assert!(pool.has_available());
-        let _id = pool.acquire().unwrap();
+        let _id = pool.acquire().expect("fence acquire should succeed");
         assert!(!pool.has_available());
     }
 }

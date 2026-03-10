@@ -285,13 +285,15 @@ never_loop = "allow"
 
 
 [features]
-default = ["av1", "image-io"]
+default = ["av1", "image-io", "ffv1", "jpegxl"]
 av1 = []
 vp9 = []
 vp8 = []
 theora = []
 h263 = []
 opus = []
+ffv1 = []
+jpegxl = []
 image-io = ["png", "jpeg-decoder", "webp"]
 
 [dependencies]

@@ -26,8 +26,8 @@
 //! ```
 //! use oximedia_colormgmt::{colorspaces::ColorSpace, transforms::rgb_to_rgb};
 //!
-//! let srgb = ColorSpace::srgb().unwrap();
-//! let rec2020 = ColorSpace::rec2020().unwrap();
+//! let srgb = ColorSpace::srgb()?;
+//! let rec2020 = ColorSpace::rec2020()?;
 //!
 //! let rgb = [0.5, 0.3, 0.2];
 //! let converted = rgb_to_rgb(&rgb, &srgb, &rec2020);
@@ -52,7 +52,7 @@
 //! use oximedia_colormgmt::pipeline::{ColorPipeline, ColorTransform};
 //! use oximedia_colormgmt::colorspaces::ColorSpace;
 //!
-//! let srgb = ColorSpace::srgb().unwrap();
+//! let srgb = ColorSpace::srgb()?;
 //! let mut pipeline = ColorPipeline::new();
 //! pipeline.add_transform(ColorTransform::Linearize(srgb));
 //! pipeline.add_transform(ColorTransform::Matrix([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]));

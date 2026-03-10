@@ -1,8 +1,8 @@
 //! User-item matrix for collaborative filtering.
 
+use crate::dense_linalg::DenseMatrix;
 use crate::error::RecommendResult;
 use crate::{ContentMetadata, Recommendation, RecommendationReason, RecommendationRequest};
-use ndarray::{Array2, ArrayView2};
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -10,7 +10,7 @@ use uuid::Uuid;
 #[derive(Debug, Clone)]
 pub struct UserItemMatrix {
     /// Matrix data (users x items)
-    data: Array2<f32>,
+    data: DenseMatrix,
     /// User ID to index mapping
     user_to_index: HashMap<Uuid, usize>,
     /// Item ID to index mapping
@@ -26,7 +26,7 @@ impl UserItemMatrix {
     #[must_use]
     pub fn new(num_users: usize, num_items: usize) -> Self {
         Self {
-            data: Array2::zeros((num_users, num_items)),
+            data: DenseMatrix::zeros(num_users, num_items),
             user_to_index: HashMap::new(),
             item_to_index: HashMap::new(),
             index_to_user: Vec::new(),
@@ -47,8 +47,8 @@ impl UserItemMatrix {
         // Expand matrix if needed
         if index >= self.data.nrows() {
             let new_rows = index + 1 - self.data.nrows();
-            let zeros = Array2::zeros((new_rows, self.data.ncols()));
-            self.data = ndarray::concatenate![ndarray::Axis(0), self.data, zeros];
+            let zeros = DenseMatrix::zeros(new_rows, self.data.ncols());
+            self.data = self.data.concat_rows(&zeros);
         }
 
         index
@@ -67,8 +67,8 @@ impl UserItemMatrix {
         // Expand matrix if needed
         if index >= self.data.ncols() {
             let new_cols = index + 1 - self.data.ncols();
-            let zeros = Array2::zeros((self.data.nrows(), new_cols));
-            self.data = ndarray::concatenate![ndarray::Axis(1), self.data, zeros];
+            let zeros = DenseMatrix::zeros(self.data.nrows(), new_cols);
+            self.data = self.data.concat_cols(&zeros);
         }
 
         index
@@ -78,7 +78,7 @@ impl UserItemMatrix {
     pub fn set_rating(&mut self, user_id: Uuid, item_id: Uuid, rating: f32) {
         let user_idx = self.add_user(user_id);
         let item_idx = self.add_item(item_id);
-        self.data[[user_idx, item_idx]] = rating;
+        self.data.set(user_idx, item_idx, rating);
     }
 
     /// Get rating for user-item pair
@@ -86,27 +86,45 @@ impl UserItemMatrix {
     pub fn get_rating(&self, user_id: Uuid, item_id: Uuid) -> Option<f32> {
         let user_idx = self.user_to_index.get(&user_id)?;
         let item_idx = self.item_to_index.get(&item_id)?;
-        Some(self.data[[*user_idx, *item_idx]])
+        Some(self.data.get(*user_idx, *item_idx))
     }
 
     /// Get user's ratings vector
     #[must_use]
     pub fn get_user_ratings(&self, user_id: Uuid) -> Option<Vec<f32>> {
         let user_idx = self.user_to_index.get(&user_id)?;
-        Some(self.data.row(*user_idx).to_vec())
+        Some(self.data.row_vec(*user_idx))
     }
 
     /// Get item's ratings vector
     #[must_use]
     pub fn get_item_ratings(&self, item_id: Uuid) -> Option<Vec<f32>> {
         let item_idx = self.item_to_index.get(&item_id)?;
-        Some(self.data.column(*item_idx).to_vec())
+        Some(self.data.col_vec(*item_idx))
     }
 
-    /// Get matrix view
+    /// Get number of rows in the underlying data matrix
     #[must_use]
-    pub fn as_view(&self) -> ArrayView2<'_, f32> {
-        self.data.view()
+    pub fn data_nrows(&self) -> usize {
+        self.data.nrows()
+    }
+
+    /// Get number of columns in the underlying data matrix
+    #[must_use]
+    pub fn data_ncols(&self) -> usize {
+        self.data.ncols()
+    }
+
+    /// Get a value from the underlying data matrix by indices
+    #[must_use]
+    pub fn data_get(&self, row: usize, col: usize) -> f32 {
+        self.data.get(row, col)
+    }
+
+    /// Get a row from the underlying data matrix as a Vec
+    #[must_use]
+    pub fn data_row_vec(&self, row: usize) -> Vec<f32> {
+        self.data.row_vec(row)
     }
 
     /// Get number of users
@@ -140,9 +158,8 @@ impl UserItemMatrix {
             return Vec::new();
         };
 
-        self.data
-            .row(user_idx)
-            .iter()
+        let row = self.data.row_vec(user_idx);
+        row.iter()
             .enumerate()
             .filter(|(_, &rating)| rating > 0.0)
             .filter_map(|(item_idx, &rating)| {
@@ -264,8 +281,8 @@ mod tests {
     #[test]
     fn test_user_item_matrix_creation() {
         let matrix = UserItemMatrix::new(10, 20);
-        assert_eq!(matrix.data.nrows(), 10);
-        assert_eq!(matrix.data.ncols(), 20);
+        assert_eq!(matrix.data_nrows(), 10);
+        assert_eq!(matrix.data_ncols(), 20);
     }
 
     #[test]

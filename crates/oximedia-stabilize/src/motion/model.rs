@@ -7,17 +7,189 @@
 //! - 3D: Full 3D camera pose
 
 use crate::error::{StabilizeError, StabilizeResult};
-use nalgebra as na;
-use ndarray::Array2;
 use serde::{Deserialize, Serialize};
+
+/// A 3x3 matrix stored in row-major order.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct Matrix3x3 {
+    /// Row-major data: [r0c0, r0c1, r0c2, r1c0, r1c1, r1c2, r2c0, r2c1, r2c2]
+    pub data: [f64; 9],
+}
+
+impl Matrix3x3 {
+    /// Create a new matrix from elements in row-major order.
+    #[must_use]
+    pub const fn new(
+        r0c0: f64,
+        r0c1: f64,
+        r0c2: f64,
+        r1c0: f64,
+        r1c1: f64,
+        r1c2: f64,
+        r2c0: f64,
+        r2c1: f64,
+        r2c2: f64,
+    ) -> Self {
+        Self {
+            data: [r0c0, r0c1, r0c2, r1c0, r1c1, r1c2, r2c0, r2c1, r2c2],
+        }
+    }
+
+    /// Create a 3x3 identity matrix.
+    #[must_use]
+    pub const fn identity() -> Self {
+        Self::new(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
+    }
+
+    /// Create a 3x3 zero matrix.
+    #[must_use]
+    pub const fn zeros() -> Self {
+        Self { data: [0.0; 9] }
+    }
+
+    /// Get element at (row, col).
+    #[must_use]
+    pub fn get(&self, row: usize, col: usize) -> f64 {
+        self.data[row * 3 + col]
+    }
+
+    /// Set element at (row, col).
+    pub fn set(&mut self, row: usize, col: usize, val: f64) {
+        self.data[row * 3 + col] = val;
+    }
+
+    /// Multiply two 3x3 matrices.
+    #[must_use]
+    pub fn mul(&self, other: &Self) -> Self {
+        let mut result = Self::zeros();
+        for i in 0..3 {
+            for j in 0..3 {
+                let mut sum = 0.0;
+                for k in 0..3 {
+                    sum += self.get(i, k) * other.get(k, j);
+                }
+                result.set(i, j, sum);
+            }
+        }
+        result
+    }
+
+    /// Transform a 2D point using this 3x3 matrix (homogeneous coordinates).
+    #[must_use]
+    pub fn transform_point(&self, x: f64, y: f64) -> (f64, f64) {
+        let w = self.get(2, 0) * x + self.get(2, 1) * y + self.get(2, 2);
+        if w.abs() < 1e-10 {
+            return (x, y);
+        }
+        let px = self.get(0, 0) * x + self.get(0, 1) * y + self.get(0, 2);
+        let py = self.get(1, 0) * x + self.get(1, 1) * y + self.get(1, 2);
+        (px / w, py / w)
+    }
+
+    /// Compute determinant.
+    #[must_use]
+    pub fn determinant(&self) -> f64 {
+        let a = self.data;
+        a[0] * (a[4] * a[8] - a[5] * a[7]) - a[1] * (a[3] * a[8] - a[5] * a[6])
+            + a[2] * (a[3] * a[7] - a[4] * a[6])
+    }
+
+    /// Compute inverse (returns None if singular).
+    #[must_use]
+    pub fn try_inverse(&self) -> Option<Self> {
+        let det = self.determinant();
+        if det.abs() < 1e-15 {
+            return None;
+        }
+        let inv_det = 1.0 / det;
+        let a = self.data;
+
+        Some(Self::new(
+            (a[4] * a[8] - a[5] * a[7]) * inv_det,
+            (a[2] * a[7] - a[1] * a[8]) * inv_det,
+            (a[1] * a[5] - a[2] * a[4]) * inv_det,
+            (a[5] * a[6] - a[3] * a[8]) * inv_det,
+            (a[0] * a[8] - a[2] * a[6]) * inv_det,
+            (a[2] * a[3] - a[0] * a[5]) * inv_det,
+            (a[3] * a[7] - a[4] * a[6]) * inv_det,
+            (a[1] * a[6] - a[0] * a[7]) * inv_det,
+            (a[0] * a[4] - a[1] * a[3]) * inv_det,
+        ))
+    }
+
+    /// Frobenius norm.
+    #[must_use]
+    pub fn norm(&self) -> f64 {
+        self.data.iter().map(|v| v * v).sum::<f64>().sqrt()
+    }
+
+    /// Subtract another matrix.
+    #[must_use]
+    pub fn sub(&self, other: &Self) -> Self {
+        let mut result = Self::zeros();
+        for i in 0..9 {
+            result.data[i] = self.data[i] - other.data[i];
+        }
+        result
+    }
+
+    /// Scale all elements by a factor.
+    #[must_use]
+    pub fn scale(&self, factor: f64) -> Self {
+        let mut result = *self;
+        for v in &mut result.data {
+            *v *= factor;
+        }
+        result
+    }
+}
+
+/// A 3D vector.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+pub struct Vector3 {
+    /// Vector elements.
+    pub data: [f64; 3],
+}
+
+impl Vector3 {
+    /// Create a new vector.
+    #[must_use]
+    pub const fn new(x: f64, y: f64, z: f64) -> Self {
+        Self { data: [x, y, z] }
+    }
+
+    /// Create a zero vector.
+    #[must_use]
+    pub const fn zeros() -> Self {
+        Self { data: [0.0; 3] }
+    }
+
+    /// Get element at index.
+    #[must_use]
+    pub fn get(&self, idx: usize) -> f64 {
+        self.data[idx]
+    }
+
+    /// Norm of the vector.
+    #[must_use]
+    pub fn norm(&self) -> f64 {
+        self.data.iter().map(|v| v * v).sum::<f64>().sqrt()
+    }
+
+    /// Negate the vector.
+    #[must_use]
+    pub fn neg(&self) -> Self {
+        Self::new(-self.data[0], -self.data[1], -self.data[2])
+    }
+}
 
 /// A motion model representing camera transformation between frames.
 pub trait MotionModel: Send + Sync {
     /// Get the transformation matrix.
-    fn matrix(&self) -> na::Matrix3<f64>;
+    fn matrix(&self) -> Matrix3x3;
 
     /// Set the transformation matrix.
-    fn set_matrix(&mut self, matrix: na::Matrix3<f64>) -> StabilizeResult<()>;
+    fn set_matrix(&mut self, matrix: Matrix3x3) -> StabilizeResult<()>;
 
     /// Transform a point.
     fn transform_point(&self, x: f64, y: f64) -> (f64, f64);
@@ -68,13 +240,13 @@ impl TranslationModel {
 }
 
 impl MotionModel for TranslationModel {
-    fn matrix(&self) -> na::Matrix3<f64> {
-        na::Matrix3::new(1.0, 0.0, self.dx, 0.0, 1.0, self.dy, 0.0, 0.0, 1.0)
+    fn matrix(&self) -> Matrix3x3 {
+        Matrix3x3::new(1.0, 0.0, self.dx, 0.0, 1.0, self.dy, 0.0, 0.0, 1.0)
     }
 
-    fn set_matrix(&mut self, matrix: na::Matrix3<f64>) -> StabilizeResult<()> {
-        self.dx = matrix[(0, 2)];
-        self.dy = matrix[(1, 2)];
+    fn set_matrix(&mut self, matrix: Matrix3x3) -> StabilizeResult<()> {
+        self.dx = matrix.get(0, 2);
+        self.dy = matrix.get(1, 2);
         Ok(())
     }
 
@@ -190,12 +362,12 @@ impl AffineModel {
 }
 
 impl MotionModel for AffineModel {
-    fn matrix(&self) -> na::Matrix3<f64> {
+    fn matrix(&self) -> Matrix3x3 {
         let cos_a = self.angle.cos();
         let sin_a = self.angle.sin();
         let s = self.scale;
 
-        na::Matrix3::new(
+        Matrix3x3::new(
             s * cos_a + self.shear_x,
             -s * sin_a,
             self.dx,
@@ -208,14 +380,14 @@ impl MotionModel for AffineModel {
         )
     }
 
-    fn set_matrix(&mut self, matrix: na::Matrix3<f64>) -> StabilizeResult<()> {
-        self.dx = matrix[(0, 2)];
-        self.dy = matrix[(1, 2)];
+    fn set_matrix(&mut self, matrix: Matrix3x3) -> StabilizeResult<()> {
+        self.dx = matrix.get(0, 2);
+        self.dy = matrix.get(1, 2);
 
-        let a = matrix[(0, 0)];
-        let b = matrix[(0, 1)];
-        let c = matrix[(1, 0)];
-        let _d = matrix[(1, 1)];
+        let a = matrix.get(0, 0);
+        let b = matrix.get(0, 1);
+        let c = matrix.get(1, 0);
+        let _d = matrix.get(1, 1);
 
         self.scale = (a * a + b * b).sqrt();
         self.angle = b.atan2(a);
@@ -230,8 +402,8 @@ impl MotionModel for AffineModel {
 
     fn transform_point(&self, x: f64, y: f64) -> (f64, f64) {
         let mat = self.matrix();
-        let px = mat[(0, 0)] * x + mat[(0, 1)] * y + mat[(0, 2)];
-        let py = mat[(1, 0)] * x + mat[(1, 1)] * y + mat[(1, 2)];
+        let px = mat.get(0, 0) * x + mat.get(0, 1) * y + mat.get(0, 2);
+        let py = mat.get(1, 0) * x + mat.get(1, 1) * y + mat.get(1, 2);
         (px, py)
     }
 
@@ -265,7 +437,7 @@ impl MotionModel for AffineModel {
     fn compose(&self, other: &dyn MotionModel) -> StabilizeResult<Box<dyn MotionModel>> {
         let m1 = self.matrix();
         let m2 = other.matrix();
-        let result = m1 * m2;
+        let result = m1.mul(&m2);
 
         let mut model = Self::identity();
         model.set_matrix(result)?;
@@ -292,13 +464,13 @@ impl MotionModel for AffineModel {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PerspectiveModel {
     /// Homography matrix (3x3)
-    homography: na::Matrix3<f64>,
+    homography: Matrix3x3,
 }
 
 impl PerspectiveModel {
     /// Create a new perspective model.
     #[must_use]
-    pub fn new(homography: na::Matrix3<f64>) -> Self {
+    pub fn new(homography: Matrix3x3) -> Self {
         Self { homography }
     }
 
@@ -306,73 +478,36 @@ impl PerspectiveModel {
     #[must_use]
     pub fn identity() -> Self {
         Self {
-            homography: na::Matrix3::identity(),
+            homography: Matrix3x3::identity(),
         }
-    }
-
-    /// Create from a 3x3 array.
-    ///
-    /// # Errors
-    ///
-    /// Returns an error if the array dimensions are not 3x3.
-    pub fn from_array(array: &Array2<f64>) -> StabilizeResult<Self> {
-        if array.dim() != (3, 3) {
-            return Err(StabilizeError::dimension_mismatch(
-                "3x3",
-                format!("{:?}", array.dim()),
-            ));
-        }
-
-        let mut mat = na::Matrix3::zeros();
-        for i in 0..3 {
-            for j in 0..3 {
-                mat[(i, j)] = array[[i, j]];
-            }
-        }
-
-        Ok(Self::new(mat))
     }
 
     /// Get motion magnitude.
     #[must_use]
     pub fn magnitude(&self) -> f64 {
         // Frobenius norm of deviation from identity
-        let identity = na::Matrix3::identity();
-        let diff = self.homography - identity;
+        let identity = Matrix3x3::identity();
+        let diff = self.homography.sub(&identity);
         diff.norm()
     }
 }
 
 impl MotionModel for PerspectiveModel {
-    fn matrix(&self) -> na::Matrix3<f64> {
+    fn matrix(&self) -> Matrix3x3 {
         self.homography
     }
 
-    fn set_matrix(&mut self, matrix: na::Matrix3<f64>) -> StabilizeResult<()> {
+    fn set_matrix(&mut self, matrix: Matrix3x3) -> StabilizeResult<()> {
         self.homography = matrix;
         Ok(())
     }
 
     fn transform_point(&self, x: f64, y: f64) -> (f64, f64) {
-        let p = na::Vector3::new(x, y, 1.0);
-        let transformed = self.homography * p;
-
-        if transformed[2].abs() < 1e-10 {
-            return (x, y); // Degenerate case
-        }
-
-        let w = transformed[2];
-        (transformed[0] / w, transformed[1] / w)
+        self.homography.transform_point(x, y)
     }
 
     fn parameters(&self) -> Vec<f64> {
-        let mut params = Vec::with_capacity(9);
-        for i in 0..3 {
-            for j in 0..3 {
-                params.push(self.homography[(i, j)]);
-            }
-        }
-        params
+        self.homography.data.to_vec()
     }
 
     fn set_parameters(&mut self, params: &[f64]) -> StabilizeResult<()> {
@@ -385,14 +520,14 @@ impl MotionModel for PerspectiveModel {
 
         for i in 0..3 {
             for j in 0..3 {
-                self.homography[(i, j)] = params[i * 3 + j];
+                self.homography.set(i, j, params[i * 3 + j]);
             }
         }
         Ok(())
     }
 
     fn compose(&self, other: &dyn MotionModel) -> StabilizeResult<Box<dyn MotionModel>> {
-        let result = self.homography * other.matrix();
+        let result = self.homography.mul(&other.matrix());
         Ok(Box::new(Self::new(result)))
     }
 
@@ -413,9 +548,9 @@ impl MotionModel for PerspectiveModel {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ThreeDModel {
     /// Rotation matrix (3x3)
-    pub rotation: na::Matrix3<f64>,
+    pub rotation: Matrix3x3,
     /// Translation vector
-    pub translation: na::Vector3<f64>,
+    pub translation: Vector3,
     /// Camera focal length
     pub focal_length: f64,
     /// Camera principal point (cx, cy)
@@ -426,8 +561,8 @@ impl ThreeDModel {
     /// Create a new 3D model.
     #[must_use]
     pub fn new(
-        rotation: na::Matrix3<f64>,
-        translation: na::Vector3<f64>,
+        rotation: Matrix3x3,
+        translation: Vector3,
         focal_length: f64,
         principal_point: (f64, f64),
     ) -> Self {
@@ -443,8 +578,8 @@ impl ThreeDModel {
     #[must_use]
     pub fn identity() -> Self {
         Self {
-            rotation: na::Matrix3::identity(),
-            translation: na::Vector3::zeros(),
+            rotation: Matrix3x3::identity(),
+            translation: Vector3::zeros(),
             focal_length: 1.0,
             principal_point: (0.0, 0.0),
         }
@@ -454,33 +589,45 @@ impl ThreeDModel {
     #[must_use]
     pub fn magnitude(&self) -> f64 {
         let trans_mag = self.translation.norm();
-        let rot_mag = (self.rotation - na::Matrix3::identity()).norm();
+        let rot_mag = self.rotation.sub(&Matrix3x3::identity()).norm();
         trans_mag + rot_mag * 10.0
     }
 
     /// Project 3D point to 2D.
     #[must_use]
-    pub fn project_3d(&self, point: na::Vector3<f64>) -> (f64, f64) {
-        let transformed = self.rotation * point + self.translation;
+    pub fn project_3d(&self, point: Vector3) -> (f64, f64) {
+        // R * p + t
+        let tx = self.rotation.get(0, 0) * point.get(0)
+            + self.rotation.get(0, 1) * point.get(1)
+            + self.rotation.get(0, 2) * point.get(2)
+            + self.translation.get(0);
+        let ty = self.rotation.get(1, 0) * point.get(0)
+            + self.rotation.get(1, 1) * point.get(1)
+            + self.rotation.get(1, 2) * point.get(2)
+            + self.translation.get(1);
+        let tz = self.rotation.get(2, 0) * point.get(0)
+            + self.rotation.get(2, 1) * point.get(1)
+            + self.rotation.get(2, 2) * point.get(2)
+            + self.translation.get(2);
 
-        if transformed[2].abs() < 1e-10 {
+        if tz.abs() < 1e-10 {
             return self.principal_point;
         }
 
-        let x = self.focal_length * transformed[0] / transformed[2] + self.principal_point.0;
-        let y = self.focal_length * transformed[1] / transformed[2] + self.principal_point.1;
+        let x = self.focal_length * tx / tz + self.principal_point.0;
+        let y = self.focal_length * ty / tz + self.principal_point.1;
 
         (x, y)
     }
 }
 
 impl MotionModel for ThreeDModel {
-    fn matrix(&self) -> na::Matrix3<f64> {
+    fn matrix(&self) -> Matrix3x3 {
         // Return homography approximation for 2D projection
         self.rotation
     }
 
-    fn set_matrix(&mut self, matrix: na::Matrix3<f64>) -> StabilizeResult<()> {
+    fn set_matrix(&mut self, matrix: Matrix3x3) -> StabilizeResult<()> {
         self.rotation = matrix;
         Ok(())
     }
@@ -488,8 +635,8 @@ impl MotionModel for ThreeDModel {
     fn transform_point(&self, x: f64, y: f64) -> (f64, f64) {
         // Simple 2D approximation
         let mat = self.rotation;
-        let px = mat[(0, 0)] * x + mat[(0, 1)] * y + self.translation[0];
-        let py = mat[(1, 0)] * x + mat[(1, 1)] * y + self.translation[1];
+        let px = mat.get(0, 0) * x + mat.get(0, 1) * y + self.translation.get(0);
+        let py = mat.get(1, 0) * x + mat.get(1, 1) * y + self.translation.get(1);
         (px, py)
     }
 
@@ -499,14 +646,14 @@ impl MotionModel for ThreeDModel {
         // Rotation matrix (9 values)
         for i in 0..3 {
             for j in 0..3 {
-                params.push(self.rotation[(i, j)]);
+                params.push(self.rotation.get(i, j));
             }
         }
 
         // Translation (3 values)
-        params.push(self.translation[0]);
-        params.push(self.translation[1]);
-        params.push(self.translation[2]);
+        params.push(self.translation.get(0));
+        params.push(self.translation.get(1));
+        params.push(self.translation.get(2));
 
         // Intrinsics (3 values)
         params.push(self.focal_length);
@@ -527,14 +674,12 @@ impl MotionModel for ThreeDModel {
         // Rotation matrix
         for i in 0..3 {
             for j in 0..3 {
-                self.rotation[(i, j)] = params[i * 3 + j];
+                self.rotation.set(i, j, params[i * 3 + j]);
             }
         }
 
         // Translation
-        self.translation[0] = params[9];
-        self.translation[1] = params[10];
-        self.translation[2] = params[11];
+        self.translation = Vector3::new(params[9], params[10], params[11]);
 
         // Intrinsics
         self.focal_length = params[12];
@@ -548,14 +693,26 @@ impl MotionModel for ThreeDModel {
         if params.len() >= 12 {
             // Compose rotations and translations
             let other_rot = other.matrix();
-            let result_rot = self.rotation * other_rot;
+            let result_rot = self.rotation.mul(&other_rot);
 
-            let other_trans = na::Vector3::new(params[9], params[10], params[11]);
-            let result_trans = self.rotation * other_trans + self.translation;
+            let other_trans = Vector3::new(params[9], params[10], params[11]);
+            // R1 * t2 + t1
+            let rt0 = self.rotation.get(0, 0) * other_trans.get(0)
+                + self.rotation.get(0, 1) * other_trans.get(1)
+                + self.rotation.get(0, 2) * other_trans.get(2)
+                + self.translation.get(0);
+            let rt1 = self.rotation.get(1, 0) * other_trans.get(0)
+                + self.rotation.get(1, 1) * other_trans.get(1)
+                + self.rotation.get(1, 2) * other_trans.get(2)
+                + self.translation.get(1);
+            let rt2 = self.rotation.get(2, 0) * other_trans.get(0)
+                + self.rotation.get(2, 1) * other_trans.get(1)
+                + self.rotation.get(2, 2) * other_trans.get(2)
+                + self.translation.get(2);
 
             Ok(Box::new(Self::new(
                 result_rot,
-                result_trans,
+                Vector3::new(rt0, rt1, rt2),
                 self.focal_length,
                 self.principal_point,
             )))
@@ -569,10 +726,20 @@ impl MotionModel for ThreeDModel {
 
     fn invert(&self) -> StabilizeResult<Box<dyn MotionModel>> {
         if let Some(inv_rot) = self.rotation.try_inverse() {
-            let inv_trans = -inv_rot * self.translation;
+            // -R^(-1) * t
+            let t = self.translation;
+            let it0 = -(inv_rot.get(0, 0) * t.get(0)
+                + inv_rot.get(0, 1) * t.get(1)
+                + inv_rot.get(0, 2) * t.get(2));
+            let it1 = -(inv_rot.get(1, 0) * t.get(0)
+                + inv_rot.get(1, 1) * t.get(1)
+                + inv_rot.get(1, 2) * t.get(2));
+            let it2 = -(inv_rot.get(2, 0) * t.get(0)
+                + inv_rot.get(2, 1) * t.get(1)
+                + inv_rot.get(2, 2) * t.get(2));
             Ok(Box::new(Self::new(
                 inv_rot,
-                inv_trans,
+                Vector3::new(it0, it1, it2),
                 self.focal_length,
                 self.principal_point,
             )))
@@ -646,5 +813,16 @@ mod tests {
         let params = inv.parameters();
         assert!((params[0] + 10.0).abs() < f64::EPSILON);
         assert!((params[1] + 20.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_matrix3x3_inverse() {
+        let m = Matrix3x3::new(2.0, 1.0, 0.0, 0.0, 3.0, 1.0, 1.0, 0.0, 2.0);
+        let inv = m.try_inverse().expect("should be invertible");
+        let product = m.mul(&inv);
+        // Should be close to identity
+        assert!((product.get(0, 0) - 1.0).abs() < 1e-10);
+        assert!((product.get(1, 1) - 1.0).abs() < 1e-10);
+        assert!((product.get(2, 2) - 1.0).abs() < 1e-10);
     }
 }

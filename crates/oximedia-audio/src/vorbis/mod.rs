@@ -164,7 +164,7 @@ mod tests {
             codec: CodecId::Vorbis,
             ..Default::default()
         };
-        let decoder = VorbisDecoder::new(&config).unwrap();
+        let decoder = VorbisDecoder::new(&config).expect("should succeed");
         assert_eq!(decoder.codec(), CodecId::Vorbis);
     }
 
@@ -183,7 +183,7 @@ mod tests {
             codec: CodecId::Vorbis,
             ..Default::default()
         };
-        let mut decoder = VorbisDecoder::new(&config).unwrap();
+        let mut decoder = VorbisDecoder::new(&config).expect("should succeed");
         decoder.reset();
         assert!(!decoder.flushing);
         assert_eq!(decoder.state, DecoderState::WaitingForIdentification);
@@ -195,7 +195,7 @@ mod tests {
             codec: CodecId::Vorbis,
             ..Default::default()
         };
-        let decoder = VorbisDecoder::new(&config).unwrap();
+        let decoder = VorbisDecoder::new(&config).expect("should succeed");
         assert!(!decoder.is_ready());
     }
 }

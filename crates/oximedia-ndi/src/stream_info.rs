@@ -302,7 +302,10 @@ mod tests {
         reg.register(make_info("cam1", 1920, 1080, vec![]));
         reg.register(make_info("cam1", 3840, 2160, vec![]));
         assert_eq!(reg.count(), 1);
-        assert_eq!(reg.find("cam1").unwrap().width, 3840);
+        assert_eq!(
+            reg.find("cam1").expect("expected item to be found").width,
+            3840
+        );
     }
 
     #[test]

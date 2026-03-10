@@ -277,7 +277,7 @@ mod tests {
         for _ in 0..4 {
             ch.update(1.0, 2.0, 10, Some(1.0));
         }
-        let rms = ch.rms.unwrap();
+        let rms = ch.rms.expect("rms should be valid");
         assert!((rms - 1.0).abs() < 1e-5);
     }
 
@@ -291,7 +291,7 @@ mod tests {
     fn test_meter_bridge_update_channel() {
         let mut bridge = MeterBridge::new(4, MeterConfig::default());
         bridge.update_channel(2, 0.8);
-        assert!((bridge.channel(2).unwrap().peak - 0.8).abs() < 1e-6);
+        assert!((bridge.channel(2).expect("channel should succeed").peak - 0.8).abs() < 1e-6);
     }
 
     #[test]

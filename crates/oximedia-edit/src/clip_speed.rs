@@ -223,7 +223,7 @@ mod tests {
     fn test_speed_keyframe_t_at_frame() {
         let a = SpeedKeyframe::new(0, 1.0);
         let b = SpeedKeyframe::new(100, 2.0);
-        let t = a.t_at_frame(&b, 50).unwrap();
+        let t = a.t_at_frame(&b, 50).expect("t should be valid");
         assert!((t - 0.5).abs() < 1e-9);
     }
 

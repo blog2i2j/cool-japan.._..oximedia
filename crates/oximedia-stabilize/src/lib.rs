@@ -105,7 +105,7 @@ pub mod zoom;
 // Re-export commonly used items
 pub use error::{StabilizeError, StabilizeResult};
 
-use ndarray::Array2;
+use scirs2_core::ndarray::Array2;
 use serde::{Deserialize, Serialize};
 
 /// Stabilization mode determines the type of camera motion to correct.
@@ -787,7 +787,7 @@ pub mod examples {
                     width,
                     height,
                     i as f64 / 30.0,
-                    ndarray::Array2::zeros((height, width)),
+                    Array2::zeros((height, width)),
                 )
             })
             .collect()
@@ -843,7 +843,7 @@ pub mod benchmarks {
                     width,
                     height,
                     i as f64 / 30.0,
-                    ndarray::Array2::zeros((height, width)),
+                    Array2::zeros((height, width)),
                 )
             })
             .collect::<Vec<_>>();
@@ -1026,12 +1026,7 @@ pub mod validation {
 
         #[test]
         fn test_frame_validation() {
-            let frames = vec![Frame::new(
-                640,
-                480,
-                0.0,
-                ndarray::Array2::zeros((480, 640)),
-            )];
+            let frames = vec![Frame::new(640, 480, 0.0, Array2::zeros((480, 640)))];
             let result = validate_frames(&frames);
             assert!(result.passed);
         }
@@ -1208,7 +1203,7 @@ mod integration_tests {
                     width,
                     height,
                     i as f64 / 30.0,
-                    ndarray::Array2::zeros((height, width)),
+                    Array2::zeros((height, width)),
                 )
             })
             .collect()
@@ -1260,20 +1255,13 @@ mod performance_tests {
 
     fn create_test_sequence(count: usize) -> Vec<Frame> {
         (0..count)
-            .map(|i| Frame::new(64, 64, i as f64 / 30.0, ndarray::Array2::zeros((64, 64))))
+            .map(|i| Frame::new(64, 64, i as f64 / 30.0, Array2::zeros((64, 64))))
             .collect()
     }
 
     fn create_hd_sequence(count: usize) -> Vec<Frame> {
         (0..count)
-            .map(|i| {
-                Frame::new(
-                    1920,
-                    1080,
-                    i as f64 / 30.0,
-                    ndarray::Array2::zeros((1080, 1920)),
-                )
-            })
+            .map(|i| Frame::new(1920, 1080, i as f64 / 30.0, Array2::zeros((1080, 1920))))
             .collect()
     }
 }
@@ -1290,8 +1278,8 @@ mod doc_examples {
         let mut stabilizer = Stabilizer::new(config).expect("should succeed in test");
 
         let frames = vec![
-            Frame::new(16, 16, 0.0, ndarray::Array2::zeros((16, 16))),
-            Frame::new(16, 16, 1.0 / 30.0, ndarray::Array2::zeros((16, 16))),
+            Frame::new(16, 16, 0.0, Array2::zeros((16, 16))),
+            Frame::new(16, 16, 1.0 / 30.0, Array2::zeros((16, 16))),
         ];
 
         let result = stabilizer.stabilize(&frames);

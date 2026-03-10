@@ -26,7 +26,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-accel = "0.1.0"
+oximedia-accel = "0.1.1"
 ```
 
 ```rust

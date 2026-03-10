@@ -131,7 +131,7 @@ impl OpticalFlow {
     /// let flow = OpticalFlow::new(FlowMethod::Farneback);
     /// let prev = vec![100u8; 100];
     /// let curr = vec![100u8; 100];
-    /// let field = flow.compute(&prev, &curr, 10, 10).unwrap();
+    /// let field = flow.compute(&prev, &curr, 10, 10)?;
     /// ```
     pub fn compute(&self, prev: &[u8], curr: &[u8], w: u32, h: u32) -> CvResult<FlowField> {
         if w == 0 || h == 0 {
@@ -669,7 +669,9 @@ fn build_pyramid(img: &[u8], w: u32, h: u32, levels: u32) -> Vec<(Vec<u8>, u32, 
     pyramid.push((img.to_vec(), w, h));
 
     for _ in 1..levels {
-        let (prev_img, prev_w, prev_h) = pyramid.last().unwrap();
+        let (prev_img, prev_w, prev_h) = pyramid
+            .last()
+            .expect("pyramid is non-empty by construction");
         let new_w = prev_w / 2;
         let new_h = prev_h / 2;
 
@@ -764,7 +766,9 @@ mod tests {
         let prev = vec![100u8; 100];
         let curr = vec![100u8; 100];
 
-        let field = flow.compute(&prev, &curr, 10, 10).unwrap();
+        let field = flow
+            .compute(&prev, &curr, 10, 10)
+            .expect("compute should succeed");
         assert_eq!(field.flow_x.len(), 100);
         assert_eq!(field.flow_y.len(), 100);
     }
@@ -776,7 +780,9 @@ mod tests {
         let prev = vec![100u8; 100];
         let curr = vec![100u8; 100];
 
-        let field = flow.compute(&prev, &curr, 10, 10).unwrap();
+        let field = flow
+            .compute(&prev, &curr, 10, 10)
+            .expect("compute should succeed");
         assert_eq!(field.flow_x.len(), 100);
     }
 
@@ -788,7 +794,9 @@ mod tests {
         let curr = vec![100u8; 100];
         let points = vec![Point2D::new(5.0, 5.0)];
 
-        let new_points = flow.compute_sparse(&prev, &curr, 10, 10, &points).unwrap();
+        let new_points = flow
+            .compute_sparse(&prev, &curr, 10, 10, &points)
+            .expect("compute_sparse should succeed");
         assert_eq!(new_points.len(), 1);
     }
 

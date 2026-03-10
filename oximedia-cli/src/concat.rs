@@ -1052,15 +1052,15 @@ mod tests {
     #[test]
     fn test_concat_method_parsing() {
         assert_eq!(
-            ConcatMethod::from_str("simple").unwrap(),
+            ConcatMethod::from_str("simple").expect("ConcatMethod::from_str should succeed"),
             ConcatMethod::Simple
         );
         assert_eq!(
-            ConcatMethod::from_str("reencode").unwrap(),
+            ConcatMethod::from_str("reencode").expect("ConcatMethod::from_str should succeed"),
             ConcatMethod::Reencode
         );
         assert_eq!(
-            ConcatMethod::from_str("remux").unwrap(),
+            ConcatMethod::from_str("remux").expect("ConcatMethod::from_str should succeed"),
             ConcatMethod::Remux
         );
         assert!(ConcatMethod::from_str("invalid").is_err());
@@ -1069,32 +1069,33 @@ mod tests {
     #[test]
     fn test_transition_type_parsing() {
         assert_eq!(
-            TransitionType::from_str("cleancut").unwrap(),
+            TransitionType::from_str("cleancut").expect("TransitionType::from_str should succeed"),
             TransitionType::CleanCut
         );
         assert!(matches!(
-            TransitionType::from_str("crossfade:1000").unwrap(),
+            TransitionType::from_str("crossfade:1000")
+                .expect("TransitionType::from_str should succeed"),
             TransitionType::CrossFade { duration_ms: 1000 }
         ));
         assert!(matches!(
-            TransitionType::from_str("dip:500").unwrap(),
+            TransitionType::from_str("dip:500").expect("TransitionType::from_str should succeed"),
             TransitionType::DipToBlack { duration_ms: 500 }
         ));
     }
 
     #[test]
     fn test_time_range_parsing() {
-        let range = TimeRange::from_str("10-60").unwrap();
+        let range = TimeRange::from_str("10-60").expect("TimeRange::from_str should succeed");
         assert_eq!(range.start, 10.0);
         assert_eq!(range.end, Some(60.0));
         assert_eq!(range.duration(), Some(50.0));
 
-        let range = TimeRange::from_str("30-").unwrap();
+        let range = TimeRange::from_str("30-").expect("TimeRange::from_str should succeed");
         assert_eq!(range.start, 30.0);
         assert_eq!(range.end, None);
         assert_eq!(range.duration(), None);
 
-        let range = TimeRange::from_str("-120").unwrap();
+        let range = TimeRange::from_str("-120").expect("TimeRange::from_str should succeed");
         assert_eq!(range.start, 0.0);
         assert_eq!(range.end, Some(120.0));
     }

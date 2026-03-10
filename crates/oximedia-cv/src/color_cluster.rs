@@ -302,7 +302,9 @@ mod tests {
     #[test]
     fn test_kmeans_single_pixel() {
         let km = KMeansColorCluster::new(1, 10, 0.1);
-        let result = km.k_means(&[100, 150, 200]).unwrap();
+        let result = km
+            .k_means(&[100, 150, 200])
+            .expect("k_means should succeed");
         assert_eq!(result.centroids.len(), 1);
         assert!((result.centroids[0].r - 100.0).abs() < 1e-9);
         assert_eq!(result.counts[0], 1);
@@ -319,7 +321,7 @@ mod tests {
             pixels.extend_from_slice(&[0, 0, 255]);
         }
         let km = KMeansColorCluster::new(2, 50, 0.01);
-        let result = km.k_means(&pixels).unwrap();
+        let result = km.k_means(&pixels).expect("k_means should succeed");
         assert_eq!(result.centroids.len(), 2);
         // Both clusters should have 4 members
         assert!(result.counts.iter().all(|&c| c == 4));
@@ -336,8 +338,10 @@ mod tests {
             pixels.extend_from_slice(&[0, 255, 0]);
         }
         let km = KMeansColorCluster::new(2, 50, 0.01);
-        let result = km.k_means(&pixels).unwrap();
-        let dom = result.dominant_color().unwrap();
+        let result = km.k_means(&pixels).expect("k_means should succeed");
+        let dom = result
+            .dominant_color()
+            .expect("dominant_color should succeed");
         // The dominant should be the red cluster
         assert!(dom.r > dom.g);
     }
@@ -362,7 +366,9 @@ mod tests {
     fn test_kmeans_k_exceeds_n() {
         // k=5 but only 2 pixels => clamped to k=2
         let km = KMeansColorCluster::new(5, 10, 0.1);
-        let result = km.k_means(&[10, 20, 30, 40, 50, 60]).unwrap();
+        let result = km
+            .k_means(&[10, 20, 30, 40, 50, 60])
+            .expect("k_means should succeed");
         assert_eq!(result.centroids.len(), 2);
     }
 
@@ -373,7 +379,7 @@ mod tests {
             pixels.extend_from_slice(&[100, 100, 100]);
         }
         let km = KMeansColorCluster::new(1, 100, 0.001);
-        let result = km.k_means(&pixels).unwrap();
+        let result = km.k_means(&pixels).expect("k_means should succeed");
         // Should converge in 1 or 2 iterations since all points are the same.
         assert!(result.iterations <= 2);
         assert!(result.inertia < 1e-6);

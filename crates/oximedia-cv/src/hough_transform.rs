@@ -514,7 +514,7 @@ mod tests {
         let b = HoughLine::new(50.0, PI / 2.0, 10); // horizontal at y=50
         let result = line_intersection(&a, &b);
         assert!(result.is_some());
-        let (x, y) = result.unwrap();
+        let (x, y) = result.expect("operation should succeed");
         assert!((x - 50.0).abs() < 1e-6);
         assert!((y - 50.0).abs() < 1e-6);
     }

@@ -345,7 +345,7 @@ mod tests {
         assert_eq!(recovered, vec![1]);
 
         // Verify the recovered payload equals p1.
-        let entry = buf.entries[1].as_ref().unwrap();
+        let entry = buf.entries[1].as_ref().expect("unexpected None/Err");
         assert_eq!(entry.payload, p1);
     }
 

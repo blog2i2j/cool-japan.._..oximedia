@@ -509,7 +509,7 @@ mod tests {
     #[test]
     fn test_vp9_decoder_new() {
         let config = DecoderConfig::default();
-        let decoder = Vp9Decoder::new(config).unwrap();
+        let decoder = Vp9Decoder::new(config).expect("should succeed");
         assert_eq!(decoder.codec(), CodecId::Vp9);
         assert_eq!(decoder.pending_frames(), 0);
         assert!(!decoder.is_flushing());
@@ -518,7 +518,7 @@ mod tests {
     #[test]
     fn test_decoder_initial_state() {
         let config = DecoderConfig::default();
-        let decoder = Vp9Decoder::new(config).unwrap();
+        let decoder = Vp9Decoder::new(config).expect("should succeed");
         assert!(decoder.output_format().is_none());
         assert!(decoder.dimensions().is_none());
     }
@@ -526,17 +526,17 @@ mod tests {
     #[test]
     fn test_flush() {
         let config = DecoderConfig::default();
-        let mut decoder = Vp9Decoder::new(config).unwrap();
+        let mut decoder = Vp9Decoder::new(config).expect("should succeed");
         assert!(!decoder.is_flushing());
-        decoder.flush().unwrap();
+        decoder.flush().expect("should succeed");
         assert!(decoder.is_flushing());
     }
 
     #[test]
     fn test_reset() {
         let config = DecoderConfig::default();
-        let mut decoder = Vp9Decoder::new(config).unwrap();
-        decoder.flush().unwrap();
+        let mut decoder = Vp9Decoder::new(config).expect("should succeed");
+        decoder.flush().expect("should succeed");
         assert!(decoder.is_flushing());
         decoder.reset();
         assert!(!decoder.is_flushing());
@@ -545,16 +545,16 @@ mod tests {
     #[test]
     fn test_receive_no_frame() {
         let config = DecoderConfig::default();
-        let mut decoder = Vp9Decoder::new(config).unwrap();
-        let frame = decoder.receive_frame().unwrap();
+        let mut decoder = Vp9Decoder::new(config).expect("should succeed");
+        let frame = decoder.receive_frame().expect("should succeed");
         assert!(frame.is_none());
     }
 
     #[test]
     fn test_send_while_flushing() {
         let config = DecoderConfig::default();
-        let mut decoder = Vp9Decoder::new(config).unwrap();
-        decoder.flush().unwrap();
+        let mut decoder = Vp9Decoder::new(config).expect("should succeed");
+        decoder.flush().expect("should succeed");
         let result = decoder.send_packet(&[0x80], 0);
         assert!(result.is_err());
     }

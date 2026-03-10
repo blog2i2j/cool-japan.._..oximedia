@@ -624,12 +624,12 @@ mod tests {
         let result = demuxer.probe().await;
 
         assert!(result.is_ok());
-        let probe = result.unwrap();
+        let probe = result.expect("operation should succeed");
         assert_eq!(probe.format, ContainerFormat::Flac);
         assert!((probe.confidence - 1.0).abs() < f32::EPSILON);
 
         assert!(demuxer.stream_info().is_some());
-        let info = demuxer.stream_info().unwrap();
+        let info = demuxer.stream_info().expect("operation should succeed");
         assert_eq!(info.sample_rate, 44100);
         assert_eq!(info.channels, 2);
         assert_eq!(info.bits_per_sample, 16);

@@ -13,6 +13,7 @@
 //! - MPEG-TS via [`MpegTsDemuxer`] (AV1/VP9/VP8/Opus/FLAC only)
 //! - `WebVTT` via [`WebVttDemuxer`]
 //! - `SubRip` (SRT) via [`SrtDemuxer`]
+//! - YUV4MPEG2 via [`Y4mDemuxer`]
 //!
 //! # Patent Protection
 //!
@@ -30,6 +31,7 @@ pub mod srt;
 mod traits;
 pub mod wav;
 pub mod webvtt;
+pub mod y4m;
 
 pub use flac::FlacDemuxer;
 pub use matroska::MatroskaDemuxer;
@@ -40,3 +42,4 @@ pub use srt::SrtDemuxer;
 pub use traits::Demuxer;
 pub use wav::WavDemuxer;
 pub use webvtt::WebVttDemuxer;
+pub use y4m::Y4mDemuxer;

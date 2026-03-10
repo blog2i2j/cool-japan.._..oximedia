@@ -380,7 +380,7 @@ mod tests {
     #[test]
     fn test_zcr_stats_constant_zero() {
         let samples = vec![1.0_f32; 256];
-        let stats = zcr_statistics(&samples, 64, 32).unwrap();
+        let stats = zcr_statistics(&samples, 64, 32).expect("ZCR statistics should succeed");
         assert_eq!(stats.mean, 0.0);
         assert_eq!(stats.min, 0.0);
         assert_eq!(stats.max, 0.0);
@@ -390,7 +390,7 @@ mod tests {
     #[test]
     fn test_zcr_stats_noise() {
         let samples = noise(4096);
-        let stats = zcr_statistics(&samples, 512, 256).unwrap();
+        let stats = zcr_statistics(&samples, 512, 256).expect("ZCR statistics should succeed");
         assert!(stats.mean > 0.5, "Noise ZCR mean should be high");
         assert!(stats.is_mostly_unvoiced());
         assert!(stats.frame_count > 0);
@@ -400,7 +400,7 @@ mod tests {
     fn test_zcr_stats_range_validity() {
         let sr = 44100.0;
         let samples = sine_wave(440.0, sr, 4096);
-        let stats = zcr_statistics(&samples, 512, 256).unwrap();
+        let stats = zcr_statistics(&samples, 512, 256).expect("ZCR statistics should succeed");
         assert!(stats.min >= 0.0);
         assert!(stats.max <= 1.0);
         assert!(stats.std >= 0.0);

@@ -305,7 +305,9 @@ mod tests {
         // Process stable frames
         let frame = vec![128u8; 64 * 64];
         for i in 0..10 {
-            analyzer.process_frame(&frame, 64, 64, i).unwrap();
+            analyzer
+                .process_frame(&frame, 64, 64, i)
+                .expect("frame processing should succeed");
         }
 
         let analysis = analyzer.finalize();
@@ -321,7 +323,9 @@ mod tests {
         for i in 0..35 {
             let brightness = if i % 2 == 0 { 100u8 } else { 150u8 };
             let frame = vec![brightness; 64 * 64];
-            analyzer.process_frame(&frame, 64, 64, i).unwrap();
+            analyzer
+                .process_frame(&frame, 64, 64, i)
+                .expect("frame processing should succeed");
         }
 
         let analysis = analyzer.finalize();
@@ -397,7 +401,9 @@ mod tests {
             let base = 128u8;
             let noise = ((i * 7) % 20) as u8;
             let frame = vec![base.saturating_add(noise); 64 * 64];
-            analyzer.process_frame(&frame, 64, 64, i).unwrap();
+            analyzer
+                .process_frame(&frame, 64, 64, i)
+                .expect("frame processing should succeed");
         }
 
         let analysis = analyzer.finalize();

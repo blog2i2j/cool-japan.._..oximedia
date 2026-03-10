@@ -293,7 +293,7 @@ mod tests {
         let c = clip(10, 0, 100, 1);
         let result = splitter().split_at(&c, 40);
         assert!(result.is_some());
-        let (first, second) = result.unwrap();
+        let (first, second) = result.expect("multicam test operation should succeed");
         assert_eq!(first.start_frame, 0);
         assert_eq!(first.end_frame, 40);
         assert_eq!(second.start_frame, 40);

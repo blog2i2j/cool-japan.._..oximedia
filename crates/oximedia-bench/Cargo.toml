@@ -17,7 +17,7 @@ vmaf = []
 
 [dependencies]
 oximedia-core.workspace = true
-oximedia-codec.workspace = true
+oximedia-codec = { workspace = true, default-features = true }
 oximedia-graph.workspace = true
 thiserror.workspace = true
 tokio.workspace = true

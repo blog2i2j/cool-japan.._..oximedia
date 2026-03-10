@@ -182,7 +182,9 @@ impl FrameSynchronizer {
         let next_frame_time = frame_duration * (self.frame_count as u32 + 1);
 
         if next_frame_time > elapsed {
-            next_frame_time.checked_sub(elapsed).unwrap()
+            next_frame_time
+                .checked_sub(elapsed)
+                .unwrap_or(Duration::ZERO)
         } else {
             Duration::ZERO
         }

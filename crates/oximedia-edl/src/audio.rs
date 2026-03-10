@@ -288,10 +288,26 @@ mod tests {
 
     #[test]
     fn test_audio_channel_parsing() {
-        assert_eq!("A".parse::<AudioChannel>().unwrap(), AudioChannel::A1);
-        assert_eq!("A1".parse::<AudioChannel>().unwrap(), AudioChannel::A1);
-        assert_eq!("A2".parse::<AudioChannel>().unwrap(), AudioChannel::A2);
-        assert_eq!("A8".parse::<AudioChannel>().unwrap(), AudioChannel::A8);
+        assert_eq!(
+            "A".parse::<AudioChannel>()
+                .expect("operation should succeed"),
+            AudioChannel::A1
+        );
+        assert_eq!(
+            "A1".parse::<AudioChannel>()
+                .expect("operation should succeed"),
+            AudioChannel::A1
+        );
+        assert_eq!(
+            "A2".parse::<AudioChannel>()
+                .expect("operation should succeed"),
+            AudioChannel::A2
+        );
+        assert_eq!(
+            "A8".parse::<AudioChannel>()
+                .expect("operation should succeed"),
+            AudioChannel::A8
+        );
     }
 
     #[test]

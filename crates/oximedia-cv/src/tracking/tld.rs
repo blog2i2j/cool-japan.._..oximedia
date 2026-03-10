@@ -315,8 +315,8 @@ impl TldTracker {
         if !detected.is_empty() {
             let best_detection = detected
                 .iter()
-                .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap())
-                .unwrap();
+                .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+                .expect("checked non-empty");
             return Ok(*best_detection);
         }
 
@@ -506,7 +506,7 @@ fn non_max_suppression(
 
     // Sort by confidence
     let mut sorted = detections.to_vec();
-    sorted.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+    sorted.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
     let mut keep = Vec::new();
 
@@ -530,7 +530,7 @@ fn rand_float() -> f32 {
     use std::time::{SystemTime, UNIX_EPOCH};
     let nanos = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .subsec_nanos();
     (nanos % 1000) as f32 / 1000.0
 }

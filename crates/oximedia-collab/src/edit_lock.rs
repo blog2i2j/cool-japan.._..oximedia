@@ -362,9 +362,10 @@ mod tests {
         };
         let id = mgr
             .acquire("user1", target, LockMode::Exclusive, 1000)
-            .unwrap();
+            .expect("collab test operation should succeed");
         assert_eq!(mgr.active_count(), 1);
-        mgr.release(id, "user1").unwrap();
+        mgr.release(id, "user1")
+            .expect("collab test operation should succeed");
         assert_eq!(mgr.active_count(), 0);
     }
 
@@ -375,7 +376,7 @@ mod tests {
             clip_id: "c1".to_string(),
         };
         mgr.acquire("user1", target.clone(), LockMode::Exclusive, 1000)
-            .unwrap();
+            .expect("collab test operation should succeed");
         let result = mgr.acquire("user2", target, LockMode::Exclusive, 1000);
         assert!(matches!(result, Err(LockError::Conflict { .. })));
     }
@@ -387,7 +388,7 @@ mod tests {
             clip_id: "c1".to_string(),
         };
         mgr.acquire("user1", target.clone(), LockMode::Shared, 1000)
-            .unwrap();
+            .expect("collab test operation should succeed");
         let result = mgr.acquire("user2", target, LockMode::Shared, 1000);
         assert!(result.is_ok());
         assert_eq!(mgr.active_count(), 2);
@@ -400,7 +401,7 @@ mod tests {
             clip_id: "c1".to_string(),
         };
         mgr.acquire("user1", target.clone(), LockMode::Shared, 1000)
-            .unwrap();
+            .expect("collab test operation should succeed");
         let result = mgr.acquire("user2", target, LockMode::Exclusive, 1000);
         assert!(matches!(result, Err(LockError::Conflict { .. })));
     }
@@ -418,7 +419,8 @@ mod tests {
             start_frame: 50,
             end_frame: 150,
         };
-        mgr.acquire("user1", t1, LockMode::Exclusive, 1000).unwrap();
+        mgr.acquire("user1", t1, LockMode::Exclusive, 1000)
+            .expect("collab test operation should succeed");
         assert!(matches!(
             mgr.acquire("user2", t2, LockMode::Exclusive, 1000),
             Err(LockError::Conflict { .. })
@@ -438,7 +440,8 @@ mod tests {
             start_frame: 100,
             end_frame: 200,
         };
-        mgr.acquire("user1", t1, LockMode::Exclusive, 1000).unwrap();
+        mgr.acquire("user1", t1, LockMode::Exclusive, 1000)
+            .expect("collab test operation should succeed");
         assert!(mgr.acquire("user2", t2, LockMode::Exclusive, 1000).is_ok());
     }
 
@@ -454,7 +457,7 @@ mod tests {
             end_frame: 100,
         };
         mgr.acquire("user1", track, LockMode::Exclusive, 1000)
-            .unwrap();
+            .expect("collab test operation should succeed");
         assert!(matches!(
             mgr.acquire("user2", region, LockMode::Exclusive, 1000),
             Err(LockError::Conflict { .. })
@@ -468,7 +471,7 @@ mod tests {
             clip_id: "c1".to_string(),
         };
         mgr.acquire("user1", target, LockMode::Exclusive, 1000)
-            .unwrap();
+            .expect("collab test operation should succeed");
         assert_eq!(mgr.active_count(), 1);
         let cleaned = mgr.cleanup_expired(2000);
         assert_eq!(cleaned, 1);
@@ -483,9 +486,12 @@ mod tests {
         };
         let id = mgr
             .acquire("user1", target, LockMode::Exclusive, 1000)
-            .unwrap();
-        mgr.renew(id, "user1", 1050).unwrap();
-        let lock = mgr.get_lock(id).unwrap();
+            .expect("collab test operation should succeed");
+        mgr.renew(id, "user1", 1050)
+            .expect("collab test operation should succeed");
+        let lock = mgr
+            .get_lock(id)
+            .expect("collab test operation should succeed");
         assert_eq!(lock.expires_at, 1150);
     }
 
@@ -497,7 +503,7 @@ mod tests {
         };
         let id = mgr
             .acquire("user1", target, LockMode::Exclusive, 1000)
-            .unwrap();
+            .expect("collab test operation should succeed");
         assert!(matches!(
             mgr.release(id, "user2"),
             Err(LockError::NotOwner { .. })
@@ -515,7 +521,7 @@ mod tests {
             LockMode::Exclusive,
             1000,
         )
-        .unwrap();
+        .expect("collab test operation should succeed");
         mgr.acquire(
             "user1",
             LockTarget::Clip {
@@ -524,7 +530,7 @@ mod tests {
             LockMode::Exclusive,
             1000,
         )
-        .unwrap();
+        .expect("collab test operation should succeed");
         assert_eq!(mgr.user_locks("user1").len(), 2);
         assert_eq!(mgr.user_locks("user2").len(), 0);
     }
@@ -540,7 +546,7 @@ mod tests {
             LockMode::Exclusive,
             1000,
         )
-        .unwrap();
+        .expect("collab test operation should succeed");
         mgr.acquire(
             "user1",
             LockTarget::Clip {
@@ -549,7 +555,7 @@ mod tests {
             LockMode::Exclusive,
             1000,
         )
-        .unwrap();
+        .expect("collab test operation should succeed");
         let released = mgr.release_all_for_user("user1");
         assert_eq!(released, 2);
         assert_eq!(mgr.active_count(), 0);

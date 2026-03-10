@@ -132,7 +132,9 @@ impl SceneTrimMetadata {
             return sorted[0].clone();
         }
         // Above the highest target
-        let last = sorted.last().unwrap();
+        let last = sorted
+            .last()
+            .expect("sorted is non-empty: element 0 accessed above");
         if target_nits >= last.target_nits {
             return last.clone();
         }
@@ -583,7 +585,7 @@ mod spec_tests {
         db.add(neutral_trim(7, 100, 199));
         let result = db.find_for_frame(150);
         assert!(result.is_some());
-        assert_eq!(result.unwrap().scene_id, 7);
+        assert_eq!(result.expect("test expectation failed").scene_id, 7);
     }
 
     #[test]

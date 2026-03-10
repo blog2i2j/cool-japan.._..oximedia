@@ -420,7 +420,9 @@ mod tests {
     fn test_region_intersection() {
         let a = Region::new(0, 0, 100, 100);
         let b = Region::new(50, 50, 100, 100);
-        let inter = a.intersection(&b).unwrap();
+        let inter = a
+            .intersection(&b)
+            .expect("overlapping regions should intersect");
         assert_eq!(inter.x, 50);
         assert_eq!(inter.y, 50);
         assert_eq!(inter.width, 50);

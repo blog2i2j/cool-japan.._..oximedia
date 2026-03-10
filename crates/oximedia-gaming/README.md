@@ -1,7 +1,7 @@
 # oximedia-gaming
 
 ![Status: Stable](https://img.shields.io/badge/status-stable-green)
-![Version: 0.1.0](https://img.shields.io/badge/version-0.1.0-blue)
+![Version: 0.1.1](https://img.shields.io/badge/version-0.1.1-blue)
 
 Game streaming and screen capture optimization for OxiMedia, providing ultra-low latency game streaming, capture, replay, highlights, and platform integration.
 
@@ -39,7 +39,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-gaming = "0.1.0"
+oximedia-gaming = "0.1.1"
 ```
 
 ```rust

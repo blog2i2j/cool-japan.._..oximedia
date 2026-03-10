@@ -27,7 +27,7 @@
 //! * FROM CLIP NAME: shot001.mov
 //! "#;
 //!
-//! let edl = parse_edl(edl_text).unwrap();
+//! let edl = parse_edl(edl_text)?;
 //! assert_eq!(edl.title, Some("Example EDL".to_string()));
 //! assert_eq!(edl.events.len(), 1);
 //! ```
@@ -43,8 +43,8 @@
 //! edl.set_title("My EDL".to_string());
 //! edl.set_frame_rate(EdlFrameRate::Fps25);
 //!
-//! let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-//! let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).unwrap();
+//! let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25)?;
+//! let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25)?;
 //!
 //! let event = EdlEvent::new(
 //!     1,
@@ -57,10 +57,10 @@
 //!     tc2,
 //! );
 //!
-//! edl.add_event(event).unwrap();
+//! edl.add_event(event)?;
 //!
 //! let generator = EdlGenerator::new();
-//! let output = generator.generate(&edl).unwrap();
+//! let output = generator.generate(&edl)?;
 //! assert!(output.contains("TITLE: My EDL"));
 //! ```
 //!
@@ -72,7 +72,7 @@
 //!
 //! let edl = Edl::new(EdlFormat::Cmx3600);
 //! let validator = EdlValidator::strict();
-//! let report = validator.validate(&edl).unwrap();
+//! let report = validator.validate(&edl)?;
 //! ```
 
 #![warn(missing_docs)]
@@ -366,8 +366,8 @@ mod tests {
         let mut edl = Edl::new(EdlFormat::Cmx3600);
         edl.set_frame_rate(EdlFrameRate::Fps25);
 
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).expect("failed to create");
 
         let event = EdlEvent::new(
             1,
@@ -380,7 +380,7 @@ mod tests {
             tc2,
         );
 
-        edl.add_event(event).unwrap();
+        edl.add_event(event).expect("add_event should succeed");
         assert_eq!(edl.events.len(), 1);
     }
 
@@ -389,8 +389,8 @@ mod tests {
         let mut edl = Edl::new(EdlFormat::Cmx3600);
         edl.set_frame_rate(EdlFrameRate::Fps25);
 
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).expect("failed to create");
 
         let event = EdlEvent::new(
             1,
@@ -403,9 +403,9 @@ mod tests {
             tc2,
         );
 
-        edl.add_event(event).unwrap();
+        edl.add_event(event).expect("add_event should succeed");
 
-        let retrieved = edl.get_event(1).unwrap();
+        let retrieved = edl.get_event(1).expect("get_event should succeed");
         assert_eq!(retrieved.number, 1);
     }
 
@@ -414,8 +414,8 @@ mod tests {
         let mut edl = Edl::new(EdlFormat::Cmx3600);
         edl.set_frame_rate(EdlFrameRate::Fps25);
 
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).expect("failed to create");
 
         let event = EdlEvent::new(
             1,
@@ -428,7 +428,7 @@ mod tests {
             tc2,
         );
 
-        edl.add_event(event).unwrap();
+        edl.add_event(event).expect("add_event should succeed");
         assert_eq!(edl.events.len(), 1);
 
         edl.remove_event(1);
@@ -440,8 +440,8 @@ mod tests {
         let mut edl = Edl::new(EdlFormat::Cmx3600);
         edl.set_frame_rate(EdlFrameRate::Fps25);
 
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).expect("failed to create");
 
         let event1 = EdlEvent::new(
             10,
@@ -465,8 +465,8 @@ mod tests {
             tc2,
         );
 
-        edl.add_event(event1).unwrap();
-        edl.add_event(event2).unwrap();
+        edl.add_event(event1).expect("add_event should succeed");
+        edl.add_event(event2).expect("add_event should succeed");
 
         edl.renumber_events();
 
@@ -479,8 +479,8 @@ mod tests {
         let mut edl = Edl::new(EdlFormat::Cmx3600);
         edl.set_frame_rate(EdlFrameRate::Fps25);
 
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).expect("failed to create");
 
         let event = EdlEvent::new(
             1,
@@ -493,7 +493,7 @@ mod tests {
             tc2,
         );
 
-        edl.add_event(event).unwrap();
+        edl.add_event(event).expect("add_event should succeed");
 
         let duration_frames = edl.total_duration_frames();
         assert_eq!(duration_frames, 125); // 5 seconds * 25 fps
@@ -518,11 +518,11 @@ FCM: NON-DROP FRAME
 
 "#;
 
-        let edl = parse_edl(edl_text).unwrap();
-        let generated = edl.to_string_format().unwrap();
+        let edl = parse_edl(edl_text).expect("operation should succeed");
+        let generated = edl.to_string_format().expect("formatting should succeed");
 
         // Parse the generated EDL again
-        let edl2 = parse_edl(&generated).unwrap();
+        let edl2 = parse_edl(&generated).expect("operation should succeed");
 
         assert_eq!(edl.title, edl2.title);
         assert_eq!(edl.events.len(), edl2.events.len());

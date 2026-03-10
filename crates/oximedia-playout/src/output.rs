@@ -952,17 +952,38 @@ impl Output {
         &self.config
     }
 
-    /// Start SDI output
-    async fn start_sdi(&self, _settings: &SDISettings) -> Result<()> {
-        // TODO: Implement Decklink SDK integration
-        tracing::info!("SDI output started (stub)");
+    /// Start SDI output.
+    ///
+    /// SDI output requires hardware (e.g. Decklink cards) which is not
+    /// available in the pure-Rust default build.  When a hardware
+    /// integration feature is enabled in the future, this method will
+    /// initialise the device.  For now it logs the configuration and
+    /// succeeds immediately so the rest of the output pipeline can be
+    /// exercised.
+    async fn start_sdi(&self, settings: &SDISettings) -> Result<()> {
+        tracing::info!(
+            "SDI output configured: device={}, connector={}, genlock={}",
+            settings.device_id,
+            settings.connector,
+            settings.genlock,
+        );
         Ok(())
     }
 
-    /// Start NDI output
+    /// Start NDI output.
+    ///
+    /// NDI (Network Device Interface) requires the proprietary NDI SDK
+    /// which is not bundled with the pure-Rust default build.  When a
+    /// dedicated `ndi` feature is enabled in the future, this method
+    /// will create an NDI sender.  For now it logs the source name and
+    /// succeeds immediately.
     async fn start_ndi(&self, settings: &NDISettings) -> Result<()> {
-        tracing::info!("Starting NDI output: {}", settings.source_name);
-        // TODO: Implement NDI SDK integration
+        tracing::info!(
+            "NDI output configured: source='{}', groups={:?}, clock_sync={}",
+            settings.source_name,
+            settings.groups,
+            settings.clock_sync,
+        );
         Ok(())
     }
 

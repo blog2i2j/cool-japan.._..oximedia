@@ -825,8 +825,8 @@ mod tests {
         let base = create_test_yuv_frame(64, 48, 100);
         let result = filter
             .process(Some(FilterFrame::Video(base)))
-            .unwrap()
-            .unwrap();
+            .expect("operation should succeed")
+            .expect("operation should succeed");
 
         // Should pass through base when no overlay
         assert!(matches!(result, FilterFrame::Video(_)));
@@ -845,8 +845,8 @@ mod tests {
         let base = create_test_yuv_frame(64, 48, 100);
         let result = filter
             .process(Some(FilterFrame::Video(base)))
-            .unwrap()
-            .unwrap();
+            .expect("operation should succeed")
+            .expect("operation should succeed");
 
         assert!(matches!(result, FilterFrame::Video(_)));
     }
@@ -857,7 +857,9 @@ mod tests {
         let mut filter = OverlayFilter::new(NodeId(0), "overlay", config);
 
         assert_eq!(filter.state(), NodeState::Idle);
-        filter.set_state(NodeState::Processing).unwrap();
+        filter
+            .set_state(NodeState::Processing)
+            .expect("set_state should succeed");
         assert_eq!(filter.state(), NodeState::Processing);
     }
 
@@ -866,7 +868,7 @@ mod tests {
         let config = OverlayConfig::default();
         let mut filter = OverlayFilter::new(NodeId(0), "overlay", config);
 
-        let result = filter.process(None).unwrap();
+        let result = filter.process(None).expect("process should succeed");
         assert!(result.is_none());
     }
 
@@ -878,7 +880,7 @@ mod tests {
         filter.set_base_frame(create_test_yuv_frame(64, 48, 100));
         filter.set_overlay_frame(create_test_yuv_frame(32, 24, 200));
 
-        filter.reset().unwrap();
+        filter.reset().expect("reset should succeed");
 
         assert!(filter.base_frame.is_none());
         assert!(filter.overlay_frame.is_none());

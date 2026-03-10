@@ -37,7 +37,7 @@
 //!
 //! // Create a decoder
 //! let config = DecoderConfig::default();
-//! let mut decoder = Vp8Decoder::new(config).unwrap();
+//! let mut decoder = Vp8Decoder::new(config)?;
 //!
 //! // Parse a frame header directly
 //! let header_data = [
@@ -45,14 +45,14 @@
 //!     0x9D, 0x01, 0x2A,       // sync code
 //!     0x40, 0x01, 0xF0, 0x00, // 320x240
 //! ];
-//! let header = FrameHeader::parse(&header_data).unwrap();
+//! let header = FrameHeader::parse(&header_data)?;
 //! assert!(header.is_keyframe());
 //! assert_eq!(header.width, 320);
 //! assert_eq!(header.height, 240);
 //!
 //! // Decode a frame
-//! decoder.send_packet(&header_data, 0).unwrap();
-//! if let Some(frame) = decoder.receive_frame().unwrap() {
+//! decoder.send_packet(&header_data, 0)?;
+//! if let Some(frame) = decoder.receive_frame()? {
 //!     assert_eq!(frame.width, 320);
 //!     assert_eq!(frame.height, 240);
 //! }

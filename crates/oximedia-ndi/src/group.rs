@@ -79,7 +79,9 @@ impl NdiGroupManager {
             return &mut self.groups[pos];
         }
         self.groups.push(NdiGroup::new(name));
-        self.groups.last_mut().unwrap()
+        self.groups
+            .last_mut()
+            .expect("group was just pushed so last_mut is always Some")
     }
 
     /// Add `source` to the group named `group`.
@@ -187,9 +189,9 @@ mod tests {
         mgr.create_group("A");
         mgr.create_group("B");
         mgr.add_source("A", NdiSource::new("Cam1", "1.1.1.1", 5960))
-            .unwrap();
+            .expect("failed to add source Cam1 to group A");
         mgr.add_source("B", NdiSource::new("Cam2", "1.1.1.2", 5960))
-            .unwrap();
+            .expect("failed to add source Cam2 to group B");
         assert_eq!(mgr.all_sources().len(), 2);
     }
 
@@ -198,7 +200,7 @@ mod tests {
         let mut mgr = NdiGroupManager::new();
         mgr.create_group("public");
         mgr.add_source("public", NdiSource::new("Cam1", "1.1.1.1", 5960))
-            .unwrap();
+            .expect("failed to add source to public group");
         assert!(mgr.remove_source("public", "Cam1"));
         assert!(mgr.sources_in_group("public").is_empty());
     }
@@ -231,11 +233,11 @@ mod tests {
         let mut mgr = NdiGroupManager::new();
         mgr.create_group("G");
         mgr.add_source("G", NdiSource::new("A", "1.1.1.1", 100))
-            .unwrap();
+            .expect("failed to add source A to group G");
         mgr.add_source("G", NdiSource::new("B", "1.1.1.2", 101))
-            .unwrap();
+            .expect("failed to add source B to group G");
         mgr.add_source("G", NdiSource::new("C", "1.1.1.3", 102))
-            .unwrap();
+            .expect("failed to add source C to group G");
         assert_eq!(mgr.sources_in_group("G").len(), 3);
     }
 }

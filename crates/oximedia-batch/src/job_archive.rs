@@ -364,7 +364,7 @@ mod tests {
     #[test]
     fn test_archived_job_with_tag() {
         let job = make_job("j3", ArchivedStatus::Succeeded, 200).with_tag("codec", "h264");
-        assert_eq!(job.tags.get("codec").unwrap(), "h264");
+        assert_eq!(job.tags.get("codec").expect("failed to get value"), "h264");
     }
 
     #[test]

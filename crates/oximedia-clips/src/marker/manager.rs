@@ -155,7 +155,9 @@ mod tests {
         manager.add_marker(clip_id, marker);
         assert_eq!(manager.get_markers(&clip_id).len(), 1);
 
-        manager.remove_marker(&clip_id, &marker_id).unwrap();
+        manager
+            .remove_marker(&clip_id, &marker_id)
+            .expect("remove_marker should succeed");
         assert_eq!(manager.get_markers(&clip_id).len(), 0);
     }
 }

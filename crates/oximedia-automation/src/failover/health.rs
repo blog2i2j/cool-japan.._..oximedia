@@ -183,14 +183,20 @@ mod tests {
             .report_health(0, false, Some("Test error".to_string()))
             .await;
 
-        let status = monitor.get_status(0).await.unwrap();
+        let status = monitor
+            .get_status(0)
+            .await
+            .expect("get_status should succeed");
         assert!(!status.healthy);
         assert_eq!(status.consecutive_failures, 1);
         assert_eq!(status.last_error, Some("Test error".to_string()));
 
         monitor.report_health(0, true, None).await;
 
-        let status = monitor.get_status(0).await.unwrap();
+        let status = monitor
+            .get_status(0)
+            .await
+            .expect("get_status should succeed");
         assert!(status.healthy);
         assert_eq!(status.consecutive_successes, 1);
         assert_eq!(status.consecutive_failures, 0);

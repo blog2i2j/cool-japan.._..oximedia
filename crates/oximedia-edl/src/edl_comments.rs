@@ -314,14 +314,14 @@ mod tests {
 
     #[test]
     fn test_edl_comment_parse_from_clip() {
-        let c = EdlComment::parse("* FROM CLIP NAME: shot001.mov").unwrap();
+        let c = EdlComment::parse("* FROM CLIP NAME: shot001.mov").expect("failed to parse");
         assert_eq!(*c.comment_type(), CommentType::FromClipName);
         assert_eq!(c.value(), "shot001.mov");
     }
 
     #[test]
     fn test_edl_comment_parse_generic() {
-        let c = EdlComment::parse("* This is a note").unwrap();
+        let c = EdlComment::parse("* This is a note").expect("failed to parse");
         assert_eq!(*c.comment_type(), CommentType::Generic);
         assert_eq!(c.value(), "This is a note");
     }

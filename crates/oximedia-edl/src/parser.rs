@@ -318,7 +318,7 @@ FCM: DROP FRAME
 "#;
 
         let mut parser = EdlParser::new();
-        let edl = parser.parse(edl_text).unwrap();
+        let edl = parser.parse(edl_text).expect("failed to parse");
 
         assert_eq!(edl.title, Some("Test EDL".to_string()));
         assert_eq!(edl.events.len(), 2);
@@ -337,7 +337,8 @@ FCM: DROP FRAME
 
     #[test]
     fn test_timecode_parser() {
-        let (_, tc) = EdlParser::timecode_parser("01:02:03:04", EdlFrameRate::Fps25).unwrap();
+        let (_, tc) = EdlParser::timecode_parser("01:02:03:04", EdlFrameRate::Fps25)
+            .expect("operation should succeed");
         assert_eq!(tc.hours(), 1);
         assert_eq!(tc.minutes(), 2);
         assert_eq!(tc.seconds(), 3);
@@ -346,29 +347,30 @@ FCM: DROP FRAME
 
     #[test]
     fn test_track_type_parser() {
-        let (_, track) = EdlParser::track_type_parser("V").unwrap();
+        let (_, track) = EdlParser::track_type_parser("V").expect("operation should succeed");
         assert_eq!(track, TrackType::Video);
 
-        let (_, track) = EdlParser::track_type_parser("A").unwrap();
+        let (_, track) = EdlParser::track_type_parser("A").expect("operation should succeed");
         assert_eq!(track, TrackType::Audio(AudioChannel::A1));
 
-        let (_, track) = EdlParser::track_type_parser("AA/V").unwrap();
+        let (_, track) = EdlParser::track_type_parser("AA/V").expect("operation should succeed");
         assert_eq!(track, TrackType::AudioPairWithVideo);
     }
 
     #[test]
     fn test_edit_type_parser() {
-        let (_, edit) = EdlParser::edit_type_parser("C").unwrap();
+        let (_, edit) = EdlParser::edit_type_parser("C").expect("operation should succeed");
         assert_eq!(edit, EditType::Cut);
 
-        let (_, edit) = EdlParser::edit_type_parser("D").unwrap();
+        let (_, edit) = EdlParser::edit_type_parser("D").expect("operation should succeed");
         assert_eq!(edit, EditType::Dissolve);
     }
 
     #[test]
     fn test_event_line_parser() {
         let line = "001  AX       V     C        01:00:00:00 01:00:05:00 01:00:00:00 01:00:05:00";
-        let (_, event) = EdlParser::event_line_parser(line, EdlFrameRate::Fps2997DF).unwrap();
+        let (_, event) = EdlParser::event_line_parser(line, EdlFrameRate::Fps2997DF)
+            .expect("operation should succeed");
 
         assert_eq!(event.number, 1);
         assert_eq!(event.reel, "AX");
@@ -379,7 +381,8 @@ FCM: DROP FRAME
     #[test]
     fn test_event_with_transition() {
         let line = "002  AX       V     D    030 01:00:05:00 01:00:10:00 01:00:05:00 01:00:10:00";
-        let (_, event) = EdlParser::event_line_parser(line, EdlFrameRate::Fps2997DF).unwrap();
+        let (_, event) = EdlParser::event_line_parser(line, EdlFrameRate::Fps2997DF)
+            .expect("operation should succeed");
 
         assert_eq!(event.number, 2);
         assert_eq!(event.edit_type, EditType::Dissolve);
@@ -388,13 +391,16 @@ FCM: DROP FRAME
 
     #[test]
     fn test_parse_fcm() {
-        assert_eq!(parse_fcm("DROP FRAME").unwrap(), EdlFrameRate::Fps2997DF);
         assert_eq!(
-            parse_fcm("NON-DROP FRAME").unwrap(),
+            parse_fcm("DROP FRAME").expect("operation should succeed"),
+            EdlFrameRate::Fps2997DF
+        );
+        assert_eq!(
+            parse_fcm("NON-DROP FRAME").expect("operation should succeed"),
             EdlFrameRate::Fps2997NDF
         );
         assert_eq!(
-            parse_fcm("NON DROP FRAME").unwrap(),
+            parse_fcm("NON DROP FRAME").expect("operation should succeed"),
             EdlFrameRate::Fps2997NDF
         );
     }
@@ -405,7 +411,7 @@ FCM: DROP FRAME
 * FROM CLIP NAME: test_clip.mov"#;
 
         let mut parser = EdlParser::new();
-        let edl = parser.parse(edl_text).unwrap();
+        let edl = parser.parse(edl_text).expect("failed to parse");
 
         assert_eq!(edl.events.len(), 1);
         assert_eq!(edl.events[0].clip_name, Some("test_clip.mov".to_string()));

@@ -158,7 +158,8 @@ mod tests {
         let orig = checkerboard(64, 64);
         let mut buf = orig.clone();
         let mb = MotionBlur::new(MotionBlurConfig::horizontal(9));
-        mb.apply(&mut buf, 64, 64, PixelFormat::Rgb).unwrap();
+        mb.apply(&mut buf, 64, 64, PixelFormat::Rgb)
+            .expect("apply should succeed");
         // Blur should reduce sharp transitions; pixel values should be more uniform
         let diff: u32 = buf
             .iter()
@@ -176,7 +177,8 @@ mod tests {
             samples: 1,
             ..Default::default()
         });
-        mb.apply(&mut buf, 32, 32, PixelFormat::Rgb).unwrap();
+        mb.apply(&mut buf, 32, 32, PixelFormat::Rgb)
+            .expect("apply should succeed");
         assert_eq!(buf, orig, "1 sample should not change image");
     }
 
@@ -214,7 +216,8 @@ mod tests {
         let orig = vec![128u8; 32 * 32 * 3];
         let mut buf = orig.clone();
         let mb = MotionBlur::new(MotionBlurConfig::horizontal(11));
-        mb.apply(&mut buf, 32, 32, PixelFormat::Rgb).unwrap();
+        mb.apply(&mut buf, 32, 32, PixelFormat::Rgb)
+            .expect("apply should succeed");
         assert_eq!(buf, orig, "Constant image should survive blur");
     }
 }

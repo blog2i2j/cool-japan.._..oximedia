@@ -247,7 +247,7 @@ mod tests {
         // Query matches Alice's profile
         let result = diarizer.identify(&uniform_features(1.0, 16));
         assert!(result.is_some());
-        assert_eq!(result.unwrap().0, 1);
+        assert_eq!(result.expect("operation should succeed in test").0, 1);
     }
 
     #[test]

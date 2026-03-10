@@ -321,7 +321,8 @@ mod tests {
             1.0, 1.0, 1.0, // (1,1,1)
         ];
 
-        let result = trilinear_interpolate(&lut, 2, [0.5, 0.5, 0.5]).unwrap();
+        let result = trilinear_interpolate(&lut, 2, [0.5, 0.5, 0.5])
+            .expect("trilinear interpolation should succeed");
         assert!((result[0] - 0.5).abs() < 0.01);
         assert!((result[1] - 0.5).abs() < 0.01);
         assert!((result[2] - 0.5).abs() < 0.01);
@@ -342,7 +343,8 @@ mod tests {
             1.0, 1.0, 1.0, // (1,1,1)
         ];
 
-        let result = tetrahedral_interpolate(&lut, 2, [0.5, 0.5, 0.5]).unwrap();
+        let result = tetrahedral_interpolate(&lut, 2, [0.5, 0.5, 0.5])
+            .expect("tetrahedral interpolation should succeed");
         assert!((result[0] - 0.5).abs() < 0.01);
         assert!((result[1] - 0.5).abs() < 0.01);
         assert!((result[2] - 0.5).abs() < 0.01);

@@ -351,7 +351,7 @@ mod tests {
         let placement = analyzer.suggest_placement(2000, &gaps);
         assert!(placement.is_some());
 
-        let placement = placement.unwrap();
+        let placement = placement.expect("placement should be valid");
         assert_eq!(placement.start_time_ms, 2000);
         assert_eq!(placement.end_time_ms, 4000);
         assert!(!placement.requires_pause);

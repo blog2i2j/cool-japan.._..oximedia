@@ -305,7 +305,12 @@ mod tests {
         cfg.add_property("vendor", "OxiMedia");
         cfg.add_property("project", "TestProject");
         assert_eq!(cfg.custom_properties().len(), 2);
-        assert_eq!(cfg.custom_properties().get("vendor").unwrap(), "OxiMedia");
+        assert_eq!(
+            cfg.custom_properties()
+                .get("vendor")
+                .expect("get should succeed"),
+            "OxiMedia"
+        );
     }
 
     #[test]

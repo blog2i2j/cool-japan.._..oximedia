@@ -314,8 +314,10 @@ mod tests {
     fn test_camera_profile_json_roundtrip() {
         let profile = CameraProfile::identity("Test".to_string(), "Camera".to_string());
 
-        let json = profile.to_json().unwrap();
-        let restored = CameraProfile::from_json(&json).unwrap();
+        let json = profile
+            .to_json()
+            .expect("JSON serialization should succeed");
+        let restored = CameraProfile::from_json(&json).expect("unexpected None/Err");
 
         assert_eq!(restored.manufacturer, profile.manufacturer);
         assert_eq!(restored.model, profile.model);

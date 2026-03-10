@@ -338,12 +338,12 @@ mod tests {
         mgr.submit(ReplicationJob::new("j2", "path/b", make_targets()));
         mgr.start("j2");
         assert_eq!(
-            mgr.get_job("j2").unwrap().status,
+            mgr.get_job("j2").expect("job should exist").status,
             ReplicationStatus::Running
         );
         mgr.complete("j2", 1_024_000);
         assert_eq!(
-            mgr.get_job("j2").unwrap().status,
+            mgr.get_job("j2").expect("job should exist").status,
             ReplicationStatus::Completed
         );
         assert_eq!(mgr.active_jobs().len(), 0);
@@ -356,13 +356,13 @@ mod tests {
         mgr.submit(ReplicationJob::new("j3", "path/c", make_targets()));
         mgr.cancel("j3");
         assert_eq!(
-            mgr.get_job("j3").unwrap().status,
+            mgr.get_job("j3").expect("job should exist").status,
             ReplicationStatus::Cancelled
         );
         // Cancelling again has no effect
         mgr.cancel("j3");
         assert_eq!(
-            mgr.get_job("j3").unwrap().status,
+            mgr.get_job("j3").expect("job should exist").status,
             ReplicationStatus::Cancelled
         );
     }
@@ -373,7 +373,10 @@ mod tests {
         mgr.submit(ReplicationJob::new("j4", "path/d", make_targets()));
         mgr.start("j4");
         mgr.fail("j4");
-        assert_eq!(mgr.get_job("j4").unwrap().status, ReplicationStatus::Failed);
+        assert_eq!(
+            mgr.get_job("j4").expect("job should exist").status,
+            ReplicationStatus::Failed
+        );
         assert!(mgr.active_jobs().is_empty());
     }
 

@@ -286,7 +286,7 @@ mod tests {
             PointPair::new(1.0, 0.0, 2.0, 2.0),
             PointPair::new(0.0, 1.0, 1.0, 3.0),
         ];
-        let t = estimate_rigid(&pairs).unwrap();
+        let t = estimate_rigid(&pairs).expect("t should be valid");
         assert!(t.theta.abs() < 1e-6);
         assert!((t.tx - 1.0).abs() < 1e-6);
         assert!((t.ty - 2.0).abs() < 1e-6);

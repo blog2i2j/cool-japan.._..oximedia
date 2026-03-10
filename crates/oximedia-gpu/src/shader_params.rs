@@ -198,7 +198,7 @@ mod tests {
         block.add_param(ShaderParam::new("gamma", ParamType::Float, 0));
         let found = block.find("gamma");
         assert!(found.is_some());
-        assert_eq!(found.unwrap().offset, 0);
+        assert_eq!(found.expect("parameter should be found").offset, 0);
     }
 
     #[test]

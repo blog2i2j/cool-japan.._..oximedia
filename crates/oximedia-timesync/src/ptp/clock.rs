@@ -14,6 +14,9 @@ use std::sync::Arc;
 use tokio::net::UdpSocket;
 use tracing::{debug, info};
 
+/// PTP multicast address for event messages (port 319).
+const PTP_MULTICAST_EVENT: &str = "224.0.1.129:319";
+
 /// PTP Ordinary Clock (OC) implementation.
 ///
 /// An ordinary clock has a single PTP port and can operate as master or slave.
@@ -46,6 +49,21 @@ pub struct OrdinaryClock {
     /// Received announce messages
     #[allow(dead_code)]
     received_announces: HashMap<PortIdentity, AnnounceMessage>,
+    // ── Two-step slave state ────────────────────────────────────────────
+    /// Reception timestamp of the last Sync message (t2).
+    sync_receive_time: Option<PtpTimestamp>,
+    /// Sequence ID of the Sync we are waiting for Follow_Up on.
+    pending_sync_seq: Option<u16>,
+    /// Origin timestamp from the last Sync (t1) — only valid in one-step mode.
+    sync_origin: Option<PtpTimestamp>,
+    /// Precise origin timestamp from Follow_Up (t1 in two-step).
+    follow_up_origin: Option<PtpTimestamp>,
+    /// Transmission timestamp of the last Delay_Req (t3).
+    delay_req_send_time: Option<PtpTimestamp>,
+    /// Sequence ID of the Delay_Req we are waiting for a response on.
+    pending_delay_seq: Option<u16>,
+    /// Address of the last Sync source (for sending Delay_Req back).
+    sync_source_addr: Option<SocketAddr>,
 }
 
 impl OrdinaryClock {
@@ -69,6 +87,13 @@ impl OrdinaryClock {
             delay_req_interval: 0,
             announce_interval: 1, // 2 seconds
             received_announces: HashMap::new(),
+            sync_receive_time: None,
+            pending_sync_seq: None,
+            sync_origin: None,
+            follow_up_origin: None,
+            delay_req_send_time: None,
+            pending_delay_seq: None,
+            sync_source_addr: None,
         }
     }
 
@@ -198,9 +223,9 @@ impl OrdinaryClock {
         let data = sync.serialize()?;
 
         let dest = match self.comm_mode {
-            CommunicationMode::Multicast => {
-                "224.0.1.129:319".parse().expect("hardcoded regex is valid")
-            }
+            CommunicationMode::Multicast => PTP_MULTICAST_EVENT
+                .parse()
+                .map_err(|e| TimeSyncError::InvalidConfig(format!("multicast parse: {e}")))?,
             CommunicationMode::Unicast(addr) => addr,
         };
 
@@ -258,9 +283,9 @@ impl OrdinaryClock {
         let data = announce.serialize()?;
 
         let dest = match self.comm_mode {
-            CommunicationMode::Multicast => {
-                "224.0.1.129:319".parse().expect("hardcoded regex is valid")
-            }
+            CommunicationMode::Multicast => PTP_MULTICAST_EVENT
+                .parse()
+                .map_err(|e| TimeSyncError::InvalidConfig(format!("multicast parse: {e}")))?,
             CommunicationMode::Unicast(addr) => addr,
         };
 
@@ -297,9 +322,9 @@ impl OrdinaryClock {
         let data = follow_up.serialize()?;
 
         let dest = match self.comm_mode {
-            CommunicationMode::Multicast => {
-                "224.0.1.129:319".parse().expect("hardcoded regex is valid")
-            }
+            CommunicationMode::Multicast => PTP_MULTICAST_EVENT
+                .parse()
+                .map_err(|e| TimeSyncError::InvalidConfig(format!("multicast parse: {e}")))?,
             CommunicationMode::Unicast(addr) => addr,
         };
 
@@ -307,24 +332,72 @@ impl OrdinaryClock {
         Ok(())
     }
 
-    async fn handle_sync(&mut self, _sync: SyncMessage, _src: SocketAddr) -> TimeSyncResult<()> {
-        // Slave functionality: record sync reception time
-        if self.port_state == PortState::Slave {
-            debug!("Received Sync message");
-            // In a full implementation, we would:
-            // 1. Record the reception timestamp
-            // 2. Wait for Follow_Up to get precise origin timestamp
-            // 3. Send Delay_Req to measure path delay
-            // 4. Calculate offset from master
+    async fn handle_sync(&mut self, sync: SyncMessage, src: SocketAddr) -> TimeSyncResult<()> {
+        if self.port_state != PortState::Slave {
+            return Ok(());
         }
+
+        // Record the reception timestamp (t2)
+        let t2 = PtpTimestamp::now();
+        debug!(
+            "Received Sync seq={} from {:?}",
+            sync.header.sequence_id, src
+        );
+
+        self.sync_receive_time = Some(t2);
+        self.pending_sync_seq = Some(sync.header.sequence_id);
+        self.sync_source_addr = Some(src);
+
+        if sync.header.flags.two_step {
+            // Two-step mode: wait for Follow_Up to get precise t1
+            self.sync_origin = None;
+        } else {
+            // One-step mode: origin_timestamp in Sync IS the precise t1
+            self.sync_origin = Some(sync.origin_timestamp);
+            // We can proceed directly to sending Delay_Req
+            self.send_delay_req(src).await?;
+        }
+
         Ok(())
     }
 
-    async fn handle_follow_up(&mut self, _follow_up: FollowUpMessage) -> TimeSyncResult<()> {
-        if self.port_state == PortState::Slave {
-            debug!("Received Follow_Up message");
-            // Calculate offset using timestamps
+    async fn handle_follow_up(&mut self, follow_up: FollowUpMessage) -> TimeSyncResult<()> {
+        if self.port_state != PortState::Slave {
+            return Ok(());
         }
+
+        // Verify this Follow_Up matches the pending Sync
+        let expected_seq = match self.pending_sync_seq {
+            Some(seq) => seq,
+            None => {
+                debug!("Follow_Up received without pending Sync, ignoring");
+                return Ok(());
+            }
+        };
+
+        if follow_up.header.sequence_id != expected_seq {
+            debug!(
+                "Follow_Up seq {} does not match pending Sync seq {}",
+                follow_up.header.sequence_id, expected_seq
+            );
+            return Ok(());
+        }
+
+        debug!(
+            "Received Follow_Up seq={}, precise_origin={}s {}ns",
+            follow_up.header.sequence_id,
+            follow_up.precise_origin_timestamp.seconds,
+            follow_up.precise_origin_timestamp.nanoseconds,
+        );
+
+        // Store the precise origin timestamp (t1) from the Follow_Up
+        self.follow_up_origin = Some(follow_up.precise_origin_timestamp);
+
+        // Now send a Delay_Req to measure the path delay
+        if let Some(src) = self.sync_source_addr {
+            self.send_delay_req(src).await?;
+        }
+
         Ok(())
     }
 
@@ -370,11 +443,123 @@ impl OrdinaryClock {
         Ok(())
     }
 
-    async fn handle_delay_resp(&mut self, _delay_resp: DelayRespMessage) -> TimeSyncResult<()> {
-        if self.port_state == PortState::Slave {
-            debug!("Received Delay_Resp message");
-            // Calculate mean path delay
+    /// Send a Delay_Req message to the master.
+    async fn send_delay_req(&mut self, master_addr: SocketAddr) -> TimeSyncResult<()> {
+        let socket = self
+            .socket
+            .as_ref()
+            .ok_or_else(|| TimeSyncError::InvalidConfig("Socket not bound".to_string()))?;
+
+        let t3 = PtpTimestamp::now();
+        self.sequence_id = self.sequence_id.wrapping_add(1);
+        let seq_id = self.sequence_id;
+
+        let port_id = PortIdentity::new(self.default_ds.clock_identity, 1);
+
+        let header = Header {
+            message_type: MessageType::DelayReq,
+            version: 2,
+            message_length: 44,
+            domain: Domain(self.default_ds.domain_number),
+            flags: Flags::default(),
+            correction_field: 0,
+            source_port_identity: port_id,
+            sequence_id: seq_id,
+            control: 1,
+            log_message_interval: 0x7F,
+        };
+
+        let delay_req = DelayReqMessage {
+            header,
+            origin_timestamp: t3,
+        };
+
+        let data = delay_req.serialize()?;
+        socket.send_to(&data, master_addr).await?;
+
+        self.delay_req_send_time = Some(t3);
+        self.pending_delay_seq = Some(seq_id);
+
+        debug!("Sent Delay_Req seq={} to {}", seq_id, master_addr);
+        Ok(())
+    }
+
+    async fn handle_delay_resp(&mut self, delay_resp: DelayRespMessage) -> TimeSyncResult<()> {
+        if self.port_state != PortState::Slave {
+            return Ok(());
         }
+
+        // Verify this response matches our pending request
+        let expected_seq = match self.pending_delay_seq {
+            Some(seq) => seq,
+            None => {
+                debug!("Delay_Resp received without pending Delay_Req");
+                return Ok(());
+            }
+        };
+
+        if delay_resp.header.sequence_id != expected_seq {
+            debug!(
+                "Delay_Resp seq {} does not match pending Delay_Req seq {}",
+                delay_resp.header.sequence_id, expected_seq
+            );
+            return Ok(());
+        }
+
+        debug!(
+            "Received Delay_Resp seq={}, receive_timestamp={}s {}ns",
+            delay_resp.header.sequence_id,
+            delay_resp.receive_timestamp.seconds,
+            delay_resp.receive_timestamp.nanoseconds,
+        );
+
+        // Now we have all four timestamps for the two-step calculation:
+        //   t1 = origin timestamp (from Sync/Follow_Up)
+        //   t2 = reception time of Sync (recorded locally)
+        //   t3 = transmission time of Delay_Req (recorded locally)
+        //   t4 = reception time of Delay_Req at master (from Delay_Resp)
+
+        let t1 = self.follow_up_origin.or(self.sync_origin).ok_or_else(|| {
+            TimeSyncError::InvalidPacket("Missing origin timestamp (t1)".to_string())
+        })?;
+
+        let t2 = self.sync_receive_time.ok_or_else(|| {
+            TimeSyncError::InvalidPacket("Missing sync receive time (t2)".to_string())
+        })?;
+
+        let t3 = self.delay_req_send_time.ok_or_else(|| {
+            TimeSyncError::InvalidPacket("Missing delay req send time (t3)".to_string())
+        })?;
+
+        let t4 = delay_resp.receive_timestamp;
+
+        // IEEE 1588 two-step formulas:
+        //   mean_path_delay = ((t2 - t1) + (t4 - t3)) / 2
+        //   offset_from_master = (t2 - t1) - mean_path_delay
+        //                      = ((t2 - t1) - (t4 - t3)) / 2
+
+        let forward_delay = t2.diff(&t1); // t2 - t1
+        let reverse_delay = t4.diff(&t3); // t4 - t3
+
+        let mean_path_delay = (forward_delay + reverse_delay) / 2;
+        let offset_from_master = (forward_delay - reverse_delay) / 2;
+
+        self.current_ds.offset_from_master = offset_from_master;
+        self.current_ds.mean_path_delay = mean_path_delay;
+
+        info!(
+            "PTP offset={}ns, delay={}ns",
+            offset_from_master, mean_path_delay
+        );
+
+        // Clear pending state
+        self.pending_sync_seq = None;
+        self.pending_delay_seq = None;
+        self.sync_receive_time = None;
+        self.follow_up_origin = None;
+        self.sync_origin = None;
+        self.delay_req_send_time = None;
+
         Ok(())
     }
 

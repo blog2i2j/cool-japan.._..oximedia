@@ -1,7 +1,7 @@
 //! Hard cut detection using histogram difference and edge change.
 
 use crate::error::{ShotError, ShotResult};
-use ndarray::Array3;
+use crate::frame_buffer::{FrameBuffer, GrayImage};
 
 /// Cut detection using multiple algorithms.
 pub struct CutDetector {
@@ -43,7 +43,11 @@ impl CutDetector {
     /// # Errors
     ///
     /// Returns error if frame dimensions don't match or frames are invalid.
-    pub fn detect_cut(&self, frame1: &Array3<u8>, frame2: &Array3<u8>) -> ShotResult<(bool, f32)> {
+    pub fn detect_cut(
+        &self,
+        frame1: &FrameBuffer,
+        frame2: &FrameBuffer,
+    ) -> ShotResult<(bool, f32)> {
         if frame1.dim() != frame2.dim() {
             return Err(ShotError::InvalidFrame(
                 "Frame dimensions do not match".to_string(),
@@ -66,7 +70,7 @@ impl CutDetector {
     }
 
     /// Calculate histogram difference between two frames.
-    fn histogram_difference(&self, frame1: &Array3<u8>, frame2: &Array3<u8>) -> ShotResult<f32> {
+    fn histogram_difference(&self, frame1: &FrameBuffer, frame2: &FrameBuffer) -> ShotResult<f32> {
         let shape = frame1.dim();
         if shape.2 < 3 {
             return Err(ShotError::InvalidFrame(
@@ -86,8 +90,8 @@ impl CutDetector {
             // Build histograms
             for y in 0..shape.0 {
                 for x in 0..shape.1 {
-                    let val1 = frame1[[y, x, channel]];
-                    let val2 = frame2[[y, x, channel]];
+                    let val1 = frame1.get(y, x, channel);
+                    let val2 = frame2.get(y, x, channel);
 
                     let bin1 = (f32::from(val1) / bin_size).min((num_bins - 1) as f32) as usize;
                     let bin2 = (f32::from(val2) / bin_size).min((num_bins - 1) as f32) as usize;
@@ -116,7 +120,7 @@ impl CutDetector {
     }
 
     /// Calculate edge change ratio between two frames.
-    fn edge_change_ratio(&self, frame1: &Array3<u8>, frame2: &Array3<u8>) -> ShotResult<f32> {
+    fn edge_change_ratio(&self, frame1: &FrameBuffer, frame2: &FrameBuffer) -> ShotResult<f32> {
         let shape = frame1.dim();
 
         // Convert to grayscale
@@ -134,13 +138,13 @@ impl CutDetector {
 
         for y in 0..shape.0 {
             for x in 0..shape.1 {
-                if edges1[[y, x]] > 128 {
+                if edges1.get(y, x) > 128 {
                     edge_count1 += 1;
                 }
-                if edges2[[y, x]] > 128 {
+                if edges2.get(y, x) > 128 {
                     edge_count2 += 1;
                 }
-                if (edges1[[y, x]] > 128) != (edges2[[y, x]] > 128) {
+                if (edges1.get(y, x) > 128) != (edges2.get(y, x) > 128) {
                     edge_diff += 1;
                 }
             }
@@ -155,16 +159,16 @@ impl CutDetector {
     }
 
     /// Convert RGB frame to grayscale.
-    fn to_grayscale(&self, frame: &Array3<u8>) -> ndarray::Array2<u8> {
+    fn to_grayscale(&self, frame: &FrameBuffer) -> GrayImage {
         let shape = frame.dim();
-        let mut gray = ndarray::Array2::zeros((shape.0, shape.1));
+        let mut gray = GrayImage::zeros(shape.0, shape.1);
 
         for y in 0..shape.0 {
             for x in 0..shape.1 {
-                let r = f32::from(frame[[y, x, 0]]);
-                let g = f32::from(frame[[y, x, 1]]);
-                let b = f32::from(frame[[y, x, 2]]);
-                gray[[y, x]] = ((r * 0.299) + (g * 0.587) + (b * 0.114)) as u8;
+                let r = f32::from(frame.get(y, x, 0));
+                let g = f32::from(frame.get(y, x, 1));
+                let b = f32::from(frame.get(y, x, 2));
+                gray.set(y, x, ((r * 0.299) + (g * 0.587) + (b * 0.114)) as u8);
             }
         }
 
@@ -172,29 +176,29 @@ impl CutDetector {
     }
 
     /// Detect edges using Sobel operator.
-    fn detect_edges(&self, gray: &ndarray::Array2<u8>) -> ndarray::Array2<u8> {
+    fn detect_edges(&self, gray: &GrayImage) -> GrayImage {
         let shape = gray.dim();
-        let mut edges = ndarray::Array2::zeros((shape.0, shape.1));
+        let mut edges = GrayImage::zeros(shape.0, shape.1);
 
         // Sobel kernels
         let sobel_x = [[-1, 0, 1], [-2, 0, 2], [-1, 0, 1]];
         let sobel_y = [[-1, -2, -1], [0, 0, 0], [1, 2, 1]];
 
-        for y in 1..(shape.0 - 1) {
-            for x in 1..(shape.1 - 1) {
+        for y in 1..(shape.0.saturating_sub(1)) {
+            for x in 1..(shape.1.saturating_sub(1)) {
                 let mut gx = 0i32;
                 let mut gy = 0i32;
 
                 for dy in 0..3 {
                     for dx in 0..3 {
-                        let pixel = i32::from(gray[[y + dy - 1, x + dx - 1]]);
+                        let pixel = i32::from(gray.get(y + dy - 1, x + dx - 1));
                         gx += pixel * sobel_x[dy][dx];
                         gy += pixel * sobel_y[dy][dx];
                     }
                 }
 
                 let magnitude = ((gx * gx + gy * gy) as f32).sqrt();
-                edges[[y, x]] = magnitude.min(255.0) as u8;
+                edges.set(y, x, magnitude.min(255.0) as u8);
             }
         }
 
@@ -221,33 +225,35 @@ mod tests {
     #[test]
     fn test_identical_frames() {
         let detector = CutDetector::new();
-        let frame = Array3::zeros((100, 100, 3));
+        let frame = FrameBuffer::zeros(100, 100, 3);
         let result = detector.detect_cut(&frame, &frame);
         assert!(result.is_ok());
-        let (is_cut, score) = result.expect("should succeed in test");
-        assert!(!is_cut);
-        assert!(score < 0.1);
+        if let Ok((is_cut, score)) = result {
+            assert!(!is_cut);
+            assert!(score < 0.1);
+        }
     }
 
     #[test]
     fn test_different_frames() {
         let detector = CutDetector::new();
-        let frame1 = Array3::zeros((100, 100, 3));
-        let mut frame2 = Array3::zeros((100, 100, 3));
+        let frame1 = FrameBuffer::zeros(100, 100, 3);
+        let mut frame2 = FrameBuffer::zeros(100, 100, 3);
         // Make frame2 completely white
         frame2.fill(255);
         let result = detector.detect_cut(&frame1, &frame2);
         assert!(result.is_ok());
-        let (is_cut, score) = result.expect("should succeed in test");
-        assert!(is_cut);
-        assert!(score > 0.3);
+        if let Ok((is_cut, score)) = result {
+            assert!(is_cut);
+            assert!(score > 0.3);
+        }
     }
 
     #[test]
     fn test_dimension_mismatch() {
         let detector = CutDetector::new();
-        let frame1 = Array3::zeros((100, 100, 3));
-        let frame2 = Array3::zeros((50, 50, 3));
+        let frame1 = FrameBuffer::zeros(100, 100, 3);
+        let frame2 = FrameBuffer::zeros(50, 50, 3);
         let result = detector.detect_cut(&frame1, &frame2);
         assert!(result.is_err());
     }

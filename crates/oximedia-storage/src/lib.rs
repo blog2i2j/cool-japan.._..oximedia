@@ -38,6 +38,8 @@ pub mod gcs;
 /// Storage access logging and audit trail.
 pub mod access_log;
 pub mod cache;
+/// Cache eviction layer: LRU, LFU, FIFO, and ARC caches with statistics.
+pub mod cache_layer;
 /// Compression store — compress/decompress objects with ratio and savings tracking.
 pub mod compression_store;
 /// Content-addressable deduplication storage (hash-based addressing, chunk dedup, reference counting).

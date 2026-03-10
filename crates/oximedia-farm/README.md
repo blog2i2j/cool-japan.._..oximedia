@@ -1,7 +1,7 @@
 # oximedia-farm
 
 ![Status: Stable](https://img.shields.io/badge/status-stable-green)
-![Version: 0.1.0](https://img.shields.io/badge/version-0.1.0-blue)
+![Version: 0.1.1](https://img.shields.io/badge/version-0.1.1-blue)
 
 Production-grade distributed encoding farm coordinator for OxiMedia, providing comprehensive job management, worker orchestration, and fault-tolerant distributed media processing.
 
@@ -32,7 +32,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-farm = "0.1.0"
+oximedia-farm = "0.1.1"
 ```
 
 ### Starting a Coordinator

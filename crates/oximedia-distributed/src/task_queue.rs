@@ -372,7 +372,7 @@ mod tests {
         let mut q = TaskQueue::new();
         q.enqueue(DistributedTask::new("t1", TaskPriority::Normal, "{}"));
         assert_eq!(q.len(), 1);
-        let t = q.dequeue().unwrap();
+        let t = q.dequeue().expect("dequeue should return a task");
         assert_eq!(t.name, "t1");
         assert!(q.is_empty());
     }
@@ -383,11 +383,11 @@ mod tests {
         q.enqueue(DistributedTask::new("low", TaskPriority::Background, "{}"));
         q.enqueue(DistributedTask::new("high", TaskPriority::High, "{}"));
         q.enqueue(DistributedTask::new("normal", TaskPriority::Normal, "{}"));
-        let first = q.dequeue().unwrap();
+        let first = q.dequeue().expect("dequeue should return a task");
         assert_eq!(first.name, "high");
-        let second = q.dequeue().unwrap();
+        let second = q.dequeue().expect("dequeue should return a task");
         assert_eq!(second.name, "normal");
-        let third = q.dequeue().unwrap();
+        let third = q.dequeue().expect("dequeue should return a task");
         assert_eq!(third.name, "low");
     }
 
@@ -397,9 +397,18 @@ mod tests {
         q.enqueue(DistributedTask::new("first", TaskPriority::Normal, "{}"));
         q.enqueue(DistributedTask::new("second", TaskPriority::Normal, "{}"));
         q.enqueue(DistributedTask::new("third", TaskPriority::Normal, "{}"));
-        assert_eq!(q.dequeue().unwrap().name, "first");
-        assert_eq!(q.dequeue().unwrap().name, "second");
-        assert_eq!(q.dequeue().unwrap().name, "third");
+        assert_eq!(
+            q.dequeue().expect("dequeue should return a task").name,
+            "first"
+        );
+        assert_eq!(
+            q.dequeue().expect("dequeue should return a task").name,
+            "second"
+        );
+        assert_eq!(
+            q.dequeue().expect("dequeue should return a task").name,
+            "third"
+        );
     }
 
     #[test]
@@ -416,7 +425,7 @@ mod tests {
         let mut q = TaskQueue::new();
         assert!(q.peek().is_none());
         q.enqueue(DistributedTask::new("t1", TaskPriority::High, "{}"));
-        assert_eq!(q.peek().unwrap().name, "t1");
+        assert_eq!(q.peek().expect("peek should return a value").name, "t1");
         assert_eq!(q.len(), 1); // peek doesn't remove
     }
 

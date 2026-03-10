@@ -533,7 +533,9 @@ mod tests {
         let v = make_flat_frame(32, 32, 128);
         let est = profiler.process_frame(&y, &u, &v, 64, 64, 0);
         assert!(est.channel_sigmas.is_some());
-        let ch = est.channel_sigmas.unwrap();
+        let ch = est
+            .channel_sigmas
+            .expect("expected channel_sigmas to be Some/Ok");
         assert!(ch[1] < 1.0, "clean U plane should have low sigma");
         assert!(ch[2] < 1.0, "clean V plane should have low sigma");
     }

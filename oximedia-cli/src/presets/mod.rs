@@ -481,10 +481,19 @@ mod tests {
 
     #[test]
     fn test_parse_bitrate() {
-        assert_eq!(parse_bitrate("5M").unwrap(), 5_000_000);
-        assert_eq!(parse_bitrate("2.5M").unwrap(), 2_500_000);
-        assert_eq!(parse_bitrate("128k").unwrap(), 128_000);
-        assert_eq!(parse_bitrate("1000").unwrap(), 1_000);
+        assert_eq!(
+            parse_bitrate("5M").expect("parse should succeed"),
+            5_000_000
+        );
+        assert_eq!(
+            parse_bitrate("2.5M").expect("parse should succeed"),
+            2_500_000
+        );
+        assert_eq!(
+            parse_bitrate("128k").expect("parse should succeed"),
+            128_000
+        );
+        assert_eq!(parse_bitrate("1000").expect("parse should succeed"), 1_000);
     }
 
     #[test]

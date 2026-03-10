@@ -160,7 +160,7 @@ impl std::error::Error for VertexBufferError {}
 ///
 /// // 1 vertex = 20 bytes
 /// let data = vec![0u8; 20];
-/// let vb = VertexBuffer::new(layout, data).unwrap();
+/// let vb = VertexBuffer::new(layout, data)?;
 /// assert_eq!(vb.vertex_count(), 1);
 /// assert_eq!(vb.stride(), 20);
 /// ```
@@ -301,7 +301,8 @@ mod tests {
     fn vertex_buffer_create_ok() {
         let mut l = VertexLayout::new();
         l.add("POS", VertexAttribute::Float32x3);
-        let vb = VertexBuffer::new(l, vec![0u8; 24]).unwrap();
+        let vb =
+            VertexBuffer::new(l, vec![0u8; 24]).expect("vertex buffer creation should succeed");
         assert_eq!(vb.vertex_count(), 2);
     }
 
@@ -325,7 +326,7 @@ mod tests {
         let mut l = VertexLayout::new();
         l.add("POS", VertexAttribute::Uint32);
         let data: Vec<u8> = (0u8..8).collect();
-        let vb = VertexBuffer::new(l, data.clone()).unwrap();
+        let vb = VertexBuffer::new(l, data.clone()).expect("vertex buffer creation should succeed");
         assert_eq!(vb.vertex_bytes(0), Some(&data[0..4]));
         assert_eq!(vb.vertex_bytes(1), Some(&data[4..8]));
         assert!(vb.vertex_bytes(2).is_none());
@@ -335,7 +336,8 @@ mod tests {
     fn vertex_buffer_byte_len() {
         let mut l = VertexLayout::new();
         l.add("POS", VertexAttribute::Float32x4);
-        let vb = VertexBuffer::new(l, vec![0u8; 32]).unwrap();
+        let vb =
+            VertexBuffer::new(l, vec![0u8; 32]).expect("vertex buffer creation should succeed");
         assert_eq!(vb.byte_len(), 32);
     }
 }

@@ -81,6 +81,8 @@ pub mod invisible_wm;
 /// Cryptographic key scheduling and rotation for watermark keys.
 pub mod key_schedule;
 pub mod lsb;
+/// Unified media watermarking coordinating audio and video watermark pipelines.
+pub mod media_watermark;
 pub mod metrics;
 pub mod patchwork;
 pub mod payload;

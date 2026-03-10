@@ -72,18 +72,22 @@ mod tests {
 
     #[test]
     fn test_generate_diff() {
-        let mut file1 = NamedTempFile::new().unwrap();
-        let mut file2 = NamedTempFile::new().unwrap();
+        let mut file1 = NamedTempFile::new().expect("operation should succeed");
+        let mut file2 = NamedTempFile::new().expect("operation should succeed");
 
-        file1.write_all(b"Version 1").unwrap();
-        file2.write_all(b"Version 2 is longer").unwrap();
-        file1.flush().unwrap();
-        file2.flush().unwrap();
+        file1
+            .write_all(b"Version 1")
+            .expect("operation should succeed");
+        file2
+            .write_all(b"Version 2 is longer")
+            .expect("operation should succeed");
+        file1.flush().expect("operation should succeed");
+        file2.flush().expect("operation should succeed");
 
         let generator = DiffGenerator::new();
         let diff = generator
             .generate(file1.path(), file2.path(), 1, 2)
-            .unwrap();
+            .expect("operation should succeed");
 
         assert_eq!(diff.old_version, 1);
         assert_eq!(diff.new_version, 2);

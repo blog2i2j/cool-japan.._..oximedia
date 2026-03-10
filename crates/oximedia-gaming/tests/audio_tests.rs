@@ -8,7 +8,7 @@ use oximedia_gaming::audio::{
 #[test]
 fn test_audio_mixer_creation() {
     let config = MixerConfig::default();
-    let mixer = AudioMixer::new(config).unwrap();
+    let mixer = AudioMixer::new(config).expect("valid audio mixer");
 
     assert_eq!(mixer.source_count(), 0);
 }
@@ -24,7 +24,7 @@ fn test_mixer_invalid_channels() {
 #[test]
 fn test_add_remove_source() {
     let config = MixerConfig::default();
-    let mut mixer = AudioMixer::new(config).unwrap();
+    let mut mixer = AudioMixer::new(config).expect("valid audio mixer");
 
     let source = AudioSource {
         name: "Game".to_string(),
@@ -42,7 +42,7 @@ fn test_add_remove_source() {
 #[test]
 fn test_set_source_volume() {
     let config = MixerConfig::default();
-    let mut mixer = AudioMixer::new(config).unwrap();
+    let mut mixer = AudioMixer::new(config).expect("valid audio mixer");
 
     mixer.add_source(AudioSource {
         name: "Game".to_string(),
@@ -50,15 +50,21 @@ fn test_set_source_volume() {
         muted: false,
     });
 
-    mixer.set_source_volume("Game", 0.5).unwrap();
-    mixer.set_source_volume("Game", 0.0).unwrap();
-    mixer.set_source_volume("Game", 1.0).unwrap();
+    mixer
+        .set_source_volume("Game", 0.5)
+        .expect("set volume should succeed");
+    mixer
+        .set_source_volume("Game", 0.0)
+        .expect("set volume should succeed");
+    mixer
+        .set_source_volume("Game", 1.0)
+        .expect("set volume should succeed");
 }
 
 #[test]
 fn test_set_source_mute() {
     let config = MixerConfig::default();
-    let mut mixer = AudioMixer::new(config).unwrap();
+    let mut mixer = AudioMixer::new(config).expect("valid audio mixer");
 
     mixer.add_source(AudioSource {
         name: "Game".to_string(),
@@ -66,14 +72,18 @@ fn test_set_source_mute() {
         muted: false,
     });
 
-    mixer.set_source_mute("Game", true).unwrap();
-    mixer.set_source_mute("Game", false).unwrap();
+    mixer
+        .set_source_mute("Game", true)
+        .expect("set mute should succeed");
+    mixer
+        .set_source_mute("Game", false)
+        .expect("set mute should succeed");
 }
 
 #[test]
 fn test_nonexistent_source() {
     let config = MixerConfig::default();
-    let mut mixer = AudioMixer::new(config).unwrap();
+    let mut mixer = AudioMixer::new(config).expect("valid audio mixer");
 
     assert!(mixer.set_source_volume("Nonexistent", 0.5).is_err());
     assert!(mixer.set_source_mute("Nonexistent", true).is_err());
@@ -82,7 +92,7 @@ fn test_nonexistent_source() {
 #[test]
 fn test_multiple_sources() {
     let config = MixerConfig::default();
-    let mut mixer = AudioMixer::new(config).unwrap();
+    let mut mixer = AudioMixer::new(config).expect("valid audio mixer");
 
     let sources = ["Game", "Microphone", "Music", "Discord"];
 
@@ -110,7 +120,7 @@ fn test_game_audio_capture() {
 
 #[test]
 fn test_list_audio_devices() {
-    let devices = GameAudioCapture::list_devices().unwrap();
+    let devices = GameAudioCapture::list_devices().expect("list devices should succeed");
     assert!(!devices.is_empty());
 
     for device in &devices {
@@ -130,7 +140,7 @@ fn test_mic_start_stop() {
     let config = MicConfig::default();
     let mut mic = MicrophoneCapture::new(config);
 
-    mic.start().unwrap();
+    mic.start().expect("start should succeed");
     mic.stop();
 }
 
@@ -187,7 +197,7 @@ fn test_music_player_play_stop() {
         volume: 0.3,
     };
 
-    player.play(track).unwrap();
+    player.play(track).expect("play should succeed");
     player.stop();
 }
 
@@ -208,7 +218,7 @@ fn test_multiple_sample_rates() {
         let mut config = MixerConfig::default();
         config.sample_rate = sample_rate;
 
-        let mixer = AudioMixer::new(config).unwrap();
+        let mixer = AudioMixer::new(config).expect("valid audio mixer");
         assert_eq!(mixer.config.sample_rate, sample_rate);
     }
 }
@@ -221,7 +231,7 @@ fn test_stereo_and_mono() {
         let mut config = MixerConfig::default();
         config.channels = channel_count;
 
-        let mixer = AudioMixer::new(config).unwrap();
+        let mixer = AudioMixer::new(config).expect("valid audio mixer");
         assert_eq!(mixer.config.channels, channel_count);
     }
 }

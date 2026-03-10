@@ -447,7 +447,7 @@ mod tests {
             PathBuf::from("/test/output"),
             ConformConfig::default(),
         )
-        .unwrap();
+        .expect("test expectation failed");
 
         assert_eq!(session.name(), "Test Session");
         assert_eq!(session.status(), SessionStatus::Created);
@@ -462,7 +462,7 @@ mod tests {
             PathBuf::from("/test/output"),
             ConformConfig::default(),
         )
-        .unwrap();
+        .expect("test expectation failed");
 
         assert_eq!(session.status(), SessionStatus::Created);
         session.set_status(SessionStatus::Scanning);

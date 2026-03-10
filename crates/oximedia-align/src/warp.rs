@@ -314,7 +314,7 @@ mod tests {
         let b = vec![1.0f32, 2.5, 3.0, 3.5];
         let (_, path) = DtwAligner::compute(&a, &b);
         assert_eq!(path.pairs[0], (0, 0), "path must start at (0,0)");
-        let last = *path.pairs.last().unwrap();
+        let last = *path.pairs.last().expect("last should be valid");
         assert_eq!(
             last,
             (a.len() - 1, b.len() - 1),

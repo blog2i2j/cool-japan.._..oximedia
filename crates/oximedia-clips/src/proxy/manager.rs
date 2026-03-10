@@ -127,7 +127,9 @@ mod tests {
         assert_eq!(manager.get_links(&clip_id).len(), 2);
         assert!(manager.has_proxies(&clip_id));
 
-        let best = manager.get_best_proxy(&clip_id).unwrap();
+        let best = manager
+            .get_best_proxy(&clip_id)
+            .expect("get_best_proxy should succeed");
         assert_eq!(best.quality, ProxyQuality::High);
     }
 

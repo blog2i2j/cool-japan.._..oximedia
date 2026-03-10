@@ -87,8 +87,14 @@ impl SpectralPowerDistribution {
         if self.samples.is_empty() {
             return 0.0;
         }
-        let first = self.samples.first().unwrap();
-        let last = self.samples.last().unwrap();
+        let first = self
+            .samples
+            .first()
+            .expect("samples non-empty: is_empty check returned above");
+        let last = self
+            .samples
+            .last()
+            .expect("samples non-empty: is_empty check returned above");
 
         if wavelength_nm <= first.wavelength_nm {
             return first.value;
@@ -424,8 +430,12 @@ mod tests {
         // Find maximum y_bar entry
         let peak = cmf
             .iter()
-            .max_by(|a, b| a.y_bar.partial_cmp(&b.y_bar).unwrap())
-            .unwrap();
+            .max_by(|a, b| {
+                a.y_bar
+                    .partial_cmp(&b.y_bar)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .expect("unexpected None/Err");
         // Peak of photopic luminous efficiency is around 555 nm; our sparse
         // table peaks at 560 nm which is the nearest 20-nm step.
         assert!(

@@ -265,14 +265,14 @@ mod tests {
 
     #[test]
     fn test_object_key_has_prefix() {
-        let key = ObjectKey::new("videos/clip.mp4").unwrap();
+        let key = ObjectKey::new("videos/clip.mp4").expect("valid object key");
         assert!(key.has_prefix("videos/"));
         assert!(!key.has_prefix("audio/"));
     }
 
     #[test]
     fn test_object_metadata_age_secs() {
-        let key = ObjectKey::new("test/obj").unwrap();
+        let key = ObjectKey::new("test/obj").expect("valid object key");
         let mut meta = ObjectMetadata::new(key, 1024);
         // Backdate created_at by 10 seconds
         meta.created_at = SystemTime::now() - Duration::from_secs(10);
@@ -282,7 +282,7 @@ mod tests {
 
     #[test]
     fn test_object_metadata_zero_age() {
-        let key = ObjectKey::new("test/obj2").unwrap();
+        let key = ObjectKey::new("test/obj2").expect("valid object key");
         let meta = ObjectMetadata::new(key, 512);
         // Should be nearly zero age
         let age = meta.age_secs(SystemTime::now());
@@ -294,10 +294,13 @@ mod tests {
         let mut store = ObjectStore::new();
         let meta = store
             .put("videos/a.mp4", b"hello".to_vec(), Some("video/mp4"))
-            .unwrap();
+            .expect("should succeed");
         assert_eq!(meta.size, 5);
         assert_eq!(meta.content_type.as_deref(), Some("video/mp4"));
-        assert_eq!(store.get("videos/a.mp4").unwrap(), b"hello");
+        assert_eq!(
+            store.get("videos/a.mp4").expect("get should succeed"),
+            b"hello"
+        );
     }
 
     #[test]
@@ -312,17 +315,21 @@ mod tests {
         let mut store = ObjectStore::new();
         store
             .put("img/photo.jpg", vec![1, 2, 3], Some("image/jpeg"))
-            .unwrap();
-        let meta = store.get_metadata("img/photo.jpg").unwrap();
+            .expect("should succeed");
+        let meta = store
+            .get_metadata("img/photo.jpg")
+            .expect("get metadata should succeed");
         assert_eq!(meta.size, 3);
     }
 
     #[test]
     fn test_object_store_delete() {
         let mut store = ObjectStore::new();
-        store.put("tmp/file", vec![0u8; 64], None).unwrap();
+        store
+            .put("tmp/file", vec![0u8; 64], None)
+            .expect("put should succeed");
         assert!(store.contains("tmp/file"));
-        store.delete("tmp/file").unwrap();
+        store.delete("tmp/file").expect("delete should succeed");
         assert!(!store.contains("tmp/file"));
     }
 
@@ -336,9 +343,15 @@ mod tests {
     #[test]
     fn test_object_store_list_prefix() {
         let mut store = ObjectStore::new();
-        store.put("a/1.mp4", vec![], None).unwrap();
-        store.put("a/2.mp4", vec![], None).unwrap();
-        store.put("b/3.mp4", vec![], None).unwrap();
+        store
+            .put("a/1.mp4", vec![], None)
+            .expect("put should succeed");
+        store
+            .put("a/2.mp4", vec![], None)
+            .expect("put should succeed");
+        store
+            .put("b/3.mp4", vec![], None)
+            .expect("put should succeed");
 
         let a_keys = store.list_prefix("a/");
         assert_eq!(a_keys.len(), 2);
@@ -350,8 +363,12 @@ mod tests {
     #[test]
     fn test_object_store_total_bytes() {
         let mut store = ObjectStore::new();
-        store.put("f1", vec![0u8; 100], None).unwrap();
-        store.put("f2", vec![0u8; 200], None).unwrap();
+        store
+            .put("f1", vec![0u8; 100], None)
+            .expect("put should succeed");
+        store
+            .put("f2", vec![0u8; 200], None)
+            .expect("put should succeed");
         assert_eq!(store.total_bytes(), 300);
     }
 

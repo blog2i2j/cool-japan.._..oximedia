@@ -86,7 +86,10 @@ impl NtpClient {
             self.socket = Some(socket);
         }
 
-        let socket = self.socket.as_ref().expect("invariant: socket bound above");
+        let socket = self
+            .socket
+            .as_ref()
+            .ok_or_else(|| TimeSyncError::InvalidConfig("Socket not initialized".to_string()))?;
 
         // Try each server in the pool
         let servers: Vec<_> = self

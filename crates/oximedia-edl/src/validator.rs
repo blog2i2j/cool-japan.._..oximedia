@@ -321,7 +321,7 @@ mod tests {
     fn test_validate_empty_edl() {
         let edl = Edl::new(EdlFormat::Cmx3600);
         let validator = EdlValidator::lenient();
-        let report = validator.validate(&edl).unwrap();
+        let report = validator.validate(&edl).expect("validation should succeed");
         assert!(report.has_warnings());
     }
 
@@ -330,8 +330,8 @@ mod tests {
         let mut edl = Edl::new(EdlFormat::Cmx3600);
         edl.set_frame_rate(EdlFrameRate::Fps25);
 
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).expect("failed to create");
 
         let event = EdlEvent::new(
             1,
@@ -344,10 +344,10 @@ mod tests {
             tc2,
         );
 
-        edl.add_event(event).unwrap();
+        edl.add_event(event).expect("add_event should succeed");
 
         let validator = EdlValidator::standard();
-        let report = validator.validate(&edl).unwrap();
+        let report = validator.validate(&edl).expect("validation should succeed");
         assert!(!report.has_errors());
     }
 
@@ -356,10 +356,10 @@ mod tests {
         let mut edl = Edl::new(EdlFormat::Cmx3600);
         edl.set_frame_rate(EdlFrameRate::Fps25);
 
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 10, 0, EdlFrameRate::Fps25).unwrap();
-        let tc3 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).unwrap();
-        let tc4 = EdlTimecode::new(1, 0, 15, 0, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc2 = EdlTimecode::new(1, 0, 10, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc3 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc4 = EdlTimecode::new(1, 0, 15, 0, EdlFrameRate::Fps25).expect("failed to create");
 
         let event1 = EdlEvent::new(
             1,
@@ -383,8 +383,8 @@ mod tests {
             tc4,
         );
 
-        edl.add_event(event1).unwrap();
-        edl.add_event(event2).unwrap();
+        edl.add_event(event1).expect("add_event should succeed");
+        edl.add_event(event2).expect("add_event should succeed");
 
         let validator = EdlValidator::strict();
         assert!(validator.validate(&edl).is_err());
@@ -395,10 +395,10 @@ mod tests {
         let mut edl = Edl::new(EdlFormat::Cmx3600);
         edl.set_frame_rate(EdlFrameRate::Fps25);
 
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).unwrap();
-        let tc3 = EdlTimecode::new(1, 0, 10, 0, EdlFrameRate::Fps25).unwrap();
-        let tc4 = EdlTimecode::new(1, 0, 15, 0, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc3 = EdlTimecode::new(1, 0, 10, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc4 = EdlTimecode::new(1, 0, 15, 0, EdlFrameRate::Fps25).expect("failed to create");
 
         let event1 = EdlEvent::new(
             1,
@@ -422,8 +422,8 @@ mod tests {
             tc4,
         );
 
-        edl.add_event(event1).unwrap();
-        edl.add_event(event2).unwrap();
+        edl.add_event(event1).expect("add_event should succeed");
+        edl.add_event(event2).expect("add_event should succeed");
 
         let validator = EdlValidator::strict();
         assert!(validator.validate(&edl).is_err());
@@ -434,8 +434,8 @@ mod tests {
         let mut edl = Edl::new(EdlFormat::Cmx3600);
         edl.set_frame_rate(EdlFrameRate::Fps25);
 
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).expect("failed to create");
 
         // Non-sequential numbering
         let event1 = EdlEvent::new(
@@ -460,8 +460,8 @@ mod tests {
             tc2,
         );
 
-        edl.add_event(event1).unwrap();
-        edl.add_event(event2).unwrap();
+        edl.add_event(event1).expect("add_event should succeed");
+        edl.add_event(event2).expect("add_event should succeed");
 
         let validator = EdlValidator::strict();
         assert!(validator.validate(&edl).is_err());

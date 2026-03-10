@@ -389,7 +389,9 @@ mod tests {
         builder.add_entries(sample_entries());
         let report = builder.build();
         let breakdown = report.format_breakdown();
-        let (ext, count) = breakdown.most_common_ext().unwrap();
+        let (ext, count) = breakdown
+            .most_common_ext()
+            .expect("operation should succeed");
         // mp4 and mov both have 2 files; either is acceptable
         assert!(count >= 2);
         assert!(ext == "mp4" || ext == "mov");

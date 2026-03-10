@@ -460,7 +460,7 @@ mod tests {
         ).with_priority(100));
         let rules: Vec<_> = engine.find_matches("a", &HashMap::new());
         // Both might match different types, but internal ordering is by priority
-        assert_eq!(engine.get_rule(RuleId(2)).unwrap().name, "high");
+        assert_eq!(engine.get_rule(RuleId(2)).expect("value should be valid").name, "high");
     }
 
     #[test]

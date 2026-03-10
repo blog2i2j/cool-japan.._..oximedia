@@ -524,6 +524,12 @@ mod tests {
         let mut mapping =
             ChannelMapping::new("m1", "Test", ChannelLayout::Stereo, ChannelLayout::Stereo);
         mapping.set_metadata("standard", "ITU-R BS.775");
-        assert_eq!(mapping.metadata.get("standard").unwrap(), "ITU-R BS.775");
+        assert_eq!(
+            mapping
+                .metadata
+                .get("standard")
+                .expect("failed to get value"),
+            "ITU-R BS.775"
+        );
     }
 }

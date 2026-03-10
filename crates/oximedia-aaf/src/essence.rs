@@ -686,7 +686,10 @@ mod tests {
     #[test]
     fn test_file_locator() {
         let locator = FileLocator::new("/media/video.mov");
-        assert_eq!(locator.path.to_str().unwrap(), "/media/video.mov");
+        assert_eq!(
+            locator.path.to_str().expect("to_str should succeed"),
+            "/media/video.mov"
+        );
     }
 
     #[test]

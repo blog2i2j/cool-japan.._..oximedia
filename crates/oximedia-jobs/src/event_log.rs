@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn test_latest_event() {
         let log = make_log();
-        let latest = log.latest_event(1).unwrap();
+        let latest = log.latest_event(1).expect("latest should be valid");
         assert_eq!(latest.kind, JobEventKind::Completed);
     }
 

@@ -334,7 +334,7 @@ mod tests {
         let request = ClearKeyRequest::new(vec![key_id.clone()]);
 
         assert_eq!(request.kids.len(), 1);
-        let decoded = request.get_key_ids().unwrap();
+        let decoded = request.get_key_ids().expect("get_key_ids should succeed");
         assert_eq!(decoded[0], key_id);
     }
 
@@ -343,8 +343,8 @@ mod tests {
         let key_id = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16];
         let request = ClearKeyRequest::new(vec![key_id]);
 
-        let json = request.to_json().unwrap();
-        let parsed = ClearKeyRequest::from_json(&json).unwrap();
+        let json = request.to_json().expect("to_json should succeed");
+        let parsed = ClearKeyRequest::from_json(&json).expect("from_json should parse");
 
         assert_eq!(parsed.kids, request.kids);
     }
@@ -357,8 +357,8 @@ mod tests {
         let jwk = JsonWebKey::new(key_id.clone(), key.clone());
 
         assert_eq!(jwk.kty, "oct");
-        assert_eq!(jwk.get_key_id().unwrap(), key_id);
-        assert_eq!(jwk.get_key().unwrap(), key);
+        assert_eq!(jwk.get_key_id().expect("get_key_id should decode"), key_id);
+        assert_eq!(jwk.get_key().expect("get_key should decode"), key);
     }
 
     #[test]
@@ -371,7 +371,9 @@ mod tests {
 
         assert_eq!(response.keys.len(), 1);
 
-        let keys_map = response.get_keys_map().unwrap();
+        let keys_map = response
+            .get_keys_map()
+            .expect("get_keys_map should succeed");
         assert_eq!(keys_map.get(&key_id), Some(&key));
     }
 
@@ -383,8 +385,8 @@ mod tests {
         let mut response = ClearKeyResponse::new(Vec::new());
         response.add_key(key_id, key);
 
-        let json = response.to_json().unwrap();
-        let parsed = ClearKeyResponse::from_json(&json).unwrap();
+        let json = response.to_json().expect("to_json should succeed");
+        let parsed = ClearKeyResponse::from_json(&json).expect("from_json should parse");
 
         assert_eq!(parsed.keys.len(), response.keys.len());
     }
@@ -399,10 +401,14 @@ mod tests {
         assert!(server.has_key(&key_id));
 
         let request = ClearKeyRequest::new(vec![key_id.clone()]);
-        let response = server.process_request(&request).unwrap();
+        let response = server
+            .process_request(&request)
+            .expect("process_request should succeed");
 
         assert_eq!(response.keys.len(), 1);
-        let keys_map = response.get_keys_map().unwrap();
+        let keys_map = response
+            .get_keys_map()
+            .expect("get_keys_map should succeed");
         assert_eq!(keys_map.get(&key_id), Some(&key));
     }
 
@@ -426,7 +432,9 @@ mod tests {
         server.add_key(key_id.clone(), key.clone());
 
         let mut client = ClearKeyClient::new();
-        client.request_keys(vec![key_id.clone()], &server).unwrap();
+        client
+            .request_keys(vec![key_id.clone()], &server)
+            .expect("request_keys should succeed");
 
         assert_eq!(client.key_count(), 1);
         assert_eq!(client.get_key(&key_id), Some(&key));
@@ -438,10 +446,10 @@ mod tests {
         let key_id2 = vec![16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1];
 
         let pssh_data = ClearKeyPsshData::new(vec![key_id1.clone(), key_id2.clone()]);
-        let bytes = pssh_data.to_bytes().unwrap();
+        let bytes = pssh_data.to_bytes().expect("to_bytes should succeed");
 
-        let parsed = ClearKeyPsshData::from_bytes(&bytes).unwrap();
-        let parsed_ids = parsed.get_key_ids().unwrap();
+        let parsed = ClearKeyPsshData::from_bytes(&bytes).expect("from_bytes should parse");
+        let parsed_ids = parsed.get_key_ids().expect("get_key_ids should decode");
 
         assert_eq!(parsed_ids.len(), 2);
         assert_eq!(parsed_ids[0], key_id1);

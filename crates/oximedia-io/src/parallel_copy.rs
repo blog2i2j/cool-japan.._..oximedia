@@ -412,7 +412,7 @@ mod tests {
         assert_eq!(queue.remaining(), 3);
         assert!(!queue.is_finished());
 
-        let c1 = queue.take_next().unwrap();
+        let c1 = queue.take_next().expect("take_next should return chunk");
         assert_eq!(c1.index, 0);
         assert_eq!(queue.remaining(), 3); // 2 pending + 1 in progress
 
@@ -420,8 +420,8 @@ mod tests {
         assert_eq!(queue.remaining(), 2);
         assert_eq!(queue.completed_count(), 1);
 
-        let _ = queue.take_next().unwrap();
-        let _ = queue.take_next().unwrap();
+        let _ = queue.take_next().expect("take_next should return chunk");
+        let _ = queue.take_next().expect("take_next should return chunk");
         queue.mark_completed(1);
         queue.mark_completed(2);
         assert!(queue.is_finished());
@@ -444,7 +444,7 @@ mod tests {
         assert!(calc.estimate_remaining_secs(1000).is_none());
 
         calc.add_sample(1000, 1_000_000_000);
-        let est = calc.estimate_remaining_secs(5000).unwrap();
+        let est = calc.estimate_remaining_secs(5000).expect("estimate should succeed");
         assert!((est - 5.0).abs() < 0.01);
     }
 

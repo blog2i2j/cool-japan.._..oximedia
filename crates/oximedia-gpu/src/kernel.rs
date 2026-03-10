@@ -232,7 +232,7 @@ mod tests {
         cache.add(KernelSpec::new(KernelType::Sharpen, 4, 4, 640, 480));
         let found = cache.find(&KernelType::Sharpen);
         assert!(found.is_some());
-        assert_eq!(found.unwrap().width, 640);
+        assert_eq!(found.expect("operation should succeed in test").width, 640);
     }
 
     #[test]
@@ -260,7 +260,9 @@ mod tests {
         cache.add(KernelSpec::new(KernelType::VideoScale, 3, 3, 100, 100));
         cache.add(KernelSpec::new(KernelType::VideoScale, 4, 4, 200, 200));
         // Must return the first inserted spec.
-        let found = cache.find(&KernelType::VideoScale).unwrap();
+        let found = cache
+            .find(&KernelType::VideoScale)
+            .expect("find should return a result");
         assert_eq!(found.width, 100);
     }
 

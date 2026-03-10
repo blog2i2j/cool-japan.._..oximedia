@@ -333,7 +333,7 @@ mod tests {
         let config = RenderPassBuilder::new()
             .add_color_attachment(color)
             .build()
-            .unwrap();
+            .expect("operation should succeed in test");
         assert_eq!(config.attachment_count(), 1);
     }
 
@@ -355,9 +355,9 @@ mod tests {
         let config = RenderPassBuilder::new()
             .add_color_attachment(color)
             .set_depth_attachment(depth)
-            .unwrap()
+            .expect("operation should succeed in test")
             .build()
-            .unwrap();
+            .expect("operation should succeed in test");
         assert!(config.has_depth_attachment());
         assert_eq!(config.attachment_count(), 2);
     }
@@ -377,7 +377,7 @@ mod tests {
         let config = RenderPassBuilder::new()
             .add_color_attachment(color)
             .build()
-            .unwrap();
+            .expect("operation should succeed in test");
         assert!(config.has_uniform_color_format());
     }
 }

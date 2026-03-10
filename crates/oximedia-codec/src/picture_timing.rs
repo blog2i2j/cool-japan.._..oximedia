@@ -341,14 +341,14 @@ mod tests {
     fn test_parser_frame_pic_struct() {
         let parser = PictureTimingParser::new(true, false);
         // byte 0 lower nibble = 0 → Frame
-        let pt = parser.parse(&[0x00]).unwrap();
+        let pt = parser.parse(&[0x00]).expect("parse should succeed");
         assert_eq!(pt.pic_struct, Some(PicStruct::Frame));
     }
 
     #[test]
     fn test_parser_top_field_pic_struct() {
         let parser = PictureTimingParser::new(true, false);
-        let pt = parser.parse(&[0x01]).unwrap();
+        let pt = parser.parse(&[0x01]).expect("parse should succeed");
         assert_eq!(pt.pic_struct, Some(PicStruct::TopField));
     }
 
@@ -357,7 +357,7 @@ mod tests {
         let parser = PictureTimingParser::new(false, true);
         // cpb = 0x0064 = 100, dpb = 0x00C8 = 200
         let data = [0x00, 0x00, 0x64, 0x00, 0xC8, 0x00];
-        let pt = parser.parse(&data).unwrap();
+        let pt = parser.parse(&data).expect("parse should succeed");
         assert_eq!(pt.cpb_removal_delay, 100);
         assert_eq!(pt.dpb_output_delay, 200);
     }
@@ -366,14 +366,14 @@ mod tests {
     fn test_parser_repeat_first_field_flag() {
         let parser = PictureTimingParser::new(false, true);
         let data = [0x00, 0x00, 0x01, 0x00, 0x02, 0x01];
-        let pt = parser.parse(&data).unwrap();
+        let pt = parser.parse(&data).expect("parse should succeed");
         assert!(pt.is_repeat_first_field());
     }
 
     #[test]
     fn test_parser_no_pic_struct_when_flag_false() {
         let parser = PictureTimingParser::new(false, false);
-        let pt = parser.parse(&[0x07]).unwrap();
+        let pt = parser.parse(&[0x07]).expect("parse should succeed");
         assert!(pt.pic_struct.is_none());
     }
 }

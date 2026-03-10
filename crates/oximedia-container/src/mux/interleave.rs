@@ -195,11 +195,11 @@ mod tests {
         il.push(pkt(1, 100, true));
         il.push(pkt(0, 200, false));
 
-        let first = il.pop().unwrap();
+        let first = il.pop().expect("operation should succeed");
         assert_eq!(first.pts, 100);
-        let second = il.pop().unwrap();
+        let second = il.pop().expect("operation should succeed");
         assert_eq!(second.pts, 200);
-        let third = il.pop().unwrap();
+        let third = il.pop().expect("operation should succeed");
         assert_eq!(third.pts, 300);
     }
 
@@ -242,7 +242,7 @@ mod tests {
         assert!(il.pop_if_full().is_none());
         il.push(pkt(0, 3, false));
         // Now full: pop_if_full should return the lowest
-        let p = il.pop_if_full().unwrap();
+        let p = il.pop_if_full().expect("operation should succeed");
         assert_eq!(p.pts, 1);
     }
 

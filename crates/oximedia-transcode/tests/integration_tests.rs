@@ -257,7 +257,7 @@ fn test_resolution_utilities() {
 #[test]
 fn test_abr_ladder_filtering() {
     let ladder = AbrLadder::hls_standard().filter_by_source(1280, 720);
-    let highest = ladder.highest_quality().unwrap();
+    let highest = ladder.highest_quality().expect("highest should be valid");
     assert_eq!(highest.height, 720);
 }
 

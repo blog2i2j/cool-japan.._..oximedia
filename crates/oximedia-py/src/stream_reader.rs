@@ -307,8 +307,8 @@ mod tests {
         let mut buf = ChunkBuffer::new(4);
         buf.push(b"abcdefgh");
         assert_eq!(buf.ready_count(), 2);
-        assert_eq!(buf.pop_chunk().unwrap(), b"abcd");
-        assert_eq!(buf.pop_chunk().unwrap(), b"efgh");
+        assert_eq!(buf.pop_chunk().expect("pop_chunk should succeed"), b"abcd");
+        assert_eq!(buf.pop_chunk().expect("pop_chunk should succeed"), b"efgh");
         assert!(buf.pop_chunk().is_none());
     }
 
@@ -319,7 +319,7 @@ mod tests {
         assert_eq!(buf.ready_count(), 0);
         buf.push(b"cd");
         assert_eq!(buf.ready_count(), 1);
-        assert_eq!(buf.pop_chunk().unwrap(), b"abcd");
+        assert_eq!(buf.pop_chunk().expect("pop_chunk should succeed"), b"abcd");
     }
 
     #[test]
@@ -327,7 +327,7 @@ mod tests {
         let mut buf = ChunkBuffer::new(10);
         buf.push(b"hello");
         assert!(buf.pop_chunk().is_none());
-        let flushed = buf.flush().unwrap();
+        let flushed = buf.flush().expect("flushed should be valid");
         assert_eq!(flushed, b"hello");
         assert!(buf.flush().is_none());
     }
@@ -359,9 +359,9 @@ mod tests {
     fn test_stream_reader_basic() {
         let mut reader = StreamReader::new(ReadMode::Chunked, 4);
         reader.feed(b"abcdefgh");
-        let c1 = reader.next_chunk().unwrap();
+        let c1 = reader.next_chunk().expect("c1 should be valid");
         assert_eq!(c1, b"abcd");
-        let c2 = reader.next_chunk().unwrap();
+        let c2 = reader.next_chunk().expect("c2 should be valid");
         assert_eq!(c2, b"efgh");
         assert!(reader.next_chunk().is_none());
         assert!(!reader.is_done());
@@ -375,7 +375,7 @@ mod tests {
         reader.feed(b"short");
         assert!(reader.next_chunk().is_none());
         reader.signal_eos();
-        let c = reader.next_chunk().unwrap();
+        let c = reader.next_chunk().expect("c should be valid");
         assert_eq!(c, b"short");
         assert!(reader.is_done());
     }

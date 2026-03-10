@@ -207,7 +207,7 @@ mod tests {
         let result = analyze_grain(&frame);
         assert!(result.is_ok());
 
-        let grain_map = result.unwrap();
+        let grain_map = result.expect("grain_map should be valid");
         assert_eq!(grain_map.width, 64);
         assert_eq!(grain_map.height, 64);
         assert_eq!(grain_map.strength.len(), 64 * 64);

@@ -237,7 +237,7 @@ mod tests {
             lang,
         );
         let parser = MediaHeaderParser::new();
-        let mdhd = parser.parse(&payload).unwrap();
+        let mdhd = parser.parse(&payload).expect("operation should succeed");
         assert_eq!(mdhd.version, 0);
         assert_eq!(mdhd.timescale, 90000);
         assert_eq!(mdhd.duration, 270000);
@@ -378,7 +378,7 @@ mod tests {
         let writer = MediaHeaderWriter::new();
         let bytes = writer.write(&original);
         let parser = MediaHeaderParser::new();
-        let parsed = parser.parse(&bytes).unwrap();
+        let parsed = parser.parse(&bytes).expect("operation should succeed");
         assert_eq!(parsed.timescale, original.timescale);
         assert_eq!(parsed.duration, original.duration);
         assert_eq!(parsed.language_code(), *b"fra");

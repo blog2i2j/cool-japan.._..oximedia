@@ -298,8 +298,9 @@ mod tests {
         let checker = HealthChecker::new();
         checker.register("encoder", |n| ComponentHealth::healthy(n));
 
-        let json = checker.to_json().unwrap();
-        let parsed: serde_json::Value = serde_json::from_str(&json).unwrap();
+        let json = checker.to_json().expect("to_json should succeed");
+        let parsed: serde_json::Value =
+            serde_json::from_str(&json).expect("failed to deserialize from JSON");
 
         assert_eq!(parsed["status"], "healthy");
         assert!(parsed["components"]["encoder"].is_object());

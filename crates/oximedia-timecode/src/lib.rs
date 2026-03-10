@@ -417,7 +417,7 @@ mod tests {
 
     #[test]
     fn test_timecode_creation() {
-        let tc = Timecode::new(1, 2, 3, 4, FrameRate::Fps25).unwrap();
+        let tc = Timecode::new(1, 2, 3, 4, FrameRate::Fps25).expect("valid timecode");
         assert_eq!(tc.hours, 1);
         assert_eq!(tc.minutes, 2);
         assert_eq!(tc.seconds, 3);
@@ -426,17 +426,17 @@ mod tests {
 
     #[test]
     fn test_timecode_display() {
-        let tc = Timecode::new(1, 2, 3, 4, FrameRate::Fps25).unwrap();
+        let tc = Timecode::new(1, 2, 3, 4, FrameRate::Fps25).expect("valid timecode");
         assert_eq!(tc.to_string(), "01:02:03:04");
 
-        let tc_df = Timecode::new(1, 2, 3, 4, FrameRate::Fps2997DF).unwrap();
+        let tc_df = Timecode::new(1, 2, 3, 4, FrameRate::Fps2997DF).expect("valid timecode");
         assert_eq!(tc_df.to_string(), "01:02:03;04");
     }
 
     #[test]
     fn test_timecode_increment() {
-        let mut tc = Timecode::new(0, 0, 0, 24, FrameRate::Fps25).unwrap();
-        tc.increment().unwrap();
+        let mut tc = Timecode::new(0, 0, 0, 24, FrameRate::Fps25).expect("valid timecode");
+        tc.increment().expect("increment should succeed");
         assert_eq!(tc.frames, 0);
         assert_eq!(tc.seconds, 1);
     }

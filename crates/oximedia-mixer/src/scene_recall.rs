@@ -428,10 +428,12 @@ mod tests {
     fn test_library_store_and_recall() {
         let mut lib = SceneLibrary::new();
         let channels = make_channels(4);
-        let id = lib.store_scene("Scene 1", channels).unwrap();
+        let id = lib
+            .store_scene("Scene 1", channels)
+            .expect("id should be valid");
         assert_eq!(lib.scene_count(), 1);
 
-        let scene = lib.recall_scene(id).unwrap();
+        let scene = lib.recall_scene(id).expect("scene should be valid");
         assert_eq!(scene.name, "Scene 1");
         assert_eq!(scene.channel_count(), 4);
     }
@@ -439,7 +441,9 @@ mod tests {
     #[test]
     fn test_library_delete() {
         let mut lib = SceneLibrary::new();
-        let id = lib.store_scene("Scene 1", make_channels(2)).unwrap();
+        let id = lib
+            .store_scene("Scene 1", make_channels(2))
+            .expect("id should be valid");
         assert_eq!(lib.scene_count(), 1);
         assert!(lib.delete_scene(id));
         assert_eq!(lib.scene_count(), 0);
@@ -449,26 +453,35 @@ mod tests {
     #[test]
     fn test_library_rename() {
         let mut lib = SceneLibrary::new();
-        let id = lib.store_scene("Original", make_channels(1)).unwrap();
+        let id = lib
+            .store_scene("Original", make_channels(1))
+            .expect("id should be valid");
         assert!(lib.rename_scene(id, "Renamed"));
-        assert_eq!(lib.get_scene(id).unwrap().name, "Renamed");
+        assert_eq!(
+            lib.get_scene(id).expect("get_scene should succeed").name,
+            "Renamed"
+        );
     }
 
     #[test]
     fn test_library_undo_redo() {
         let mut lib = SceneLibrary::new();
-        let id1 = lib.store_scene("Scene 1", make_channels(2)).unwrap();
-        let id2 = lib.store_scene("Scene 2", make_channels(2)).unwrap();
+        let id1 = lib
+            .store_scene("Scene 1", make_channels(2))
+            .expect("id1 should be valid");
+        let id2 = lib
+            .store_scene("Scene 2", make_channels(2))
+            .expect("id2 should be valid");
 
         lib.recall_scene(id1);
         lib.recall_scene(id2);
 
         assert!(lib.can_undo());
-        let prev = lib.undo().unwrap();
+        let prev = lib.undo().expect("prev should be valid");
         assert_eq!(prev.name, "Scene 1");
 
         assert!(lib.can_redo());
-        let next = lib.redo().unwrap();
+        let next = lib.redo().expect("next should be valid");
         assert_eq!(next.name, "Scene 2");
     }
 
@@ -493,11 +506,21 @@ mod tests {
     #[test]
     fn test_library_find_by_tag() {
         let mut lib = SceneLibrary::new();
-        let id1 = lib.store_scene("Scene 1", make_channels(1)).unwrap();
-        let id2 = lib.store_scene("Scene 2", make_channels(1)).unwrap();
+        let id1 = lib
+            .store_scene("Scene 1", make_channels(1))
+            .expect("id1 should be valid");
+        let id2 = lib
+            .store_scene("Scene 2", make_channels(1))
+            .expect("id2 should be valid");
 
-        lib.scenes.get_mut(&id1).unwrap().add_tag("broadcast");
-        lib.scenes.get_mut(&id2).unwrap().add_tag("studio");
+        lib.scenes
+            .get_mut(&id1)
+            .expect("get_mut should succeed")
+            .add_tag("broadcast");
+        lib.scenes
+            .get_mut(&id2)
+            .expect("get_mut should succeed")
+            .add_tag("studio");
 
         let results = lib.find_by_tag("broadcast");
         assert_eq!(results.len(), 1);
@@ -559,9 +582,9 @@ mod tests {
     #[test]
     fn test_scene_order() {
         let mut lib = SceneLibrary::new();
-        let id1 = lib.store_scene("A", vec![]).unwrap();
-        let id2 = lib.store_scene("B", vec![]).unwrap();
-        let id3 = lib.store_scene("C", vec![]).unwrap();
+        let id1 = lib.store_scene("A", vec![]).expect("id1 should be valid");
+        let id2 = lib.store_scene("B", vec![]).expect("id2 should be valid");
+        let id3 = lib.store_scene("C", vec![]).expect("id3 should be valid");
         let order = lib.scene_order();
         assert_eq!(order, &[id1, id2, id3]);
     }

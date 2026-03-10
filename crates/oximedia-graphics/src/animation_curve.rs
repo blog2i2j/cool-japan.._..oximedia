@@ -125,8 +125,11 @@ impl AnimationCurve {
     /// Add a keyframe. The internal list is kept sorted by `time_ms`.
     pub fn add_keyframe(&mut self, kf: AnimationKeyframe) {
         self.keyframes.push(kf);
-        self.keyframes
-            .sort_by(|a, b| a.time_ms.partial_cmp(&b.time_ms).unwrap());
+        self.keyframes.sort_by(|a, b| {
+            a.time_ms
+                .partial_cmp(&b.time_ms)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
     }
 
     /// Evaluate the curve at `time_ms`.
@@ -141,7 +144,10 @@ impl AnimationCurve {
         if self.keyframes.len() == 1 || time_ms <= self.keyframes[0].time_ms {
             return self.keyframes[0].value;
         }
-        let last = self.keyframes.last().unwrap();
+        let last = self
+            .keyframes
+            .last()
+            .expect("keyframes non-empty: length check passed above");
         if time_ms >= last.time_ms {
             return last.value;
         }

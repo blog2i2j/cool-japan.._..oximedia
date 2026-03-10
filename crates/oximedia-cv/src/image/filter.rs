@@ -606,7 +606,7 @@ mod tests {
     fn test_gaussian_blur_apply() {
         let src = vec![100u8; 25];
         let blur = GaussianBlur::new(1.0, 3);
-        let result = blur.apply(&src, 5, 5).unwrap();
+        let result = blur.apply(&src, 5, 5).expect("apply should succeed");
         assert_eq!(result.len(), 25);
 
         // Uniform image should remain close to original
@@ -619,7 +619,7 @@ mod tests {
     fn test_box_blur() {
         let src = vec![100u8; 25];
         let blur = BoxBlur::new(3);
-        let result = blur.apply(&src, 5, 5).unwrap();
+        let result = blur.apply(&src, 5, 5).expect("apply should succeed");
         assert_eq!(result.len(), 25);
 
         // Uniform image should remain exactly the same
@@ -635,7 +635,7 @@ mod tests {
         src[12] = 255; // Salt noise
 
         let filter = MedianFilter::new(3);
-        let result = filter.apply(&src, 5, 5).unwrap();
+        let result = filter.apply(&src, 5, 5).expect("apply should succeed");
 
         // Median filter should remove the noise
         assert!(result[12] < 200);
@@ -645,7 +645,7 @@ mod tests {
     fn test_bilateral_filter() {
         let src = vec![100u8; 25];
         let filter = BilateralFilter::new(10.0, 30.0, 5);
-        let result = filter.apply(&src, 5, 5).unwrap();
+        let result = filter.apply(&src, 5, 5).expect("apply should succeed");
         assert_eq!(result.len(), 25);
 
         // Uniform image should remain close to original
@@ -665,7 +665,7 @@ mod tests {
     fn test_convolution_kernel_apply() {
         let src = vec![100u8; 25];
         let kernel = ConvolutionKernel::sharpen();
-        let result = kernel.apply(&src, 5, 5).unwrap();
+        let result = kernel.apply(&src, 5, 5).expect("apply should succeed");
         assert_eq!(result.len(), 25);
     }
 

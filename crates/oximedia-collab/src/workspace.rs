@@ -261,23 +261,28 @@ mod tests {
     #[test]
     fn test_add_member_bootstrap() {
         let mut ws = Workspace::new("ws1", "My Workspace");
-        ws.add_member(None, admin("a1")).unwrap();
+        ws.add_member(None, admin("a1"))
+            .expect("collab test operation should succeed");
         assert_eq!(ws.active_member_count(), 1);
     }
 
     #[test]
     fn test_add_member_by_admin() {
         let mut ws = Workspace::new("ws1", "My Workspace");
-        ws.add_member(None, admin("a1")).unwrap();
-        ws.add_member(Some("a1"), editor("e1")).unwrap();
+        ws.add_member(None, admin("a1"))
+            .expect("collab test operation should succeed");
+        ws.add_member(Some("a1"), editor("e1"))
+            .expect("collab test operation should succeed");
         assert_eq!(ws.active_member_count(), 2);
     }
 
     #[test]
     fn test_add_member_by_non_admin_fails() {
         let mut ws = Workspace::new("ws1", "My Workspace");
-        ws.add_member(None, admin("a1")).unwrap();
-        ws.add_member(Some("a1"), editor("e1")).unwrap();
+        ws.add_member(None, admin("a1"))
+            .expect("collab test operation should succeed");
+        ws.add_member(Some("a1"), editor("e1"))
+            .expect("collab test operation should succeed");
         let result = ws.add_member(Some("e1"), viewer("v1"));
         assert!(result.is_err());
     }
@@ -285,18 +290,24 @@ mod tests {
     #[test]
     fn test_remove_member_by_admin() {
         let mut ws = Workspace::new("ws1", "My Workspace");
-        ws.add_member(None, admin("a1")).unwrap();
-        ws.add_member(Some("a1"), editor("e1")).unwrap();
-        ws.remove_member("a1", "e1").unwrap();
+        ws.add_member(None, admin("a1"))
+            .expect("collab test operation should succeed");
+        ws.add_member(Some("a1"), editor("e1"))
+            .expect("collab test operation should succeed");
+        ws.remove_member("a1", "e1")
+            .expect("collab test operation should succeed");
         assert_eq!(ws.active_member_count(), 1);
     }
 
     #[test]
     fn test_remove_member_by_editor_fails() {
         let mut ws = Workspace::new("ws1", "My Workspace");
-        ws.add_member(None, admin("a1")).unwrap();
-        ws.add_member(Some("a1"), editor("e1")).unwrap();
-        ws.add_member(Some("a1"), viewer("v1")).unwrap();
+        ws.add_member(None, admin("a1"))
+            .expect("collab test operation should succeed");
+        ws.add_member(Some("a1"), editor("e1"))
+            .expect("collab test operation should succeed");
+        ws.add_member(Some("a1"), viewer("v1"))
+            .expect("collab test operation should succeed");
         let result = ws.remove_member("e1", "v1");
         assert!(result.is_err());
     }
@@ -304,10 +315,14 @@ mod tests {
     #[test]
     fn test_active_member_count_excludes_removed() {
         let mut ws = Workspace::new("ws1", "My Workspace");
-        ws.add_member(None, admin("a1")).unwrap();
-        ws.add_member(Some("a1"), editor("e1")).unwrap();
-        ws.add_member(Some("a1"), viewer("v1")).unwrap();
-        ws.remove_member("a1", "v1").unwrap();
+        ws.add_member(None, admin("a1"))
+            .expect("collab test operation should succeed");
+        ws.add_member(Some("a1"), editor("e1"))
+            .expect("collab test operation should succeed");
+        ws.add_member(Some("a1"), viewer("v1"))
+            .expect("collab test operation should succeed");
+        ws.remove_member("a1", "v1")
+            .expect("collab test operation should succeed");
         assert_eq!(ws.active_member_count(), 2);
         assert_eq!(ws.total_member_count(), 3);
     }

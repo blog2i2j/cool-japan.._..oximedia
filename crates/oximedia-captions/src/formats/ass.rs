@@ -209,7 +209,7 @@ mod tests {
     fn test_parse_ass() {
         let ass = b"[Script Info]\nTitle: Test\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:01.00,0:00:03.00,Default,,0,0,0,,Test caption\n";
         let parser = AssParser;
-        let track = parser.parse(ass).unwrap();
+        let track = parser.parse(ass).expect("parsing should succeed");
 
         assert_eq!(track.captions.len(), 1);
         assert_eq!(track.captions[0].text, "Test caption");
@@ -224,7 +224,7 @@ mod tests {
 
     #[test]
     fn test_timestamp_parsing() {
-        let ts = parse_ass_timestamp("1:30:45.50").unwrap();
+        let ts = parse_ass_timestamp("1:30:45.50").expect("timestamp parsing should succeed");
         assert_eq!(ts.as_hmsm(), (1, 30, 45, 500));
     }
 }

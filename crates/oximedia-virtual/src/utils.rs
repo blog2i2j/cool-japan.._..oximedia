@@ -2,7 +2,7 @@
 //!
 //! Provides common utility functions, conversions, and helpers.
 
-use nalgebra::{Matrix4, Point3, Quaternion, UnitQuaternion, Vector3};
+use crate::math::{Matrix4, Point3, Quaternion, UnitQuaternion, Vector3};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Convert timestamp to nanoseconds since epoch
@@ -73,9 +73,9 @@ pub fn look_at_matrix(eye: &Point3<f64>, target: &Point3<f64>, up: &Vector3<f64>
     result[(2, 0)] = -f.x;
     result[(2, 1)] = -f.y;
     result[(2, 2)] = -f.z;
-    result[(0, 3)] = -s.dot(&eye.coords);
-    result[(1, 3)] = -u.dot(&eye.coords);
-    result[(2, 3)] = f.dot(&eye.coords);
+    result[(0, 3)] = -s.dot(&eye.coords());
+    result[(1, 3)] = -u.dot(&eye.coords());
+    result[(2, 3)] = f.dot(&eye.coords());
 
     result
 }

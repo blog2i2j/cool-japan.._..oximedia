@@ -127,7 +127,7 @@ impl CrossfadeSegment {
         if item_duration > self.start_offset_from_end {
             item_duration
                 .checked_sub(self.start_offset_from_end)
-                .unwrap()
+                .unwrap_or(Duration::ZERO)
         } else {
             Duration::ZERO
         }

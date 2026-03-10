@@ -64,12 +64,15 @@ mod tests {
 
     #[test]
     fn test_generate_technical_doc() {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"Test content for technical doc").unwrap();
-        file.flush().unwrap();
+        let mut file = NamedTempFile::new().expect("operation should succeed");
+        file.write_all(b"Test content for technical doc")
+            .expect("operation should succeed");
+        file.flush().expect("operation should succeed");
 
         let generator = TechnicalDocGenerator::new();
-        let doc = generator.generate(file.path()).unwrap();
+        let doc = generator
+            .generate(file.path())
+            .expect("operation should succeed");
 
         assert!(doc.contains("Technical Specification"));
         assert!(doc.contains("File Information"));

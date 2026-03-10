@@ -461,7 +461,9 @@ mod tests {
         booster.register_job("job-1", 10, None);
         booster.manual_boost("job-1", 5, "first");
         booster.manual_boost("job-1", 10, "second");
-        let history = booster.boost_history("job-1").unwrap();
+        let history = booster
+            .boost_history("job-1")
+            .expect("history should be valid");
         assert_eq!(history.len(), 2);
         assert_eq!(history[0].strategy, BoostStrategy::Manual);
         assert_eq!(history[1].delta, 10);
@@ -514,9 +516,19 @@ mod tests {
         }
         booster.evaluate_all();
         // j1 should have gotten at least deadline + starvation boosts
-        assert!(booster.effective_priority("j1").unwrap() > 10);
+        assert!(
+            booster
+                .effective_priority("j1")
+                .expect("effective_priority should succeed")
+                > 10
+        );
         // j2 should have gotten dependency completion boost
-        assert!(booster.effective_priority("j2").unwrap() > 20);
+        assert!(
+            booster
+                .effective_priority("j2")
+                .expect("effective_priority should succeed")
+                > 20
+        );
     }
 
     #[test]

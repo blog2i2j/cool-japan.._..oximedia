@@ -168,15 +168,24 @@ impl ExecutionTrace {
     }
 
     /// Start a new root span.
+    ///
+    /// # Panics
+    ///
+    /// This method will not panic; if the internal map entry is somehow
+    /// missing after insertion the returned reference is obtained via
+    /// `Entry::or_insert_with`, guaranteeing it exists.
     pub fn start_span(&mut self, id: SpanId, name: impl Into<String>) -> &mut TraceSpan {
         let span = TraceSpan::start(id.clone(), name);
         let key = id.0.clone();
-        self.spans.insert(key.clone(), span);
         self.span_order.push(key.clone());
-        self.spans.get_mut(&key).expect("just inserted")
+        self.spans.entry(key).or_insert(span)
     }
 
     /// Start a child span under a parent.
+    ///
+    /// # Panics
+    ///
+    /// Same guarantee as [`start_span`](Self::start_span).
     pub fn start_child_span(
         &mut self,
         id: SpanId,
@@ -185,9 +194,8 @@ impl ExecutionTrace {
     ) -> &mut TraceSpan {
         let span = TraceSpan::start_child(id.clone(), parent, name);
         let key = id.0.clone();
-        self.spans.insert(key.clone(), span);
         self.span_order.push(key.clone());
-        self.spans.get_mut(&key).expect("just inserted")
+        self.spans.entry(key).or_insert(span)
     }
 
     /// Finish a span with the given status.

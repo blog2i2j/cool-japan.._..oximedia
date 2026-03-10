@@ -109,11 +109,11 @@ impl AsRunEntry {
         if self.actual_duration > self.scheduled_duration {
             self.actual_duration
                 .checked_sub(self.scheduled_duration)
-                .unwrap()
+                .unwrap_or(Duration::ZERO)
         } else {
             self.scheduled_duration
                 .checked_sub(self.actual_duration)
-                .unwrap()
+                .unwrap_or(Duration::ZERO)
         }
     }
 }

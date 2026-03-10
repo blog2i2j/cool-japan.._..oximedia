@@ -395,7 +395,9 @@ mod tests {
 
         detector.update(&drifted_sync);
 
-        let measurement = detector.detect_drift(1).unwrap();
+        let measurement = detector
+            .detect_drift(1)
+            .expect("multicam test operation should succeed");
         assert!((measurement.drift_frames - 3.0).abs() < 0.01);
         assert!(measurement.exceeds_tolerance);
     }
@@ -419,7 +421,7 @@ mod tests {
             .current_offsets
             .iter()
             .find(|o| o.angle == 1)
-            .unwrap();
+            .expect("multicam test operation should succeed");
         assert!((offset.total_frames() - 15.0).abs() < 0.01);
     }
 
@@ -433,7 +435,9 @@ mod tests {
             exceeds_tolerance: true,
         };
 
-        let correction = corrector.apply_correction(&measurement).unwrap();
+        let correction = corrector
+            .apply_correction(&measurement)
+            .expect("multicam test operation should succeed");
         assert_eq!(correction, -5.0);
     }
 
@@ -449,7 +453,9 @@ mod tests {
             exceeds_tolerance: true,
         };
 
-        let correction = corrector.apply_correction(&measurement).unwrap();
+        let correction = corrector
+            .apply_correction(&measurement)
+            .expect("multicam test operation should succeed");
         assert_eq!(correction, -5.0); // 50% of 10 frames
     }
 

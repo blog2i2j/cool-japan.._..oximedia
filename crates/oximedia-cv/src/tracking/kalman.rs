@@ -226,7 +226,7 @@ impl KalmanFilter {
     /// use oximedia_cv::tracking::KalmanFilter;
     ///
     /// let mut kf = KalmanFilter::constant_velocity(1.0);
-    /// kf.set_state(vec![0.0, 0.0, 1.0, 1.0]).unwrap();
+    /// kf.set_state(vec![0.0, 0.0, 1.0, 1.0])?;
     ///
     /// let predicted = kf.predict();
     /// // After 1 second at velocity (1, 1), position should be (1, 1)
@@ -286,10 +286,10 @@ impl KalmanFilter {
     /// use oximedia_cv::tracking::KalmanFilter;
     ///
     /// let mut kf = KalmanFilter::constant_velocity(1.0);
-    /// kf.set_state(vec![0.0, 0.0, 1.0, 1.0]).unwrap();
+    /// kf.set_state(vec![0.0, 0.0, 1.0, 1.0])?;
     ///
     /// let measurement = vec![2.0, 3.0];
-    /// let updated = kf.update(&measurement).unwrap();
+    /// let updated = kf.update(&measurement)?;
     /// ```
     pub fn update(&mut self, measurement: &[f64]) -> CvResult<Vec<f64>> {
         if measurement.len() != self.measure_dim {
@@ -571,7 +571,8 @@ mod tests {
     fn test_set_state() {
         let mut kf = KalmanFilter::new(4, 2);
         let state = vec![1.0, 2.0, 3.0, 4.0];
-        kf.set_state(state.clone()).unwrap();
+        kf.set_state(state.clone())
+            .expect("operation should succeed");
 
         assert_eq!(kf.state(), &state[..]);
     }
@@ -579,7 +580,8 @@ mod tests {
     #[test]
     fn test_predict() {
         let mut kf = KalmanFilter::constant_velocity(1.0);
-        kf.set_state(vec![0.0, 0.0, 1.0, 1.0]).unwrap();
+        kf.set_state(vec![0.0, 0.0, 1.0, 1.0])
+            .expect("set_state should succeed");
 
         let predicted = kf.predict();
         assert!((predicted[0] - 1.0).abs() < 0.001); // x += vx*dt
@@ -589,10 +591,11 @@ mod tests {
     #[test]
     fn test_update() {
         let mut kf = KalmanFilter::constant_velocity(1.0);
-        kf.set_state(vec![0.0, 0.0, 1.0, 1.0]).unwrap();
+        kf.set_state(vec![0.0, 0.0, 1.0, 1.0])
+            .expect("set_state should succeed");
 
         let measurement = vec![1.0, 1.0];
-        let updated = kf.update(&measurement).unwrap();
+        let updated = kf.update(&measurement).expect("update should succeed");
 
         // State should be updated towards measurement
         assert!(updated[0] > 0.0);
@@ -602,14 +605,15 @@ mod tests {
     #[test]
     fn test_predict_update_cycle() {
         let mut kf = KalmanFilter::constant_velocity(1.0);
-        kf.set_state(vec![0.0, 0.0, 1.0, 0.0]).unwrap();
+        kf.set_state(vec![0.0, 0.0, 1.0, 0.0])
+            .expect("set_state should succeed");
 
         // Predict
         kf.predict();
 
         // Update with measurement
         let measurement = vec![1.5, 0.0];
-        kf.update(&measurement).unwrap();
+        kf.update(&measurement).expect("update should succeed");
 
         let state = kf.state();
         assert!(state[0] > 0.0);
@@ -660,7 +664,7 @@ mod tests {
     fn test_matrix_inverse() {
         let a = vec![4.0, 3.0, 3.0, 2.0];
 
-        let inv = matrix_inverse(&a, 2).unwrap();
+        let inv = matrix_inverse(&a, 2).expect("matrix_inverse should succeed");
         assert_eq!(inv.len(), 4);
 
         // A * A^-1 should be identity

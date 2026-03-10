@@ -86,7 +86,7 @@ mod tests {
             timestamp: chrono::Utc::now(),
         };
 
-        let alert = RiskAlert::from_risk(&risk).unwrap();
+        let alert = RiskAlert::from_risk(&risk).expect("operation should succeed");
         assert_eq!(alert.level, RiskAlertLevel::Error);
         assert!(alert.message.contains("CRITICAL"));
     }

@@ -279,6 +279,15 @@ impl LtcDecoder {
         self.bit_sync.reset();
     }
 
+    /// Return the most recently decoded timecode, if any.
+    ///
+    /// This is the same value that was returned by the last successful call
+    /// to [`process_samples`](Self::process_samples).  It is cleared on
+    /// [`reset`](Self::reset).
+    pub fn last_decoded_timecode(&self) -> Option<Timecode> {
+        self.last_timecode
+    }
+
     /// Check if decoder is synchronized
     pub fn is_synchronized(&self) -> bool {
         self.state == DecoderState::Locked && self.sync_confidence >= 10

@@ -1,7 +1,7 @@
 //! Tilt (vertical camera movement) detection.
 
 use crate::error::ShotResult;
-use ndarray::Array3;
+use crate::frame_buffer::FrameBuffer;
 
 /// Tilt detector (up/down vertical movement).
 pub struct TiltDetector {
@@ -23,8 +23,8 @@ impl TiltDetector {
     /// Returns error if frames are invalid.
     pub fn detect_tilt(
         &self,
-        _frame1: &Array3<u8>,
-        _frame2: &Array3<u8>,
+        _frame1: &FrameBuffer,
+        _frame2: &FrameBuffer,
     ) -> ShotResult<(bool, f32)> {
         // Simplified implementation
         Ok((false, 0.0))

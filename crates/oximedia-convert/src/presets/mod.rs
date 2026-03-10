@@ -197,9 +197,11 @@ mod tests {
 
     #[test]
     fn test_youtube_preset_properties() {
-        let preset = Preset::from_name("youtube-1080p").unwrap();
+        let preset = Preset::from_name("youtube-1080p").expect("youtube-1080p preset should exist");
         assert!(preset.video.is_some());
-        let video = preset.video.unwrap();
+        let video = preset
+            .video
+            .expect("youtube preset should have video settings");
         assert_eq!(video.height, Some(1080));
     }
 }

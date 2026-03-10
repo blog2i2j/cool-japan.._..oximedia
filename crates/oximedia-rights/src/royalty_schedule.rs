@@ -237,7 +237,14 @@ mod tests {
     #[test]
     fn test_payment_schedule_total_payout() {
         let sched = monthly_schedule(1, 100.0);
-        assert!((sched.total_payout().unwrap() - 1200.0).abs() < 1e-9);
+        assert!(
+            (sched
+                .total_payout()
+                .expect("rights test operation should succeed")
+                - 1200.0)
+                .abs()
+                < 1e-9
+        );
     }
 
     #[test]
@@ -307,7 +314,8 @@ mod tests {
     #[test]
     fn test_schedule_registry_register_and_get() {
         let mut reg = ScheduleRegistry::new();
-        reg.register(monthly_schedule(1, 200.0)).unwrap();
+        reg.register(monthly_schedule(1, 200.0))
+            .expect("rights test operation should succeed");
         assert!(reg.get(1).is_some());
         assert!(reg.get(99).is_none());
     }
@@ -315,7 +323,8 @@ mod tests {
     #[test]
     fn test_schedule_registry_duplicate_rejected() {
         let mut reg = ScheduleRegistry::new();
-        reg.register(monthly_schedule(1, 200.0)).unwrap();
+        reg.register(monthly_schedule(1, 200.0))
+            .expect("rights test operation should succeed");
         assert!(reg.register(monthly_schedule(1, 300.0)).is_err());
     }
 
@@ -323,7 +332,8 @@ mod tests {
     fn test_schedule_registry_total_annual_obligation() {
         let mut reg = ScheduleRegistry::new();
         // Monthly 100 * 12 = 1200
-        reg.register(monthly_schedule(1, 100.0)).unwrap();
+        reg.register(monthly_schedule(1, 100.0))
+            .expect("rights test operation should succeed");
         // Quarterly 250 * 4 = 1000
         reg.register(PaymentSchedule::new(
             2,
@@ -333,7 +343,7 @@ mod tests {
             "USD",
             None,
         ))
-        .unwrap();
+        .expect("rights test operation should succeed");
         assert!((reg.total_annual_obligation() - 2200.0).abs() < 1e-9);
     }
 }

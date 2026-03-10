@@ -1,9 +1,7 @@
 //! Spectral analysis utilities for audio restoration.
 
 use crate::error::{RestoreError, RestoreResult};
-use rustfft::num_complex::Complex;
-use rustfft::{Fft, FftPlanner};
-use std::sync::Arc;
+use oxifft::Complex;
 
 /// Window function type.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,9 +57,10 @@ fn window_factor(i: usize, n: usize, window: WindowFunction) -> f32 {
 }
 
 /// FFT processor for spectral analysis.
+///
+/// Wraps OxiFFT to provide a simple forward/inverse FFT interface over
+/// `Complex<f32>` buffers.
 pub struct FftProcessor {
-    fft: Arc<dyn Fft<f32>>,
-    ifft: Arc<dyn Fft<f32>>,
     size: usize,
 }
 
@@ -71,12 +70,9 @@ impl FftProcessor {
     /// # Arguments
     ///
     /// * `size` - FFT size (should be power of 2)
+    #[must_use]
     pub fn new(size: usize) -> Self {
-        let mut planner = FftPlanner::new();
-        let fft = planner.plan_fft_forward(size);
-        let ifft = planner.plan_fft_inverse(size);
-
-        Self { fft, ifft, size }
+        Self { size }
     }
 
     /// Get FFT size.
@@ -103,10 +99,10 @@ impl FftProcessor {
             )));
         }
 
-        let mut buffer: Vec<Complex<f32>> = samples.iter().map(|&s| Complex::new(s, 0.0)).collect();
-        self.fft.process(&mut buffer);
+        let input: Vec<Complex<f32>> = samples.iter().map(|&s| Complex::new(s, 0.0)).collect();
+        let output = oxifft::fft(&input);
 
-        Ok(buffer)
+        Ok(output)
     }
 
     /// Perform inverse FFT.
@@ -127,13 +123,10 @@ impl FftProcessor {
             )));
         }
 
-        let mut buffer = spectrum.to_vec();
-        self.ifft.process(&mut buffer);
+        let output = oxifft::ifft(spectrum);
 
-        // Normalize and extract real part
-        #[allow(clippy::cast_precision_loss)]
-        let scale = 1.0 / self.size as f32;
-        Ok(buffer.iter().map(|c| c.re * scale).collect())
+        // Extract real part (OxiFFT's ifft already normalizes by 1/N)
+        Ok(output.iter().map(|c| c.re).collect())
     }
 
     /// Compute magnitude spectrum.

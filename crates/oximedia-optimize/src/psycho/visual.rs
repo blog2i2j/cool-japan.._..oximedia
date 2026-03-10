@@ -170,14 +170,16 @@ mod tests {
     #[test]
     fn test_psycho_analyzer_creation() {
         let config = OptimizerConfig::default();
-        let analyzer = PsychoAnalyzer::new(&config).unwrap();
+        let analyzer =
+            PsychoAnalyzer::new(&config).expect("psycho analyzer creation should succeed");
         assert!(analyzer.enable_edge_preservation);
     }
 
     #[test]
     fn test_edge_analysis_flat() {
         let config = OptimizerConfig::default();
-        let analyzer = PsychoAnalyzer::new(&config).unwrap();
+        let analyzer =
+            PsychoAnalyzer::new(&config).expect("psycho analyzer creation should succeed");
         let pixels = vec![128u8; 64]; // Flat block
         let analysis = analyzer.analyze_edges(&pixels, 8);
         assert!(!analysis.preserve_edges);
@@ -187,7 +189,8 @@ mod tests {
     #[test]
     fn test_texture_analysis_flat() {
         let config = OptimizerConfig::default();
-        let analyzer = PsychoAnalyzer::new(&config).unwrap();
+        let analyzer =
+            PsychoAnalyzer::new(&config).expect("psycho analyzer creation should succeed");
         let pixels = vec![128u8; 64]; // Flat block
         let analysis = analyzer.analyze_texture(&pixels);
         assert!(!analysis.is_textured);
@@ -197,7 +200,8 @@ mod tests {
     #[test]
     fn test_texture_analysis_varied() {
         let config = OptimizerConfig::default();
-        let analyzer = PsychoAnalyzer::new(&config).unwrap();
+        let analyzer =
+            PsychoAnalyzer::new(&config).expect("psycho analyzer creation should succeed");
         let mut pixels = vec![0u8; 64];
         for (i, pixel) in pixels.iter_mut().enumerate() {
             *pixel = (i * 4) as u8;

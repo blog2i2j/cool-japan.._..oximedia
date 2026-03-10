@@ -230,7 +230,9 @@ mod tests {
     #[test]
     fn test_find_by_id_found() {
         let reg = make_registry();
-        let h = reg.find_by_id("rh-1").unwrap();
+        let h = reg
+            .find_by_id("rh-1")
+            .expect("rights test operation should succeed");
         assert_eq!(h.name, "Alice Author");
     }
 

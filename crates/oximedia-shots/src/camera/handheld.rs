@@ -1,7 +1,7 @@
 //! Handheld camera shake detection.
 
 use crate::error::ShotResult;
-use ndarray::Array3;
+use crate::frame_buffer::FrameBuffer;
 
 /// Handheld shake detector.
 pub struct HandheldDetector {
@@ -21,7 +21,7 @@ impl HandheldDetector {
     /// # Errors
     ///
     /// Returns error if frames are invalid.
-    pub fn detect_handheld(&self, _frames: &[Array3<u8>]) -> ShotResult<(bool, f32)> {
+    pub fn detect_handheld(&self, _frames: &[FrameBuffer]) -> ShotResult<(bool, f32)> {
         // Simplified implementation
         Ok((false, 0.0))
     }

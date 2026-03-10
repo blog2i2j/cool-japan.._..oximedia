@@ -25,7 +25,7 @@
 //! let mut distorted = VideoFrame::new(PixelFormat::Yuv420p, 640, 480);
 //! distorted.allocate();
 //!
-//! let result = calculate_psnr(&reference, &distorted).unwrap();
+//! let result = calculate_psnr(&reference, &distorted).expect("psnr should succeed");
 //! println!("PSNR: {:.2} dB", result);
 //! ```
 
@@ -108,7 +108,7 @@ impl PsnrResult {
 /// let mut dist_frame = VideoFrame::new(PixelFormat::Yuv420p, 1920, 1080);
 /// dist_frame.allocate();
 ///
-/// let psnr = calculate_psnr(&ref_frame, &dist_frame).unwrap();
+/// let psnr = calculate_psnr(&ref_frame, &dist_frame).expect("psnr should succeed");
 /// assert!(psnr >= 0.0);
 /// ```
 pub fn calculate_psnr(reference: &VideoFrame, distorted: &VideoFrame) -> CvResult<f64> {
@@ -137,7 +137,7 @@ pub fn calculate_psnr(reference: &VideoFrame, distorted: &VideoFrame) -> CvResul
 /// let mut distorted = VideoFrame::new(PixelFormat::Yuv420p, 1280, 720);
 /// distorted.allocate();
 ///
-/// let result = calculate_psnr_planes(&reference, &distorted).unwrap();
+/// let result = calculate_psnr_planes(&reference, &distorted).expect("psnr planes should succeed");
 /// println!("Y-PSNR: {:.2} dB", result.per_plane[0]);
 /// println!("U-PSNR: {:.2} dB", result.per_plane[1]);
 /// println!("V-PSNR: {:.2} dB", result.per_plane[2]);
@@ -337,7 +337,7 @@ fn validate_frames(reference: &VideoFrame, distorted: &VideoFrame) -> CvResult<(
 /// distorted.allocate();
 ///
 /// // Calculate Y-plane PSNR only
-/// let y_psnr = calculate_plane_psnr(&reference, &distorted, 0).unwrap();
+/// let y_psnr = calculate_plane_psnr(&reference, &distorted, 0).expect("plane psnr should succeed");
 /// println!("Luma PSNR: {:.2} dB", y_psnr);
 /// ```
 pub fn calculate_plane_psnr(
@@ -390,7 +390,7 @@ pub fn calculate_plane_psnr(
 /// let mut distorted = VideoFrame::new(PixelFormat::Yuv420p, 1280, 720);
 /// distorted.allocate();
 ///
-/// let mse = calculate_frame_mse(&reference, &distorted).unwrap();
+/// let mse = calculate_frame_mse(&reference, &distorted).expect("frame mse should succeed");
 /// assert!(mse >= 0.0);
 /// ```
 pub fn calculate_frame_mse(reference: &VideoFrame, distorted: &VideoFrame) -> CvResult<f64> {
@@ -423,7 +423,7 @@ pub fn calculate_frame_mse(reference: &VideoFrame, distorted: &VideoFrame) -> Cv
 /// let reference = vec![255u8; 1024];
 /// let distorted = vec![250u8; 1024];
 ///
-/// let psnr = calculate_buffer_psnr(&reference, &distorted, 8).unwrap();
+/// let psnr = calculate_buffer_psnr(&reference, &distorted, 8).expect("buffer psnr should succeed");
 /// assert!(psnr > 0.0);
 /// ```
 pub fn calculate_buffer_psnr(reference: &[u8], distorted: &[u8], bit_depth: u32) -> CvResult<f64> {
@@ -562,7 +562,7 @@ impl PsnrQuality {
 ///
 /// // Equal weights for all planes
 /// let weights = vec![1.0, 1.0, 1.0];
-/// let psnr = calculate_weighted_psnr(&reference, &distorted, &weights).unwrap();
+/// let psnr = calculate_weighted_psnr(&reference, &distorted, &weights).expect("weighted psnr should succeed");
 /// ```
 pub fn calculate_weighted_psnr(
     reference: &VideoFrame,
@@ -623,7 +623,7 @@ pub fn calculate_weighted_psnr(
 /// distorted.allocate();
 ///
 /// // Calculate PSNR for center region
-/// let psnr = calculate_roi_psnr(&reference, &distorted, 480, 270, 960, 540).unwrap();
+/// let psnr = calculate_roi_psnr(&reference, &distorted, 480, 270, 960, 540).expect("roi psnr should succeed");
 /// ```
 pub fn calculate_roi_psnr(
     reference: &VideoFrame,
@@ -720,7 +720,7 @@ pub fn calculate_roi_psnr(
 /// let mut distorted = VideoFrame::new(PixelFormat::Yuv420p, 1920, 1080);
 /// distorted.allocate();
 ///
-/// let psnr_map = calculate_psnr_map(&reference, &distorted, 64).unwrap();
+/// let psnr_map = calculate_psnr_map(&reference, &distorted, 64).expect("psnr map should succeed");
 /// // psnr_map[y][x] contains PSNR for block at (x, y)
 /// ```
 pub fn calculate_psnr_map(
@@ -811,7 +811,7 @@ pub fn calculate_psnr_map(
 ///     dist_frames.push(dist_frame);
 /// }
 ///
-/// let stats = calculate_psnr_statistics(&ref_frames, &dist_frames).unwrap();
+/// let stats = calculate_psnr_statistics(&ref_frames, &dist_frames).expect("psnr statistics should succeed");
 /// println!("Mean PSNR: {:.2} dB", stats.mean);
 /// ```
 pub fn calculate_psnr_statistics(
@@ -852,7 +852,7 @@ pub fn calculate_psnr_statistics(
 
     // Calculate percentiles
     let mut sorted = psnr_values.clone();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
     let percentile_1 = sorted[sorted.len() / 100];
     let percentile_5 = sorted[sorted.len() * 5 / 100];

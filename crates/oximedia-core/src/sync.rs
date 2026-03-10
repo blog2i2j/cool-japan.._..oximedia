@@ -366,7 +366,7 @@ mod tests {
     fn test_rwlock_try_write() {
         let mut lock = SimRwLock::new(99u32);
         {
-            let w = lock.try_write().unwrap();
+            let w = lock.try_write().expect("try_write should succeed");
             *w = 100;
         }
         lock.release_write();

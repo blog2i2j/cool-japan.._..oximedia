@@ -245,7 +245,7 @@ mod tests {
         let bg = solid_rgba(4, 4, 200, 0, 0, 255); // red bg
         let mut out = vec![0u8; 4 * 4 * 4];
         let params = ChromaKeyParams::green_screen();
-        apply_chroma_key(&fg, &bg, &mut out, 4, 4, &params).unwrap();
+        apply_chroma_key(&fg, &bg, &mut out, 4, 4, &params).expect("test expectation failed");
         // Alpha should be ~0: green was keyed → background shows through
         for px in out.chunks_exact(4) {
             // Background red channel should dominate
@@ -259,7 +259,7 @@ mod tests {
         let bg = solid_rgba(4, 4, 0, 0, 200, 255); // blue bg
         let mut out = vec![0u8; 4 * 4 * 4];
         let params = ChromaKeyParams::green_screen();
-        apply_chroma_key(&fg, &bg, &mut out, 4, 4, &params).unwrap();
+        apply_chroma_key(&fg, &bg, &mut out, 4, 4, &params).expect("test expectation failed");
         // Non-key pixels should be opaque (fg shows through)
         for px in out.chunks_exact(4) {
             assert_eq!(px[3], 255, "Alpha should be 255 for non-key pixel");
@@ -279,7 +279,7 @@ mod tests {
     #[test]
     fn test_detect_key_color_uniform_green() {
         let data = solid_rgba(8, 8, 0, 200, 0, 255);
-        let color = detect_key_color(&data, 8, 8).unwrap();
+        let color = detect_key_color(&data, 8, 8).expect("color should be valid");
         // Should detect approximately green
         assert!(color[1] > color[0], "Green channel should dominate");
         assert!(
@@ -322,7 +322,7 @@ mod tests {
                 data[base + 2] = 200;
             }
         }
-        let color = detect_key_color(&data, w, h).unwrap();
+        let color = detect_key_color(&data, w, h).expect("color should be valid");
         assert!(color[2] > color[0], "Blue should dominate border");
     }
 }

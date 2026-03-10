@@ -644,10 +644,12 @@ mod tests {
     fn test_bool_decoder_read_literal() {
         let mut decoder = BoolDecoder::new();
         let data = vec![0xFF, 0xFF, 0xFF, 0xFF];
-        decoder.init(&data, 0).unwrap();
+        decoder.init(&data, 0).expect("should succeed");
         let mut offset = 2;
 
-        let bit = decoder.read_literal(&data, &mut offset).unwrap();
+        let bit = decoder
+            .read_literal(&data, &mut offset)
+            .expect("should succeed");
         assert!(bit);
     }
 
@@ -655,10 +657,12 @@ mod tests {
     fn test_bool_decoder_read_literal_bits() {
         let mut decoder = BoolDecoder::new();
         let data = vec![0xAA, 0x55, 0xF0, 0x0F];
-        decoder.init(&data, 0).unwrap();
+        decoder.init(&data, 0).expect("should succeed");
         let mut offset = 2;
 
-        let value = decoder.read_literal_bits(&data, &mut offset, 4).unwrap();
+        let value = decoder
+            .read_literal_bits(&data, &mut offset, 4)
+            .expect("should succeed");
         // Value depends on boolean decoder state, just verify it's within valid range
         assert!(value <= 15);
     }
@@ -682,7 +686,7 @@ mod tests {
     fn test_partition_decode_simple() {
         let mut decoder = SymbolDecoder::new();
         let data = vec![0x80, 0x80, 0x00, 0x00, 0x00];
-        decoder.init(&data, 0).unwrap();
+        decoder.init(&data, 0).expect("should succeed");
 
         let ctx = FrameContext::new();
         // In a real scenario, this would decode actual partition data
@@ -695,7 +699,7 @@ mod tests {
     fn test_skip_decode() {
         let mut decoder = SymbolDecoder::new();
         let data = vec![0x80, 0x80, 0x00, 0x00];
-        decoder.init(&data, 0).unwrap();
+        decoder.init(&data, 0).expect("should succeed");
 
         let ctx = FrameContext::new();
         let result = decoder.decode_skip(&data, &ctx, 0);
@@ -714,7 +718,7 @@ mod tests {
     fn test_ref_frame_decode_single() {
         let mut decoder = SymbolDecoder::new();
         let data = vec![0x80, 0x80, 0x00, 0x00, 0x00];
-        decoder.init(&data, 0).unwrap();
+        decoder.init(&data, 0).expect("should succeed");
 
         let ctx = FrameContext::new();
         let result = decoder.decode_single_ref(&data, &ctx, 0, 0);
@@ -733,9 +737,9 @@ mod tests {
     fn test_symbol_decoder_read_unsigned() {
         let mut decoder = SymbolDecoder::new();
         let data = vec![0xFF, 0xFF, 0xFF, 0xFF];
-        decoder.init(&data, 0).unwrap();
+        decoder.init(&data, 0).expect("should succeed");
 
-        let value = decoder.read_unsigned(&data, 4).unwrap();
+        let value = decoder.read_unsigned(&data, 4).expect("should succeed");
         assert!(value <= 15);
     }
 
@@ -743,7 +747,7 @@ mod tests {
     fn test_symbol_decoder_finish() {
         let mut decoder = SymbolDecoder::new();
         let data = vec![0x80, 0x80];
-        decoder.init(&data, 0).unwrap();
+        decoder.init(&data, 0).expect("should succeed");
 
         assert_eq!(decoder.finish(), 2);
     }
@@ -758,11 +762,11 @@ mod tests {
     fn test_segment_id_bounds() {
         let mut decoder = SymbolDecoder::new();
         let data = vec![0xFF, 0xFF, 0xFF, 0xFF];
-        decoder.init(&data, 0).unwrap();
+        decoder.init(&data, 0).expect("should succeed");
 
         let seg_id = decoder
             .decode_segment_id(&data, &FrameContext::new(), 0)
-            .unwrap();
+            .expect("should succeed");
         assert!(seg_id < MAX_SEGMENTS as u8);
     }
 }

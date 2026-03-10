@@ -221,7 +221,7 @@ mod tests {
         let mut buf = PortBuffer::new(1, 0, 4);
         let p = DataPacket::new(1, 0, 0, vec![9]);
         assert!(buf.push(p));
-        let out = buf.pop().unwrap();
+        let out = buf.pop().expect("pop should succeed");
         assert_eq!(out.data, vec![9]);
     }
 

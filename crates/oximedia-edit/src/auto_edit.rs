@@ -427,8 +427,8 @@ mod tests {
             },
         ];
         let new_pos = ripple_close_gaps(&placements, 0);
-        assert_eq!(*new_pos.get(&1).unwrap(), 0);
-        assert_eq!(*new_pos.get(&2).unwrap(), 100);
-        assert_eq!(*new_pos.get(&3).unwrap(), 150);
+        assert_eq!(*new_pos.get(&1).expect("get should succeed"), 0);
+        assert_eq!(*new_pos.get(&2).expect("get should succeed"), 100);
+        assert_eq!(*new_pos.get(&3).expect("get should succeed"), 150);
     }
 }

@@ -162,9 +162,9 @@ mod tests {
         let frame = FilterFrame::Video(video);
 
         // Process should pass through
-        let result = filter.process(Some(frame)).unwrap();
+        let result = filter.process(Some(frame)).expect("process should succeed");
         assert!(result.is_some());
-        assert!(result.unwrap().is_video());
+        assert!(result.expect("value should be valid").is_video());
     }
 
     #[test]
@@ -172,7 +172,7 @@ mod tests {
         let mut filter = PassthroughFilter::new(NodeId(0), "test");
 
         // No input should produce no output
-        let result = filter.process(None).unwrap();
+        let result = filter.process(None).expect("process should succeed");
         assert!(result.is_none());
     }
 

@@ -753,10 +753,10 @@ mod tests {
 
     #[test]
     fn test_color_parsing() {
-        let color = Color::from_hex("#FF0000").unwrap();
+        let color = Color::from_hex("#FF0000").expect("hex color parsing should succeed");
         assert_eq!(color, Color::rgb(255, 0, 0));
 
-        let color = Color::from_hex("#00FF00AA").unwrap();
+        let color = Color::from_hex("#00FF00AA").expect("hex color parsing should succeed");
         assert_eq!(color, Color::new(0, 255, 0, 170));
     }
 
@@ -818,8 +818,12 @@ mod tests {
             "Second".to_string(),
         );
 
-        track.add_caption(cap1).unwrap();
-        track.add_caption(cap2).unwrap();
+        track
+            .add_caption(cap1)
+            .expect("adding caption should succeed");
+        track
+            .add_caption(cap2)
+            .expect("adding caption should succeed");
 
         assert_eq!(track.count(), 2);
         // Should be sorted by start time
@@ -858,7 +862,7 @@ mod extended_tests {
         let hex = red.to_hex();
         assert_eq!(hex, "#FF0000");
 
-        let parsed = Color::from_hex(&hex).unwrap();
+        let parsed = Color::from_hex(&hex).expect("hex color parsing should succeed");
         assert_eq!(parsed, red);
     }
 
@@ -868,7 +872,7 @@ mod extended_tests {
         let hex = color.to_hex();
         assert_eq!(hex, "#FF8040C8");
 
-        let parsed = Color::from_hex(&hex).unwrap();
+        let parsed = Color::from_hex(&hex).expect("hex color parsing should succeed");
         assert_eq!(parsed, color);
     }
 
@@ -943,8 +947,12 @@ mod extended_tests {
             "First".to_string(),
         );
 
-        track.add_caption(cap1).unwrap();
-        track.add_caption(cap2).unwrap();
+        track
+            .add_caption(cap1)
+            .expect("adding caption should succeed");
+        track
+            .add_caption(cap2)
+            .expect("adding caption should succeed");
 
         // Should be sorted by start time
         assert_eq!(track.captions[0].text, "First");
@@ -1014,7 +1022,7 @@ mod extended_tests {
                 Timestamp::from_secs(5),
                 "First".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
         track
             .add_caption(Caption::new(
@@ -1022,7 +1030,7 @@ mod extended_tests {
                 Timestamp::from_secs(15),
                 "Second".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
         track
             .add_caption(Caption::new(
@@ -1030,7 +1038,7 @@ mod extended_tests {
                 Timestamp::from_secs(25),
                 "Third".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
         let in_range =
             track.get_captions_in_range(Timestamp::from_secs(8), Timestamp::from_secs(22));

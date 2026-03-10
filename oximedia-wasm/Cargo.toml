@@ -20,6 +20,35 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 oximedia-core = { workspace = true, features = ["wasm"] }
+oximedia-codec = { workspace = true, default-features = false, features = ["vp8", "av1"] }
+oximedia-audio = { workspace = true, features = ["opus", "vorbis", "flac"] }
+oximedia-audio-analysis.workspace = true
+oximedia-metering.workspace = true
+oximedia-metadata.workspace = true
+oximedia-graph.workspace = true
+oximedia-subtitle.workspace = true
+oximedia-quality.workspace = true
+oximedia-stabilize.workspace = true
+oximedia-graphics.workspace = true
+oximedia-multicam.workspace = true
+oximedia-forensics.workspace = true
+oximedia-restore.workspace = true
+oximedia-captions.workspace = true
+oximedia-timecode.workspace = true
+oximedia-convert.workspace = true
+oximedia-colormgmt.workspace = true
+oximedia-transcode.workspace = true
+oximedia-image.workspace = true
+oximedia-watermark.workspace = true
+oximedia-scopes.workspace = true
+oximedia-denoise.workspace = true
+oximedia-plugin.workspace = true
+oximedia-mir.workspace = true
+oximedia-qc.workspace = true
+oximedia-imf.workspace = true
+oximedia-aaf.workspace = true
+oximedia-dolbyvision.workspace = true
+oximedia-scaling.workspace = true
 wasm-bindgen.workspace = true
 wasm-bindgen-futures.workspace = true
 js-sys.workspace = true
@@ -38,3 +67,7 @@ features = [
 
 [features]
 default = []
+vp8-decode = []
+audio-decode = []
+audio-analysis = []
+metadata = []

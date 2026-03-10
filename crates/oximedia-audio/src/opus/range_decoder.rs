@@ -433,7 +433,7 @@ mod tests {
     #[test]
     fn test_range_decoder_creation() {
         let data = vec![0x80, 0x00, 0x00, 0x00];
-        let decoder = RangeDecoder::new(&data).unwrap();
+        let decoder = RangeDecoder::new(&data).expect("should succeed");
         assert!(!decoder.is_eos());
     }
 
@@ -446,14 +446,14 @@ mod tests {
     #[test]
     fn test_range_decoder_bits_remaining() {
         let data = vec![0x80, 0x00];
-        let decoder = RangeDecoder::new(&data).unwrap();
+        let decoder = RangeDecoder::new(&data).expect("should succeed");
         assert!(decoder.bits_remaining() > 0);
     }
 
     #[test]
     fn test_decode_bits() {
         let data = vec![0xFF, 0x00, 0xFF, 0x00];
-        let mut decoder = RangeDecoder::new(&data).unwrap();
+        let mut decoder = RangeDecoder::new(&data).expect("should succeed");
         // Just verify it doesn't panic
         let _ = decoder.decode_bits(4);
     }
@@ -461,15 +461,15 @@ mod tests {
     #[test]
     fn test_decode_uniform_one() {
         let data = vec![0x80, 0x00];
-        let mut decoder = RangeDecoder::new(&data).unwrap();
-        let result = decoder.decode_uniform(1).unwrap();
+        let mut decoder = RangeDecoder::new(&data).expect("should succeed");
+        let result = decoder.decode_uniform(1).expect("should succeed");
         assert_eq!(result, 0);
     }
 
     #[test]
     fn test_tell() {
         let data = vec![0x80, 0x00, 0x00, 0x00];
-        let decoder = RangeDecoder::new(&data).unwrap();
+        let decoder = RangeDecoder::new(&data).expect("should succeed");
         assert!(decoder.tell() > 0);
     }
 
@@ -486,11 +486,11 @@ mod tests {
         let probs = vec![10, 20, 30, 40];
         let icdf = IcdfTable::from_probabilities(&probs);
 
-        let sym0 = icdf.symbol(0).unwrap();
+        let sym0 = icdf.symbol(0).expect("should succeed");
         assert_eq!(sym0.fl, 0);
         assert_eq!(sym0.fh, 10);
 
-        let sym1 = icdf.symbol(1).unwrap();
+        let sym1 = icdf.symbol(1).expect("should succeed");
         assert_eq!(sym1.fl, 10);
         assert_eq!(sym1.fh, 30);
     }

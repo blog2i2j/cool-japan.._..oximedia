@@ -242,7 +242,7 @@ mod tests {
 
         let found = attachments.find_by_filename("cover.jpg");
         assert!(found.is_some());
-        assert_eq!(found.unwrap().uid, 1);
+        assert_eq!(found.expect("operation should succeed").uid, 1);
     }
 
     #[test]

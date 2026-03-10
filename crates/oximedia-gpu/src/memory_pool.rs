@@ -325,7 +325,7 @@ mod tests {
         let mut pool = GpuMemoryPool::new(1024);
         let handle = pool.alloc(64, Alignment::Bytes16);
         assert!(handle.is_some());
-        let h = handle.unwrap();
+        let h = handle.expect("handle should be valid");
         assert_eq!(h.size, 64);
         assert_eq!(h.offset % 16, 0);
     }
@@ -339,7 +339,9 @@ mod tests {
     #[test]
     fn test_alloc_and_free_stats() {
         let mut pool = GpuMemoryPool::new(1024);
-        let h = pool.alloc(100, Alignment::Bytes4).unwrap();
+        let h = pool
+            .alloc(100, Alignment::Bytes4)
+            .expect("allocation should succeed");
         assert_eq!(pool.stats().total_allocated, 100);
         pool.free(&h);
         assert_eq!(pool.stats().total_allocated, 0);
@@ -348,8 +350,12 @@ mod tests {
     #[test]
     fn test_multiple_allocs_same_block() {
         let mut pool = GpuMemoryPool::new(4096);
-        let h1 = pool.alloc(128, Alignment::Bytes64).unwrap();
-        let h2 = pool.alloc(128, Alignment::Bytes64).unwrap();
+        let h1 = pool
+            .alloc(128, Alignment::Bytes64)
+            .expect("allocation should succeed");
+        let h2 = pool
+            .alloc(128, Alignment::Bytes64)
+            .expect("allocation should succeed");
         assert_eq!(h1.block_index, h2.block_index);
         assert_eq!(pool.block_count(), 1);
     }
@@ -358,9 +364,13 @@ mod tests {
     fn test_new_block_created_when_full() {
         let mut pool = GpuMemoryPool::new(64);
         // First alloc fills the initial block.
-        let _h1 = pool.alloc(64, Alignment::Bytes4).unwrap();
+        let _h1 = pool
+            .alloc(64, Alignment::Bytes4)
+            .expect("allocation should succeed");
         // Second alloc must create a new block.
-        let h2 = pool.alloc(64, Alignment::Bytes4).unwrap();
+        let h2 = pool
+            .alloc(64, Alignment::Bytes4)
+            .expect("allocation should succeed");
         assert!(h2.block_index >= 1 || pool.block_count() == 2);
     }
 
@@ -391,16 +401,24 @@ mod tests {
     #[test]
     fn test_alloc_id_increments() {
         let mut pool = GpuMemoryPool::new(1024);
-        let h1 = pool.alloc(10, Alignment::Bytes4).unwrap();
-        let h2 = pool.alloc(10, Alignment::Bytes4).unwrap();
+        let h1 = pool
+            .alloc(10, Alignment::Bytes4)
+            .expect("allocation should succeed");
+        let h2 = pool
+            .alloc(10, Alignment::Bytes4)
+            .expect("allocation should succeed");
         assert!(h2.id > h1.id);
     }
 
     #[test]
     fn test_block_coalescing_after_free() {
         let mut pool = GpuMemoryPool::new(256);
-        let h1 = pool.alloc(64, Alignment::Bytes4).unwrap();
-        let h2 = pool.alloc(64, Alignment::Bytes4).unwrap();
+        let h1 = pool
+            .alloc(64, Alignment::Bytes4)
+            .expect("allocation should succeed");
+        let h2 = pool
+            .alloc(64, Alignment::Bytes4)
+            .expect("allocation should succeed");
         pool.free(&h1);
         pool.free(&h2);
         // After freeing both, the pool should be able to allocate a 128-byte block again.

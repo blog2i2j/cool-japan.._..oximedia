@@ -431,7 +431,7 @@ mod tests {
         lib.add_asset(make_asset("step1", FoleyCategory::Footsteps));
         let asset = lib.get_asset("step1");
         assert!(asset.is_some());
-        assert_eq!(asset.unwrap().asset_id, "step1");
+        assert_eq!(asset.expect("asset should be valid").asset_id, "step1");
     }
 
     #[test]

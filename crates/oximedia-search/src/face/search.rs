@@ -38,14 +38,46 @@ impl FaceIndex {
         Ok(())
     }
 
-    /// Search for similar faces
+    /// Search for similar faces using Euclidean distance on face embeddings.
+    ///
+    /// Returns asset IDs that contain at least one face within distance
+    /// threshold 1.0 of the query embedding, sorted by closest match.
     ///
     /// # Errors
     ///
-    /// Returns an error if search fails
-    pub fn search_similar(&self, _embedding: &[f32]) -> SearchResult<Vec<Uuid>> {
-        // Placeholder
-        Ok(Vec::new())
+    /// Returns an error if search fails.
+    #[allow(clippy::cast_precision_loss)]
+    pub fn search_similar(&self, embedding: &[f32]) -> SearchResult<Vec<Uuid>> {
+        if embedding.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let threshold = 1.0_f32;
+        let mut matches: Vec<(Uuid, f32)> = Vec::new();
+
+        for (asset_id, descriptors) in &self.faces {
+            let min_dist = descriptors
+                .iter()
+                .map(|desc| {
+                    // Euclidean distance between query and stored embedding.
+                    desc.embedding
+                        .iter()
+                        .zip(embedding.iter())
+                        .map(|(a, b)| (a - b).powi(2))
+                        .sum::<f32>()
+                        .sqrt()
+                })
+                .fold(f32::MAX, f32::min);
+
+            if min_dist <= threshold {
+                matches.push((*asset_id, min_dist));
+            }
+        }
+
+        // Sort by distance ascending.
+        matches.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
+
+        Ok(matches.into_iter().map(|(id, _)| id).collect())
     }
 
     /// Commit changes

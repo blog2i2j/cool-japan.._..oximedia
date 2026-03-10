@@ -247,7 +247,7 @@ mod tests {
         let result = VarianceMap::new(&frame, 5);
         assert!(result.is_ok());
 
-        let var_map = result.unwrap();
+        let var_map = result.expect("var_map should be valid");
         assert_eq!(var_map.width, 64);
         assert_eq!(var_map.height, 64);
         assert_eq!(var_map.variance.len(), 64 * 64);
@@ -258,7 +258,7 @@ mod tests {
         let mut frame = VideoFrame::new(PixelFormat::Yuv420p, 64, 64);
         frame.allocate();
 
-        let var_map = VarianceMap::new(&frame, 5).unwrap();
+        let var_map = VarianceMap::new(&frame, 5).expect("var_map should be valid");
         let level = var_map.classify_variance(32, 32);
         assert!(matches!(
             level,
@@ -274,7 +274,7 @@ mod tests {
         let result = estimate_signal_dependent_variance(&frame);
         assert!(result.is_ok());
 
-        let (intercept, slope) = result.unwrap();
+        let (intercept, slope) = result.expect("test expectation failed");
         assert!(intercept >= 0.0);
         assert!(slope >= 0.0 || slope < 0.0); // Can be negative
     }

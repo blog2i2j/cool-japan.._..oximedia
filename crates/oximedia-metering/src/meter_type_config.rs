@@ -348,6 +348,11 @@ mod tests {
         set.insert(new_cfg);
         // Length should not grow — it replaces
         assert_eq!(set.len(), initial_len);
-        assert_eq!(set.get(MeterType::Vu).unwrap().window_ms, 500.0);
+        assert_eq!(
+            set.get(MeterType::Vu)
+                .expect("get should succeed")
+                .window_ms,
+            500.0
+        );
     }
 }

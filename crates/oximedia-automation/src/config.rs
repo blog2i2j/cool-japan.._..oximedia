@@ -434,7 +434,7 @@ mod tests {
             .build();
 
         assert!(config.is_ok());
-        let config = config.unwrap();
+        let config = config.expect("config should be valid");
         assert_eq!(config.global.system_name, "Test System");
         assert_eq!(config.master.num_channels, 2);
         assert!(config.master.eas_enabled);

@@ -356,7 +356,9 @@ mod tests {
         // Process some frames
         let frame = vec![128u8; 64 * 64];
         for i in 0..10 {
-            classifier.process_frame(&frame, 64, 64, i).unwrap();
+            classifier
+                .process_frame(&frame, 64, 64, i)
+                .expect("frame processing should succeed");
         }
 
         let classification = classifier.finalize();

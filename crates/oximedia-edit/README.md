@@ -1,7 +1,7 @@
 # oximedia-edit
 
 ![Status: Stable](https://img.shields.io/badge/status-stable-green)
-![Version: 0.1.0](https://img.shields.io/badge/version-0.1.0-blue)
+![Version: 0.1.1](https://img.shields.io/badge/version-0.1.1-blue)
 
 Video timeline editor for OxiMedia, providing a comprehensive multi-track editing system with effects, transitions, and rendering.
 
@@ -37,7 +37,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-edit = "0.1.0"
+oximedia-edit = "0.1.1"
 ```
 
 ```rust

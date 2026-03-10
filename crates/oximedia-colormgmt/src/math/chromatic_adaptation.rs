@@ -141,7 +141,7 @@ mod tests {
         let d65 = [0.95047, 1.0, 1.08883];
 
         // Adapting to the same white point should give identity-like result
-        let transform = bradford_transform(d65, d65).unwrap();
+        let transform = bradford_transform(d65, d65).expect("Bradford transform should succeed");
 
         // Apply transform to D65, should get D65 back
         let result = multiply_matrix_vector(&transform, d65);
@@ -156,7 +156,7 @@ mod tests {
         let d65 = [0.95047, 1.0, 1.08883];
         let d50 = [0.96422, 1.0, 0.82521];
 
-        let transform = bradford_transform(d65, d50).unwrap();
+        let transform = bradford_transform(d65, d50).expect("Bradford transform should succeed");
         let result = multiply_matrix_vector(&transform, d65);
 
         // Result should be close to D50

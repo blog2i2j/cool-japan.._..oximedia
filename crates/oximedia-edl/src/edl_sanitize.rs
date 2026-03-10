@@ -203,7 +203,7 @@ mod tests {
     #[test]
     fn test_sanitize_basic() {
         let input = "TITLE: Test\nFCM: NON-DROP FRAME\n\n001  AX  V  C  01:00:00:00 01:00:05:00 01:00:00:00 01:00:05:00\n";
-        let (out, report) = sanitize_edl(input, &SanitizeOptions::default()).unwrap();
+        let (out, report) = sanitize_edl(input, &SanitizeOptions::default()).expect("operation should succeed");
         assert!(out.contains("TITLE:"));
         assert!(report.lines_processed > 0);
     }
@@ -211,14 +211,14 @@ mod tests {
     #[test]
     fn test_sanitize_crlf() {
         let input = "TITLE: Test\r\nFCM: DROP FRAME\r\n001  AX  V  C  01:00:00:00 01:00:05:00 01:00:00:00 01:00:05:00\r\n";
-        let (out, _) = sanitize_edl(input, &SanitizeOptions::default()).unwrap();
+        let (out, _) = sanitize_edl(input, &SanitizeOptions::default()).expect("operation should succeed");
         assert!(!out.contains('\r'));
     }
 
     #[test]
     fn test_sanitize_collapse_blanks() {
         let input = "TITLE: A\n\n\n\n001  AX  V  C  01:00:00:00 01:00:05:00 01:00:00:00 01:00:05:00\n";
-        let (out, report) = sanitize_edl(input, &SanitizeOptions::default()).unwrap();
+        let (out, report) = sanitize_edl(input, &SanitizeOptions::default()).expect("operation should succeed");
         assert!(report.blank_lines_removed > 0);
         // At most one blank line in a row
         assert!(!out.contains("\n\n\n"));
@@ -236,7 +236,7 @@ mod tests {
         let mut opts = SanitizeOptions::default();
         opts.strip_non_ascii = true;
         let input = "TITLE: T\u{00e9}st\n001  AX  V  C  01:00:00:00 01:00:05:00 01:00:00:00 01:00:05:00\n";
-        let (out, report) = sanitize_edl(input, &opts).unwrap();
+        let (out, report) = sanitize_edl(input, &opts).expect("operation should succeed");
         assert!(!out.contains('\u{00e9}'));
         assert!(report.non_ascii_stripped > 0);
     }
@@ -246,7 +246,7 @@ mod tests {
         let mut opts = SanitizeOptions::default();
         opts.max_line_length = 20;
         let input = "TITLE: A very very very long title that exceeds maximum length\n001  AX  V  C  01:00:00:00 01:00:05:00 01:00:00:00 01:00:05:00\n";
-        let (out, report) = sanitize_edl(input, &opts).unwrap();
+        let (out, report) = sanitize_edl(input, &opts).expect("operation should succeed");
         for line in out.lines() {
             assert!(line.len() <= 20);
         }
@@ -256,7 +256,7 @@ mod tests {
     #[test]
     fn test_sanitize_trim_trailing() {
         let input = "TITLE: Test   \n001  AX  V  C  01:00:00:00 01:00:05:00 01:00:00:00 01:00:05:00   \n";
-        let (out, _) = sanitize_edl(input, &SanitizeOptions::default()).unwrap();
+        let (out, _) = sanitize_edl(input, &SanitizeOptions::default()).expect("operation should succeed");
         for line in out.lines() {
             assert_eq!(line, line.trim_end());
         }
@@ -265,7 +265,7 @@ mod tests {
     #[test]
     fn test_validate_structure_valid() {
         let text = "TITLE: Test\nFCM: NON-DROP FRAME\n001  AX  V  C  01:00:00:00 01:00:05:00 01:00:00:00 01:00:05:00\n";
-        let count = validate_edl_structure(text).unwrap();
+        let count = validate_edl_structure(text).expect("operation should succeed");
         assert_eq!(count, 1);
     }
 
@@ -294,7 +294,7 @@ mod tests {
     #[test]
     fn test_uppercase_fcm_line() {
         let input = "fcm: drop frame\n001  AX  V  C  01:00:00:00 01:00:05:00 01:00:00:00 01:00:05:00\n";
-        let (out, _) = sanitize_edl(input, &SanitizeOptions::default()).unwrap();
+        let (out, _) = sanitize_edl(input, &SanitizeOptions::default()).expect("operation should succeed");
         assert!(out.contains("FCM: DROP FRAME"));
     }
 }

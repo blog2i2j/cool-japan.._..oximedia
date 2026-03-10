@@ -135,15 +135,19 @@ mod tests {
 
     #[test]
     fn test_generate_documentation() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("operation should succeed");
         let doc_root = temp_dir.path().join("docs");
 
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"Test content").unwrap();
-        file.flush().unwrap();
+        let mut file = NamedTempFile::new().expect("operation should succeed");
+        file.write_all(b"Test content")
+            .expect("operation should succeed");
+        file.flush().expect("operation should succeed");
 
-        let generator = DocumentationGenerator::new(doc_root.clone()).unwrap();
-        let package = generator.generate(file.path()).unwrap();
+        let generator =
+            DocumentationGenerator::new(doc_root.clone()).expect("operation should succeed");
+        let package = generator
+            .generate(file.path())
+            .expect("operation should succeed");
 
         assert!(!package.technical_docs.is_empty());
         assert!(!package.descriptive_docs.is_empty());

@@ -410,7 +410,13 @@ mod tests {
         let mut p = CapacityPlanner::new(PlannerConfig::new(ResourceKind::Gpu));
         assert!(p.current_utilisation().is_none());
         p.observe_now(0.42);
-        assert!((p.current_utilisation().unwrap() - 0.42).abs() < 1e-9);
+        assert!(
+            (p.current_utilisation()
+                .expect("current_utilisation should succeed")
+                - 0.42)
+                .abs()
+                < 1e-9
+        );
     }
 
     #[test]
@@ -437,7 +443,7 @@ mod tests {
     #[test]
     fn test_linear_fit_slope_positive() {
         let p = make_planner_with_linear_data(100);
-        let fit = p.linear_fit().unwrap();
+        let fit = p.linear_fit().expect("linear_fit should succeed");
         assert!(fit.slope > 0.0);
         assert!(
             fit.r_squared > 0.99,
@@ -455,7 +461,9 @@ mod tests {
     #[test]
     fn test_forecast_projects_correctly() {
         let p = make_planner_with_linear_data(100);
-        let forecast = p.forecast(Duration::from_secs(600)).unwrap();
+        let forecast = p
+            .forecast(Duration::from_secs(600))
+            .expect("operation should succeed");
         // slope ~ 0.001 / sec, after 600 extra seconds from last point: extra ~ 0.6
         // last observation util ~ 0.1 + 0.001*99 = 0.199
         // projected ~ 0.199 + 0.6 = 0.799
@@ -469,9 +477,13 @@ mod tests {
     #[test]
     fn test_forecast_time_to_saturation() {
         let p = make_planner_with_linear_data(100);
-        let forecast = p.forecast(Duration::from_secs(1)).unwrap();
+        let forecast = p
+            .forecast(Duration::from_secs(1))
+            .expect("operation should succeed");
         assert!(forecast.time_to_saturation.is_some());
-        let tts = forecast.time_to_saturation.unwrap();
+        let tts = forecast
+            .time_to_saturation
+            .expect("time_to_saturation should be valid");
         assert!(tts.as_secs() > 0, "time-to-saturation should be positive");
     }
 
@@ -481,7 +493,7 @@ mod tests {
         p.observe_now(0.1);
         p.observe_now(0.2);
         p.observe_now(0.3);
-        let ma = p.moving_average(3).unwrap();
+        let ma = p.moving_average(3).expect("moving_average should succeed");
         assert!((ma - 0.2).abs() < 1e-9);
     }
 
@@ -489,7 +501,9 @@ mod tests {
     fn test_moving_average_window_larger_than_data() {
         let mut p = CapacityPlanner::new(PlannerConfig::new(ResourceKind::Disk));
         p.observe_now(0.5);
-        let ma = p.moving_average(100).unwrap();
+        let ma = p
+            .moving_average(100)
+            .expect("moving_average should succeed");
         assert!((ma - 0.5).abs() < 1e-9);
     }
 

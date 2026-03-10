@@ -729,7 +729,10 @@ impl NormalizeFilter {
                     self.loudness_state = Some(LoudnessState::new(sample_rate, channels));
                 }
 
-                let loudness_state = self.loudness_state.as_mut().unwrap();
+                let loudness_state = match self.loudness_state.as_mut() {
+                    Some(s) => s,
+                    None => return 1.0,
+                };
                 let current_lufs = loudness_state.process(samples);
 
                 if current_lufs.is_finite() {
@@ -985,7 +988,7 @@ mod tests {
         let config = NormalizeConfig::default();
         let mut filter = NormalizeFilter::new(NodeId(0), "test", config);
 
-        let result = filter.process(None).unwrap();
+        let result = filter.process(None).expect("process should succeed");
         assert!(result.is_none());
     }
 
@@ -999,7 +1002,9 @@ mod tests {
         samples.extend_from_slice(&0.5f32.to_le_bytes());
         frame.samples = AudioBuffer::Interleaved(samples.freeze());
 
-        let result = filter.process(Some(FilterFrame::Audio(frame))).unwrap();
+        let result = filter
+            .process(Some(FilterFrame::Audio(frame)))
+            .expect("process should succeed");
         assert!(result.is_some());
 
         // Gain should be 2.0 to bring 0.5 peak to 1.0

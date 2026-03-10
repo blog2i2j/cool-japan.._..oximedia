@@ -1,7 +1,7 @@
 //! Fade in/out detection (fade to/from black or white).
 
 use crate::error::{ShotError, ShotResult};
-use ndarray::Array3;
+use crate::frame_buffer::FrameBuffer;
 
 /// Fade direction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -46,7 +46,7 @@ impl FadeDetector {
     /// Returns error if frames are invalid.
     pub fn detect_fade(
         &self,
-        frames: &[Array3<u8>],
+        frames: &[FrameBuffer],
     ) -> ShotResult<Option<(FadeDirection, FadeColor, usize)>> {
         if frames.len() < self.min_duration {
             return Ok(None);
@@ -82,7 +82,7 @@ impl FadeDetector {
     }
 
     /// Calculate average brightness of a frame.
-    fn calculate_brightness(&self, frame: &Array3<u8>) -> ShotResult<f32> {
+    fn calculate_brightness(&self, frame: &FrameBuffer) -> ShotResult<f32> {
         let shape = frame.dim();
         if shape.2 < 3 {
             return Err(ShotError::InvalidFrame(
@@ -95,9 +95,9 @@ impl FadeDetector {
 
         for y in 0..shape.0 {
             for x in 0..shape.1 {
-                let r = f32::from(frame[[y, x, 0]]);
-                let g = f32::from(frame[[y, x, 1]]);
-                let b = f32::from(frame[[y, x, 2]]);
+                let r = f32::from(frame.get(y, x, 0));
+                let g = f32::from(frame.get(y, x, 1));
+                let b = f32::from(frame.get(y, x, 2));
                 sum += (r + g + b) / 3.0;
             }
         }
@@ -219,26 +219,30 @@ mod tests {
     #[test]
     fn test_brightness_calculation() {
         let detector = FadeDetector::new();
-        let black_frame = Array3::zeros((100, 100, 3));
-        let white_frame = Array3::from_elem((100, 100, 3), 255);
+        let black_frame = FrameBuffer::zeros(100, 100, 3);
+        let white_frame = FrameBuffer::from_elem(100, 100, 3, 255);
 
-        let black_brightness = detector
-            .calculate_brightness(&black_frame)
-            .expect("should succeed in test");
-        let white_brightness = detector
-            .calculate_brightness(&white_frame)
-            .expect("should succeed in test");
+        let black_brightness = detector.calculate_brightness(&black_frame);
+        assert!(black_brightness.is_ok());
+        if let Ok(b) = black_brightness {
+            assert!(b < 0.01);
+        }
 
-        assert!(black_brightness < 0.01);
-        assert!((white_brightness - 1.0).abs() < 0.01);
+        let white_brightness = detector.calculate_brightness(&white_frame);
+        assert!(white_brightness.is_ok());
+        if let Ok(b) = white_brightness {
+            assert!((b - 1.0).abs() < 0.01);
+        }
     }
 
     #[test]
     fn test_no_fade_in_uniform_sequence() {
         let detector = FadeDetector::new();
-        let frames = vec![Array3::from_elem((100, 100, 3), 128); 20];
+        let frames = vec![FrameBuffer::from_elem(100, 100, 3, 128); 20];
         let result = detector.detect_fade(&frames);
         assert!(result.is_ok());
-        assert!(result.expect("should succeed in test").is_none());
+        if let Ok(fade) = result {
+            assert!(fade.is_none());
+        }
     }
 }

@@ -107,7 +107,9 @@ mod tests {
     fn test_eos_marker_creation() {
         // Test that we can create EOS markers
         let mut buffer = Vec::new();
-        buffer.write_all(&[0x00, 0x00, 0x01, 0xB9]).unwrap();
+        buffer
+            .write_all(&[0x00, 0x00, 0x01, 0xB9])
+            .expect("write should succeed");
         assert_eq!(buffer, vec![0x00, 0x00, 0x01, 0xB9]);
     }
 }

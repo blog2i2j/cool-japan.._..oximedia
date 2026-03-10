@@ -276,7 +276,7 @@ mod tests {
     use std::net::SocketAddr;
 
     fn test_addr() -> SocketAddr {
-        "127.0.0.1:5960".parse().unwrap()
+        "127.0.0.1:5960".parse().expect("expected valid parse")
     }
 
     fn make_config(mode: ConnectionMode) -> NdiConnectionConfig {
@@ -351,7 +351,9 @@ mod tests {
         let cfg = make_config(ConnectionMode::HighQuality).with_max_retries(3);
         mgr.register("cam1", cfg);
         mgr.set_connected("cam1");
-        let new_state = mgr.set_disconnected("cam1").unwrap();
+        let new_state = mgr
+            .set_disconnected("cam1")
+            .expect("expected state transition");
         assert_eq!(new_state, ConnectionState::Reconnecting);
     }
 
@@ -362,7 +364,9 @@ mod tests {
         mgr.register("cam1", cfg);
         mgr.set_connected("cam1");
         mgr.set_disconnected("cam1"); // retry_count = 1
-        let state = mgr.set_disconnected("cam1").unwrap(); // retry_count = 2 >= 2
+        let state = mgr
+            .set_disconnected("cam1")
+            .expect("expected state transition"); // retry_count = 2 >= 2
         assert_eq!(state, ConnectionState::Closed);
     }
 
@@ -411,7 +415,7 @@ mod tests {
     fn test_manager_config_retrieval() {
         let mut mgr = ConnectionManager::new();
         mgr.register("cam1", make_config(ConnectionMode::AudioOnly));
-        let cfg = mgr.config("cam1").unwrap();
+        let cfg = mgr.config("cam1").expect("expected config to exist");
         assert_eq!(cfg.mode, ConnectionMode::AudioOnly);
     }
 

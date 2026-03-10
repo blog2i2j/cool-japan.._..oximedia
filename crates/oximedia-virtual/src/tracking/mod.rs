@@ -9,7 +9,7 @@ pub mod filter;
 pub mod imu;
 pub mod markers;
 
-use nalgebra::{Point3, UnitQuaternion, Vector3};
+use crate::math::{Point3, UnitQuaternion, Vector3};
 use serde::{Deserialize, Serialize};
 
 /// Camera pose (position and orientation)

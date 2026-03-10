@@ -650,7 +650,10 @@ mod tests {
 
         let slot = bridge.slot_by_label("PPM L/R");
         assert!(slot.is_some());
-        assert_eq!(slot.unwrap().config.meter_type, MeterType::Peak);
+        assert_eq!(
+            slot.expect("test expectation failed").config.meter_type,
+            MeterType::Peak
+        );
 
         assert!(bridge.slot_by_label("NonExistent").is_none());
     }

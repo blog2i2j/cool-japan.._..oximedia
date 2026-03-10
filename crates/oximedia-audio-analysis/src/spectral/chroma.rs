@@ -490,7 +490,7 @@ mod tests {
     fn test_mean_chroma_single() {
         let mut cv = ChromaVector::zeros();
         cv.bins[0] = 1.0;
-        let m = mean_chroma(&[cv.clone()]).unwrap();
+        let m = mean_chroma(&[cv.clone()]).expect("unexpected None/Err");
         assert!((m.bins[0] - 1.0).abs() < 1e-6);
     }
 
@@ -500,7 +500,7 @@ mod tests {
         cv1.bins[0] = 2.0;
         let mut cv2 = ChromaVector::zeros();
         cv2.bins[0] = 4.0;
-        let m = mean_chroma(&[cv1, cv2]).unwrap();
+        let m = mean_chroma(&[cv1, cv2]).expect("mean chroma should succeed");
         assert!((m.bins[0] - 3.0).abs() < 1e-6);
     }
 

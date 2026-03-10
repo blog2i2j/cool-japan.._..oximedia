@@ -66,8 +66,9 @@ impl BenchmarkResult {
         let mut sorted_timings = timings.to_vec();
         sorted_timings.sort();
 
-        let min_time = *sorted_timings.first().unwrap();
-        let max_time = *sorted_timings.last().unwrap();
+        // sorted_timings is non-empty (checked above), so first/last always yield Some
+        let min_time = sorted_timings[0];
+        let max_time = sorted_timings[sorted_timings.len() - 1];
         let median_time = sorted_timings[sorted_timings.len() / 2];
 
         let total_nanos: u128 = timings.iter().map(std::time::Duration::as_nanos).sum();
@@ -345,7 +346,11 @@ impl TradeoffAnalyzer {
         self.points
             .iter()
             .filter(|p| p.encoding_time <= max_time)
-            .max_by(|a, b| a.quality.partial_cmp(&b.quality).unwrap())
+            .max_by(|a, b| {
+                a.quality
+                    .partial_cmp(&b.quality)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .map(|p| p.label.as_str())
     }
 

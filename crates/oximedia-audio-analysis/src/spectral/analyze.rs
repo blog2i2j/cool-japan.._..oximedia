@@ -209,7 +209,9 @@ mod tests {
             })
             .collect();
 
-        let result = analyzer.analyze(&samples, sample_rate).unwrap();
+        let result = analyzer
+            .analyze(&samples, sample_rate)
+            .expect("analysis should succeed");
 
         // Just verify we get reasonable values
         assert!(result.centroid > 0.0 && result.centroid < sample_rate / 2.0);

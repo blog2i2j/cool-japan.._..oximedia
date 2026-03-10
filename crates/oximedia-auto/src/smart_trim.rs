@@ -260,7 +260,7 @@ mod tests {
         let sc = result
             .iter()
             .find(|s| matches!(s.point_type, TrimPoint::SceneChange))
-            .unwrap();
+            .expect("test expectation failed");
         assert!((sc.confidence - 0.6).abs() < 1e-6);
     }
 

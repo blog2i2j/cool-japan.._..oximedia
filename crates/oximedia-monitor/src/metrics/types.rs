@@ -222,7 +222,7 @@ impl Histogram {
     #[must_use]
     pub fn new(buckets: Vec<f64>) -> Self {
         let mut sorted_buckets = buckets;
-        sorted_buckets.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted_buckets.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         let counts = sorted_buckets
             .iter()
@@ -352,7 +352,7 @@ impl Summary {
         }
 
         let mut sorted: Vec<f64> = values.iter().copied().collect();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         let idx = ((sorted.len() as f64 - 1.0) * p) as usize;
         Some(sorted[idx])
@@ -387,7 +387,7 @@ impl Summary {
         self.values
             .read()
             .iter()
-            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .copied()
     }
 
@@ -397,7 +397,7 @@ impl Summary {
         self.values
             .read()
             .iter()
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .copied()
     }
 }
@@ -414,7 +414,7 @@ mod tests {
 
     #[test]
     fn test_metric_name() {
-        let name = MetricName::new("cpu.usage").unwrap();
+        let name = MetricName::new("cpu.usage").expect("failed to create");
         assert_eq!(name.as_str(), "cpu.usage");
     }
 
@@ -494,13 +494,13 @@ mod tests {
         assert_eq!(summary.max(), Some(100.0));
         assert_eq!(summary.avg(), 50.5);
 
-        let p50 = summary.percentile(0.5).unwrap();
+        let p50 = summary.percentile(0.5).expect("percentile should succeed");
         assert!((p50 - 50.0).abs() < 1.0);
 
-        let p95 = summary.percentile(0.95).unwrap();
+        let p95 = summary.percentile(0.95).expect("percentile should succeed");
         assert!((p95 - 95.0).abs() < 1.0);
 
-        let p99 = summary.percentile(0.99).unwrap();
+        let p99 = summary.percentile(0.99).expect("percentile should succeed");
         assert!((p99 - 99.0).abs() < 1.0);
     }
 
@@ -521,7 +521,7 @@ mod tests {
     #[test]
     fn test_metric_builder() {
         let metric = Metric::new(
-            MetricName::new("request.duration").unwrap(),
+            MetricName::new("request.duration").expect("failed to create"),
             MetricKind::Histogram,
             "Request duration in seconds",
         )

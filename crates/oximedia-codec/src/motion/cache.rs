@@ -552,7 +552,7 @@ mod tests {
         let entry = MvCacheEntry::inter(MotionVector::new(10, 20), 0, 100);
         cache.set(5, 5, 0, entry);
 
-        let retrieved = cache.get(5, 5, 0).unwrap();
+        let retrieved = cache.get(5, 5, 0).expect("get should return value");
         assert!(retrieved.valid);
         assert_eq!(retrieved.mv.dx, 10);
     }
@@ -566,10 +566,10 @@ mod tests {
         cache.fill_block(0, 0, BlockSize::Block8x8, 0, entry);
 
         // 8x8 block = 2x2 MI units
-        assert!(cache.get(0, 0, 0).unwrap().valid);
-        assert!(cache.get(0, 1, 0).unwrap().valid);
-        assert!(cache.get(1, 0, 0).unwrap().valid);
-        assert!(cache.get(1, 1, 0).unwrap().valid);
+        assert!(cache.get(0, 0, 0).expect("get should return value").valid);
+        assert!(cache.get(0, 1, 0).expect("get should return value").valid);
+        assert!(cache.get(1, 0, 0).expect("get should return value").valid);
+        assert!(cache.get(1, 1, 0).expect("get should return value").valid);
     }
 
     #[test]
@@ -584,10 +584,10 @@ mod tests {
         cache.set(5, 4, 0, left);
         cache.set(4, 5, 0, top);
 
-        let got_left = cache.get_left(5, 5, 0).unwrap();
+        let got_left = cache.get_left(5, 5, 0).expect("should succeed");
         assert_eq!(got_left.mv.dx, 1);
 
-        let got_top = cache.get_top(5, 5, 0).unwrap();
+        let got_top = cache.get_top(5, 5, 0).expect("should succeed");
         assert_eq!(got_top.mv.dx, 2);
     }
 
@@ -605,7 +605,7 @@ mod tests {
         ref_mvs.store_frame(0, &cache);
 
         // Retrieve co-located
-        let co_loc = ref_mvs.get_co_located(0, 5, 5).unwrap();
+        let co_loc = ref_mvs.get_co_located(0, 5, 5).expect("should succeed");
         assert!(co_loc.valid);
         assert_eq!(co_loc.mv.dx, 10);
     }
@@ -625,7 +625,7 @@ mod tests {
         // Get scaled for different target distance
         let scaled = lookup.get_scaled_co_located(0, 5, 5, 2);
         assert!(scaled.is_some());
-        let mv = scaled.unwrap();
+        let mv = scaled.expect("should succeed");
         assert_eq!(mv.dx, 200); // Scaled by 2
         assert_eq!(mv.dy, 400);
     }
@@ -642,7 +642,7 @@ mod tests {
         // Retrieve
         let result = cache.get(0, 0);
         assert!(result.is_some());
-        let (cached_mv, sad) = result.unwrap();
+        let (cached_mv, sad) = result.expect("should succeed");
         assert_eq!(cached_mv.dx, 10);
         assert_eq!(sad, 100);
     }
@@ -673,7 +673,13 @@ mod tests {
             .search_cache
             .store(0, 0, MotionVector::new(5, 10), 50);
 
-        assert!(manager.current_frame.get(5, 5, 0).unwrap().valid);
+        assert!(
+            manager
+                .current_frame
+                .get(5, 5, 0)
+                .expect("get should return value")
+                .valid
+        );
         assert!(manager.search_cache.has(0, 0));
     }
 
@@ -692,7 +698,13 @@ mod tests {
         // New frame clears caches
         manager.new_frame();
 
-        assert!(!manager.current_frame.get(5, 5, 0).unwrap().valid);
+        assert!(
+            !manager
+                .current_frame
+                .get(5, 5, 0)
+                .expect("get should return value")
+                .valid
+        );
         assert!(!manager.search_cache.has(0, 0));
     }
 }

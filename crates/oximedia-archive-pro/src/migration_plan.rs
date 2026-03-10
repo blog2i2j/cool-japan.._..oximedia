@@ -481,7 +481,12 @@ mod tests {
     fn test_plan_metadata() {
         let mut plan = MigrationPlan::new(1, "P");
         plan.set_metadata("author", "test");
-        assert_eq!(plan.metadata.get("author").unwrap(), "test");
+        assert_eq!(
+            plan.metadata
+                .get("author")
+                .expect("operation should succeed"),
+            "test"
+        );
     }
 
     #[test]

@@ -98,7 +98,7 @@ mod tests {
         let result = estimate_color_temperature(&image);
 
         assert!(result.is_ok());
-        let temp = result.unwrap();
+        let temp = result.expect("expected successful result");
 
         // Should be in the daylight range (5000-7000K)
         assert!(temp >= 5000 && temp <= 7000);
@@ -115,7 +115,7 @@ mod tests {
         let result = estimate_color_temperature(&image);
         assert!(result.is_ok());
 
-        let temp = result.unwrap();
+        let temp = result.expect("expected successful result");
         // Should estimate as tungsten (around 3000K)
         assert!(temp <= 4000);
     }
@@ -131,7 +131,7 @@ mod tests {
         let result = estimate_color_temperature(&image);
         assert!(result.is_ok());
 
-        let temp = result.unwrap();
+        let temp = result.expect("expected successful result");
         // Should estimate as shade/overcast (7000K+)
         assert!(temp >= 7000);
     }

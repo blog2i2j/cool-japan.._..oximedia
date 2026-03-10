@@ -18,5 +18,5 @@ pub mod affine;
 pub mod perspective;
 
 // Re-export commonly used items
-pub use affine::AffineTransform;
+pub use affine::{warp_affine_image, AffineTransform};
 pub use perspective::PerspectiveTransform;

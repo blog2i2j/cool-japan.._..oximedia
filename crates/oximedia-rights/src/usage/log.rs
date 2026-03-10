@@ -113,28 +113,36 @@ impl UsageLog {
         .fetch_optional(db.pool())
         .await?;
 
-        Ok(row.map(|r| {
+        row.map(|r| {
             let metadata_json: Option<String> = r.get("metadata_json");
             let metadata = metadata_json
                 .and_then(|json| serde_json::from_str(&json).ok())
                 .unwrap_or_default();
 
-            UsageLog {
+            let usage_date = DateTime::parse_from_rfc3339(r.get("usage_date"))
+                .map_err(|e| {
+                    crate::RightsError::InvalidLicense(format!("Invalid usage_date: {e}"))
+                })?
+                .with_timezone(&Utc);
+            let created_at = DateTime::parse_from_rfc3339(r.get("created_at"))
+                .map_err(|e| {
+                    crate::RightsError::InvalidLicense(format!("Invalid created_at: {e}"))
+                })?
+                .with_timezone(&Utc);
+
+            Ok(UsageLog {
                 id: r.get("id"),
                 asset_id: r.get("asset_id"),
                 grant_id: r.get("grant_id"),
                 usage_type: UsageType::from_str(r.get("usage_type")),
-                usage_date: DateTime::parse_from_rfc3339(r.get("usage_date"))
-                    .unwrap()
-                    .with_timezone(&Utc),
+                usage_date,
                 territory: r.get("territory"),
                 platform: r.get("platform"),
                 metadata,
-                created_at: DateTime::parse_from_rfc3339(r.get("created_at"))
-                    .unwrap()
-                    .with_timezone(&Utc),
-            }
-        }))
+                created_at,
+            })
+        })
+        .transpose()
     }
 
     /// List logs for an asset
@@ -150,31 +158,37 @@ impl UsageLog {
         .fetch_all(db.pool())
         .await?;
 
-        Ok(rows
-            .into_iter()
+        rows.into_iter()
             .map(|r| {
                 let metadata_json: Option<String> = r.get("metadata_json");
                 let metadata = metadata_json
                     .and_then(|json| serde_json::from_str(&json).ok())
                     .unwrap_or_default();
 
-                UsageLog {
+                let usage_date = DateTime::parse_from_rfc3339(r.get("usage_date"))
+                    .map_err(|e| {
+                        crate::RightsError::InvalidLicense(format!("Invalid usage_date: {e}"))
+                    })?
+                    .with_timezone(&Utc);
+                let created_at = DateTime::parse_from_rfc3339(r.get("created_at"))
+                    .map_err(|e| {
+                        crate::RightsError::InvalidLicense(format!("Invalid created_at: {e}"))
+                    })?
+                    .with_timezone(&Utc);
+
+                Ok(UsageLog {
                     id: r.get("id"),
                     asset_id: r.get("asset_id"),
                     grant_id: r.get("grant_id"),
                     usage_type: UsageType::from_str(r.get("usage_type")),
-                    usage_date: DateTime::parse_from_rfc3339(r.get("usage_date"))
-                        .unwrap()
-                        .with_timezone(&Utc),
+                    usage_date,
                     territory: r.get("territory"),
                     platform: r.get("platform"),
                     metadata,
-                    created_at: DateTime::parse_from_rfc3339(r.get("created_at"))
-                        .unwrap()
-                        .with_timezone(&Utc),
-                }
+                    created_at,
+                })
             })
-            .collect())
+            .collect()
     }
 }
 
@@ -200,21 +214,30 @@ mod tests {
 
     #[tokio::test]
     async fn test_usage_log_save() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("rights test operation should succeed");
         let db_path = format!("sqlite://{}/test.db", temp_dir.path().display());
-        let db = RightsDatabase::new(&db_path).await.unwrap();
+        let db = RightsDatabase::new(&db_path)
+            .await
+            .expect("rights test operation should succeed");
 
         // Create asset first to satisfy foreign key constraint
         let asset = crate::rights::Asset::new("Test Asset", crate::rights::AssetType::Video);
         let asset_id = asset.id.clone();
-        asset.save(&db).await.unwrap();
+        asset
+            .save(&db)
+            .await
+            .expect("rights test operation should succeed");
 
         let log = UsageLog::new(&asset_id, UsageType::Web, Utc::now());
         let log_id = log.id.clone();
 
-        log.save(&db).await.unwrap();
+        log.save(&db)
+            .await
+            .expect("rights test operation should succeed");
 
-        let loaded = UsageLog::load(&db, &log_id).await.unwrap();
+        let loaded = UsageLog::load(&db, &log_id)
+            .await
+            .expect("rights test operation should succeed");
         assert!(loaded.is_some());
     }
 }

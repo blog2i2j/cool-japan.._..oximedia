@@ -130,26 +130,36 @@ mod tests {
 
     #[test]
     fn test_store_and_verify() {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"Test content").unwrap();
-        file.flush().unwrap();
+        let mut file = NamedTempFile::new().expect("operation should succeed");
+        file.write_all(b"Test content")
+            .expect("operation should succeed");
+        file.flush().expect("operation should succeed");
 
         let generator = ChecksumGenerator::new();
-        let checksum = generator.generate_file(file.path()).unwrap();
-        let hash = checksum.checksums.get(&ChecksumAlgorithm::Sha256).unwrap();
+        let checksum = generator
+            .generate_file(file.path())
+            .expect("operation should succeed");
+        let hash = checksum
+            .checksums
+            .get(&ChecksumAlgorithm::Sha256)
+            .expect("operation should succeed");
 
         let mut checker = FixityChecker::new();
         checker.store_checksum(file.path().to_path_buf(), hash.clone());
 
-        let result = checker.verify(file.path()).unwrap();
+        let result = checker
+            .verify(file.path())
+            .expect("operation should succeed");
         assert!(result.passed);
     }
 
     #[test]
     fn test_verify_without_stored_checksum() {
-        let file = NamedTempFile::new().unwrap();
+        let file = NamedTempFile::new().expect("operation should succeed");
         let checker = FixityChecker::new();
-        let result = checker.verify(file.path()).unwrap();
+        let result = checker
+            .verify(file.path())
+            .expect("operation should succeed");
 
         assert!(!result.passed);
         assert!(result.error.is_some());

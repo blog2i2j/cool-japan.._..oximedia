@@ -235,7 +235,7 @@ mod tests {
     #[test]
     fn test_get_by_id() {
         let m = make_manager();
-        let p = m.get("yt-1080p").unwrap();
+        let p = m.get("yt-1080p").expect("p should be valid");
         assert_eq!(p.name, "YouTube 1080p");
     }
 
@@ -311,7 +311,7 @@ mod tests {
     #[test]
     fn test_property_access() {
         let m = make_manager();
-        let p = m.get("yt-1080p").unwrap();
+        let p = m.get("yt-1080p").expect("p should be valid");
         assert_eq!(p.property("resolution"), Some("1920x1080"));
         assert_eq!(p.property("nonexistent"), None);
     }

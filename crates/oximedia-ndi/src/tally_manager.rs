@@ -177,7 +177,7 @@ mod tests {
     fn test_set_and_get_tally() {
         let mut mgr = TallyManager::new();
         mgr.set_tally("Cam1", TallyStateKind::OnAir, 1000);
-        let info = mgr.get_tally("Cam1").unwrap();
+        let info = mgr.get_tally("Cam1").expect("expected tally to exist");
         assert!(info.is_live());
     }
 
@@ -192,7 +192,7 @@ mod tests {
         let mut mgr = TallyManager::new();
         mgr.set_tally("Cam1", TallyStateKind::OnAir, 1000);
         mgr.set_tally("Cam1", TallyStateKind::Off, 2000);
-        let info = mgr.get_tally("Cam1").unwrap();
+        let info = mgr.get_tally("Cam1").expect("expected tally to exist");
         assert_eq!(info.state, TallyStateKind::Off);
         assert_eq!(info.last_update_epoch, 2000);
     }

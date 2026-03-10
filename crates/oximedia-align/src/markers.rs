@@ -794,7 +794,11 @@ pub fn cluster_markers(markers: &[SyncMarker], max_gap_frames: usize) -> Vec<Vec
     let mut current: Vec<SyncMarker> = vec![sorted[0].clone()];
 
     for m in sorted.into_iter().skip(1) {
-        let last_frame = current.last().unwrap().frame;
+        // SAFETY: current always contains at least one element (seeded with sorted[0] above)
+        let last_frame = current
+            .last()
+            .expect("current cluster is always non-empty")
+            .frame;
         if m.frame.saturating_sub(last_frame) <= max_gap_frames {
             current.push(m);
         } else {
@@ -814,9 +818,11 @@ pub fn cluster_best_markers(markers: &[SyncMarker], max_gap_frames: usize) -> Ve
     cluster_markers(markers, max_gap_frames)
         .into_iter()
         .filter_map(|cluster| {
-            cluster
-                .into_iter()
-                .max_by(|a, b| a.confidence.partial_cmp(&b.confidence).unwrap())
+            cluster.into_iter().max_by(|a, b| {
+                a.confidence
+                    .partial_cmp(&b.confidence)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
         })
         .collect()
 }
@@ -959,9 +965,11 @@ impl MultiMarkerSync {
 
         // Sort by frame and confidence
         markers.sort_by(|a, b| {
-            a.frame
-                .cmp(&b.frame)
-                .then_with(|| b.confidence.partial_cmp(&a.confidence).unwrap())
+            a.frame.cmp(&b.frame).then_with(|| {
+                b.confidence
+                    .partial_cmp(&a.confidence)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
         });
 
         Ok(markers)
@@ -970,9 +978,11 @@ impl MultiMarkerSync {
     /// Find the best sync marker (highest confidence)
     #[must_use]
     pub fn find_best_marker<'a>(&self, markers: &'a [SyncMarker]) -> Option<&'a SyncMarker> {
-        markers
-            .iter()
-            .max_by(|a, b| a.confidence.partial_cmp(&b.confidence).unwrap())
+        markers.iter().max_by(|a, b| {
+            a.confidence
+                .partial_cmp(&b.confidence)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
     }
 }
 
@@ -1053,7 +1063,7 @@ mod tests {
         ];
         let result = interpolate_markers(&anchors, InterpolationMethod::Linear);
         let mid = &result[5];
-        let loc = mid.location.unwrap();
+        let loc = mid.location.expect("loc should be valid");
         assert!((loc.x - 5.0).abs() < 0.5);
         assert!((loc.y - 10.0).abs() < 1.0);
     }
@@ -1123,7 +1133,8 @@ mod tests {
             SyncMarker::new(15, MarkerType::Flash, 1.0, None),
             SyncMarker::new(55, MarkerType::Flash, 1.0, None),
         ];
-        let alignment = align_markers_temporal(&reference, &target, 2, 20).unwrap();
+        let alignment =
+            align_markers_temporal(&reference, &target, 2, 20).expect("alignment should be valid");
         assert_eq!(alignment.frame_offset, -5);
         assert_eq!(alignment.matched_pairs, 2);
     }
@@ -1148,7 +1159,8 @@ mod tests {
     fn test_align_markers_confidence_nonzero() {
         let reference = vec![SyncMarker::new(5, MarkerType::Flash, 0.8, None)];
         let target = vec![SyncMarker::new(5, MarkerType::Flash, 0.9, None)];
-        let result = align_markers_temporal(&reference, &target, 1, 5).unwrap();
+        let result =
+            align_markers_temporal(&reference, &target, 1, 5).expect("result should be valid");
         assert!(result.confidence > 0.0);
     }
 
@@ -1156,7 +1168,8 @@ mod tests {
     fn test_temporal_alignment_fields() {
         let reference = vec![SyncMarker::new(0, MarkerType::Flash, 1.0, None)];
         let target = vec![SyncMarker::new(3, MarkerType::Flash, 1.0, None)];
-        let result = align_markers_temporal(&reference, &target, 5, 10).unwrap();
+        let result =
+            align_markers_temporal(&reference, &target, 5, 10).expect("result should be valid");
         assert_eq!(result.matched_pairs, 1);
         assert!(result.confidence > 0.0);
     }
@@ -1239,6 +1252,6 @@ mod tests {
 
         let best = sync.find_best_marker(&markers);
         assert!(best.is_some());
-        assert_eq!(best.unwrap().confidence, 0.9);
+        assert_eq!(best.expect("test expectation failed").confidence, 0.9);
     }
 }

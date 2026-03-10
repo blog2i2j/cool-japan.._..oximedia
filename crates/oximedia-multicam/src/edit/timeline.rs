@@ -347,8 +347,12 @@ mod tests {
     #[test]
     fn test_get_angle_at_frame() {
         let mut timeline = MultiCamTimeline::new(3);
-        timeline.add_cut(100, 1).unwrap();
-        timeline.add_cut(200, 2).unwrap();
+        timeline
+            .add_cut(100, 1)
+            .expect("multicam test operation should succeed");
+        timeline
+            .add_cut(200, 2)
+            .expect("multicam test operation should succeed");
 
         assert_eq!(timeline.get_angle_at_frame(50), 0);
         assert_eq!(timeline.get_angle_at_frame(150), 1);
@@ -358,7 +362,9 @@ mod tests {
     #[test]
     fn test_transition_progress() {
         let mut timeline = MultiCamTimeline::new(2);
-        timeline.add_dissolve(100, 1, 10).unwrap();
+        timeline
+            .add_dissolve(100, 1, 10)
+            .expect("multicam test operation should succeed");
 
         assert_eq!(timeline.transition_progress(99), None);
         assert_eq!(timeline.transition_progress(100), Some(0.0));
@@ -371,8 +377,12 @@ mod tests {
     fn test_segments() {
         let mut timeline = MultiCamTimeline::new(3);
         timeline.set_duration(300);
-        timeline.add_cut(100, 1).unwrap();
-        timeline.add_cut(200, 2).unwrap();
+        timeline
+            .add_cut(100, 1)
+            .expect("multicam test operation should succeed");
+        timeline
+            .add_cut(200, 2)
+            .expect("multicam test operation should succeed");
 
         let segments = timeline.get_segments();
         assert_eq!(segments.len(), 3);
@@ -384,9 +394,15 @@ mod tests {
     #[test]
     fn test_optimize() {
         let mut timeline = MultiCamTimeline::new(2);
-        timeline.add_cut(100, 1).unwrap();
-        timeline.add_cut(200, 1).unwrap(); // Redundant - same angle
-        timeline.add_cut(300, 0).unwrap();
+        timeline
+            .add_cut(100, 1)
+            .expect("multicam test operation should succeed");
+        timeline
+            .add_cut(200, 1)
+            .expect("multicam test operation should succeed"); // Redundant - same angle
+        timeline
+            .add_cut(300, 0)
+            .expect("multicam test operation should succeed");
 
         timeline.optimize();
         assert_eq!(timeline.edit_decisions().len(), 2);
@@ -395,8 +411,12 @@ mod tests {
     #[test]
     fn test_ripple() {
         let mut timeline = MultiCamTimeline::new(2);
-        timeline.add_cut(100, 1).unwrap();
-        timeline.add_cut(200, 0).unwrap();
+        timeline
+            .add_cut(100, 1)
+            .expect("multicam test operation should succeed");
+        timeline
+            .add_cut(200, 0)
+            .expect("multicam test operation should succeed");
 
         timeline.ripple(150, 50);
         assert_eq!(timeline.edit_decisions()[0].frame, 100);
@@ -406,8 +426,12 @@ mod tests {
     #[test]
     fn test_validate() {
         let mut timeline = MultiCamTimeline::new(2);
-        timeline.add_cut(100, 1).unwrap();
-        timeline.add_cut(200, 0).unwrap();
+        timeline
+            .add_cut(100, 1)
+            .expect("multicam test operation should succeed");
+        timeline
+            .add_cut(200, 0)
+            .expect("multicam test operation should succeed");
         assert!(timeline.validate());
     }
 }

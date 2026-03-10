@@ -26,12 +26,12 @@
 //!
 //! // Create and add a clip
 //! let clip = Clip::new(1, ClipType::Video, 0, 5000); // 5 seconds
-//! timeline.add_clip(video_track, clip).unwrap();
+//! timeline.add_clip(video_track, clip)?;
 //!
 //! // Edit operations
 //! let mut editor = TimelineEditor::new();
 //! timeline.set_playhead(2500); // Seek to 2.5 seconds
-//! editor.split_at_playhead(&mut timeline).unwrap();
+//! editor.split_at_playhead(&mut timeline)?;
 //! ```
 //!
 //! # Architecture

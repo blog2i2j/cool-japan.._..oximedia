@@ -348,7 +348,7 @@ mod tests {
         let mut m = LabelMap::new(10, 10);
         m.set(2, 3, 1);
         m.set(5, 7, 1);
-        let bb = m.bounding_box(1).unwrap();
+        let bb = m.bounding_box(1).expect("bounding_box should succeed");
         assert_eq!(bb, (2, 3, 5, 7));
     }
 

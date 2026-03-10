@@ -477,7 +477,10 @@ mod tests {
         let lens = LensFingerprint::new([0.01, -0.02, 0.001], 0.5, 0.8);
         let best = db.find_best_match(&cfa, &lens);
         assert!(best.is_some());
-        assert_eq!(best.unwrap().camera_model, "Canon EOS R5");
+        assert_eq!(
+            best.expect("test expectation failed").camera_model,
+            "Canon EOS R5"
+        );
     }
 
     #[test]

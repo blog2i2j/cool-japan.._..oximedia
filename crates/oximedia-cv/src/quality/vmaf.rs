@@ -24,7 +24,7 @@
 //! let mut distorted = VideoFrame::new(PixelFormat::Yuv420p, 1920, 1080);
 //! distorted.allocate();
 //!
-//! let result = calculate_vmaf(&reference, &distorted).unwrap();
+//! let result = calculate_vmaf(&reference, &distorted)?;
 //! println!("VMAF: {:.2}", result.score);
 //! ```
 
@@ -132,7 +132,7 @@ impl Default for VmafFeatures {
 /// let mut distorted = VideoFrame::new(PixelFormat::Yuv420p, 1280, 720);
 /// distorted.allocate();
 ///
-/// let result = calculate_vmaf(&reference, &distorted).unwrap();
+/// let result = calculate_vmaf(&reference, &distorted)?;
 /// assert!(result.score >= 0.0 && result.score <= 100.0);
 /// ```
 pub fn calculate_vmaf(reference: &VideoFrame, distorted: &VideoFrame) -> CvResult<VmafResult> {

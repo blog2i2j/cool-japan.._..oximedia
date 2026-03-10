@@ -288,7 +288,7 @@ mod tests {
     #[test]
     fn test_riff_chunk_parse() {
         let data = b"RIFF\x10\x00\x00\x00WAVE";
-        let chunk = RiffChunk::parse(data).unwrap();
+        let chunk = RiffChunk::parse(data).expect("operation should succeed");
         assert_eq!(chunk.id_str(), "RIFF");
         assert_eq!(chunk.size, 16);
         assert!(chunk.is(b"RIFF"));
@@ -304,7 +304,7 @@ mod tests {
     #[test]
     fn test_riff_chunk_total_size() {
         let data = b"fmt \x10\x00\x00\x00";
-        let chunk = RiffChunk::parse(data).unwrap();
+        let chunk = RiffChunk::parse(data).expect("operation should succeed");
         assert_eq!(chunk.total_size(), 24);
     }
 
@@ -320,7 +320,7 @@ mod tests {
             0x10, 0x00, // bits_per_sample = 16
         ];
 
-        let fmt = FmtChunk::parse(&data).unwrap();
+        let fmt = FmtChunk::parse(&data).expect("operation should succeed");
         assert_eq!(fmt.format, WavFormat::Pcm);
         assert_eq!(fmt.channels, 2);
         assert_eq!(fmt.sample_rate, 44_100);
@@ -343,7 +343,7 @@ mod tests {
             0x20, 0x00, // bits_per_sample = 32
         ];
 
-        let fmt = FmtChunk::parse(&data).unwrap();
+        let fmt = FmtChunk::parse(&data).expect("operation should succeed");
         assert_eq!(fmt.format, WavFormat::IeeeFloat);
         assert_eq!(fmt.channels, 1);
         assert_eq!(fmt.sample_rate, 48_000);
@@ -389,7 +389,7 @@ mod tests {
             0x01, 0x00, 0x02, 0x00, 0x44, 0xAC, 0x00, 0x00, 0x10, 0xB1, 0x02, 0x00, 0x04, 0x00,
             0x18, 0x00, // 24 bits
         ];
-        let fmt = FmtChunk::parse(&data).unwrap();
+        let fmt = FmtChunk::parse(&data).expect("operation should succeed");
         assert_eq!(fmt.actual_bits_per_sample(), 24);
     }
 }

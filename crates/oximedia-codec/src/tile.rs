@@ -51,13 +51,13 @@
 //!     }
 //! }
 //!
-//! let cfg = TileConfig::new(2, 2, 0).unwrap();
+//! let cfg = TileConfig::new(2, 2, 0)?;
 //! let encoder = TileEncoder::new(cfg, 1920, 1080);
 //!
 //! let mut frame = VideoFrame::new(PixelFormat::Yuv420p, 1920, 1080);
 //! frame.allocate();
 //!
-//! let results = encoder.encode(&frame, &RawLumaOp).unwrap();
+//! let results = encoder.encode(&frame, &RawLumaOp)?;
 //! assert_eq!(results.len(), 4);
 //!
 //! let bitstream = assemble_tiles(&results);
@@ -361,12 +361,12 @@ pub trait TileEncodeOp: Send + Sync {
 ///     }
 /// }
 ///
-/// let cfg = TileConfig::new(2, 2, 0).unwrap();
+/// let cfg = TileConfig::new(2, 2, 0)?;
 /// let encoder = TileEncoder::new(cfg, 1920, 1080);
 /// let mut frame = VideoFrame::new(PixelFormat::Yuv420p, 1920, 1080);
 /// frame.allocate();
 ///
-/// let results = encoder.encode(&frame, &NullOp).unwrap();
+/// let results = encoder.encode(&frame, &NullOp)?;
 /// assert_eq!(results.len(), 4);
 /// ```
 pub struct TileEncoder {
@@ -787,7 +787,7 @@ mod tests {
 
     #[test]
     fn test_tile_config_new_valid() {
-        let cfg = TileConfig::new(4, 2, 8).unwrap();
+        let cfg = TileConfig::new(4, 2, 8).expect("should succeed");
         assert_eq!(cfg.tile_cols, 4);
         assert_eq!(cfg.tile_rows, 2);
         assert_eq!(cfg.tile_count(), 8);
@@ -848,13 +848,13 @@ mod tests {
 
     #[test]
     fn test_tile_config_thread_count_auto() {
-        let cfg = TileConfig::new(1, 1, 0).unwrap();
+        let cfg = TileConfig::new(1, 1, 0).expect("should succeed");
         assert!(cfg.thread_count() >= 1);
     }
 
     #[test]
     fn test_tile_config_thread_count_explicit() {
-        let cfg = TileConfig::new(1, 1, 4).unwrap();
+        let cfg = TileConfig::new(1, 1, 4).expect("should succeed");
         assert_eq!(cfg.thread_count(), 4);
     }
 
@@ -882,7 +882,7 @@ mod tests {
 
     #[test]
     fn test_encoder_single_tile() {
-        let cfg = TileConfig::new(1, 1, 0).unwrap();
+        let cfg = TileConfig::new(1, 1, 0).expect("should succeed");
         let encoder = TileEncoder::new(cfg, 1920, 1080);
         assert_eq!(encoder.tile_count(), 1);
 
@@ -895,7 +895,7 @@ mod tests {
 
     #[test]
     fn test_encoder_2x2_coverage() {
-        let cfg = TileConfig::new(2, 2, 0).unwrap();
+        let cfg = TileConfig::new(2, 2, 0).expect("should succeed");
         let encoder = TileEncoder::new(cfg, 1920, 1080);
         assert_eq!(encoder.tile_count(), 4);
 
@@ -916,7 +916,7 @@ mod tests {
 
     #[test]
     fn test_encoder_4x3_coverage() {
-        let cfg = TileConfig::new(4, 3, 0).unwrap();
+        let cfg = TileConfig::new(4, 3, 0).expect("should succeed");
         let encoder = TileEncoder::new(cfg, 1280, 720);
         assert_eq!(encoder.tile_count(), 12);
 
@@ -930,7 +930,7 @@ mod tests {
 
     #[test]
     fn test_encoder_raster_order() {
-        let cfg = TileConfig::new(3, 2, 0).unwrap();
+        let cfg = TileConfig::new(3, 2, 0).expect("should succeed");
         let encoder = TileEncoder::new(cfg, 1920, 1080);
         for (i, coord) in encoder.coords().iter().enumerate() {
             assert_eq!(coord.index as usize, i, "coords not in raster order");
@@ -939,11 +939,13 @@ mod tests {
 
     #[test]
     fn test_encoder_encode_parallel() {
-        let cfg = TileConfig::new(2, 2, 0).unwrap();
+        let cfg = TileConfig::new(2, 2, 0).expect("should succeed");
         let encoder = TileEncoder::new(cfg, 1920, 1080);
         let frame = make_frame(1920, 1080);
 
-        let results = encoder.encode(&frame, &FixedSizeOp(64)).unwrap();
+        let results = encoder
+            .encode(&frame, &FixedSizeOp(64))
+            .expect("encode should succeed");
         assert_eq!(results.len(), 4);
         // Results must be in raster order.
         for (i, r) in results.iter().enumerate() {
@@ -954,7 +956,7 @@ mod tests {
 
     #[test]
     fn test_encoder_encode_error_propagates() {
-        let cfg = TileConfig::new(2, 2, 0).unwrap();
+        let cfg = TileConfig::new(2, 2, 0).expect("should succeed");
         let encoder = TileEncoder::new(cfg, 1920, 1080);
         let frame = make_frame(1920, 1080);
         assert!(encoder.encode(&frame, &ErrorOp).is_err());
@@ -962,7 +964,7 @@ mod tests {
 
     #[test]
     fn test_encoder_wrong_frame_dimensions() {
-        let cfg = TileConfig::new(2, 2, 0).unwrap();
+        let cfg = TileConfig::new(2, 2, 0).expect("should succeed");
         let encoder = TileEncoder::new(cfg, 1920, 1080);
         let frame = make_frame(1280, 720);
         assert!(encoder.encode(&frame, &FixedSizeOp(1)).is_err());
@@ -998,7 +1000,7 @@ mod tests {
         let tb = TileResult::new(TileCoord::new(1, 0, 960, 0, 960, 540, 2), payload_b.clone());
 
         let stream = assemble_tiles(&[ta, tb]);
-        let decoded = decode_tile_stream(&stream).unwrap();
+        let decoded = decode_tile_stream(&stream).expect("should succeed");
 
         assert_eq!(decoded.len(), 2);
         assert_eq!(decoded[0], payload_a);
@@ -1007,13 +1009,15 @@ mod tests {
 
     #[test]
     fn test_assemble_decode_roundtrip_four_tiles() {
-        let cfg = TileConfig::new(2, 2, 0).unwrap();
+        let cfg = TileConfig::new(2, 2, 0).expect("should succeed");
         let encoder = TileEncoder::new(cfg, 640, 480);
         let frame = make_frame(640, 480);
 
-        let results = encoder.encode(&frame, &RawLumaEncodeOp).unwrap();
+        let results = encoder
+            .encode(&frame, &RawLumaEncodeOp)
+            .expect("encode should succeed");
         let stream = assemble_tiles(&results);
-        let decoded = decode_tile_stream(&stream).unwrap();
+        let decoded = decode_tile_stream(&stream).expect("should succeed");
 
         assert_eq!(decoded.len(), 4);
         // Each decoded tile must match the original result's data.
@@ -1047,7 +1051,7 @@ mod tests {
     fn test_decode_empty_stream() {
         // A stream declaring 0 tiles should yield an empty vec.
         let stream = [0u8, 0, 0, 0];
-        let decoded = decode_tile_stream(&stream).unwrap();
+        let decoded = decode_tile_stream(&stream).expect("should succeed");
         assert!(decoded.is_empty());
     }
 
@@ -1057,7 +1061,9 @@ mod tests {
     fn test_raw_luma_op_size() {
         let frame = make_frame(320, 240);
         let op = RawLumaEncodeOp;
-        let data = op.encode_tile(&frame, 0, 0, 320, 240).unwrap();
+        let data = op
+            .encode_tile(&frame, 0, 0, 320, 240)
+            .expect("should succeed");
         // Should contain exactly 320*240 luma bytes.
         assert_eq!(data.len(), 320 * 240);
     }
@@ -1066,7 +1072,9 @@ mod tests {
     fn test_raw_luma_op_partial_tile() {
         let frame = make_frame(100, 50);
         let op = RawLumaEncodeOp;
-        let data = op.encode_tile(&frame, 0, 0, 50, 25).unwrap();
+        let data = op
+            .encode_tile(&frame, 0, 0, 50, 25)
+            .expect("should succeed");
         assert_eq!(data.len(), 50 * 25);
     }
 
@@ -1074,7 +1082,9 @@ mod tests {
     fn test_headered_tile_op_header_content() {
         let frame = make_frame(128, 64);
         let op = HeaderedTileEncodeOp;
-        let data = op.encode_tile(&frame, 32, 16, 64, 32).unwrap();
+        let data = op
+            .encode_tile(&frame, 32, 16, 64, 32)
+            .expect("should succeed");
 
         // First 16 bytes are the header.
         assert!(data.len() >= 16);
@@ -1100,12 +1110,14 @@ mod tests {
 
     #[test]
     fn test_stats_from_uniform() {
-        let cfg = TileConfig::new(4, 2, 0).unwrap();
+        let cfg = TileConfig::new(4, 2, 0).expect("should succeed");
         let encoder = TileEncoder::new(cfg, 1920, 1080);
         let frame = make_frame(1920, 1080);
 
-        let results = encoder.encode(&frame, &FixedSizeOp(200)).unwrap();
-        let stats = TileEncodeStats::from_results(&results).unwrap();
+        let results = encoder
+            .encode(&frame, &FixedSizeOp(200))
+            .expect("encode should succeed");
+        let stats = TileEncodeStats::from_results(&results).expect("should succeed");
 
         assert_eq!(stats.tile_count, 8);
         assert_eq!(stats.total_bytes, 8 * 200);
@@ -1116,15 +1128,17 @@ mod tests {
 
     #[test]
     fn test_stats_compression_ratio() {
-        let cfg = TileConfig::new(1, 1, 0).unwrap();
+        let cfg = TileConfig::new(1, 1, 0).expect("should succeed");
         let encoder = TileEncoder::new(cfg, 100, 100);
         let frame = make_frame(100, 100);
 
-        let results = encoder.encode(&frame, &FixedSizeOp(500)).unwrap();
-        let stats = TileEncodeStats::from_results(&results).unwrap();
+        let results = encoder
+            .encode(&frame, &FixedSizeOp(500))
+            .expect("encode should succeed");
+        let stats = TileEncodeStats::from_results(&results).expect("should succeed");
 
         // raw luma = 100 * 100 = 10000 bytes; encoded = 500 → ratio ≈ 0.05
-        let ratio = stats.compression_ratio(10000).unwrap();
+        let ratio = stats.compression_ratio(10000).expect("should succeed");
         assert!((ratio - 0.05).abs() < 1e-9);
 
         assert!(stats.compression_ratio(0).is_none());
@@ -1154,7 +1168,7 @@ mod tests {
 
     #[test]
     fn test_tile_encoder_debug() {
-        let cfg = TileConfig::new(2, 2, 0).unwrap();
+        let cfg = TileConfig::new(2, 2, 0).expect("should succeed");
         let encoder = TileEncoder::new(cfg, 1920, 1080);
         let s = format!("{encoder:?}");
         assert!(s.contains("TileEncoder"));

@@ -197,7 +197,11 @@ impl CrfSweep {
         curve
             .iter()
             .filter(|p| p.size_bytes <= max_bytes)
-            .max_by(|a, b| a.quality_score.partial_cmp(&b.quality_score).unwrap())
+            .max_by(|a, b| {
+                a.quality_score
+                    .partial_cmp(&b.quality_score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .map(|p| p.crf)
     }
 
@@ -341,7 +345,7 @@ mod tests {
         let max_size = curve[5].size_bytes; // allow first 6 CRF values
         let best = CrfSweep::best_quality_within_size(&curve, max_size);
         assert!(best.is_some());
-        assert!(best.unwrap() <= curve[5].crf);
+        assert!(best.expect("CRF should be set") <= curve[5].crf);
     }
 
     #[test]

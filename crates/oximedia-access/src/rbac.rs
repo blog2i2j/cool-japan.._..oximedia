@@ -431,7 +431,7 @@ mod tests {
         registry.register_role(make_editor_role());
         let role = registry.get_role("editor");
         assert!(role.is_some());
-        assert_eq!(role.unwrap().name, "Editor");
+        assert_eq!(role.expect("test expectation failed").name, "Editor");
         assert!(registry.get_role("nonexistent").is_none());
     }
 }

@@ -514,48 +514,54 @@ mod tests {
 
     #[test]
     fn test_mixing_console_creation() {
-        let console = MixingConsole::new(48000, 512).unwrap();
+        let console = MixingConsole::new(48000, 512).expect("failed to create");
         assert_eq!(console.sample_rate, 48000);
     }
 
     #[test]
     fn test_add_channel() {
-        let mut console = MixingConsole::new(48000, 512).unwrap();
-        let id = console.add_channel("Dialogue").unwrap();
+        let mut console = MixingConsole::new(48000, 512).expect("failed to create");
+        let id = console
+            .add_channel("Dialogue")
+            .expect("add_channel should succeed");
         assert_eq!(id, 1);
     }
 
     #[test]
     fn test_set_channel_gain() {
-        let mut console = MixingConsole::new(48000, 512).unwrap();
-        let id = console.add_channel("Dialogue").unwrap();
+        let mut console = MixingConsole::new(48000, 512).expect("failed to create");
+        let id = console
+            .add_channel("Dialogue")
+            .expect("add_channel should succeed");
         assert!(console.set_channel_gain(id, 6.0).is_ok());
     }
 
     #[test]
     fn test_set_channel_pan() {
-        let mut console = MixingConsole::new(48000, 512).unwrap();
-        let id = console.add_channel("Dialogue").unwrap();
+        let mut console = MixingConsole::new(48000, 512).expect("failed to create");
+        let id = console
+            .add_channel("Dialogue")
+            .expect("add_channel should succeed");
         assert!(console.set_channel_pan(id, 0.5).is_ok());
     }
 
     #[test]
     fn test_channel_strip_creation() {
-        let channel = ChannelStrip::new("Test", 48000).unwrap();
+        let channel = ChannelStrip::new("Test", 48000).expect("failed to create");
         assert_eq!(channel.name, "Test");
         assert_eq!(channel.pan, 0.0);
     }
 
     #[test]
     fn test_channel_gain_validation() {
-        let mut channel = ChannelStrip::new("Test", 48000).unwrap();
+        let mut channel = ChannelStrip::new("Test", 48000).expect("failed to create");
         assert!(channel.set_gain(6.0).is_ok());
         assert!(channel.set_gain(100.0).is_err());
     }
 
     #[test]
     fn test_channel_pan_validation() {
-        let mut channel = ChannelStrip::new("Test", 48000).unwrap();
+        let mut channel = ChannelStrip::new("Test", 48000).expect("failed to create");
         assert!(channel.set_pan(0.0).is_ok());
         assert!(channel.set_pan(1.0).is_ok());
         assert!(channel.set_pan(-1.0).is_ok());
@@ -577,7 +583,7 @@ mod tests {
 
     #[test]
     fn test_compressor_settings() {
-        let comp = CompressorSettings::new(-10.0, 4.0, 5.0, 50.0).unwrap();
+        let comp = CompressorSettings::new(-10.0, 4.0, 5.0, 50.0).expect("failed to create");
         assert_eq!(comp.threshold, -10.0);
         assert_eq!(comp.ratio, 4.0);
     }
@@ -598,13 +604,13 @@ mod tests {
 
     #[test]
     fn test_master_section() {
-        let master = MasterSection::new(48000).unwrap();
+        let master = MasterSection::new(48000).expect("failed to create");
         assert_eq!(master.fader, 0.75);
     }
 
     #[test]
     fn test_master_process() {
-        let master = MasterSection::new(48000).unwrap();
+        let master = MasterSection::new(48000).expect("failed to create");
         let mut buffer = vec![0.5_f32; 1024];
         master.process(&mut buffer);
         assert!((buffer[0] - 0.375).abs() < 1e-6);
@@ -612,15 +618,15 @@ mod tests {
 
     #[test]
     fn test_hpf_enable() {
-        let mut channel = ChannelStrip::new("Test", 48000).unwrap();
+        let mut channel = ChannelStrip::new("Test", 48000).expect("failed to create");
         assert!(channel.enable_hpf(80.0).is_ok());
         assert_eq!(channel.hpf_freq, Some(80.0));
     }
 
     #[test]
     fn test_hpf_disable() {
-        let mut channel = ChannelStrip::new("Test", 48000).unwrap();
-        channel.enable_hpf(80.0).unwrap();
+        let mut channel = ChannelStrip::new("Test", 48000).expect("failed to create");
+        channel.enable_hpf(80.0).expect("enable_hpf should succeed");
         channel.disable_hpf();
         assert_eq!(channel.hpf_freq, None);
     }

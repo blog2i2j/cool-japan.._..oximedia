@@ -267,7 +267,11 @@ mod tests {
     #[test]
     fn test_available_full() {
         let mgr = make_manager();
-        assert_eq!(mgr.available(ResourceKind::Cpu).unwrap(), 8);
+        assert_eq!(
+            mgr.available(ResourceKind::Cpu)
+                .expect("available should succeed"),
+            8
+        );
     }
 
     #[test]
@@ -284,7 +288,11 @@ mod tests {
         let mut mgr = make_manager();
         let claim = ResourceClaim::new("job-1", ResourceKind::Cpu, 4);
         assert!(mgr.acquire(claim).is_ok());
-        assert_eq!(mgr.available(ResourceKind::Cpu).unwrap(), 4);
+        assert_eq!(
+            mgr.available(ResourceKind::Cpu)
+                .expect("available should succeed"),
+            4
+        );
     }
 
     #[test]
@@ -299,9 +307,14 @@ mod tests {
     fn test_release_success() {
         let mut mgr = make_manager();
         mgr.acquire(ResourceClaim::new("job-1", ResourceKind::Cpu, 4))
-            .unwrap();
-        mgr.release("job-1", ResourceKind::Cpu).unwrap();
-        assert_eq!(mgr.available(ResourceKind::Cpu).unwrap(), 8);
+            .expect("test expectation failed");
+        mgr.release("job-1", ResourceKind::Cpu)
+            .expect("release should succeed");
+        assert_eq!(
+            mgr.available(ResourceKind::Cpu)
+                .expect("available should succeed"),
+            8
+        );
     }
 
     #[test]
@@ -315,18 +328,22 @@ mod tests {
     fn test_multiple_claimants() {
         let mut mgr = make_manager();
         mgr.acquire(ResourceClaim::new("job-1", ResourceKind::Cpu, 3))
-            .unwrap();
+            .expect("test expectation failed");
         mgr.acquire(ResourceClaim::new("job-2", ResourceKind::Cpu, 3))
-            .unwrap();
+            .expect("test expectation failed");
         assert_eq!(mgr.total_claimed(ResourceKind::Cpu), 6);
-        assert_eq!(mgr.available(ResourceKind::Cpu).unwrap(), 2);
+        assert_eq!(
+            mgr.available(ResourceKind::Cpu)
+                .expect("available should succeed"),
+            2
+        );
     }
 
     #[test]
     fn test_claimants_for() {
         let mut mgr = make_manager();
         mgr.acquire(ResourceClaim::new("job-1", ResourceKind::Gpu, 1))
-            .unwrap();
+            .expect("test expectation failed");
         let cl = mgr.claimants_for(ResourceKind::Gpu);
         assert!(cl.contains(&"job-1"));
     }
@@ -336,7 +353,7 @@ mod tests {
         let mut mgr = make_manager();
         assert!(!mgr.has_claims("job-1"));
         mgr.acquire(ResourceClaim::new("job-1", ResourceKind::Cpu, 1))
-            .unwrap();
+            .expect("test expectation failed");
         assert!(mgr.has_claims("job-1"));
     }
 
@@ -344,9 +361,9 @@ mod tests {
     fn test_release_all() {
         let mut mgr = make_manager();
         mgr.acquire(ResourceClaim::new("job-1", ResourceKind::Cpu, 4))
-            .unwrap();
+            .expect("test expectation failed");
         mgr.acquire(ResourceClaim::new("job-1", ResourceKind::Gpu, 1))
-            .unwrap();
+            .expect("test expectation failed");
         mgr.release_all("job-1");
         assert!(!mgr.has_claims("job-1"));
         assert_eq!(mgr.total_claimed(ResourceKind::Cpu), 0);

@@ -40,7 +40,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-container = "0.1.0"
+oximedia-container = "0.1.1"
 ```
 
 ### Format Detection

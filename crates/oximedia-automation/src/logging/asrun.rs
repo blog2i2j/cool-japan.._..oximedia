@@ -227,10 +227,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_asrun_logger() {
-        let logger = AsRunLogger::new().unwrap();
+        let logger = AsRunLogger::new().expect("new should succeed");
 
         let entry = AsRunEntry::new(0, "Test Program".to_string());
-        logger.log(entry).await.unwrap();
+        logger.log(entry).await.expect("operation should succeed");
 
         let entries = logger.get_entries().await;
         assert_eq!(entries.len(), 1);
@@ -238,13 +238,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_channel_entries() {
-        let logger = AsRunLogger::new().unwrap();
+        let logger = AsRunLogger::new().expect("new should succeed");
 
         let entry1 = AsRunEntry::new(0, "Program 1".to_string());
         let entry2 = AsRunEntry::new(1, "Program 2".to_string());
 
-        logger.log(entry1).await.unwrap();
-        logger.log(entry2).await.unwrap();
+        logger.log(entry1).await.expect("operation should succeed");
+        logger.log(entry2).await.expect("operation should succeed");
 
         let channel0_entries = logger.get_channel_entries(0).await;
         assert_eq!(channel0_entries.len(), 1);

@@ -292,7 +292,9 @@ mod tests {
         let mut server = LicenseServer::new();
         let req = make_request(vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]);
         let policy = LicensePolicy::default();
-        let resp = server.issue_license(&req, &policy).unwrap();
+        let resp = server
+            .issue_license(&req, &policy)
+            .expect("license operation should succeed");
         assert_eq!(resp.key_id, req.key_id);
         assert_eq!(resp.content_key.len(), 16);
         assert!(resp.expiry_secs > 0);
@@ -304,7 +306,9 @@ mod tests {
         let mut req = make_request(vec![1; 16]);
         req.drm_system = DrmSystem::ClearKey;
         let policy = LicensePolicy::default();
-        let resp = server.issue_license(&req, &policy).unwrap();
+        let resp = server
+            .issue_license(&req, &policy)
+            .expect("license operation should succeed");
         assert_eq!(resp.expiry_secs, 3_600);
     }
 
@@ -314,7 +318,9 @@ mod tests {
         let mut req = make_request(vec![2; 16]);
         req.drm_system = DrmSystem::PlayReady;
         let policy = LicensePolicy::default();
-        let resp = server.issue_license(&req, &policy).unwrap();
+        let resp = server
+            .issue_license(&req, &policy)
+            .expect("license operation should succeed");
         assert_eq!(resp.expiry_secs, 43_200);
     }
 
@@ -323,8 +329,12 @@ mod tests {
         let mut server = LicenseServer::new();
         let req = make_request(vec![3; 16]);
         let policy = LicensePolicy::default();
-        let r1 = server.issue_license(&req, &policy).unwrap();
-        let r2 = server.issue_license(&req, &policy).unwrap();
+        let r1 = server
+            .issue_license(&req, &policy)
+            .expect("license operation should succeed");
+        let r2 = server
+            .issue_license(&req, &policy)
+            .expect("license operation should succeed");
         assert_eq!(r1.content_key, r2.content_key);
     }
 
@@ -334,10 +344,10 @@ mod tests {
         let policy = LicensePolicy::default();
         let r1 = server
             .issue_license(&make_request(vec![1; 16]), &policy)
-            .unwrap();
+            .expect("license operation should succeed");
         let r2 = server
             .issue_license(&make_request(vec![2; 16]), &policy)
-            .unwrap();
+            .expect("license operation should succeed");
         assert_ne!(r1.content_key, r2.content_key);
     }
 
@@ -357,7 +367,9 @@ mod tests {
             allow_download: true,
             ..LicensePolicy::default()
         };
-        let resp = server.issue_license(&req, &policy).unwrap();
+        let resp = server
+            .issue_license(&req, &policy)
+            .expect("license operation should succeed");
         assert!(resp.allowed_tracks.contains(&TrackType::Text));
         assert!(resp.allowed_tracks.contains(&TrackType::Thumbnail));
     }
@@ -370,7 +382,9 @@ mod tests {
             allow_download: false,
             ..LicensePolicy::default()
         };
-        let resp = server.issue_license(&req, &policy).unwrap();
+        let resp = server
+            .issue_license(&req, &policy)
+            .expect("license operation should succeed");
         assert!(!resp.allowed_tracks.contains(&TrackType::Thumbnail));
     }
 
@@ -410,7 +424,13 @@ mod tests {
         cache.insert(vec![1], r1, 1000);
         cache.insert(vec![1], r2, 2000);
         assert_eq!(cache.len(), 1);
-        assert_eq!(cache.get(&[1]).unwrap().expiry_secs, 200);
+        assert_eq!(
+            cache
+                .get(&[1])
+                .expect("cache entry should exist")
+                .expiry_secs,
+            200
+        );
     }
 
     #[test]

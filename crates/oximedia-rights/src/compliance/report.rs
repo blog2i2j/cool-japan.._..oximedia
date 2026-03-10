@@ -92,25 +92,38 @@ mod tests {
 
     #[tokio::test]
     async fn test_compliance_report() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("rights test operation should succeed");
         let db_path = format!("sqlite://{}/test.db", temp_dir.path().display());
-        let db = RightsDatabase::new(&db_path).await.unwrap();
+        let db = RightsDatabase::new(&db_path)
+            .await
+            .expect("rights test operation should succeed");
 
         let asset = Asset::new("Test Asset", crate::rights::AssetType::Video);
-        asset.save(&db).await.unwrap();
+        asset
+            .save(&db)
+            .await
+            .expect("rights test operation should succeed");
 
-        let report = ComplianceReport::generate(&db).await.unwrap();
+        let report = ComplianceReport::generate(&db)
+            .await
+            .expect("rights test operation should succeed");
         assert!(report.total_issues > 0);
     }
 
     #[tokio::test]
     async fn test_report_json_export() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("rights test operation should succeed");
         let db_path = format!("sqlite://{}/test.db", temp_dir.path().display());
-        let db = RightsDatabase::new(&db_path).await.unwrap();
+        let db = RightsDatabase::new(&db_path)
+            .await
+            .expect("rights test operation should succeed");
 
-        let report = ComplianceReport::generate(&db).await.unwrap();
-        let json = report.to_json().unwrap();
+        let report = ComplianceReport::generate(&db)
+            .await
+            .expect("rights test operation should succeed");
+        let json = report
+            .to_json()
+            .expect("rights test operation should succeed");
         assert!(json.contains("generated_at"));
     }
 }

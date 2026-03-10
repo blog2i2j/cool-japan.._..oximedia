@@ -72,7 +72,7 @@ rustls-pemfile = "2.2.0"
 
 # Internal dependencies
 oximedia-core.workspace = true
-oximedia-codec.workspace = true
+oximedia-codec = { workspace = true, default-features = true }
 oximedia-io.workspace = true
 oximedia-transcode.workspace = true
 oximedia-qc.workspace = true

@@ -390,7 +390,13 @@ mod tests {
         ctrl.register_angle(0);
         ctrl.advance_clock(5000);
         ctrl.set_program(0);
-        assert_eq!(ctrl.history().last().unwrap().timestamp_us, 5000);
+        assert_eq!(
+            ctrl.history()
+                .last()
+                .expect("multicam test operation should succeed")
+                .timestamp_us,
+            5000
+        );
     }
 
     #[test]

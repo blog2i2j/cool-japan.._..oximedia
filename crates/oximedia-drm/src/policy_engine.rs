@@ -362,7 +362,11 @@ mod tests {
         let ctx = PlayContext::online(1_000_000, Some(de()));
         let decision = policy.evaluate(&ctx);
         assert!(!decision.permitted);
-        assert!(decision.reason.as_deref().unwrap().contains("Geographic"));
+        assert!(decision
+            .reason
+            .as_deref()
+            .expect("value should exist")
+            .contains("Geographic"));
     }
 
     #[test]
@@ -382,7 +386,11 @@ mod tests {
         let ctx = PlayContext::online(1000, None); // after expiry
         let decision = policy.evaluate(&ctx);
         assert!(!decision.permitted);
-        assert!(decision.reason.as_deref().unwrap().contains("Rental"));
+        assert!(decision
+            .reason
+            .as_deref()
+            .expect("value should exist")
+            .contains("Rental"));
     }
 
     #[test]

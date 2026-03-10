@@ -155,7 +155,7 @@ mod tests {
     #[test]
     fn test_keyword_parent() {
         let keyword = Keyword::new("People/Actors/John Doe");
-        let parent = keyword.parent().unwrap();
+        let parent = keyword.parent().expect("parent should succeed");
         assert_eq!(parent.path, "People/Actors");
 
         let root = Keyword::new("People");

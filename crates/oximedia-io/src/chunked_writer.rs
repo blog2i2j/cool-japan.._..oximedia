@@ -274,8 +274,8 @@ mod tests {
             let mut w = ChunkedWriter::new(&mut out, 4, |info| {
                 infos.push(info.clone());
             });
-            w.write_all(b"abcdefghij").unwrap();
-            w.finish().unwrap();
+            w.write_all(b"abcdefghij").expect("failed to write");
+            w.finish().expect("finish should succeed");
         }
         assert_eq!(out, b"abcdefghij");
         // 4 + 4 = 2 full chunks, plus 2 remaining = 3 chunks
@@ -292,8 +292,8 @@ mod tests {
         let mut count = 0u64;
         {
             let mut w = ChunkedWriter::new(&mut out, 5, |_| count += 1);
-            w.write_all(b"12345").unwrap();
-            w.finish().unwrap();
+            w.write_all(b"12345").expect("failed to write");
+            w.finish().expect("finish should succeed");
         }
         assert_eq!(out, b"12345");
         assert_eq!(count, 1); // exactly one full chunk, finish is no-op
@@ -305,7 +305,7 @@ mod tests {
         let mut count = 0u64;
         {
             let mut w = ChunkedWriter::new(&mut out, 10, |_| count += 1);
-            w.finish().unwrap();
+            w.finish().expect("finish should succeed");
         }
         assert!(out.is_empty());
         assert_eq!(count, 0);
@@ -317,8 +317,8 @@ mod tests {
         let mut infos = Vec::new();
         {
             let mut w = ChunkedWriter::new(&mut out, 3, |info| infos.push(info.clone()));
-            w.write_all(b"abcdef").unwrap();
-            w.finish().unwrap();
+            w.write_all(b"abcdef").expect("failed to write");
+            w.finish().expect("finish should succeed");
         }
         assert_eq!(infos[0].index, 0);
         assert_eq!(infos[0].cumulative_bytes, 3);
@@ -330,8 +330,8 @@ mod tests {
     fn test_chunked_total_bytes() {
         let mut out = Vec::new();
         let mut w = ChunkedWriter::new(&mut out, 8, |_| {});
-        w.write_all(b"hello world").unwrap();
-        w.finish().unwrap();
+        w.write_all(b"hello world").expect("failed to write");
+        w.finish().expect("finish should succeed");
         assert_eq!(w.total_bytes(), 11);
     }
 
@@ -339,8 +339,8 @@ mod tests {
     fn test_chunked_chunk_count() {
         let mut out = Vec::new();
         let mut w = ChunkedWriter::new(&mut out, 4, |_| {});
-        w.write_all(b"0123456789ab").unwrap();
-        w.finish().unwrap();
+        w.write_all(b"0123456789ab").expect("failed to write");
+        w.finish().expect("finish should succeed");
         assert_eq!(w.chunk_count(), 3);
     }
 
@@ -348,7 +348,7 @@ mod tests {
     fn test_chunked_buffered_len() {
         let mut out = Vec::new();
         let mut w = ChunkedWriter::new(&mut out, 10, |_| {});
-        w.write_all(b"abc").unwrap();
+        w.write_all(b"abc").expect("failed to write");
         assert_eq!(w.buffered_len(), 3);
     }
 
@@ -364,8 +364,8 @@ mod tests {
         let mut out = Vec::new();
         {
             let mut w = AlignedChunkWriter::new(&mut out, 8);
-            w.write_all(b"hello").unwrap();
-            w.finish().unwrap();
+            w.write_all(b"hello").expect("failed to write");
+            w.finish().expect("finish should succeed");
         }
         assert_eq!(out.len(), 8); // padded to 8
         assert_eq!(&out[..5], b"hello");
@@ -377,8 +377,8 @@ mod tests {
         let mut out = Vec::new();
         {
             let mut w = AlignedChunkWriter::new(&mut out, 4);
-            w.write_all(b"abcd").unwrap();
-            w.finish().unwrap();
+            w.write_all(b"abcd").expect("failed to write");
+            w.finish().expect("finish should succeed");
         }
         assert_eq!(out, b"abcd");
     }
@@ -388,8 +388,8 @@ mod tests {
         let mut out = Vec::new();
         {
             let mut w = AlignedChunkWriter::new(&mut out, 8).with_pad_byte(0xFF);
-            w.write_all(b"hi").unwrap();
-            w.finish().unwrap();
+            w.write_all(b"hi").expect("failed to write");
+            w.finish().expect("finish should succeed");
         }
         assert_eq!(out.len(), 8);
         assert_eq!(&out[..2], b"hi");
@@ -400,7 +400,7 @@ mod tests {
     fn test_aligned_chunks_written() {
         let mut out = Vec::new();
         let mut w = AlignedChunkWriter::new(&mut out, 4);
-        w.write_all(b"12345678").unwrap(); // two full chunks
+        w.write_all(b"12345678").expect("failed to write"); // two full chunks
         assert_eq!(w.chunks_written(), 2);
     }
 

@@ -83,7 +83,8 @@ mod tests {
     #[test]
     fn test_frames_to_timecode() {
         let frame_rate = Rational::new(24, 1);
-        let timecode = MarkerExporter::frames_to_timecode(100, frame_rate).unwrap();
+        let timecode = MarkerExporter::frames_to_timecode(100, frame_rate)
+            .expect("frames_to_timecode should succeed");
         assert_eq!(timecode, "00:00:04:04");
     }
 
@@ -93,7 +94,7 @@ mod tests {
         let markers = vec![marker];
         let frame_rate = Rational::new(24, 1);
 
-        let csv = MarkerExporter::to_csv(&markers, frame_rate).unwrap();
+        let csv = MarkerExporter::to_csv(&markers, frame_rate).expect("to_csv should succeed");
         assert!(csv.contains("Frame,Timecode,Type,Name,Comment"));
         assert!(csv.contains("100,00:00:04:04,Chapter,Chapter 1"));
     }

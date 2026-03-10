@@ -439,17 +439,19 @@ mod tests {
         assert_eq!(buffer.len(), 0);
 
         // Append data
-        buffer.append(&[1, 2, 3, 4]).unwrap();
+        buffer
+            .append(&[1, 2, 3, 4])
+            .expect("operation should succeed");
         assert_eq!(buffer.len(), 4);
         assert_eq!(buffer.total_received(), 4);
 
         // Peek
-        let peeked = buffer.peek(2).unwrap();
+        let peeked = buffer.peek(2).expect("operation should succeed");
         assert_eq!(peeked, &[1, 2]);
         assert_eq!(buffer.len(), 4); // Still has all data
 
         // Consume
-        let consumed = buffer.consume(2).unwrap();
+        let consumed = buffer.consume(2).expect("operation should succeed");
         assert_eq!(consumed.as_ref(), &[1, 2]);
         assert_eq!(buffer.len(), 2);
 

@@ -100,7 +100,7 @@ impl SourceSeparator {
                     .map(|t| spectrogram[t][freq_idx].norm())
                     .collect();
 
-                values.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
                 let median = values[values.len() / 2];
 
                 // Preserve phase, update magnitude
@@ -127,7 +127,7 @@ impl SourceSeparator {
                     .map(|f| spectrogram[time_idx][f].norm())
                     .collect();
 
-                values.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
                 let median = values[values.len() / 2];
 
                 // Preserve phase, update magnitude
@@ -211,7 +211,7 @@ mod tests {
         let result = separator.separate_harmonic_percussive(&samples, sample_rate);
         assert!(result.is_ok());
 
-        let separation = result.unwrap();
+        let separation = result.expect("expected successful result");
         assert_eq!(separation.harmonic.len(), samples.len());
         assert_eq!(separation.percussive.len(), samples.len());
     }

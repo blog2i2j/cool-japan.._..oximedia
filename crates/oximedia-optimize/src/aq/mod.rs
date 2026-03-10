@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn test_aq_engine_creation() {
         let config = OptimizerConfig::default();
-        let engine = AqEngine::new(&config).unwrap();
+        let engine = AqEngine::new(&config).expect("AQ engine creation should succeed");
         assert_eq!(engine.mode(), AqMode::Combined); // Default has psycho enabled
     }
 
@@ -164,7 +164,7 @@ mod tests {
     #[test]
     fn test_set_strength() {
         let config = OptimizerConfig::default();
-        let mut engine = AqEngine::new(&config).unwrap();
+        let mut engine = AqEngine::new(&config).expect("AQ engine creation should succeed");
         engine.set_strength(1.5);
         assert_eq!(engine.strength, 1.5);
 

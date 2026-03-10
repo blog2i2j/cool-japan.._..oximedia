@@ -316,7 +316,8 @@ mod tests {
             make_word("Hello", 0.95, 0, 500),
             make_word("world.", 0.90, 500, 1000),
         ];
-        let seg = CaptionSegment::from_words(words).unwrap();
+        let seg =
+            CaptionSegment::from_words(words).expect("caption segment creation should succeed");
         assert_eq!(seg.text, "Hello world.");
         assert_eq!(seg.start_ms, 0);
         assert_eq!(seg.end_ms, 1000);
@@ -331,7 +332,8 @@ mod tests {
     #[test]
     fn test_segment_duration() {
         let words = vec![make_word("Test.", 0.9, 1000, 2500)];
-        let seg = CaptionSegment::from_words(words).unwrap();
+        let seg =
+            CaptionSegment::from_words(words).expect("caption segment creation should succeed");
         assert_eq!(seg.duration_ms(), 1500);
     }
 

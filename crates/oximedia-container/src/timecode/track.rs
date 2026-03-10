@@ -243,7 +243,8 @@ mod tests {
 
     #[test]
     fn test_timecode_creation() {
-        let tc = Timecode::new(1, 30, 45, 12, TimecodeFormat::Fps24).unwrap();
+        let tc =
+            Timecode::new(1, 30, 45, 12, TimecodeFormat::Fps24).expect("operation should succeed");
         assert_eq!(tc.hours, 1);
         assert_eq!(tc.minutes, 30);
         assert_eq!(tc.seconds, 45);
@@ -266,16 +267,19 @@ mod tests {
 
     #[test]
     fn test_timecode_string() {
-        let tc = Timecode::new(1, 30, 45, 12, TimecodeFormat::Fps24).unwrap();
+        let tc =
+            Timecode::new(1, 30, 45, 12, TimecodeFormat::Fps24).expect("operation should succeed");
         assert_eq!(tc.format_string(), "01:30:45:12");
 
-        let tc_drop = Timecode::new(1, 30, 45, 12, TimecodeFormat::Fps30Drop).unwrap();
+        let tc_drop = Timecode::new(1, 30, 45, 12, TimecodeFormat::Fps30Drop)
+            .expect("operation should succeed");
         assert_eq!(tc_drop.format_string(), "01:30:45;12");
     }
 
     #[test]
     fn test_timecode_parse() {
-        let tc = Timecode::from_string("01:30:45:12", TimecodeFormat::Fps24).unwrap();
+        let tc = Timecode::from_string("01:30:45:12", TimecodeFormat::Fps24)
+            .expect("operation should succeed");
         assert_eq!(tc.hours, 1);
         assert_eq!(tc.minutes, 30);
         assert_eq!(tc.seconds, 45);
@@ -286,14 +290,16 @@ mod tests {
 
     #[test]
     fn test_timecode_track() {
-        let start_tc = Timecode::new(0, 0, 0, 0, TimecodeFormat::Fps24).unwrap();
+        let start_tc =
+            Timecode::new(0, 0, 0, 0, TimecodeFormat::Fps24).expect("operation should succeed");
         let mut track = TimecodeTrack::new(TimecodeFormat::Fps24, start_tc);
 
-        let tc1 = Timecode::new(0, 0, 1, 0, TimecodeFormat::Fps24).unwrap();
+        let tc1 =
+            Timecode::new(0, 0, 1, 0, TimecodeFormat::Fps24).expect("operation should succeed");
         track.add_timecode(24, tc1);
 
         let retrieved = track.get_timecode(24);
         assert!(retrieved.is_some());
-        assert_eq!(retrieved.unwrap().seconds, 1);
+        assert_eq!(retrieved.expect("operation should succeed").seconds, 1);
     }
 }

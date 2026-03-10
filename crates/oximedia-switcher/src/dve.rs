@@ -391,18 +391,137 @@ impl DveProcessor {
     }
 
     /// Process a video frame through the DVE.
-    #[allow(dead_code)]
-    pub fn process(&self, _input: &VideoFrame) -> Result<VideoFrame, DveError> {
-        // In a real implementation, this would:
-        // 1. Apply crop to the input
-        // 2. Scale the cropped region
-        // 3. Rotate if needed
-        // 4. Position on the canvas
-        // 5. Apply border and shadow
-        // 6. Return transformed frame
+    ///
+    /// Applies crop, scale, position (and optionally border) to produce a
+    /// composited output frame on a black canvas of the same dimensions as the input.
+    pub fn process(&self, input: &VideoFrame) -> Result<VideoFrame, DveError> {
+        if !self.enabled {
+            // DVE disabled: return a clone of the input
+            return Ok(input.clone());
+        }
 
-        // Placeholder
-        Err(DveError::ProcessingError("Not implemented".to_string()))
+        if input.planes.is_empty() {
+            return Err(DveError::ProcessingError(
+                "Input frame has no planes".to_string(),
+            ));
+        }
+
+        let canvas_w = input.width;
+        let canvas_h = input.height;
+
+        // Create output frame (black canvas)
+        let mut output = VideoFrame::new(input.format, canvas_w, canvas_h);
+        output.allocate();
+        output.timestamp = input.timestamp;
+        output.frame_type = input.frame_type;
+        output.color_info = input.color_info;
+
+        // Work on the luma (first) plane for simplicity. The same logic
+        // is applied to all planes, adjusting for chroma sub-sampling.
+        for plane_idx in 0..output.planes.len().min(input.planes.len()) {
+            let src_plane = &input.planes[plane_idx];
+            let src_w = src_plane.width as usize;
+            let src_h = src_plane.height as usize;
+            let src_stride = src_plane.stride;
+
+            let dst_plane = &mut output.planes[plane_idx];
+            let dst_w = dst_plane.width as usize;
+            let dst_h = dst_plane.height as usize;
+            let dst_stride = dst_plane.stride;
+
+            // Calculate source crop region in pixels
+            let crop_x0 = (self.params.crop.left * src_w as f32) as usize;
+            let crop_y0 = (self.params.crop.top * src_h as f32) as usize;
+            let crop_x1 = (self.params.crop.right * src_w as f32) as usize;
+            let crop_y1 = (self.params.crop.bottom * src_h as f32) as usize;
+
+            let crop_w = crop_x1.saturating_sub(crop_x0).max(1);
+            let crop_h = crop_y1.saturating_sub(crop_y0).max(1);
+
+            // Calculate destination rectangle
+            let out_w = (dst_w as f32 * self.params.scale.x) as usize;
+            let out_h = (dst_h as f32 * self.params.scale.y) as usize;
+
+            if out_w == 0 || out_h == 0 {
+                continue;
+            }
+
+            let out_x = ((self.params.position.x * dst_w as f32) - (out_w as f32 / 2.0)) as i32;
+            let out_y = ((self.params.position.y * dst_h as f32) - (out_h as f32 / 2.0)) as i32;
+
+            // Nearest-neighbour blit from cropped source into the destination rectangle
+            for dy in 0..out_h {
+                let dst_row = out_y + dy as i32;
+                if dst_row < 0 || dst_row as usize >= dst_h {
+                    continue;
+                }
+                let dst_row = dst_row as usize;
+
+                for dx in 0..out_w {
+                    let dst_col = out_x + dx as i32;
+                    if dst_col < 0 || dst_col as usize >= dst_w {
+                        continue;
+                    }
+                    let dst_col = dst_col as usize;
+
+                    // Map destination pixel back to cropped source
+                    let src_x = crop_x0 + (dx * crop_w / out_w).min(crop_w.saturating_sub(1));
+                    let src_y = crop_y0 + (dy * crop_h / out_h).min(crop_h.saturating_sub(1));
+
+                    if src_x < src_w && src_y < src_h {
+                        let si = src_y * src_stride + src_x;
+                        let di = dst_row * dst_stride + dst_col;
+                        if si < src_plane.data.len() && di < dst_plane.data.len() {
+                            dst_plane.data[di] = src_plane.data[si];
+                        }
+                    }
+                }
+            }
+
+            // Draw border if enabled
+            if self.params.border.enabled {
+                let border_px = (self.params.border.width as usize).max(1);
+                let border_val = match plane_idx {
+                    0 => {
+                        // Luma: use BT.709 approximate
+                        let (r, g, b) = self.params.border.color;
+                        (f32::from(r) * 0.2126 + f32::from(g) * 0.7152 + f32::from(b) * 0.0722)
+                            as u8
+                    }
+                    _ => 128u8, // Chroma neutral
+                };
+
+                for dy in 0..out_h {
+                    let dst_row = out_y + dy as i32;
+                    if dst_row < 0 || dst_row as usize >= dst_h {
+                        continue;
+                    }
+                    let dst_row = dst_row as usize;
+
+                    for dx in 0..out_w {
+                        let dst_col = out_x + dx as i32;
+                        if dst_col < 0 || dst_col as usize >= dst_w {
+                            continue;
+                        }
+                        let dst_col = dst_col as usize;
+
+                        let on_border = dx < border_px
+                            || dx >= out_w.saturating_sub(border_px)
+                            || dy < border_px
+                            || dy >= out_h.saturating_sub(border_px);
+
+                        if on_border {
+                            let di = dst_row * dst_stride + dst_col;
+                            if di < dst_plane.data.len() {
+                                dst_plane.data[di] = border_val;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(output)
     }
 
     /// Calculate the output rectangle for the current parameters.

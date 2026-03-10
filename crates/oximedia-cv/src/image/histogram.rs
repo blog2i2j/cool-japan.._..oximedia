@@ -282,7 +282,7 @@ impl Default for Histogram {
 /// use oximedia_cv::image::histogram::histogram_equalization;
 ///
 /// let src = vec![50u8; 100];
-/// let result = histogram_equalization(&src, 10, 10).unwrap();
+/// let result = histogram_equalization(&src, 10, 10)?;
 /// assert_eq!(result.len(), 100);
 /// ```
 pub fn histogram_equalization(src: &[u8], width: u32, height: u32) -> CvResult<Vec<u8>> {
@@ -415,7 +415,7 @@ impl ClaheConfig {
 ///
 /// let src = vec![128u8; 256];
 /// let config = ClaheConfig::new(4, 4, 2.0);
-/// let result = adaptive_histogram_equalization(&src, 16, 16, &config).unwrap();
+/// let result = adaptive_histogram_equalization(&src, 16, 16, &config)?;
 /// assert_eq!(result.len(), 256);
 /// ```
 pub fn adaptive_histogram_equalization(
@@ -707,7 +707,8 @@ mod tests {
     #[test]
     fn test_histogram_equalization() {
         let src: Vec<u8> = (0..256).map(|i| (i / 4) as u8).collect();
-        let result = histogram_equalization(&src, 16, 16).unwrap();
+        let result =
+            histogram_equalization(&src, 16, 16).expect("histogram_equalization should succeed");
         assert_eq!(result.len(), 256);
 
         // After equalization, the histogram should be more uniform
@@ -718,7 +719,8 @@ mod tests {
     #[test]
     fn test_histogram_equalization_uniform() {
         let src = vec![128u8; 100];
-        let result = histogram_equalization(&src, 10, 10).unwrap();
+        let result =
+            histogram_equalization(&src, 10, 10).expect("histogram_equalization should succeed");
 
         // Uniform input should remain relatively uniform
         assert_eq!(result.len(), 100);
@@ -728,7 +730,8 @@ mod tests {
     fn test_clahe() {
         let src = vec![128u8; 256];
         let config = ClaheConfig::new(4, 4, 2.0);
-        let result = adaptive_histogram_equalization(&src, 16, 16, &config).unwrap();
+        let result = adaptive_histogram_equalization(&src, 16, 16, &config)
+            .expect("adaptive_histogram_equalization should succeed");
         assert_eq!(result.len(), 256);
     }
 

@@ -3,7 +3,7 @@
 //! Provides Kalman filtering and smoothing for camera tracking data.
 
 use super::CameraPose;
-use nalgebra::{Matrix3, Matrix6, Point3, UnitQuaternion, Vector3, Vector6};
+use crate::math::{Matrix3, Matrix3x6, Matrix6, Point3, UnitQuaternion, Vector3, Vector6};
 use serde::{Deserialize, Serialize};
 
 /// Kalman filter for tracking
@@ -52,18 +52,13 @@ impl KalmanFilter {
         let _h = Matrix3::from_iterator([1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]);
 
         // Innovation
-        let h_6x3 = nalgebra::Matrix::<
-            f64,
-            nalgebra::U3,
-            nalgebra::U6,
-            nalgebra::ArrayStorage<f64, 3, 6>,
-        >::from_iterator([
+        let h_6x3 = Matrix3x6::from_iterator([
             1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0,
             0.0,
         ]);
 
         let predicted_measurement = h_6x3 * self.state;
-        let innovation = measurement.coords - predicted_measurement;
+        let innovation = measurement.coords() - predicted_measurement;
 
         // Innovation covariance
         let s = h_6x3 * self.covariance * h_6x3.transpose() + self.measurement_noise;
@@ -73,10 +68,10 @@ impl KalmanFilter {
             let k = self.covariance * h_6x3.transpose() * s_inv;
 
             // Update state
-            self.state += k * innovation;
+            self.state += k.mul_vec3(&innovation);
 
             // Update covariance
-            let i_kh = Matrix6::identity() - k * h_6x3;
+            let i_kh = Matrix6::identity() - k.mul_3x6(&h_6x3);
             self.covariance = i_kh * self.covariance;
         }
     }
@@ -123,7 +118,9 @@ impl ExponentialSmoothingFilter {
     pub fn filter(&mut self, pose: &CameraPose) -> CameraPose {
         // Filter position
         let filtered_pos = if let Some(prev_pos) = self.filtered_position {
-            Point3::from(prev_pos.coords * (1.0 - self.alpha) + pose.position.coords * self.alpha)
+            Point3::from(
+                prev_pos.coords() * (1.0 - self.alpha) + pose.position.coords() * self.alpha,
+            )
         } else {
             pose.position
         };

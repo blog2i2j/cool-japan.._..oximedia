@@ -271,7 +271,7 @@ impl Default for StructuringElement {
 ///
 /// let src = vec![255u8; 25];
 /// let element = StructuringElement::rectangle(3, 3);
-/// let result = erode(&src, 5, 5, &element).unwrap();
+/// let result = erode(&src, 5, 5, &element)?;
 /// ```
 pub fn erode(
     src: &[u8],
@@ -333,7 +333,7 @@ pub fn erode(
 ///
 /// let src = vec![0u8; 25];
 /// let element = StructuringElement::rectangle(3, 3);
-/// let result = dilate(&src, 5, 5, &element).unwrap();
+/// let result = dilate(&src, 5, 5, &element)?;
 /// ```
 pub fn dilate(
     src: &[u8],
@@ -383,7 +383,7 @@ pub fn dilate(
 ///
 /// let src = vec![128u8; 25];
 /// let element = StructuringElement::rectangle(3, 3);
-/// let result = morphological_open(&src, 5, 5, &element).unwrap();
+/// let result = morphological_open(&src, 5, 5, &element)?;
 /// ```
 pub fn morphological_open(
     src: &[u8],
@@ -410,7 +410,7 @@ pub fn morphological_open(
 ///
 /// let src = vec![128u8; 25];
 /// let element = StructuringElement::rectangle(3, 3);
-/// let result = morphological_close(&src, 5, 5, &element).unwrap();
+/// let result = morphological_close(&src, 5, 5, &element)?;
 /// ```
 pub fn morphological_close(
     src: &[u8],
@@ -582,7 +582,7 @@ mod tests {
         src[12] = 255; // Center pixel
 
         let element = StructuringElement::rectangle(3, 3);
-        let result = erode(&src, 5, 5, &element).unwrap();
+        let result = erode(&src, 5, 5, &element).expect("erode should succeed");
 
         // Bright spot should be removed by erosion
         assert_eq!(result[12], 0);
@@ -595,7 +595,7 @@ mod tests {
         src[12] = 255; // Center pixel
 
         let element = StructuringElement::rectangle(3, 3);
-        let result = dilate(&src, 5, 5, &element).unwrap();
+        let result = dilate(&src, 5, 5, &element).expect("dilate should succeed");
 
         // Bright spot should expand
         assert_eq!(result[12], 255);
@@ -607,7 +607,8 @@ mod tests {
     fn test_morphological_open() {
         let src = vec![128u8; 25];
         let element = StructuringElement::rectangle(3, 3);
-        let result = morphological_open(&src, 5, 5, &element).unwrap();
+        let result =
+            morphological_open(&src, 5, 5, &element).expect("morphological_open should succeed");
         assert_eq!(result.len(), 25);
     }
 
@@ -615,7 +616,8 @@ mod tests {
     fn test_morphological_close() {
         let src = vec![128u8; 25];
         let element = StructuringElement::rectangle(3, 3);
-        let result = morphological_close(&src, 5, 5, &element).unwrap();
+        let result =
+            morphological_close(&src, 5, 5, &element).expect("morphological_close should succeed");
         assert_eq!(result.len(), 25);
     }
 
@@ -623,7 +625,8 @@ mod tests {
     fn test_morphological_gradient() {
         let src = vec![128u8; 25];
         let element = StructuringElement::rectangle(3, 3);
-        let result = morphological_gradient(&src, 5, 5, &element).unwrap();
+        let result = morphological_gradient(&src, 5, 5, &element)
+            .expect("morphological_gradient should succeed");
         assert_eq!(result.len(), 25);
     }
 
@@ -631,7 +634,7 @@ mod tests {
     fn test_top_hat() {
         let src = vec![128u8; 25];
         let element = StructuringElement::rectangle(3, 3);
-        let result = top_hat(&src, 5, 5, &element).unwrap();
+        let result = top_hat(&src, 5, 5, &element).expect("top_hat should succeed");
         assert_eq!(result.len(), 25);
     }
 
@@ -639,7 +642,7 @@ mod tests {
     fn test_black_hat() {
         let src = vec![128u8; 25];
         let element = StructuringElement::rectangle(3, 3);
-        let result = black_hat(&src, 5, 5, &element).unwrap();
+        let result = black_hat(&src, 5, 5, &element).expect("black_hat should succeed");
         assert_eq!(result.len(), 25);
     }
 
@@ -657,7 +660,7 @@ mod tests {
             MorphOperation::TopHat,
             MorphOperation::BlackHat,
         ] {
-            let result = apply_morph(&src, 5, 5, op, &element).unwrap();
+            let result = apply_morph(&src, 5, 5, op, &element).expect("apply_morph should succeed");
             assert_eq!(result.len(), 25);
         }
     }

@@ -269,7 +269,7 @@ mod tests {
         let h = tracker.acquire(ResourceKind::Gpu);
         assert!(tracker.suspend(h));
         assert_eq!(tracker.state(h), Some(ResourceState::Suspended));
-        assert!(!tracker.state(h).unwrap().is_active());
+        assert!(!tracker.state(h).expect("state should exist").is_active());
         assert!(tracker.resume(h));
         assert_eq!(tracker.state(h), Some(ResourceState::Active));
     }

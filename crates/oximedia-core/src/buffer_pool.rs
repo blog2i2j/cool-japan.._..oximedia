@@ -242,8 +242,8 @@ mod tests {
     #[test]
     fn test_pool_acquire_exhausts_buffers() {
         let mut pool = BufferPool::new(2, 256);
-        let _id1 = pool.acquire().unwrap();
-        let _id2 = pool.acquire().unwrap();
+        let _id1 = pool.acquire().expect("acquire should succeed");
+        let _id2 = pool.acquire().expect("acquire should succeed");
         assert!(pool.acquire().is_none());
     }
 
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn test_pool_release_makes_buffer_available() {
         let mut pool = BufferPool::new(1, 64);
-        let id = pool.acquire().unwrap();
+        let id = pool.acquire().expect("acquire should succeed");
         assert_eq!(pool.available_count(), 0);
         pool.release(id);
         assert_eq!(pool.available_count(), 1);

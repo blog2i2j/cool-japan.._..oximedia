@@ -23,7 +23,7 @@
 //!
 //! // Create fingerprinter
 //! let config = FingerprintConfig::default();
-//! let fingerprinter = Fingerprinter::new(config).unwrap();
+//! let fingerprinter = Fingerprinter::new(config)?;
 //!
 //! // Generate fingerprint from audio
 //! # let audio = AudioFrame::new(
@@ -31,7 +31,7 @@
 //! #     44100,
 //! #     oximedia_audio::ChannelLayout::Mono
 //! # );
-//! let fingerprint = fingerprinter.generate(&audio).unwrap();
+//! let fingerprint = fingerprinter.generate(&audio)?;
 //!
 //! // Create database and add fingerprint
 //! let mut database = FingerprintDatabase::new();
@@ -43,7 +43,7 @@
 //! #     44100,
 //! #     oximedia_audio::ChannelLayout::Mono
 //! # );
-//! let query_fp = fingerprinter.generate(&query).unwrap();
+//! let query_fp = fingerprinter.generate(&query)?;
 //! let matches = database.find_matches(&query_fp, 0.3);
 //!
 //! for m in matches {

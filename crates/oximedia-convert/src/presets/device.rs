@@ -238,25 +238,44 @@ mod tests {
 
     #[test]
     fn test_android_1080p() {
-        let preset = android_1080p().unwrap();
+        let preset = android_1080p().expect("device preset should be valid");
         assert_eq!(preset.container, ContainerFormat::Mp4);
-        let video = preset.video.unwrap();
+        let video = preset.video.expect("device preset should be valid");
         assert_eq!(video.width, Some(1920));
         assert_eq!(video.height, Some(1080));
     }
 
     #[test]
     fn test_gaming_consoles() {
-        let ps5 = ps5().unwrap();
-        let xbox = xbox_series().unwrap();
-        let switch = nintendo_switch().unwrap();
+        let ps5 = ps5().expect("device preset should be valid");
+        let xbox = xbox_series().expect("device preset should be valid");
+        let switch = nintendo_switch().expect("device preset should be valid");
 
         // PS5 and Xbox should be 4K
-        assert_eq!(ps5.video.as_ref().unwrap().width, Some(3840));
-        assert_eq!(xbox.video.as_ref().unwrap().width, Some(3840));
+        assert_eq!(
+            ps5.video
+                .as_ref()
+                .expect("device preset should be valid")
+                .width,
+            Some(3840)
+        );
+        assert_eq!(
+            xbox.video
+                .as_ref()
+                .expect("device preset should be valid")
+                .width,
+            Some(3840)
+        );
 
         // Switch should be 1080p
-        assert_eq!(switch.video.as_ref().unwrap().width, Some(1920));
+        assert_eq!(
+            switch
+                .video
+                .as_ref()
+                .expect("device preset should be valid")
+                .width,
+            Some(1920)
+        );
     }
 
     #[test]

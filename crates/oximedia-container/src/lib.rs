@@ -7,6 +7,7 @@
 //! - WAV (.wav)
 //! - MP4 (.mp4) - AV1/VP9 only
 //! - MPEG-TS (.ts, .m2ts) - AV1/VP9/VP8/Opus/FLAC only
+//! - YUV4MPEG2 (.y4m) - Raw uncompressed video
 //!
 //! # Overview
 //!

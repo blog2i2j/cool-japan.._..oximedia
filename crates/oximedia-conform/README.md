@@ -42,7 +42,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-conform = "0.1.0"
+oximedia-conform = "0.1.1"
 ```
 
 ```rust

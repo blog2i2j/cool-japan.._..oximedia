@@ -163,7 +163,10 @@ mod tests {
         let preset = TemplatePresets::broadcast_transcode();
 
         assert_eq!(preset.get("codec"), Some(&"mpeg2video".to_string()));
-        assert!(preset.get("output").unwrap().ends_with(".mxf"));
+        assert!(preset
+            .get("output")
+            .expect("failed to get value")
+            .ends_with(".mxf"));
     }
 
     #[test]
@@ -171,7 +174,10 @@ mod tests {
         let preset = TemplatePresets::archive();
 
         assert_eq!(preset.get("codec"), Some(&"prores".to_string()));
-        assert!(preset.get("output").unwrap().contains("{year}"));
+        assert!(preset
+            .get("output")
+            .expect("failed to get value")
+            .contains("{year}"));
     }
 
     #[test]
@@ -179,6 +185,9 @@ mod tests {
         let preset = TemplatePresets::proxy();
 
         assert_eq!(preset.get("codec"), Some(&"h264".to_string()));
-        assert!(preset.get("output").unwrap().contains("proxy"));
+        assert!(preset
+            .get("output")
+            .expect("failed to get value")
+            .contains("proxy"));
     }
 }

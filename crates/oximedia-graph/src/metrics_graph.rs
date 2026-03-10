@@ -201,8 +201,13 @@ impl MetricsGraph {
                         }
                         if dist[&w] == dv + 1 {
                             let sw = sigma[&v];
-                            *sigma.get_mut(&w).unwrap() += sw;
-                            pred.get_mut(&w).unwrap().push(v);
+                            // SAFETY: sigma and pred are pre-populated with all node ids
+                            if let Some(sw_entry) = sigma.get_mut(&w) {
+                                *sw_entry += sw;
+                            }
+                            if let Some(pred_entry) = pred.get_mut(&w) {
+                                pred_entry.push(v);
+                            }
                         }
                     }
                 }
@@ -216,10 +221,17 @@ impl MetricsGraph {
                 for &v in &pred[&w] {
                     let sv = sigma[&v];
                     let contribution = (sv / sw) * (1.0 + dw);
-                    *delta.get_mut(&v).unwrap() += contribution;
+                    // SAFETY: delta is pre-populated with all node ids
+                    if let Some(dv_entry) = delta.get_mut(&v) {
+                        *dv_entry += contribution;
+                    }
                 }
                 if w != source {
-                    *centrality.get_mut(&w).unwrap() += delta[&w];
+                    let dw_val = delta[&w];
+                    // SAFETY: centrality is pre-populated with all node ids
+                    if let Some(c) = centrality.get_mut(&w) {
+                        *c += dw_val;
+                    }
                 }
             }
         }

@@ -278,7 +278,7 @@ mod tests {
         let b = CaptureRect::new(100, 100, 200, 200);
         let intersection = a.intersect(&b);
         assert!(intersection.is_some());
-        let r = intersection.unwrap();
+        let r = intersection.expect("intersection should succeed");
         assert_eq!(r.x, 100);
         assert_eq!(r.y, 100);
         assert_eq!(r.width, 100);

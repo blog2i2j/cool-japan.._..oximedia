@@ -278,7 +278,7 @@ mod tests {
         let result = AutoWhiteBalance::gray_world(&image);
 
         assert!(result.is_ok());
-        let correction = result.unwrap();
+        let correction = result.expect("expected successful result");
 
         // All multipliers should be close to 1.0 for neutral gray
         assert!((correction.red_multiplier - 1.0).abs() < 0.1);

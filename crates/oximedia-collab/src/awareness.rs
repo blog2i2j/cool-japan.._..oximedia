@@ -499,13 +499,22 @@ mod tests {
         let manager = AwarenessManager::new(Uuid::new_v4());
         let user = User::new("Alice".to_string(), UserRole::Owner);
 
-        manager.add_user(user.clone()).await.unwrap();
+        manager
+            .add_user(user.clone())
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(manager.user_count().await, 1);
 
-        let state = manager.get_state(user.id).await.unwrap();
+        let state = manager
+            .get_state(user.id)
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(state.user.name, "Alice");
 
-        manager.remove_user(user.id).await.unwrap();
+        manager
+            .remove_user(user.id)
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(manager.user_count().await, 0);
     }
 
@@ -514,7 +523,10 @@ mod tests {
         let manager = AwarenessManager::new(Uuid::new_v4());
         let user = User::new("Alice".to_string(), UserRole::Owner);
 
-        manager.add_user(user.clone()).await.unwrap();
+        manager
+            .add_user(user.clone())
+            .await
+            .expect("collab test operation should succeed");
 
         let cursor = CursorPosition {
             user_id: user.id,
@@ -526,11 +538,20 @@ mod tests {
         manager
             .update_cursor(user.id, cursor.clone())
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
 
-        let state = manager.get_state(user.id).await.unwrap();
+        let state = manager
+            .get_state(user.id)
+            .await
+            .expect("collab test operation should succeed");
         assert!(state.cursor.is_some());
-        assert_eq!(state.cursor.unwrap().timestamp, 10.0);
+        assert_eq!(
+            state
+                .cursor
+                .expect("collab test operation should succeed")
+                .timestamp,
+            10.0
+        );
     }
 
     #[tokio::test]
@@ -538,7 +559,10 @@ mod tests {
         let manager = AwarenessManager::new(Uuid::new_v4());
         let user = User::new("Alice".to_string(), UserRole::Owner);
 
-        manager.add_user(user.clone()).await.unwrap();
+        manager
+            .add_user(user.clone())
+            .await
+            .expect("collab test operation should succeed");
 
         let selection = SelectionRange {
             user_id: user.id,
@@ -551,9 +575,12 @@ mod tests {
         manager
             .update_selection(user.id, selection.clone())
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
 
-        let state = manager.get_state(user.id).await.unwrap();
+        let state = manager
+            .get_state(user.id)
+            .await
+            .expect("collab test operation should succeed");
         assert!(state.selection.is_some());
     }
 
@@ -596,12 +623,16 @@ mod tests {
         let awareness = UserAwareness::new(user.clone());
         states.insert(user.id, awareness);
 
-        let json = AwarenessExporter::to_json(&states).unwrap();
-        let imported = AwarenessExporter::from_json(&json).unwrap();
+        let json =
+            AwarenessExporter::to_json(&states).expect("collab test operation should succeed");
+        let imported =
+            AwarenessExporter::from_json(&json).expect("collab test operation should succeed");
         assert_eq!(states.len(), imported.len());
 
-        let binary = AwarenessExporter::to_binary(&states).unwrap();
-        let imported = AwarenessExporter::from_binary(&binary).unwrap();
+        let binary =
+            AwarenessExporter::to_binary(&states).expect("collab test operation should succeed");
+        let imported =
+            AwarenessExporter::from_binary(&binary).expect("collab test operation should succeed");
         assert_eq!(states.len(), imported.len());
     }
 }

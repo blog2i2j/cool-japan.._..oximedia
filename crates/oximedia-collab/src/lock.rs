@@ -567,7 +567,7 @@ mod tests {
         let result = manager
             .acquire_lock(resource, user_id, LockType::Write)
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
         match result {
             LockResult::Acquired(_) => (),
             _ => panic!("Expected lock to be acquired"),
@@ -577,7 +577,10 @@ mod tests {
         assert!(manager.user_holds_lock(resource, user_id));
 
         // Release lock
-        assert!(manager.release_lock(resource, user_id).await.unwrap());
+        assert!(manager
+            .release_lock(resource, user_id)
+            .await
+            .expect("collab test operation should succeed"));
         assert!(!manager.is_locked(resource));
     }
 
@@ -593,13 +596,13 @@ mod tests {
         manager
             .acquire_lock(resource, user1, LockType::Write)
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
 
         // User2 tries to acquire write lock
         let result = manager
             .acquire_lock(resource, user2, LockType::Write)
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
         match result {
             LockResult::AlreadyLocked { holder, .. } => {
                 assert_eq!(holder, user1);
@@ -620,11 +623,11 @@ mod tests {
         manager
             .acquire_lock(resource, user1, LockType::Read)
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
         manager
             .acquire_lock(resource, user2, LockType::Read)
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
 
         assert!(manager.user_holds_lock(resource, user1));
         assert!(manager.user_holds_lock(resource, user2));
@@ -642,13 +645,13 @@ mod tests {
         manager
             .acquire_lock(resource, user1, LockType::Write)
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
 
         // User2 steals lock
         let lock = manager
             .steal_lock(resource, user2, LockType::Write)
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
         assert_eq!(lock.holder, user2);
         assert!(!manager.user_holds_lock(resource, user1));
         assert!(manager.user_holds_lock(resource, user2));
@@ -667,18 +670,21 @@ mod tests {
         manager
             .acquire_lock(clip1, user_id, LockType::Write)
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
         manager
             .acquire_lock(clip2, user_id, LockType::Write)
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
         manager
             .acquire_lock(track1, user_id, LockType::Write)
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
 
         // Release all locks
-        let released = manager.release_user_locks(user_id).await.unwrap();
+        let released = manager
+            .release_user_locks(user_id)
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(released, 3);
 
         assert!(!manager.is_locked(clip1));
@@ -696,14 +702,17 @@ mod tests {
         manager
             .acquire_lock(resource, user_id, LockType::Write)
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
         assert!(manager.is_locked(resource));
 
         // Wait for expiration
         tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
 
         // Clean up expired locks
-        let cleaned = manager.cleanup_expired_locks().await.unwrap();
+        let cleaned = manager
+            .cleanup_expired_locks()
+            .await
+            .expect("collab test operation should succeed");
         assert!(cleaned > 0);
         assert!(!manager.is_locked(resource));
     }
@@ -716,11 +725,11 @@ mod tests {
         manager
             .acquire_lock(ResourceId::clip(Uuid::new_v4()), user_id, LockType::Write)
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
         manager
             .acquire_lock(ResourceId::clip(Uuid::new_v4()), user_id, LockType::Read)
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
 
         let stats = manager.stats();
         assert_eq!(stats.total_resources, 2);
@@ -740,19 +749,19 @@ mod tests {
         manager
             .acquire_lock(resource1, user1, LockType::Write)
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
 
         // User2 locks resource2
         manager
             .acquire_lock(resource2, user2, LockType::Write)
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
 
         // User1 tries to lock resource2 (waits for user2)
         manager
             .acquire_lock(resource2, user1, LockType::Write)
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
 
         // User2 tries to lock resource1 (would create deadlock)
         let result = manager

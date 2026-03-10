@@ -273,7 +273,9 @@ mod tests {
     fn test_metadata_remove() {
         let mut m = PyMetadata::new();
         m.set(MetadataField::Author, MetadataValue::Text("Alice".into()));
-        let old = m.remove(&MetadataField::Author).unwrap();
+        let old = m
+            .remove(&MetadataField::Author)
+            .expect("old should be valid");
         assert_eq!(old, MetadataValue::Text("Alice".into()));
         assert!(!m.contains(&MetadataField::Author));
     }

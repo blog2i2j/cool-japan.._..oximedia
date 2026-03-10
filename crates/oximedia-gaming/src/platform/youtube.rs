@@ -427,9 +427,11 @@ mod tests {
             privacy: "public".to_string(),
         };
         let mut integration = YouTubeIntegration::new(config);
-        integration.update_title("New Title".to_string()).unwrap();
+        integration
+            .update_title("New Title".to_string())
+            .expect("update title should succeed");
         integration
             .update_description("New Desc".to_string())
-            .unwrap();
+            .expect("should succeed");
     }
 }

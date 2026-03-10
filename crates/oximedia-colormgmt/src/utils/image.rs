@@ -225,7 +225,7 @@ mod tests {
         let rgb = [0.5, 0.3, 0.7];
 
         assert!(img.set_pixel(5, 5, rgb));
-        let retrieved = img.get_pixel(5, 5).unwrap();
+        let retrieved = img.get_pixel(5, 5).expect("pixel should be within bounds");
 
         assert_eq!(retrieved, rgb);
     }
@@ -246,7 +246,10 @@ mod tests {
 
         for y in 0..10 {
             for x in 0..10 {
-                assert_eq!(img.get_pixel(x, y).unwrap(), color);
+                assert_eq!(
+                    img.get_pixel(x, y).expect("pixel should be within bounds"),
+                    color
+                );
             }
         }
     }
@@ -254,8 +257,8 @@ mod tests {
     #[test]
     fn test_gradient() {
         let img = RgbImage::gradient(10, 10);
-        let top_left = img.get_pixel(0, 0).unwrap();
-        let bottom_right = img.get_pixel(9, 9).unwrap();
+        let top_left = img.get_pixel(0, 0).expect("pixel should be within bounds");
+        let bottom_right = img.get_pixel(9, 9).expect("pixel should be within bounds");
 
         assert!((top_left[0] - 0.0).abs() < 0.01);
         assert!((bottom_right[0] - 1.0).abs() < 0.01);
@@ -269,8 +272,14 @@ mod tests {
 
         img.flip_vertical();
 
-        assert_eq!(img.get_pixel(0, 0).unwrap(), [0.0, 1.0, 0.0]);
-        assert_eq!(img.get_pixel(0, 9).unwrap(), [1.0, 0.0, 0.0]);
+        assert_eq!(
+            img.get_pixel(0, 0).expect("pixel should be within bounds"),
+            [0.0, 1.0, 0.0]
+        );
+        assert_eq!(
+            img.get_pixel(0, 9).expect("pixel should be within bounds"),
+            [1.0, 0.0, 0.0]
+        );
     }
 
     #[test]

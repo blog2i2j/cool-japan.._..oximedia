@@ -216,6 +216,404 @@ impl RouteOptimizer {
     }
 }
 
+// ============================================================================
+// Graph-based shortest path routing
+// ============================================================================
+
+/// A node in a routing graph (switch, router, endpoint).
+#[derive(Debug, Clone)]
+pub struct GraphNode {
+    /// Node identifier.
+    pub id: String,
+    /// Human-readable label.
+    pub label: String,
+    /// Current load as a fraction (0.0 = idle, 1.0 = fully loaded).
+    pub load: f64,
+    /// Maximum throughput capacity (arbitrary units).
+    pub capacity: f64,
+}
+
+impl GraphNode {
+    /// Create a new graph node.
+    pub fn new(id: impl Into<String>, label: impl Into<String>, capacity: f64) -> Self {
+        Self {
+            id: id.into(),
+            label: label.into(),
+            load: 0.0,
+            capacity,
+        }
+    }
+
+    /// Available capacity (capacity * (1 - load)).
+    #[must_use]
+    pub fn available_capacity(&self) -> f64 {
+        self.capacity * (1.0 - self.load)
+    }
+}
+
+/// A directed edge in the routing graph.
+#[derive(Debug, Clone)]
+pub struct GraphEdge {
+    /// Source node ID.
+    pub from: String,
+    /// Destination node ID.
+    pub to: String,
+    /// Latency cost of this edge in microseconds.
+    pub latency_us: f64,
+    /// Bandwidth capacity of this link.
+    pub bandwidth: f64,
+    /// Current utilization (0.0 to 1.0).
+    pub utilization: f64,
+}
+
+impl GraphEdge {
+    /// Create a new edge.
+    pub fn new(
+        from: impl Into<String>,
+        to: impl Into<String>,
+        latency_us: f64,
+        bandwidth: f64,
+    ) -> Self {
+        Self {
+            from: from.into(),
+            to: to.into(),
+            latency_us,
+            bandwidth,
+            utilization: 0.0,
+        }
+    }
+
+    /// Effective cost considering utilization (higher utilization = higher cost).
+    /// Uses an exponential penalty to discourage near-capacity links.
+    #[must_use]
+    pub fn effective_cost(&self) -> f64 {
+        // Base cost is latency; add congestion penalty
+        let congestion_factor = 1.0 / (1.0 - self.utilization.min(0.99));
+        self.latency_us * congestion_factor
+    }
+}
+
+/// A routing graph for shortest-path and load-balancing computations.
+#[derive(Debug, Default)]
+pub struct RoutingGraph {
+    /// Nodes indexed by ID.
+    nodes: std::collections::HashMap<String, GraphNode>,
+    /// Edges (adjacency list keyed by source node ID).
+    edges: std::collections::HashMap<String, Vec<GraphEdge>>,
+}
+
+impl RoutingGraph {
+    /// Create an empty routing graph.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add a node to the graph.
+    pub fn add_node(&mut self, node: GraphNode) {
+        self.nodes.insert(node.id.clone(), node);
+    }
+
+    /// Add a directed edge to the graph.
+    pub fn add_edge(&mut self, edge: GraphEdge) {
+        self.edges.entry(edge.from.clone()).or_default().push(edge);
+    }
+
+    /// Add a bidirectional edge (two directed edges with same properties).
+    pub fn add_bidirectional_edge(
+        &mut self,
+        node_a: impl Into<String>,
+        node_b: impl Into<String>,
+        latency_us: f64,
+        bandwidth: f64,
+    ) {
+        let a = node_a.into();
+        let b = node_b.into();
+        self.add_edge(GraphEdge::new(&a, &b, latency_us, bandwidth));
+        self.add_edge(GraphEdge::new(&b, &a, latency_us, bandwidth));
+    }
+
+    /// Get the number of nodes.
+    pub fn node_count(&self) -> usize {
+        self.nodes.len()
+    }
+
+    /// Get the total number of directed edges.
+    pub fn edge_count(&self) -> usize {
+        self.edges.values().map(|v| v.len()).sum()
+    }
+
+    /// Dijkstra's shortest path algorithm using effective cost.
+    ///
+    /// Returns the shortest path from `source` to `destination` as a list of
+    /// node IDs, along with the total cost. Returns `None` if no path exists.
+    pub fn shortest_path(&self, source: &str, destination: &str) -> Option<(Vec<String>, f64)> {
+        use std::cmp::Ordering;
+        use std::collections::{BinaryHeap, HashMap};
+
+        // Ensure both endpoints exist
+        if !self.nodes.contains_key(source) || !self.nodes.contains_key(destination) {
+            return None;
+        }
+
+        #[derive(Debug)]
+        struct State {
+            cost: f64,
+            node: String,
+        }
+
+        impl PartialEq for State {
+            fn eq(&self, other: &Self) -> bool {
+                self.cost == other.cost
+            }
+        }
+
+        impl Eq for State {}
+
+        impl PartialOrd for State {
+            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+                Some(self.cmp(other))
+            }
+        }
+
+        impl Ord for State {
+            fn cmp(&self, other: &Self) -> Ordering {
+                // Reverse ordering for min-heap behavior
+                other
+                    .cost
+                    .partial_cmp(&self.cost)
+                    .unwrap_or(Ordering::Equal)
+            }
+        }
+
+        let mut dist: HashMap<String, f64> = HashMap::new();
+        let mut prev: HashMap<String, String> = HashMap::new();
+        let mut heap = BinaryHeap::new();
+
+        dist.insert(source.to_string(), 0.0);
+        heap.push(State {
+            cost: 0.0,
+            node: source.to_string(),
+        });
+
+        while let Some(State { cost, node }) = heap.pop() {
+            if node == destination {
+                // Reconstruct path
+                let mut path = Vec::new();
+                let mut current = destination.to_string();
+                path.push(current.clone());
+
+                while let Some(p) = prev.get(&current) {
+                    path.push(p.clone());
+                    current = p.clone();
+                }
+
+                path.reverse();
+                return Some((path, cost));
+            }
+
+            // Skip if we've already found a better path
+            if let Some(&best) = dist.get(&node) {
+                if cost > best {
+                    continue;
+                }
+            }
+
+            // Explore neighbors
+            if let Some(edges) = self.edges.get(&node) {
+                for edge in edges {
+                    let next_cost = cost + edge.effective_cost();
+
+                    let is_better = dist
+                        .get(&edge.to)
+                        .map_or(true, |&current_best| next_cost < current_best);
+
+                    if is_better {
+                        dist.insert(edge.to.clone(), next_cost);
+                        prev.insert(edge.to.clone(), node.clone());
+                        heap.push(State {
+                            cost: next_cost,
+                            node: edge.to.clone(),
+                        });
+                    }
+                }
+            }
+        }
+
+        None // No path found
+    }
+
+    /// Find multiple disjoint paths for load balancing.
+    ///
+    /// Uses iterative shortest-path with edge removal to find up to `k`
+    /// edge-disjoint paths. Returns paths sorted by cost (cheapest first).
+    pub fn k_shortest_paths(
+        &self,
+        source: &str,
+        destination: &str,
+        k: usize,
+    ) -> Vec<(Vec<String>, f64)> {
+        let mut results = Vec::new();
+        let mut used_edges: std::collections::HashSet<(String, String)> =
+            std::collections::HashSet::new();
+
+        for _ in 0..k {
+            // Build a temporary graph excluding used edges
+            let path = self.shortest_path_excluding(source, destination, &used_edges);
+
+            if let Some((path, cost)) = path {
+                // Mark edges in this path as used
+                for window in path.windows(2) {
+                    used_edges.insert((window[0].clone(), window[1].clone()));
+                }
+                results.push((path, cost));
+            } else {
+                break; // No more paths available
+            }
+        }
+
+        results
+    }
+
+    /// Shortest path excluding certain edges.
+    fn shortest_path_excluding(
+        &self,
+        source: &str,
+        destination: &str,
+        excluded: &std::collections::HashSet<(String, String)>,
+    ) -> Option<(Vec<String>, f64)> {
+        use std::cmp::Ordering;
+        use std::collections::{BinaryHeap, HashMap};
+
+        if !self.nodes.contains_key(source) || !self.nodes.contains_key(destination) {
+            return None;
+        }
+
+        #[derive(Debug)]
+        struct State {
+            cost: f64,
+            node: String,
+        }
+
+        impl PartialEq for State {
+            fn eq(&self, other: &Self) -> bool {
+                self.cost == other.cost
+            }
+        }
+
+        impl Eq for State {}
+
+        impl PartialOrd for State {
+            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+                Some(self.cmp(other))
+            }
+        }
+
+        impl Ord for State {
+            fn cmp(&self, other: &Self) -> Ordering {
+                other
+                    .cost
+                    .partial_cmp(&self.cost)
+                    .unwrap_or(Ordering::Equal)
+            }
+        }
+
+        let mut dist: HashMap<String, f64> = HashMap::new();
+        let mut prev: HashMap<String, String> = HashMap::new();
+        let mut heap = BinaryHeap::new();
+
+        dist.insert(source.to_string(), 0.0);
+        heap.push(State {
+            cost: 0.0,
+            node: source.to_string(),
+        });
+
+        while let Some(State { cost, node }) = heap.pop() {
+            if node == destination {
+                let mut path = Vec::new();
+                let mut current = destination.to_string();
+                path.push(current.clone());
+
+                while let Some(p) = prev.get(&current) {
+                    path.push(p.clone());
+                    current = p.clone();
+                }
+
+                path.reverse();
+                return Some((path, cost));
+            }
+
+            if let Some(&best) = dist.get(&node) {
+                if cost > best {
+                    continue;
+                }
+            }
+
+            if let Some(edges) = self.edges.get(&node) {
+                for edge in edges {
+                    // Skip excluded edges
+                    if excluded.contains(&(edge.from.clone(), edge.to.clone())) {
+                        continue;
+                    }
+
+                    let next_cost = cost + edge.effective_cost();
+
+                    let is_better = dist
+                        .get(&edge.to)
+                        .map_or(true, |&current_best| next_cost < current_best);
+
+                    if is_better {
+                        dist.insert(edge.to.clone(), next_cost);
+                        prev.insert(edge.to.clone(), node.clone());
+                        heap.push(State {
+                            cost: next_cost,
+                            node: edge.to.clone(),
+                        });
+                    }
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Load-balanced route selection.
+    ///
+    /// Finds the path with the least congested links (lowest max utilization
+    /// along the path). This is the "widest path" variant that maximizes
+    /// minimum available bandwidth.
+    pub fn least_congested_path(
+        &self,
+        source: &str,
+        destination: &str,
+    ) -> Option<(Vec<String>, f64)> {
+        // Find multiple candidate paths and pick the one with lowest peak utilization
+        let candidates = self.k_shortest_paths(source, destination, 5);
+
+        candidates
+            .into_iter()
+            .map(|(path, _cost)| {
+                let max_util = self.path_max_utilization(&path);
+                (path, max_util)
+            })
+            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
+    }
+
+    /// Get the maximum edge utilization along a path.
+    fn path_max_utilization(&self, path: &[String]) -> f64 {
+        let mut max_util = 0.0f64;
+        for window in path.windows(2) {
+            if let Some(edges) = self.edges.get(&window[0]) {
+                for edge in edges {
+                    if edge.to == window[1] {
+                        max_util = max_util.max(edge.utilization);
+                    }
+                }
+            }
+        }
+        max_util
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -363,5 +761,142 @@ mod tests {
         let opt = RouteOptimizer::new(OptimizationGoal::MaxReliability);
         let result = opt.optimize(&routes()).expect("should succeed in test");
         assert!(result.score > 0.0);
+    }
+
+    // Graph-based routing tests
+
+    fn build_test_graph() -> RoutingGraph {
+        let mut graph = RoutingGraph::new();
+        graph.add_node(GraphNode::new("A", "Source", 1000.0));
+        graph.add_node(GraphNode::new("B", "Switch-1", 1000.0));
+        graph.add_node(GraphNode::new("C", "Switch-2", 1000.0));
+        graph.add_node(GraphNode::new("D", "Destination", 1000.0));
+
+        // A -> B (fast, direct)
+        graph.add_edge(GraphEdge::new("A", "B", 100.0, 1000.0));
+        // B -> D (fast)
+        graph.add_edge(GraphEdge::new("B", "D", 100.0, 1000.0));
+        // A -> C (slower)
+        graph.add_edge(GraphEdge::new("A", "C", 200.0, 1000.0));
+        // C -> D (slower)
+        graph.add_edge(GraphEdge::new("C", "D", 200.0, 1000.0));
+        // B -> C (cross link)
+        graph.add_edge(GraphEdge::new("B", "C", 50.0, 500.0));
+
+        graph
+    }
+
+    #[test]
+    fn test_graph_node_available_capacity() {
+        let mut node = GraphNode::new("n1", "Node", 1000.0);
+        node.load = 0.3;
+        assert!((node.available_capacity() - 700.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_graph_edge_effective_cost() {
+        let edge = GraphEdge::new("a", "b", 100.0, 1000.0);
+        // Zero utilization: cost = latency * 1/(1-0) = 100
+        assert!((edge.effective_cost() - 100.0).abs() < 1e-6);
+
+        let mut congested = GraphEdge::new("a", "b", 100.0, 1000.0);
+        congested.utilization = 0.5;
+        // cost = 100 * 1/(1-0.5) = 200
+        assert!((congested.effective_cost() - 200.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_routing_graph_counts() {
+        let graph = build_test_graph();
+        assert_eq!(graph.node_count(), 4);
+        assert_eq!(graph.edge_count(), 5);
+    }
+
+    #[test]
+    fn test_shortest_path_direct() {
+        let graph = build_test_graph();
+        let result = graph.shortest_path("A", "D");
+        assert!(result.is_some());
+        let (path, cost) = result.expect("should have path");
+        // Should prefer A -> B -> D (200us) over A -> C -> D (400us)
+        assert_eq!(path, vec!["A", "B", "D"]);
+        assert!((cost - 200.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_shortest_path_no_path() {
+        let mut graph = RoutingGraph::new();
+        graph.add_node(GraphNode::new("A", "Start", 100.0));
+        graph.add_node(GraphNode::new("B", "End", 100.0));
+        // No edges
+        assert!(graph.shortest_path("A", "B").is_none());
+    }
+
+    #[test]
+    fn test_shortest_path_unknown_node() {
+        let graph = build_test_graph();
+        assert!(graph.shortest_path("X", "D").is_none());
+        assert!(graph.shortest_path("A", "Z").is_none());
+    }
+
+    #[test]
+    fn test_k_shortest_paths() {
+        let graph = build_test_graph();
+        let paths = graph.k_shortest_paths("A", "D", 3);
+        assert!(paths.len() >= 2, "Should find at least 2 paths");
+    }
+
+    #[test]
+    fn test_least_congested_path() {
+        let mut graph = RoutingGraph::new();
+        graph.add_node(GraphNode::new("A", "Src", 1000.0));
+        graph.add_node(GraphNode::new("B", "SW1", 1000.0));
+        graph.add_node(GraphNode::new("C", "SW2", 1000.0));
+        graph.add_node(GraphNode::new("D", "Dst", 1000.0));
+
+        // Path A-B-D: fast but congested
+        let mut e1 = GraphEdge::new("A", "B", 100.0, 1000.0);
+        e1.utilization = 0.9; // Very congested
+        graph.add_edge(e1);
+        let mut e2 = GraphEdge::new("B", "D", 100.0, 1000.0);
+        e2.utilization = 0.8;
+        graph.add_edge(e2);
+
+        // Path A-C-D: slower but less congested
+        let mut e3 = GraphEdge::new("A", "C", 200.0, 1000.0);
+        e3.utilization = 0.1;
+        graph.add_edge(e3);
+        let mut e4 = GraphEdge::new("C", "D", 200.0, 1000.0);
+        e4.utilization = 0.2;
+        graph.add_edge(e4);
+
+        let result = graph.least_congested_path("A", "D");
+        assert!(result.is_some());
+        let (path, max_util) = result.expect("should find path");
+        // Should prefer the less congested path A-C-D
+        assert_eq!(path, vec!["A", "C", "D"]);
+        assert!(max_util < 0.5, "Max utilization should be low: {max_util}");
+    }
+
+    #[test]
+    fn test_bidirectional_edge() {
+        let mut graph = RoutingGraph::new();
+        graph.add_node(GraphNode::new("A", "A", 100.0));
+        graph.add_node(GraphNode::new("B", "B", 100.0));
+        graph.add_bidirectional_edge("A", "B", 50.0, 500.0);
+
+        assert_eq!(graph.edge_count(), 2);
+        assert!(graph.shortest_path("A", "B").is_some());
+        assert!(graph.shortest_path("B", "A").is_some());
+    }
+
+    #[test]
+    fn test_same_source_destination() {
+        let graph = build_test_graph();
+        let result = graph.shortest_path("A", "A");
+        assert!(result.is_some());
+        let (path, cost) = result.expect("should succeed");
+        assert_eq!(path, vec!["A"]);
+        assert!((cost - 0.0).abs() < 1e-6);
     }
 }

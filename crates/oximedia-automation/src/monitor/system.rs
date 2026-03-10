@@ -152,7 +152,9 @@ mod tests {
     #[tokio::test]
     async fn test_monitor_lifecycle() {
         let config = MonitorConfig::default();
-        let mut monitor = SystemMonitor::new(config).await.unwrap();
+        let mut monitor = SystemMonitor::new(config)
+            .await
+            .expect("new should succeed");
 
         assert!(monitor.start().await.is_ok());
         assert!(monitor.stop().await.is_ok());
@@ -161,7 +163,9 @@ mod tests {
     #[tokio::test]
     async fn test_get_metrics() {
         let config = MonitorConfig::default();
-        let monitor = SystemMonitor::new(config).await.unwrap();
+        let monitor = SystemMonitor::new(config)
+            .await
+            .expect("new should succeed");
 
         let metrics = monitor.get_metrics().await;
         assert!(metrics.cpu_usage >= 0.0);

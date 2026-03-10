@@ -212,6 +212,162 @@ pub struct Drawing {
     pub author: String,
 }
 
+// ---------------------------------------------------------------------------
+// Drawing primitives: rasterization helpers for rendering annotations
+// onto pixel buffers (RGBA, row-major).
+// ---------------------------------------------------------------------------
+
+/// Rasterize a line segment using Bresenham's algorithm.
+///
+/// Writes `color` (RGBA) into `buffer` for every pixel along the line
+/// from `(x0, y0)` to `(x1, y1)`.  Coordinates outside the buffer are
+/// silently clipped.
+#[allow(clippy::cast_sign_loss)]
+pub fn rasterize_line(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    x0: i32,
+    y0: i32,
+    x1: i32,
+    y1: i32,
+    color: [u8; 4],
+) {
+    let dx = (x1 - x0).abs();
+    let dy = -(y1 - y0).abs();
+    let sx: i32 = if x0 < x1 { 1 } else { -1 };
+    let sy: i32 = if y0 < y1 { 1 } else { -1 };
+    let mut err = dx + dy;
+    let mut cx = x0;
+    let mut cy = y0;
+
+    loop {
+        if cx >= 0 && cy >= 0 && (cx as u32) < width && (cy as u32) < height {
+            let idx = ((cy as u32 * width + cx as u32) as usize) * 4;
+            if idx + 3 < buffer.len() {
+                buffer[idx] = color[0];
+                buffer[idx + 1] = color[1];
+                buffer[idx + 2] = color[2];
+                buffer[idx + 3] = color[3];
+            }
+        }
+        if cx == x1 && cy == y1 {
+            break;
+        }
+        let e2 = 2 * err;
+        if e2 >= dy {
+            err += dy;
+            cx += sx;
+        }
+        if e2 <= dx {
+            err += dx;
+            cy += sy;
+        }
+    }
+}
+
+/// Rasterize a rectangle outline.
+#[allow(clippy::cast_possible_truncation)]
+pub fn rasterize_rectangle(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    rect: &Rectangle,
+    color: [u8; 4],
+) {
+    let x0 = (rect.top_left.x * width as f32) as i32;
+    let y0 = (rect.top_left.y * height as f32) as i32;
+    let x1 = (rect.bottom_right.x * width as f32) as i32;
+    let y1 = (rect.bottom_right.y * height as f32) as i32;
+
+    rasterize_line(buffer, width, height, x0, y0, x1, y0, color);
+    rasterize_line(buffer, width, height, x1, y0, x1, y1, color);
+    rasterize_line(buffer, width, height, x1, y1, x0, y1, color);
+    rasterize_line(buffer, width, height, x0, y1, x0, y0, color);
+}
+
+/// Rasterize a circle outline using the midpoint algorithm.
+#[allow(clippy::cast_possible_truncation)]
+pub fn rasterize_circle(
+    buffer: &mut [u8],
+    width: u32,
+    height: u32,
+    circle: &Circle,
+    color: [u8; 4],
+) {
+    let cx = (circle.center.x * width as f32) as i32;
+    let cy = (circle.center.y * height as f32) as i32;
+    let r = (circle.radius * width.min(height) as f32) as i32;
+
+    let mut x = r;
+    let mut y = 0_i32;
+    let mut err = 1 - r;
+
+    while x >= y {
+        // Plot the eight octants
+        for &(px, py) in &[
+            (cx + x, cy + y),
+            (cx - x, cy + y),
+            (cx + x, cy - y),
+            (cx - x, cy - y),
+            (cx + y, cy + x),
+            (cx - y, cy + x),
+            (cx + y, cy - x),
+            (cx - y, cy - x),
+        ] {
+            if px >= 0 && py >= 0 && (px as u32) < width && (py as u32) < height {
+                let idx = ((py as u32 * width + px as u32) as usize) * 4;
+                if idx + 3 < buffer.len() {
+                    buffer[idx] = color[0];
+                    buffer[idx + 1] = color[1];
+                    buffer[idx + 2] = color[2];
+                    buffer[idx + 3] = color[3];
+                }
+            }
+        }
+
+        y += 1;
+        if err < 0 {
+            err += 2 * y + 1;
+        } else {
+            x -= 1;
+            err += 2 * (y - x) + 1;
+        }
+    }
+}
+
+/// Rasterize an arrow (line with arrowhead).
+#[allow(clippy::cast_possible_truncation)]
+pub fn rasterize_arrow(buffer: &mut [u8], width: u32, height: u32, arrow: &Arrow, color: [u8; 4]) {
+    let x0 = (arrow.start.x * width as f32) as i32;
+    let y0 = (arrow.start.y * height as f32) as i32;
+    let x1 = (arrow.end.x * width as f32) as i32;
+    let y1 = (arrow.end.y * height as f32) as i32;
+
+    // Draw the shaft
+    rasterize_line(buffer, width, height, x0, y0, x1, y1, color);
+
+    // Draw the arrowhead
+    let dx = (x1 - x0) as f32;
+    let dy = (y1 - y0) as f32;
+    let len = (dx * dx + dy * dy).sqrt();
+    if len < 1.0 {
+        return;
+    }
+    let head_px = (arrow.head_size * width.min(height) as f32).max(4.0);
+    let ux = dx / len;
+    let uy = dy / len;
+
+    // Two barb endpoints
+    let bx0 = x1 as f32 - head_px * (ux + uy * 0.5);
+    let by0 = y1 as f32 - head_px * (uy - ux * 0.5);
+    let bx1 = x1 as f32 - head_px * (ux - uy * 0.5);
+    let by1 = y1 as f32 - head_px * (uy + ux * 0.5);
+
+    rasterize_line(buffer, width, height, x1, y1, bx0 as i32, by0 as i32, color);
+    rasterize_line(buffer, width, height, x1, y1, bx1 as i32, by1 as i32, color);
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -63,13 +63,12 @@ impl UdpTransport {
             .map_err(|e| VideoIpError::Transport(format!("failed to set recv buffer: {e}")))?;
 
         // Set ToS/DSCP for QoS (Expedited Forwarding - EF)
-        // This prioritizes video traffic on QoS-enabled networks
-        #[cfg(target_os = "linux")]
+        // This prioritizes video traffic on QoS-enabled networks.
+        // Uses socket2's pure-Rust API (works on Linux/macOS/Windows).
+        #[cfg(unix)]
         {
-            use nix::sys::socket::{setsockopt, sockopt};
-
-            const DSCP_EF: i32 = 46 << 2; // Expedited Forwarding
-            if let Err(e) = setsockopt(&socket, sockopt::IpTos, &DSCP_EF) {
+            const DSCP_EF: u32 = 46 << 2; // Expedited Forwarding
+            if let Err(e) = socket.set_tos_v4(DSCP_EF) {
                 tracing::warn!("failed to set IP TOS: {}", e);
             }
         }

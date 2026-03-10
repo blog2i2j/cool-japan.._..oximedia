@@ -1,18 +1,16 @@
 //! Singular Value Decomposition for collaborative filtering.
 
+use crate::dense_linalg::{DenseMatrix, DenseVector};
 use crate::error::{RecommendError, RecommendResult};
-use ndarray::{Array1, Array2};
 use serde::{Deserialize, Serialize};
 
 /// SVD model for matrix factorization
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SvdModel {
     /// User factor matrix (users x factors)
-    #[serde(skip)]
-    user_factors: Array2<f32>,
+    user_factors: DenseMatrix,
     /// Item factor matrix (items x factors)
-    #[serde(skip)]
-    item_factors: Array2<f32>,
+    item_factors: DenseMatrix,
     /// Number of latent factors
     num_factors: usize,
     /// Global mean rating
@@ -24,8 +22,8 @@ impl SvdModel {
     #[must_use]
     pub fn new(num_users: usize, num_items: usize, num_factors: usize) -> Self {
         Self {
-            user_factors: Array2::zeros((num_users, num_factors)),
-            item_factors: Array2::zeros((num_items, num_factors)),
+            user_factors: DenseMatrix::zeros(num_users, num_factors),
+            item_factors: DenseMatrix::zeros(num_items, num_factors),
             num_factors,
             global_mean: 0.0,
         }
@@ -52,7 +50,7 @@ impl SvdModel {
 
         self.global_mean = ratings.iter().map(|(_, _, r)| r).sum::<f32>() / ratings.len() as f32;
 
-        // Initialize factors randomly
+        // Initialize factors
         self.initialize_factors();
 
         // Gradient descent
@@ -63,13 +61,21 @@ impl SvdModel {
 
                 // Update factors
                 for f in 0..self.num_factors {
-                    let user_factor = self.user_factors[[user_idx, f]];
-                    let item_factor = self.item_factors[[item_idx, f]];
+                    let user_factor = self.user_factors.get(user_idx, f);
+                    let item_factor = self.item_factors.get(item_idx, f);
 
-                    self.user_factors[[user_idx, f]] +=
-                        learning_rate * (error * item_factor - regularization * user_factor);
-                    self.item_factors[[item_idx, f]] +=
-                        learning_rate * (error * user_factor - regularization * item_factor);
+                    self.user_factors.set(
+                        user_idx,
+                        f,
+                        user_factor
+                            + learning_rate * (error * item_factor - regularization * user_factor),
+                    );
+                    self.item_factors.set(
+                        item_idx,
+                        f,
+                        item_factor
+                            + learning_rate * (error * user_factor - regularization * item_factor),
+                    );
                 }
             }
         }
@@ -83,12 +89,12 @@ impl SvdModel {
             return self.global_mean;
         }
 
-        let user_vec = self.user_factors.row(user_idx);
-        let item_vec = self.item_factors.row(item_idx);
+        let user_row = self.user_factors.row_slice(user_idx);
+        let item_row = self.item_factors.row_slice(item_idx);
 
-        let dot_product: f32 = user_vec
+        let dot_product: f32 = user_row
             .iter()
-            .zip(item_vec.iter())
+            .zip(item_row.iter())
             .map(|(u, i)| u * i)
             .sum();
 
@@ -103,9 +109,9 @@ impl SvdModel {
 
     /// Get user latent factors
     #[must_use]
-    pub fn get_user_factors(&self, user_idx: usize) -> Option<Array1<f32>> {
+    pub fn get_user_factors(&self, user_idx: usize) -> Option<DenseVector> {
         if user_idx < self.user_factors.nrows() {
-            Some(self.user_factors.row(user_idx).to_owned())
+            Some(DenseVector::from_vec(self.user_factors.row_vec(user_idx)))
         } else {
             None
         }
@@ -113,27 +119,25 @@ impl SvdModel {
 
     /// Get item latent factors
     #[must_use]
-    pub fn get_item_factors(&self, item_idx: usize) -> Option<Array1<f32>> {
+    pub fn get_item_factors(&self, item_idx: usize) -> Option<DenseVector> {
         if item_idx < self.item_factors.nrows() {
-            Some(self.item_factors.row(item_idx).to_owned())
+            Some(DenseVector::from_vec(self.item_factors.row_vec(item_idx)))
         } else {
             None
         }
     }
 
-    /// Initialize factors with small random values
+    /// Initialize factors with small values
     fn initialize_factors(&mut self) {
-        // Simple initialization with small values
-        // In a real implementation, would use proper random initialization
         for i in 0..self.user_factors.nrows() {
             for j in 0..self.num_factors {
-                self.user_factors[[i, j]] = 0.1;
+                self.user_factors.set(i, j, 0.1);
             }
         }
 
         for i in 0..self.item_factors.nrows() {
             for j in 0..self.num_factors {
-                self.item_factors[[i, j]] = 0.1;
+                self.item_factors.set(i, j, 0.1);
             }
         }
     }
@@ -148,6 +152,18 @@ impl SvdModel {
     #[must_use]
     pub fn global_mean(&self) -> f32 {
         self.global_mean
+    }
+
+    /// Get number of users in the model
+    #[must_use]
+    pub fn num_users(&self) -> usize {
+        self.user_factors.nrows()
+    }
+
+    /// Get number of items in the model
+    #[must_use]
+    pub fn num_items(&self) -> usize {
+        self.item_factors.nrows()
     }
 }
 
@@ -239,8 +255,8 @@ mod tests {
     fn test_svd_model_creation() {
         let model = SvdModel::new(100, 200, 20);
         assert_eq!(model.num_factors(), 20);
-        assert_eq!(model.user_factors.nrows(), 100);
-        assert_eq!(model.item_factors.nrows(), 200);
+        assert_eq!(model.num_users(), 100);
+        assert_eq!(model.num_items(), 200);
     }
 
     #[test]
@@ -271,8 +287,9 @@ mod tests {
         let result = trainer.train(2, 2, &ratings);
         assert!(result.is_ok());
 
-        let model = result.expect("should succeed in test");
-        assert!(model.global_mean() > 0.0);
+        if let Ok(model) = result {
+            assert!(model.global_mean() > 0.0);
+        }
     }
 
     #[test]
@@ -289,10 +306,14 @@ mod tests {
         let model = SvdModel::new(10, 10, 5);
         let user_factors = model.get_user_factors(0);
         assert!(user_factors.is_some());
-        assert_eq!(user_factors.expect("should succeed in test").len(), 5);
+        if let Some(factors) = user_factors {
+            assert_eq!(factors.len(), 5);
+        }
 
         let item_factors = model.get_item_factors(0);
         assert!(item_factors.is_some());
-        assert_eq!(item_factors.expect("should succeed in test").len(), 5);
+        if let Some(factors) = item_factors {
+            assert_eq!(factors.len(), 5);
+        }
     }
 }

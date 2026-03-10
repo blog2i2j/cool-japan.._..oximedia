@@ -81,7 +81,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             let result = analyze_video_file(video_file, &config);
 
             // Update progress
-            let mut prog = progress.lock().unwrap();
+            let mut prog = progress.lock().expect("lock poisoned");
             *prog += 1;
             println!(
                 "[{}/{}] Analyzed: {}",
@@ -380,7 +380,7 @@ fn analyze_with_progress_reporting() {
         if frame_num % update_interval == 0 {
             let progress = (frame_num as f64 / total_frames as f64) * 100.0;
             print!("\rProgress: {:.1}%", progress);
-            std::io::Write::flush(&mut std::io::stdout()).unwrap();
+            std::io::Write::flush(&mut std::io::stdout()).expect("unexpected None/Err");
         }
     }
 

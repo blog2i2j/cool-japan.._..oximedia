@@ -377,7 +377,12 @@ mod tests {
         mgr.register(s);
         mgr.finalize_closing();
         let id = SessionId::new("fc1");
-        assert_eq!(mgr.get(&id).unwrap().state, SessionState::Closed);
+        assert_eq!(
+            mgr.get(&id)
+                .expect("collab test operation should succeed")
+                .state,
+            SessionState::Closed
+        );
     }
 
     #[test]

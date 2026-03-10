@@ -610,13 +610,14 @@ mod tests {
         let result = packager
             .package(std::path::Path::new("/dev/null"))
             .await
-            .unwrap();
+            .expect("streaming operation should succeed");
 
         assert!(
             result.manifest_path.exists(),
             "HLS manifest must be written to disk"
         );
-        let content = std::fs::read_to_string(&result.manifest_path).unwrap();
+        let content = std::fs::read_to_string(&result.manifest_path)
+            .expect("streaming operation should succeed");
         assert!(content.contains("#EXTM3U"));
         // cleanup
         let _ = std::fs::remove_dir_all(&dir);
@@ -631,13 +632,14 @@ mod tests {
         let result = packager
             .package_abr(std::path::Path::new("/dev/null"), &ladder)
             .await
-            .unwrap();
+            .expect("streaming operation should succeed");
 
         assert!(
             result.manifest_path.exists(),
             "Master playlist must be written to disk"
         );
-        let content = std::fs::read_to_string(&result.manifest_path).unwrap();
+        let content = std::fs::read_to_string(&result.manifest_path)
+            .expect("streaming operation should succeed");
         assert!(content.contains("#EXTM3U"));
         assert!(content.contains("#EXT-X-STREAM-INF"));
         // cleanup
@@ -652,13 +654,14 @@ mod tests {
         let result = packager
             .package(std::path::Path::new("/dev/null"))
             .await
-            .unwrap();
+            .expect("streaming operation should succeed");
 
         assert!(
             result.manifest_path.exists(),
             "DASH MPD must be written to disk"
         );
-        let content = std::fs::read_to_string(&result.manifest_path).unwrap();
+        let content = std::fs::read_to_string(&result.manifest_path)
+            .expect("streaming operation should succeed");
         assert!(content.contains("<MPD "));
         // cleanup
         let _ = std::fs::remove_dir_all(&dir);
@@ -673,13 +676,14 @@ mod tests {
         let result = packager
             .package_abr(std::path::Path::new("/dev/null"), &ladder)
             .await
-            .unwrap();
+            .expect("streaming operation should succeed");
 
         assert!(
             result.manifest_path.exists(),
             "DASH ABR MPD must be written to disk"
         );
-        let content = std::fs::read_to_string(&result.manifest_path).unwrap();
+        let content = std::fs::read_to_string(&result.manifest_path)
+            .expect("streaming operation should succeed");
         assert!(content.contains("<Representation "));
         // cleanup
         let _ = std::fs::remove_dir_all(&dir);

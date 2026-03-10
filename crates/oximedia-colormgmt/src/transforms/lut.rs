@@ -155,7 +155,9 @@ mod tests {
     fn test_lut3d_identity() {
         let lut = Lut3D::identity(17);
         let rgb = [0.5, 0.3, 0.7];
-        let result = lut.apply(rgb).unwrap();
+        let result = lut
+            .apply(rgb)
+            .expect("transform application should succeed");
 
         assert!((result[0] - rgb[0]).abs() < 0.01);
         assert!((result[1] - rgb[1]).abs() < 0.01);
@@ -175,10 +177,14 @@ mod tests {
         let rgb = [0.5, 0.3, 0.7];
 
         lut.set_interpolation(InterpolationMethod::Trilinear);
-        let result1 = lut.apply(rgb).unwrap();
+        let result1 = lut
+            .apply(rgb)
+            .expect("transform application should succeed");
 
         lut.set_interpolation(InterpolationMethod::Tetrahedral);
-        let result2 = lut.apply(rgb).unwrap();
+        let result2 = lut
+            .apply(rgb)
+            .expect("transform application should succeed");
 
         // Results should be similar but not identical
         assert!((result1[0] - result2[0]).abs() < 0.1);

@@ -440,9 +440,6 @@ impl AutomationData {
     }
 
     /// Get or create lane.
-    ///
-    /// # Panics
-    /// Panics if the lane cannot be found after creation (should never happen).
     pub fn get_or_create_lane(
         &mut self,
         parameter: &AutomationParameter,
@@ -452,7 +449,11 @@ impl AutomationData {
             let lane = AutomationLane::new(parameter.clone(), default_value);
             self.lanes.push(lane);
         }
-        self.get_lane_mut(parameter).unwrap()
+        // Safety: we just ensured the lane exists above.
+        self.lanes
+            .iter_mut()
+            .find(|lane| &lane.parameter == parameter)
+            .expect("lane was just inserted")
     }
 
     /// Remove lane by parameter.
@@ -761,7 +762,7 @@ mod tests {
         data.set_value(&param, 0.8, 1000, 1.0);
 
         // Switch to Read mode to read back automation
-        let lane = data.get_lane_mut(&param).unwrap();
+        let lane = data.get_lane_mut(&param).expect("lane should be valid");
         lane.mode = AutomationMode::Read;
 
         let value = data.get_value(&param, 1000);

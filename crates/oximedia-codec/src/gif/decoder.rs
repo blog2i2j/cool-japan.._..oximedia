@@ -626,7 +626,7 @@ mod tests {
         let width = 4;
         let height = 4;
         let indices: Vec<u8> = (0..16).collect();
-        let result = GifDecoderState::deinterlace(&indices, width, height).unwrap();
+        let result = GifDecoderState::deinterlace(&indices, width, height).expect("should succeed");
         assert_eq!(result.len(), 16);
     }
 }

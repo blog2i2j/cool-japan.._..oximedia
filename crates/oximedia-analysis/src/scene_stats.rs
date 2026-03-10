@@ -168,27 +168,39 @@ mod tests {
     fn test_scene_stats_single() {
         let stats = make_stats(&[3000]);
         assert_eq!(stats.scene_count(), 1);
-        assert!((stats.avg_duration_ms().unwrap() - 3000.0).abs() < 1e-9);
-        assert_eq!(stats.longest().unwrap().duration_ms, 3000);
-        assert_eq!(stats.shortest().unwrap().duration_ms, 3000);
+        assert!((stats.avg_duration_ms().expect("unexpected None/Err") - 3000.0).abs() < 1e-9);
+        assert_eq!(
+            stats.longest().expect("unexpected None/Err").duration_ms,
+            3000
+        );
+        assert_eq!(
+            stats.shortest().expect("unexpected None/Err").duration_ms,
+            3000
+        );
     }
 
     #[test]
     fn test_scene_stats_avg() {
         let stats = make_stats(&[1000, 2000, 3000]);
-        assert!((stats.avg_duration_ms().unwrap() - 2000.0).abs() < 1e-9);
+        assert!((stats.avg_duration_ms().expect("unexpected None/Err") - 2000.0).abs() < 1e-9);
     }
 
     #[test]
     fn test_scene_stats_longest() {
         let stats = make_stats(&[500, 9000, 3000]);
-        assert_eq!(stats.longest().unwrap().duration_ms, 9000);
+        assert_eq!(
+            stats.longest().expect("unexpected None/Err").duration_ms,
+            9000
+        );
     }
 
     #[test]
     fn test_scene_stats_shortest() {
         let stats = make_stats(&[500, 9000, 3000]);
-        assert_eq!(stats.shortest().unwrap().duration_ms, 500);
+        assert_eq!(
+            stats.shortest().expect("unexpected None/Err").duration_ms,
+            500
+        );
     }
 
     #[test]

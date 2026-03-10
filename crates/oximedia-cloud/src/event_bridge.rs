@@ -271,7 +271,14 @@ mod tests {
     fn test_dispatch_to_registered_target() {
         let mut bridge = make_bridge();
         bridge.dispatch(make_event("evt-1"));
-        assert_eq!(bridge.target("sink").unwrap().received.len(), 1);
+        assert_eq!(
+            bridge
+                .target("sink")
+                .expect("target should succeed")
+                .received
+                .len(),
+            1
+        );
     }
 
     #[test]
@@ -319,7 +326,14 @@ mod tests {
         bridge.dispatch(storage_evt);
         bridge.dispatch(cdn_evt);
 
-        assert_eq!(bridge.target("sink").unwrap().received.len(), 1);
+        assert_eq!(
+            bridge
+                .target("sink")
+                .expect("target should succeed")
+                .received
+                .len(),
+            1
+        );
         assert_eq!(bridge.dlq_len(), 1); // cdn event unmatched
     }
 
@@ -345,7 +359,14 @@ mod tests {
             EventType::Completed,
         ));
 
-        assert_eq!(bridge.target("alerts").unwrap().received.len(), 1);
+        assert_eq!(
+            bridge
+                .target("alerts")
+                .expect("target should succeed")
+                .received
+                .len(),
+            1
+        );
     }
 
     #[test]
@@ -357,8 +378,22 @@ mod tests {
         bridge.add_target(EventTarget::new("t2"));
 
         bridge.dispatch(make_event("multi"));
-        assert_eq!(bridge.target("t1").unwrap().received.len(), 1);
-        assert_eq!(bridge.target("t2").unwrap().received.len(), 1);
+        assert_eq!(
+            bridge
+                .target("t1")
+                .expect("target should succeed")
+                .received
+                .len(),
+            1
+        );
+        assert_eq!(
+            bridge
+                .target("t2")
+                .expect("target should succeed")
+                .received
+                .len(),
+            1
+        );
     }
 
     #[test]

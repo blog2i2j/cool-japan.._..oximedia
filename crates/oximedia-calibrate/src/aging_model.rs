@@ -469,7 +469,7 @@ mod tests {
         ];
         let model = LuminanceDecayModel::fit(&measurements);
         assert!(model.is_some());
-        let model = model.unwrap();
+        let model = model.expect("expected model to be Some/Ok");
         assert!(model.initial_luminance > 200.0);
         assert!(model.decay_rate > 0.0);
     }

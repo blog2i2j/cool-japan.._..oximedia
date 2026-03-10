@@ -298,7 +298,7 @@ mod tests {
         assert!(buf.push(FrameToken::new(0, 0, 100)));
         assert!(buf.push(FrameToken::new(1, 1000, 100)));
         assert_eq!(buf.len(), 2);
-        let tok = buf.pop().unwrap();
+        let tok = buf.pop().expect("pop should succeed");
         assert_eq!(tok.sequence, 0);
         assert_eq!(buf.len(), 1);
     }
@@ -308,7 +308,7 @@ mod tests {
         let mut buf = PortBuffer::new(BufferStrategy::Ring { capacity: 4 }, "test");
         assert!(buf.peek().is_none());
         buf.push(FrameToken::new(5, 0, 10));
-        assert_eq!(buf.peek().unwrap().sequence, 5);
+        assert_eq!(buf.peek().expect("peek should succeed").sequence, 5);
         assert_eq!(buf.len(), 1); // Peek doesn't consume
     }
 
@@ -320,7 +320,7 @@ mod tests {
         buf.push(FrameToken::new(2, 0, 10)); // Should drop seq=0
         assert_eq!(buf.len(), 2);
         assert_eq!(buf.dropped(), 1);
-        assert_eq!(buf.pop().unwrap().sequence, 1);
+        assert_eq!(buf.pop().expect("pop should succeed").sequence, 1);
     }
 
     #[test]

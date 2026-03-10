@@ -278,7 +278,13 @@ mod tests {
         stats.mean_rgb = [0.8, 0.7, 0.6];
 
         matcher.update_stats(stats);
-        assert_eq!(matcher.get_stats(1).unwrap().mean_rgb, [0.8, 0.7, 0.6]);
+        assert_eq!(
+            matcher
+                .get_stats(1)
+                .expect("multicam test operation should succeed")
+                .mean_rgb,
+            [0.8, 0.7, 0.6]
+        );
     }
 
     #[test]

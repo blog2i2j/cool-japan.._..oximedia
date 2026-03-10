@@ -453,7 +453,7 @@ CLIP002	A001	01:00:10:00	01:00:15:00	00:00:05:00
 ";
 
         let mut parser = AleParser::new();
-        let ale = parser.parse(content).unwrap();
+        let ale = parser.parse(content).expect("ale should be valid");
 
         assert_eq!(ale.header.get("FPS"), Some(&"24".to_string()));
         assert_eq!(ale.columns.len(), 5);
@@ -475,7 +475,7 @@ CLIP001	A001	01:00:00:00	01:00:05:00
 CLIP002	A001	01:00:10:00	01:00:15:00
 ";
 
-        let edl = parse(content).unwrap();
+        let edl = parse(content).expect("edl should be valid");
         assert_eq!(edl.events.len(), 2);
         assert_eq!(edl.events[0].reel, "A001");
         assert_eq!(
@@ -510,7 +510,7 @@ CLIP002	A001	01:00:10:00	01:00:15:00
 
         edl.add_event(event);
 
-        let output = write(&edl).unwrap();
+        let output = write(&edl).expect("output should be valid");
         assert!(output.contains("Heading"));
         assert!(output.contains("Column"));
         assert!(output.contains("Data"));
@@ -549,7 +549,7 @@ CLIP002	A001	01:00:10:00	01:00:15:00
             "Camera".to_string(),
         ]);
 
-        let output = writer.write(&edl).unwrap();
+        let output = writer.write(&edl).expect("output should be valid");
         assert!(output.contains("Camera"));
     }
 }

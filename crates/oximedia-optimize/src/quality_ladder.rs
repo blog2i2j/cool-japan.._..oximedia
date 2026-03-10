@@ -485,8 +485,8 @@ mod tests {
     fn test_ladder_top_and_bottom() {
         let gen = QualityLadderGenerator::with_defaults();
         let ladder = gen.generate();
-        let top = ladder.top_rung().unwrap();
-        let bottom = ladder.bottom_rung().unwrap();
+        let top = ladder.top_rung().expect("top rung should exist");
+        let bottom = ladder.bottom_rung().expect("bottom rung should exist");
         assert!(top.bitrate_bps >= bottom.bitrate_bps);
     }
 

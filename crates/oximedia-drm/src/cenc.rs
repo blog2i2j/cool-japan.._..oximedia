@@ -748,13 +748,14 @@ mod tests {
 
     #[test]
     fn test_pssh_box_serialization() {
-        let system_id = Uuid::parse_str("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed").unwrap();
+        let system_id = Uuid::parse_str("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed")
+            .expect("operation should succeed");
         let data = vec![1, 2, 3, 4, 5];
 
         let pssh = PsshBox::new(system_id, data.clone());
-        let bytes = pssh.to_bytes().unwrap();
+        let bytes = pssh.to_bytes().expect("operation should succeed");
 
-        let parsed = PsshBox::from_bytes(&bytes).unwrap();
+        let parsed = PsshBox::from_bytes(&bytes).expect("operation should succeed");
         assert_eq!(parsed.version, 0);
         assert_eq!(parsed.system_id, system_id);
         assert_eq!(parsed.data, data);
@@ -762,14 +763,15 @@ mod tests {
 
     #[test]
     fn test_pssh_box_v1_serialization() {
-        let system_id = Uuid::parse_str("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed").unwrap();
+        let system_id = Uuid::parse_str("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed")
+            .expect("operation should succeed");
         let key_ids = vec![vec![1u8; 16], vec![2u8; 16]];
         let data = vec![1, 2, 3, 4, 5];
 
         let pssh = PsshBox::new_v1(system_id, key_ids.clone(), data.clone());
-        let bytes = pssh.to_bytes().unwrap();
+        let bytes = pssh.to_bytes().expect("operation should succeed");
 
-        let parsed = PsshBox::from_bytes(&bytes).unwrap();
+        let parsed = PsshBox::from_bytes(&bytes).expect("operation should succeed");
         assert_eq!(parsed.version, 1);
         assert_eq!(parsed.system_id, system_id);
         assert_eq!(parsed.key_ids, key_ids);
@@ -790,12 +792,14 @@ mod tests {
     #[test]
     fn test_iv_generation() {
         let key = vec![0u8; 16];
-        let encryptor = CencEncryptor::new(EncryptionScheme::Cenc, key).unwrap();
-        let iv = encryptor.generate_iv().unwrap();
+        let encryptor =
+            CencEncryptor::new(EncryptionScheme::Cenc, key).expect("operation should succeed");
+        let iv = encryptor.generate_iv().expect("operation should succeed");
         assert_eq!(iv.len(), 8); // CTR mode uses 8-byte IV
 
-        let encryptor = CencEncryptor::new(EncryptionScheme::Cbcs, vec![0u8; 16]).unwrap();
-        let iv = encryptor.generate_iv().unwrap();
+        let encryptor = CencEncryptor::new(EncryptionScheme::Cbcs, vec![0u8; 16])
+            .expect("operation should succeed");
+        let iv = encryptor.generate_iv().expect("operation should succeed");
         assert_eq!(iv.len(), 16); // CBC mode uses 16-byte IV
     }
 

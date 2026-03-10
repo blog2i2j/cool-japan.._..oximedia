@@ -395,7 +395,7 @@ mod tests {
     #[test]
     fn test_mastering_display_dynamic_range() {
         let md = MasteringDisplayMetadata::hdr10_p3_d65();
-        let stops = md.dynamic_range_stops().unwrap();
+        let stops = md.dynamic_range_stops().expect("dynamic range stops should be available");
         // 1000 / 0.005 ≈ 200,000, log2(200000) ≈ 17.6 stops
         assert!(stops > 15.0 && stops < 20.0);
     }

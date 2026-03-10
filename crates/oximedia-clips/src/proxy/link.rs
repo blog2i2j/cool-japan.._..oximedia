@@ -151,8 +151,14 @@ mod tests {
 
     #[test]
     fn test_proxy_quality() {
-        assert_eq!(ProxyQuality::parse("low").unwrap(), ProxyQuality::Low);
-        assert_eq!(ProxyQuality::parse("medium").unwrap(), ProxyQuality::Medium);
+        assert_eq!(
+            ProxyQuality::parse("low").expect("parse should succeed"),
+            ProxyQuality::Low
+        );
+        assert_eq!(
+            ProxyQuality::parse("medium").expect("parse should succeed"),
+            ProxyQuality::Medium
+        );
         assert!(ProxyQuality::parse("invalid").is_err());
     }
 

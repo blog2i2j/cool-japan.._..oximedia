@@ -288,7 +288,9 @@ mod tests {
             "host",
             ConfigValue::Str("localhost".into()),
         );
-        let removed = c.remove(ConfigSection::Network, "host").unwrap();
+        let removed = c
+            .remove(ConfigSection::Network, "host")
+            .expect("removed should be valid");
         assert_eq!(removed, ConfigValue::Str("localhost".into()));
         assert!(!c.contains(ConfigSection::Network, "host"));
     }

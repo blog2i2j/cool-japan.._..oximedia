@@ -338,12 +338,23 @@ mod tests {
     #[test]
     fn test_topological_order() {
         let g = make_linear_graph();
-        let order = g.topological_order().unwrap();
+        let order = g
+            .topological_order()
+            .expect("topological_order should succeed");
         assert_eq!(order.len(), 3);
         // A before B, B before C
-        let pos_a = order.iter().position(|&x| x == DepNodeId(0)).unwrap();
-        let pos_b = order.iter().position(|&x| x == DepNodeId(1)).unwrap();
-        let pos_c = order.iter().position(|&x| x == DepNodeId(2)).unwrap();
+        let pos_a = order
+            .iter()
+            .position(|&x| x == DepNodeId(0))
+            .expect("iter should succeed");
+        let pos_b = order
+            .iter()
+            .position(|&x| x == DepNodeId(1))
+            .expect("iter should succeed");
+        let pos_c = order
+            .iter()
+            .position(|&x| x == DepNodeId(2))
+            .expect("iter should succeed");
         assert!(pos_a < pos_b);
         assert!(pos_b < pos_c);
     }
@@ -351,10 +362,18 @@ mod tests {
     #[test]
     fn test_topological_order_diamond() {
         let g = make_diamond_graph();
-        let order = g.topological_order().unwrap();
+        let order = g
+            .topological_order()
+            .expect("topological_order should succeed");
         assert_eq!(order.len(), 4);
-        let pos_a = order.iter().position(|&x| x == DepNodeId(0)).unwrap();
-        let pos_d = order.iter().position(|&x| x == DepNodeId(3)).unwrap();
+        let pos_a = order
+            .iter()
+            .position(|&x| x == DepNodeId(0))
+            .expect("iter should succeed");
+        let pos_d = order
+            .iter()
+            .position(|&x| x == DepNodeId(3))
+            .expect("iter should succeed");
         assert!(pos_a < pos_d);
     }
 

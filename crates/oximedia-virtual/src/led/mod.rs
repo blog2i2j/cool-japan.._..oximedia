@@ -11,7 +11,7 @@ pub mod perspective;
 pub mod processor;
 pub mod render;
 
-use nalgebra::Point3;
+use crate::math::Point3;
 use serde::{Deserialize, Serialize};
 
 /// LED wall panel configuration

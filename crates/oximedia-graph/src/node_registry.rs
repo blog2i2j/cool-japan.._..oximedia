@@ -203,7 +203,7 @@ mod tests {
     fn test_registry_get() {
         let mut reg = NodeRegistry::new();
         let id = reg.add("scaler", NodeKind::Filter);
-        let node = reg.get(id).unwrap();
+        let node = reg.get(id).expect("get should succeed");
         assert_eq!(node.name(), "scaler");
         assert_eq!(node.kind(), &NodeKind::Filter);
     }
@@ -223,7 +223,9 @@ mod tests {
         let mut reg = NodeRegistry::new();
         let id0 = reg.add("a", NodeKind::Source);
         let id1 = reg.add("b", NodeKind::Filter);
-        reg.get_mut(id1).unwrap().set_enabled(false);
+        reg.get_mut(id1)
+            .expect("get_mut should succeed")
+            .set_enabled(false);
         assert_eq!(reg.enabled_count(), 1);
         let _ = id0;
     }

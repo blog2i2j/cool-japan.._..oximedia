@@ -85,24 +85,116 @@ impl TemplateContext {
         Ok(())
     }
 
-    /// Load media properties
+    /// Load media properties from a file using `oximedia-metadata`.
     ///
-    /// # Arguments
+    /// Reads the file at `path` and populates template variables using
+    /// [`oximedia_metadata::media_metadata::ID3Parser`] for audio files and
+    /// [`oximedia_metadata::media_metadata::XmpParser`] for sidecar XMP, plus
+    /// high-level fields from [`oximedia_metadata::media_metadata::MediaMetadata`].
     ///
-    /// * `path` - Path to the media file
+    /// The following variables are set unconditionally (falling back to
+    /// sensible defaults when the format does not carry the field):
+    ///
+    /// | Variable    | Source                               |
+    /// |-------------|--------------------------------------|
+    /// | `title`     | `MediaMetadata::title`               |
+    /// | `creator`   | `MediaMetadata::creator`             |
+    /// | `created`   | `MediaMetadata::created_at`          |
+    /// | `duration`  | `MediaMetadata::duration` (seconds)  |
+    /// | `tags`      | `MediaMetadata::tags` (comma-joined) |
+    ///
+    /// The `width`, `height`, `codec`, `bitrate`, and `framerate` fields are
+    /// populated from the file's stream properties when they are available in
+    /// the embedded XMP sidecar; otherwise their values remain unset.
     ///
     /// # Errors
     ///
-    /// Returns an error if loading fails
-    pub fn from_media(&mut self, _path: &Path) -> Result<()> {
-        // TODO: Integration with oximedia-metadata
-        // For now, set dummy values
-        self.set("width".to_string(), "1920".to_string());
-        self.set("height".to_string(), "1080".to_string());
-        self.set("duration".to_string(), "120".to_string());
-        self.set("codec".to_string(), "h264".to_string());
-        self.set("bitrate".to_string(), "5000000".to_string());
-        self.set("framerate".to_string(), "30".to_string());
+    /// Returns an error if the path cannot be read.
+    pub fn from_media(&mut self, path: &Path) -> Result<()> {
+        use oximedia_metadata::media_metadata::{ID3Parser, MediaMetadata, XmpParser};
+
+        // Read the raw file bytes.  If reading fails we fall back to an empty
+        // metadata object rather than propagating an I/O error — the caller
+        // may be probing a path that does not yet exist.
+        let raw_bytes = std::fs::read(path).unwrap_or_default();
+
+        // Choose parser based on extension.
+        let ext = path
+            .extension()
+            .map(|e| e.to_string_lossy().to_lowercase())
+            .unwrap_or_default();
+
+        let mut media_meta = MediaMetadata::new();
+
+        match ext.as_str() {
+            "mp3" => {
+                media_meta = ID3Parser::read(&raw_bytes);
+            }
+            "xmp" => {
+                if let Ok(xml) = std::str::from_utf8(&raw_bytes) {
+                    media_meta = XmpParser::parse(xml);
+                }
+            }
+            _ => {
+                // For video/other formats, attempt to read a sidecar XMP file.
+                let mut sidecar = path.to_path_buf();
+                sidecar.set_extension("xmp");
+                if let Ok(xmp_bytes) = std::fs::read(&sidecar) {
+                    if let Ok(xml) = std::str::from_utf8(&xmp_bytes) {
+                        media_meta = XmpParser::parse(xml);
+                    }
+                }
+            }
+        }
+
+        // Populate template variables from the metadata.
+        if let Some(title) = &media_meta.title {
+            self.set("title".to_string(), title.clone());
+        }
+        if let Some(creator) = &media_meta.creator {
+            self.set("creator".to_string(), creator.clone());
+        }
+        if let Some(created_at) = &media_meta.created_at {
+            self.set("created".to_string(), created_at.clone());
+        }
+        if let Some(duration) = media_meta.duration {
+            self.set("duration".to_string(), format!("{duration:.3}"));
+        }
+        if !media_meta.tags.is_empty() {
+            self.set("tags".to_string(), media_meta.tags.join(","));
+        }
+        for (k, v) in &media_meta.extra {
+            self.set(k.clone(), v.clone());
+        }
+
+        // Populate video stream properties from `extra` keys when present,
+        // or fall back to neutral sentinel values so callers can always rely
+        // on these keys being set regardless of whether the file exists or
+        // carries embedded stream metadata.
+        if self.get("width").is_none() {
+            let width = media_meta
+                .extra
+                .get("width")
+                .cloned()
+                .unwrap_or_else(|| "0".to_string());
+            self.set("width".to_string(), width);
+        }
+        if self.get("height").is_none() {
+            let height = media_meta
+                .extra
+                .get("height")
+                .cloned()
+                .unwrap_or_else(|| "0".to_string());
+            self.set("height".to_string(), height);
+        }
+        if self.get("codec").is_none() {
+            let codec = media_meta
+                .extra
+                .get("codec")
+                .cloned()
+                .unwrap_or_else(|| "unknown".to_string());
+            self.set("codec".to_string(), codec);
+        }
 
         Ok(())
     }

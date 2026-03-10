@@ -124,7 +124,7 @@ impl FeatureTracker {
     ///
     /// let mut tracker = FeatureTracker::new(100);
     /// let frame = vec![100u8; 10000];
-    /// let features = tracker.track(&frame, 100, 100).unwrap();
+    /// let features = tracker.track(&frame, 100, 100)?;
     /// ```
     pub fn track(&mut self, frame: &[u8], w: u32, h: u32) -> CvResult<Vec<TrackedFeature>> {
         if w == 0 || h == 0 {
@@ -146,7 +146,10 @@ impl FeatureTracker {
             return Ok(self.features.clone());
         }
 
-        let prev_frame = self.previous_frame.as_ref().unwrap();
+        let prev_frame = self
+            .previous_frame
+            .as_ref()
+            .expect("previous_frame is Some: is_none check returned early above");
 
         // Track existing features
         if !self.features.is_empty() {
@@ -507,7 +510,7 @@ fn find_local_maxima(response: &[f64], w: u32, h: u32, quality_level: f64) -> Ve
     }
 
     // Sort by response (descending)
-    corners.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+    corners.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
     corners
 }
@@ -703,7 +706,9 @@ mod tests {
         let mut tracker = FeatureTracker::new(50);
         let frame = vec![100u8; 10000];
 
-        let features = tracker.track(&frame, 100, 100).unwrap();
+        let features = tracker
+            .track(&frame, 100, 100)
+            .expect("track should succeed");
         assert!(features.len() <= 50);
     }
 
@@ -728,7 +733,8 @@ mod tests {
     #[test]
     fn test_detect_good_features() {
         let frame = vec![100u8; 10000];
-        let corners = detect_good_features(&frame, 100, 100, 50, 0.01, 10.0).unwrap();
+        let corners = detect_good_features(&frame, 100, 100, 50, 0.01, 10.0)
+            .expect("detect_good_features should succeed");
         assert!(corners.len() <= 50);
     }
 
@@ -738,7 +744,7 @@ mod tests {
         let descriptor = compute_descriptor(&frame, 100, 100, Point2D::new(50.0, 50.0), 7);
         assert!(descriptor.is_some());
 
-        let desc = descriptor.unwrap();
+        let desc = descriptor.expect("desc should be valid");
         assert_eq!(desc.len(), 49); // 7x7 patch
     }
 

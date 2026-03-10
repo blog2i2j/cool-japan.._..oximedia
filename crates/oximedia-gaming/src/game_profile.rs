@@ -509,7 +509,7 @@ mod tests {
         let lib = ProfileLibrary::new();
         let profile = lib.get("fps_twitch_1080p60");
         assert!(profile.is_some());
-        let p = profile.unwrap();
+        let p = profile.expect("profile should exist");
         assert_eq!(p.genre, GameGenre::Fps);
         assert_eq!(p.tuning, EncoderTuning::ZeroLatency);
     }

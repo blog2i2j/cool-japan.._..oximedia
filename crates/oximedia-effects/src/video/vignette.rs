@@ -168,7 +168,8 @@ mod tests {
     fn test_vignette_center_brighter_than_corner() {
         let mut buf = white_buf(128, 128);
         let v = Vignette::new(VignetteConfig::default());
-        v.apply(&mut buf, 128, 128, PixelFormat::Rgb).unwrap();
+        v.apply(&mut buf, 128, 128, PixelFormat::Rgb)
+            .expect("apply should succeed");
 
         let center_idx = (64 * 128 + 64) * 3;
         let corner_idx = 0;
@@ -187,7 +188,8 @@ mod tests {
             ..Default::default()
         };
         let v = Vignette::new(cfg);
-        v.apply(&mut buf, 32, 32, PixelFormat::Rgb).unwrap();
+        v.apply(&mut buf, 32, 32, PixelFormat::Rgb)
+            .expect("apply should succeed");
         assert_eq!(buf, orig, "Zero strength should not change image");
     }
 
@@ -197,12 +199,12 @@ mod tests {
         let mut subtle = orig.clone();
         Vignette::new(VignetteConfig::subtle())
             .apply(&mut subtle, 64, 64, PixelFormat::Rgb)
-            .unwrap();
+            .expect("test expectation failed");
 
         let mut heavy = orig.clone();
         Vignette::new(VignetteConfig::heavy())
             .apply(&mut heavy, 64, 64, PixelFormat::Rgb)
-            .unwrap();
+            .expect("test expectation failed");
 
         // Heavy should darken the corner more
         let corner = 0usize;

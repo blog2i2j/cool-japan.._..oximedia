@@ -496,7 +496,7 @@ mod tests {
         );
 
         assert!(analyzer.is_ok());
-        let analyzer = analyzer.unwrap();
+        let analyzer = analyzer.expect("analyzer should be valid");
         assert_eq!(analyzer.num_bins(), 1025);
     }
 

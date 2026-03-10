@@ -190,7 +190,7 @@ mod tests {
         let mut mgr = EditContextManager::new();
         mgr.push_context("First", EditScope::Local, true, 0);
         mgr.push_context("Second", EditScope::Track, false, 1);
-        let cur = mgr.current().unwrap();
+        let cur = mgr.current().expect("cur should be valid");
         assert_eq!(cur.description, "Second");
     }
 
@@ -198,7 +198,7 @@ mod tests {
     fn test_manager_pop_returns_context() {
         let mut mgr = EditContextManager::new();
         mgr.push_context("Op", EditScope::Global, true, 50);
-        let popped = mgr.pop_context().unwrap();
+        let popped = mgr.pop_context().expect("popped should be valid");
         assert_eq!(popped.description, "Op");
         assert_eq!(mgr.depth(), 0);
     }

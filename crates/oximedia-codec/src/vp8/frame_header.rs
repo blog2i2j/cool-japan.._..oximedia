@@ -68,7 +68,7 @@ pub enum ClampingType {
 ///     0xF0, 0x00, // height=240
 /// ];
 ///
-/// let header = FrameHeader::parse(&data).unwrap();
+/// let header = FrameHeader::parse(&data)?;
 /// assert!(header.is_keyframe());
 /// assert_eq!(header.width, 320);
 /// assert_eq!(header.height, 240);
@@ -157,7 +157,7 @@ impl FrameHeader {
     ///     0x9D, 0x01, 0x2A,       // sync code
     ///     0x40, 0x01, 0xF0, 0x00, // dimensions
     /// ];
-    /// let header = FrameHeader::parse(&data).unwrap();
+    /// let header = FrameHeader::parse(&data)?;
     /// assert!(header.is_keyframe());
     /// ```
     #[allow(clippy::cast_possible_truncation)]
@@ -352,7 +352,7 @@ mod tests {
             0xF0, 0x00, // height=240
         ];
 
-        let header = FrameHeader::parse(&data).unwrap();
+        let header = FrameHeader::parse(&data).expect("should succeed");
         assert!(header.is_keyframe());
         assert_eq!(header.width, 320);
         assert_eq!(header.height, 240);
@@ -379,7 +379,7 @@ mod tests {
             0x00, 0x00, // first_partition_size
         ];
 
-        let header = FrameHeader::parse(&data).unwrap();
+        let header = FrameHeader::parse(&data).expect("should succeed");
         assert!(!header.is_keyframe());
         assert_eq!(header.frame_type, FrameType::Inter);
     }
@@ -443,7 +443,7 @@ mod tests {
             0x9D, 0x01, 0x2A, 0x00, 0x01, 0x00, 0x01,
         ];
 
-        let header = FrameHeader::parse(&data).unwrap();
+        let header = FrameHeader::parse(&data).expect("should succeed");
         assert!(header.is_keyframe());
         assert!(header.show_frame);
         assert_eq!(header.version, 2);

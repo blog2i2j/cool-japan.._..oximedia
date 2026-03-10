@@ -43,7 +43,7 @@ pub struct HorizonLine {
 
 /// Advanced horizon detection using Hough transform.
 pub mod hough {
-    use ndarray::Array2;
+    use scirs2_core::ndarray::Array2;
 
     /// Hough transform for line detection.
     pub struct HoughTransform {

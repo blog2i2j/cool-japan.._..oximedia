@@ -302,7 +302,7 @@ pub fn compute_phash(image: &Image) -> PerceptualHash {
 
     // Calculate median
     let mut sorted = low_freq.clone();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let median = sorted[sorted.len() / 2];
 
     // Generate hash

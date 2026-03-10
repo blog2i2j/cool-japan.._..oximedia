@@ -131,9 +131,9 @@ mod tests {
         let mut server = RemoteServer::new(config);
 
         assert!(!server.is_running().await);
-        server.start().await.unwrap();
+        server.start().await.expect("operation should succeed");
         assert!(server.is_running().await);
-        server.stop().await.unwrap();
+        server.stop().await.expect("operation should succeed");
         assert!(!server.is_running().await);
     }
 }

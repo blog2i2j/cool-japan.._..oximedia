@@ -345,7 +345,7 @@ mod tests {
     fn test_wal_get() {
         let mut wal = WriteAheadLog::new();
         wal.append(put_op("x", 50));
-        let entry = wal.get(1).unwrap();
+        let entry = wal.get(1).expect("get should succeed");
         assert_eq!(entry.affected_key(), "x");
     }
 
@@ -436,6 +436,6 @@ mod tests {
         let mut wal = WriteAheadLog::new();
         wal.set_time_ms(5000);
         wal.append(put_op("t", 1));
-        assert_eq!(wal.get(1).unwrap().timestamp_ms, 5000);
+        assert_eq!(wal.get(1).expect("get should succeed").timestamp_ms, 5000);
     }
 }

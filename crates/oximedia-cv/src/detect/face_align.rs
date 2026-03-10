@@ -25,7 +25,7 @@
 //!
 //! // Align face (dummy image for example)
 //! let image = vec![0u8; 100 * 100 * 3];
-//! let aligned = aligner.align(&image, 100, 100, &landmarks).unwrap();
+//! let aligned = aligner.align(&image, 100, 100, &landmarks)?;
 //! ```
 
 use crate::error::{CvError, CvResult};
@@ -269,7 +269,7 @@ impl ReferenceTemplate {
 /// ];
 ///
 /// let image = vec![128u8; 100 * 100 * 3];
-/// let aligned = aligner.align(&image, 100, 100, &landmarks).unwrap();
+/// let aligned = aligner.align(&image, 100, 100, &landmarks)?;
 /// assert_eq!(aligned.len(), 112 * 112 * 3);
 /// ```
 pub struct FaceAligner {
@@ -362,7 +362,7 @@ impl FaceAligner {
     /// ];
     ///
     /// let image = vec![128u8; 100 * 100 * 3];
-    /// let aligned = aligner.align(&image, 100, 100, &landmarks).unwrap();
+    /// let aligned = aligner.align(&image, 100, 100, &landmarks)?;
     /// assert_eq!(aligned.len(), 112 * 112 * 3);
     /// ```
     pub fn align(
@@ -757,7 +757,7 @@ mod tests {
     #[test]
     fn test_affine_matrix_inverse() {
         let mat = AffineMatrix::new(2.0, 0.0, 5.0, 0.0, 2.0, 10.0);
-        let inv = mat.inverse().unwrap();
+        let inv = mat.inverse().expect("inverse should succeed");
 
         let p = Point2f::new(10.0, 20.0);
         let transformed = mat.transform_point(&p);
@@ -810,7 +810,7 @@ mod tests {
         // Transform landmarks to themselves should give identity
         let transform = aligner
             .estimate_similarity_transform(&landmarks, &landmarks)
-            .unwrap();
+            .expect("operation should succeed");
 
         let p = Point2f::new(50.0, 50.0);
         let transformed = transform.transform_point(&p);
@@ -846,7 +846,7 @@ mod tests {
 
         let aligned = aligner
             .align(&image, src_w as u32, src_h as u32, &landmarks)
-            .unwrap();
+            .expect("operation should succeed");
 
         assert_eq!(aligned.len(), 112 * 112 * 3);
     }
@@ -913,11 +913,15 @@ mod tests {
             Point2f::new(65.0, 80.0),
         ];
 
-        let aligned_nearest = aligner_nearest.align(&image, 100, 100, &landmarks).unwrap();
+        let aligned_nearest = aligner_nearest
+            .align(&image, 100, 100, &landmarks)
+            .expect("align should succeed");
         let aligned_bilinear = aligner_bilinear
             .align(&image, 100, 100, &landmarks)
-            .unwrap();
-        let aligned_bicubic = aligner_bicubic.align(&image, 100, 100, &landmarks).unwrap();
+            .expect("operation should succeed");
+        let aligned_bicubic = aligner_bicubic
+            .align(&image, 100, 100, &landmarks)
+            .expect("align should succeed");
 
         assert_eq!(aligned_nearest.len(), 64 * 64 * 3);
         assert_eq!(aligned_bilinear.len(), 64 * 64 * 3);

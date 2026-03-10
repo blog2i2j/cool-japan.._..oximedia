@@ -365,7 +365,9 @@ mod tests {
         let data = vec![99u8; 100]; // below threshold
         store.compress("small", &data, Some(CompressionAlgorithm::Zstd));
         // stored length should equal original (no compression attempted)
-        let out = store.decompress("small").unwrap();
+        let out = store
+            .decompress("small")
+            .expect("decompress should succeed");
         assert_eq!(out.len(), 100);
     }
 }

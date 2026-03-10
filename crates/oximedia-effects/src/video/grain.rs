@@ -187,7 +187,8 @@ mod tests {
         let orig = mid_gray(32, 32);
         let mut buf = orig.clone();
         let g = GrainEffect::new(GrainConfig::default());
-        g.apply(&mut buf, 32, 32, PixelFormat::Rgb).unwrap();
+        g.apply(&mut buf, 32, 32, PixelFormat::Rgb)
+            .expect("apply should succeed");
         assert_ne!(buf, orig, "Grain should change pixel values");
     }
 
@@ -201,7 +202,8 @@ mod tests {
             ..Default::default()
         };
         let g = GrainEffect::new(cfg);
-        g.apply(&mut buf, 32, 32, PixelFormat::Rgb).unwrap();
+        g.apply(&mut buf, 32, 32, PixelFormat::Rgb)
+            .expect("apply should succeed");
         assert_eq!(buf, orig, "Zero intensity should not change image");
     }
 
@@ -215,7 +217,7 @@ mod tests {
             ..Default::default()
         })
         .apply(&mut buf1, 32, 32, PixelFormat::Rgb)
-        .unwrap();
+        .expect("test expectation failed");
 
         let mut buf2 = orig.clone();
         GrainEffect::new(GrainConfig {
@@ -223,7 +225,7 @@ mod tests {
             ..Default::default()
         })
         .apply(&mut buf2, 32, 32, PixelFormat::Rgb)
-        .unwrap();
+        .expect("test expectation failed");
 
         assert_ne!(buf1, buf2, "Different seeds should produce different grain");
     }
@@ -237,7 +239,8 @@ mod tests {
             ..Default::default()
         };
         let g = GrainEffect::new(cfg);
-        g.apply(&mut buf, 32, 32, PixelFormat::Rgb).unwrap();
+        g.apply(&mut buf, 32, 32, PixelFormat::Rgb)
+            .expect("apply should succeed");
         // Color noise: R, G, B should differ for some pixels
         let has_color_diff = buf
             .chunks_exact(3)
@@ -272,7 +275,8 @@ mod tests {
             ..Default::default()
         };
         let g = GrainEffect::new(cfg);
-        g.apply(&mut buf, 32, 32, PixelFormat::Rgb).unwrap();
+        g.apply(&mut buf, 32, 32, PixelFormat::Rgb)
+            .expect("apply should succeed");
         // With size 4, 4x4 blocks of pixels share the same grain value
         let bl = [buf[0], buf[1], buf[2]];
         let adjacent = [buf[3], buf[4], buf[5]];

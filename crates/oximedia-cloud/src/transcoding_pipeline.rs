@@ -300,7 +300,7 @@ mod tests {
     fn test_queue_find_job() {
         let mut q = CloudTranscodingQueue::new();
         let id = q.submit("s3://in/a.mp4", "s3://out/", "prof");
-        let job = q.find_job(&id).unwrap();
+        let job = q.find_job(&id).expect("job should be valid");
         assert_eq!(job.id, id);
         assert!(q.find_job("nonexistent").is_none());
     }
@@ -338,7 +338,7 @@ mod tests {
     fn test_queue_add_and_find_profile() {
         let mut q = CloudTranscodingQueue::new();
         q.add_profile(av1_profile());
-        let p = q.find_profile("av1-1080p").unwrap();
+        let p = q.find_profile("av1-1080p").expect("p should be valid");
         assert_eq!(p.codec, "av1");
         assert!(q.find_profile("nonexistent").is_none());
     }

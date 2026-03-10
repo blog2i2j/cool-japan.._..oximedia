@@ -180,11 +180,8 @@ impl PacketLossTracker {
                     } else {
                         // Lost packets in the gap.
                         self.total_lost += gap;
-                        self.loss_events.push(LossEvent::new(
-                            expected,
-                            gap,
-                            self.time_counter,
-                        ));
+                        self.loss_events
+                            .push(LossEvent::new(expected, gap, self.time_counter));
                         for _ in 0..gap {
                             self.push_window(false);
                         }

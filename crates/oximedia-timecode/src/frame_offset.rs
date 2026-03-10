@@ -235,7 +235,7 @@ mod tests {
 
     #[test]
     fn test_frame_offset_from_timecode() {
-        let tc = Timecode::new(0, 0, 1, 0, FrameRate::Fps25).unwrap();
+        let tc = Timecode::new(0, 0, 1, 0, FrameRate::Fps25).expect("valid timecode");
         let offset = FrameOffset::from_timecode(&tc);
         assert_eq!(offset.as_frames(), 25);
     }
@@ -243,7 +243,9 @@ mod tests {
     #[test]
     fn test_frame_offset_to_timecode() {
         let offset = FrameOffset::new(25);
-        let tc = offset.to_timecode(FrameRate::Fps25).unwrap();
+        let tc = offset
+            .to_timecode(FrameRate::Fps25)
+            .expect("to_timecode should succeed");
         assert_eq!(tc.seconds, 1);
         assert_eq!(tc.frames, 0);
     }
@@ -280,7 +282,7 @@ mod tests {
         table.add_entry(300, 400, EditType::Dissolve);
 
         assert!(table.lookup(0).is_some());
-        let entry = table.lookup(150).unwrap();
+        let entry = table.lookup(150).expect("lookup should succeed");
         assert_eq!(entry.src_frame, 100);
         assert_eq!(entry.dst_frame, 200);
     }

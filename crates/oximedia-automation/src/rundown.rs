@@ -220,7 +220,7 @@ mod tests {
         first.status = RundownStatus::Completed;
         rd.add_item(first);
         rd.add_item(RundownItem::new(2, "Second", 5_000));
-        let next = rd.next_item().unwrap();
+        let next = rd.next_item().expect("next_item should succeed");
         assert_eq!(next.id, 2);
     }
 

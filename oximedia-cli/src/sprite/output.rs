@@ -175,11 +175,8 @@ pub(super) fn print_generation_summary(
     println!();
 
     // Show timestamp coverage
-    if !result.thumbnails.is_empty() {
+    if let (Some(first), Some(last)) = (result.thumbnails.first(), result.thumbnails.last()) {
         println!("{}", "Timestamp Coverage:".cyan());
-
-        let first = result.thumbnails.first().unwrap();
-        let last = result.thumbnails.last().unwrap();
 
         println!(
             "{:25} {}",

@@ -199,7 +199,7 @@ mod tests {
         let ev = make_event("eos", EventPriority::High);
         assert!(q.push(ev));
         assert_eq!(q.len(), 1);
-        let popped = q.pop().unwrap();
+        let popped = q.pop().expect("pop should return item");
         assert_eq!(popped.kind, "eos");
         assert!(q.is_empty());
     }
@@ -211,9 +211,9 @@ mod tests {
         q.push(make_event("high", EventPriority::High));
         q.push(make_event("normal", EventPriority::Normal));
 
-        assert_eq!(q.pop().unwrap().kind, "high");
-        assert_eq!(q.pop().unwrap().kind, "normal");
-        assert_eq!(q.pop().unwrap().kind, "low");
+        assert_eq!(q.pop().expect("pop should return item").kind, "high");
+        assert_eq!(q.pop().expect("pop should return item").kind, "normal");
+        assert_eq!(q.pop().expect("pop should return item").kind, "low");
     }
 
     #[test]
@@ -223,9 +223,9 @@ mod tests {
         q.push(make_event("second", EventPriority::Normal));
         q.push(make_event("third", EventPriority::Normal));
 
-        assert_eq!(q.pop().unwrap().kind, "first");
-        assert_eq!(q.pop().unwrap().kind, "second");
-        assert_eq!(q.pop().unwrap().kind, "third");
+        assert_eq!(q.pop().expect("pop should return item").kind, "first");
+        assert_eq!(q.pop().expect("pop should return item").kind, "second");
+        assert_eq!(q.pop().expect("pop should return item").kind, "third");
     }
 
     #[test]

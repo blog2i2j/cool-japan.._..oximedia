@@ -199,7 +199,7 @@ mod tests {
         store.save(CheckpointData::new(1, 50, vec![1], 100));
         store.save(CheckpointData::new(1, 150, vec![2], 200));
         store.save(CheckpointData::new(1, 100, vec![3], 150));
-        let latest = store.latest_for(1).unwrap();
+        let latest = store.latest_for(1).expect("latest_for should succeed");
         assert_eq!(latest.frame_or_step, 150);
     }
 

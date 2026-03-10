@@ -223,7 +223,7 @@ mod tests {
     fn test_frames_to_tc_roundtrip() {
         let tc = ndf25();
         let original = "01:02:03:04";
-        let frames = tc.parse_tc(original).unwrap();
+        let frames = tc.parse_tc(original).expect("frames should be valid");
         let back = tc.frames_to_tc(frames);
         assert_eq!(back, original);
     }

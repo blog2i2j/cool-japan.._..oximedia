@@ -441,7 +441,7 @@ fn analyze_quantization(dct_coeffs: &Array3<f64>) -> QuantizationAnalysis {
         }
 
         if !values.is_empty() {
-            values.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
             let median = values[values.len() / 2];
             if median > 0.0 {
                 q_steps.push(median);
@@ -493,7 +493,7 @@ fn estimate_quality_factor(q_steps: &[f64]) -> u8 {
 
     // Use median quantization step
     let mut sorted = q_steps.to_vec();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let median_q = sorted[sorted.len() / 2];
 
     // Map quantization step to quality (inverse relationship)

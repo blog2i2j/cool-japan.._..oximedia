@@ -341,7 +341,7 @@ mod tests {
         assert!(chain.latest_event().is_none());
         chain.append_event(ProvenanceEventKind::Ingest, "u1", "First");
         chain.append_event(ProvenanceEventKind::Access, "u2", "Second");
-        let latest = chain.latest_event().unwrap();
+        let latest = chain.latest_event().expect("operation should succeed");
         assert_eq!(latest.kind, ProvenanceEventKind::Access);
         assert_eq!(latest.description, "Second");
     }

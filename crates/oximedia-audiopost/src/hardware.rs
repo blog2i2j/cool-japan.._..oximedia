@@ -454,7 +454,7 @@ mod tests {
 
     #[test]
     fn test_midi_cc_creation() {
-        let cc = MidiCC::new(0, 1, 64).unwrap();
+        let cc = MidiCC::new(0, 1, 64).expect("failed to create");
         assert_eq!(cc.channel, 0);
         assert_eq!(cc.controller, 1);
         assert_eq!(cc.value, 64);
@@ -462,16 +462,16 @@ mod tests {
 
     #[test]
     fn test_midi_cc_normalized() {
-        let cc = MidiCC::new(0, 1, 127).unwrap();
+        let cc = MidiCC::new(0, 1, 127).expect("failed to create");
         assert_eq!(cc.normalized_value(), 1.0);
     }
 
     #[test]
     fn test_midi_cc_to_db() {
-        let cc = MidiCC::new(0, 1, 0).unwrap();
+        let cc = MidiCC::new(0, 1, 0).expect("failed to create");
         assert!(cc.to_db().is_infinite() && cc.to_db().is_sign_negative());
 
-        let cc = MidiCC::new(0, 1, 127).unwrap();
+        let cc = MidiCC::new(0, 1, 127).expect("failed to create");
         assert!((cc.to_db() - 12.0).abs() < 0.1);
     }
 
@@ -484,7 +484,7 @@ mod tests {
 
     #[test]
     fn test_midi_note_creation() {
-        let note = MidiNote::new(0, 60, 100, true).unwrap();
+        let note = MidiNote::new(0, 60, 100, true).expect("failed to create");
         assert_eq!(note.note, 60);
         assert_eq!(note.velocity, 100);
         assert!(note.on);
@@ -560,7 +560,7 @@ mod tests {
     #[test]
     fn test_control_surface_process_midi() {
         let surface = ControlSurface::mackie_control_universal();
-        let cc = MidiCC::new(0, 0, 64).unwrap();
+        let cc = MidiCC::new(0, 0, 64).expect("failed to create");
         let result = surface.process_midi_cc(&cc);
         assert!(result.is_some());
     }

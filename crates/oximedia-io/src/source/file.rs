@@ -186,13 +186,15 @@ mod tests {
     #[tokio::test]
     async fn test_file_source_open_and_read() {
         // Create a temporary file with some content
-        let mut temp_file = NamedTempFile::new().unwrap();
+        let mut temp_file = NamedTempFile::new().expect("failed to create temp file");
         let content = b"Hello, OxiMedia!";
-        temp_file.write_all(content).unwrap();
-        temp_file.flush().unwrap();
+        temp_file.write_all(content).expect("failed to write");
+        temp_file.flush().expect("failed to flush");
 
         // Open the file source
-        let mut source = FileSource::open(temp_file.path()).await.unwrap();
+        let mut source = FileSource::open(temp_file.path())
+            .await
+            .expect("failed to open file source");
 
         // Check length
         assert_eq!(source.len(), Some(content.len() as u64));
@@ -200,27 +202,32 @@ mod tests {
 
         // Read content
         let mut buffer = [0u8; 32];
-        let n = source.read(&mut buffer).await.unwrap();
+        let n = source.read(&mut buffer).await.expect("failed to read");
         assert_eq!(n, content.len());
         assert_eq!(&buffer[..n], content);
     }
 
     #[tokio::test]
     async fn test_file_source_seek() {
-        let mut temp_file = NamedTempFile::new().unwrap();
-        temp_file.write_all(b"0123456789").unwrap();
-        temp_file.flush().unwrap();
+        let mut temp_file = NamedTempFile::new().expect("failed to create temp file");
+        temp_file.write_all(b"0123456789").expect("failed to write");
+        temp_file.flush().expect("failed to flush");
 
-        let mut source = FileSource::open(temp_file.path()).await.unwrap();
+        let mut source = FileSource::open(temp_file.path())
+            .await
+            .expect("failed to open file source");
 
         // Seek to position 5
-        let pos = source.seek(SeekFrom::Start(5)).await.unwrap();
+        let pos = source
+            .seek(SeekFrom::Start(5))
+            .await
+            .expect("seek should succeed");
         assert_eq!(pos, 5);
         assert_eq!(source.position(), 5);
 
         // Read from position 5
         let mut buffer = [0u8; 5];
-        let n = source.read(&mut buffer).await.unwrap();
+        let n = source.read(&mut buffer).await.expect("failed to read");
         assert_eq!(n, 5);
         assert_eq!(&buffer, b"56789");
     }

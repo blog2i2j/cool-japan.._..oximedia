@@ -320,7 +320,8 @@ mod tests {
     fn test_angle_at_position() {
         let mut grid = GridCompositor::new(1920, 1080);
         let angles = vec![0, 1, 2, 3];
-        grid.create_layout_from_angles(&angles).unwrap();
+        grid.create_layout_from_angles(&angles)
+            .expect("multicam test operation should succeed");
 
         assert_eq!(grid.angle_at_position(0, 0), Some(0));
         assert_eq!(grid.angle_at_position(0, 1), Some(1));
@@ -332,7 +333,8 @@ mod tests {
     fn test_set_angle_at_position() {
         let mut grid = GridCompositor::new(1920, 1080);
         let angles = vec![0, 1, 2, 3];
-        grid.create_layout_from_angles(&angles).unwrap();
+        grid.create_layout_from_angles(&angles)
+            .expect("multicam test operation should succeed");
 
         assert!(grid.set_angle_at_position(0, 0, 5).is_ok());
         assert_eq!(grid.angle_at_position(0, 0), Some(5));

@@ -307,7 +307,8 @@ mod tests {
 
     #[test]
     fn test_timecode_entry() {
-        let tc = Timecode::new(1, 0, 0, 0, FrameRate::Fps25).unwrap();
+        let tc = Timecode::new(1, 0, 0, 0, FrameRate::Fps25)
+            .expect("multicam test operation should succeed");
         let entry = TimecodeEntry::new(100, tc);
         assert_eq!(entry.frame, 100);
         assert_eq!(entry.timecode.hours, 1);
@@ -316,21 +317,28 @@ mod tests {
     #[test]
     fn test_find_timecode_at_frame() {
         let mut sync = TimecodeSync::new(1);
-        let tc = Timecode::new(1, 0, 0, 0, FrameRate::Fps25).unwrap();
+        let tc = Timecode::new(1, 0, 0, 0, FrameRate::Fps25)
+            .expect("multicam test operation should succeed");
         let entries = vec![TimecodeEntry::new(100, tc)];
         sync.add_timecodes(0, entries, FrameRate::Fps25);
 
         let found = sync.find_timecode_at_frame(0, 100);
         assert!(found.is_some());
-        assert_eq!(found.unwrap().hours, 1);
+        assert_eq!(
+            found.expect("multicam test operation should succeed").hours,
+            1
+        );
     }
 
     #[test]
     fn test_detect_breaks() {
         let mut sync = TimecodeSync::new(1);
-        let tc1 = Timecode::new(1, 0, 0, 0, FrameRate::Fps25).unwrap();
-        let tc2 = Timecode::new(1, 0, 0, 1, FrameRate::Fps25).unwrap();
-        let tc3 = Timecode::new(1, 0, 0, 5, FrameRate::Fps25).unwrap(); // Jump!
+        let tc1 = Timecode::new(1, 0, 0, 0, FrameRate::Fps25)
+            .expect("multicam test operation should succeed");
+        let tc2 = Timecode::new(1, 0, 0, 1, FrameRate::Fps25)
+            .expect("multicam test operation should succeed");
+        let tc3 = Timecode::new(1, 0, 0, 5, FrameRate::Fps25)
+            .expect("multicam test operation should succeed"); // Jump!
 
         let entries = vec![
             TimecodeEntry::new(0, tc1),

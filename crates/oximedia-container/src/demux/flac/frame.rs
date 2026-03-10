@@ -446,23 +446,41 @@ mod tests {
     #[test]
     fn test_utf8_number_single_byte() {
         // 0 to 127 encoded as single byte
-        assert_eq!(parse_utf8_number(&[0x00]).unwrap(), (0, 1));
-        assert_eq!(parse_utf8_number(&[0x7F]).unwrap(), (127, 1));
-        assert_eq!(parse_utf8_number(&[0x42]).unwrap(), (66, 1));
+        assert_eq!(
+            parse_utf8_number(&[0x00]).expect("operation should succeed"),
+            (0, 1)
+        );
+        assert_eq!(
+            parse_utf8_number(&[0x7F]).expect("operation should succeed"),
+            (127, 1)
+        );
+        assert_eq!(
+            parse_utf8_number(&[0x42]).expect("operation should succeed"),
+            (66, 1)
+        );
     }
 
     #[test]
     fn test_utf8_number_two_bytes() {
         // 128 = 0xC2 0x80
-        assert_eq!(parse_utf8_number(&[0xC2, 0x80]).unwrap(), (128, 2));
+        assert_eq!(
+            parse_utf8_number(&[0xC2, 0x80]).expect("operation should succeed"),
+            (128, 2)
+        );
         // 2047 = 0xDF 0xBF
-        assert_eq!(parse_utf8_number(&[0xDF, 0xBF]).unwrap(), (2047, 2));
+        assert_eq!(
+            parse_utf8_number(&[0xDF, 0xBF]).expect("operation should succeed"),
+            (2047, 2)
+        );
     }
 
     #[test]
     fn test_utf8_number_three_bytes() {
         // 2048 = 0xE0 0xA0 0x80
-        assert_eq!(parse_utf8_number(&[0xE0, 0xA0, 0x80]).unwrap(), (2048, 3));
+        assert_eq!(
+            parse_utf8_number(&[0xE0, 0xA0, 0x80]).expect("operation should succeed"),
+            (2048, 3)
+        );
     }
 
     #[test]
@@ -498,7 +516,7 @@ mod tests {
         let result = FrameHeader::parse(&data);
         assert!(result.is_ok());
 
-        let (header, consumed) = result.unwrap();
+        let (header, consumed) = result.expect("operation should succeed");
         assert!(!header.variable_blocksize);
         assert_eq!(header.block_size, 256);
         assert_eq!(header.sample_rate, Some(44_100));
@@ -519,7 +537,7 @@ mod tests {
         data.push(0x00);
         data.push(0x00);
 
-        let (header, _) = FrameHeader::parse(&data).unwrap();
+        let (header, _) = FrameHeader::parse(&data).expect("operation should succeed");
         assert!(header.variable_blocksize);
     }
 
@@ -540,18 +558,18 @@ mod tests {
     fn test_frame_header_stereo_modes() {
         // Left/side
         let mut data = vec![0xFF, 0xF8, 0x89, 0x88, 0x00, 0x00]; // Channel 8
-        let (header, _) = FrameHeader::parse(&data).unwrap();
+        let (header, _) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.channel_assignment, ChannelAssignment::LeftSide);
         assert!(header.uses_stereo_decorrelation());
 
         // Right/side
         data[3] = 0x98; // Channel 9
-        let (header, _) = FrameHeader::parse(&data).unwrap();
+        let (header, _) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.channel_assignment, ChannelAssignment::RightSide);
 
         // Mid/side
         data[3] = 0xA8; // Channel 10
-        let (header, _) = FrameHeader::parse(&data).unwrap();
+        let (header, _) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.channel_assignment, ChannelAssignment::MidSide);
     }
 
@@ -561,17 +579,17 @@ mod tests {
 
         // 1 channel (code 0)
         data[3] = 0x08;
-        let (header, _) = FrameHeader::parse(&data).unwrap();
+        let (header, _) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.channels(), 1);
 
         // 8 channels (code 7)
         data[3] = 0x78;
-        let (header, _) = FrameHeader::parse(&data).unwrap();
+        let (header, _) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.channels(), 8);
 
         // Left/side = 2 channels
         data[3] = 0x88;
-        let (header, _) = FrameHeader::parse(&data).unwrap();
+        let (header, _) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.channels(), 2);
     }
 
@@ -581,27 +599,27 @@ mod tests {
 
         // Code 1: 192 samples
         data[2] = 0x19;
-        let (header, _) = FrameHeader::parse(&data).unwrap();
+        let (header, _) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.block_size, 192);
 
         // Code 2: 576 samples
         data[2] = 0x29;
-        let (header, _) = FrameHeader::parse(&data).unwrap();
+        let (header, _) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.block_size, 576);
 
         // Code 3: 1152 samples
         data[2] = 0x39;
-        let (header, _) = FrameHeader::parse(&data).unwrap();
+        let (header, _) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.block_size, 1152);
 
         // Code 8: 256 samples
         data[2] = 0x89;
-        let (header, _) = FrameHeader::parse(&data).unwrap();
+        let (header, _) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.block_size, 256);
 
         // Code 9: 512 samples
         data[2] = 0x99;
-        let (header, _) = FrameHeader::parse(&data).unwrap();
+        let (header, _) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.block_size, 512);
     }
 
@@ -609,13 +627,13 @@ mod tests {
     fn test_frame_header_extra_block_size() {
         // Code 6: 8-bit block size - 1
         let data = vec![0xFF, 0xF8, 0x69, 0x18, 0x00, 0xFF, 0x00]; // 255+1 = 256
-        let (header, consumed) = FrameHeader::parse(&data).unwrap();
+        let (header, consumed) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.block_size, 256);
         assert_eq!(consumed, 7);
 
         // Code 7: 16-bit block size - 1
         let data = vec![0xFF, 0xF8, 0x79, 0x18, 0x00, 0x0F, 0xFF, 0x00]; // 4095+1 = 4096
-        let (header, consumed) = FrameHeader::parse(&data).unwrap();
+        let (header, consumed) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.block_size, 4096);
         assert_eq!(consumed, 8);
     }
@@ -625,17 +643,17 @@ mod tests {
         let mut data = vec![0xFF, 0xF8, 0x80, 0x18, 0x00, 0x00];
 
         // Code 0: from STREAMINFO
-        let (header, _) = FrameHeader::parse(&data).unwrap();
+        let (header, _) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.sample_rate, None);
 
         // Code 9: 44100 Hz
         data[2] = 0x89;
-        let (header, _) = FrameHeader::parse(&data).unwrap();
+        let (header, _) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.sample_rate, Some(44_100));
 
         // Code 10: 48000 Hz
         data[2] = 0x8A;
-        let (header, _) = FrameHeader::parse(&data).unwrap();
+        let (header, _) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.sample_rate, Some(48_000));
     }
 
@@ -644,22 +662,22 @@ mod tests {
         let mut data = vec![0xFF, 0xF8, 0x89, 0x00, 0x00, 0x00];
 
         // Code 0: from STREAMINFO
-        let (header, _) = FrameHeader::parse(&data).unwrap();
+        let (header, _) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.sample_size, None);
 
         // Code 1: 8 bits
         data[3] = 0x02;
-        let (header, _) = FrameHeader::parse(&data).unwrap();
+        let (header, _) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.sample_size, Some(8));
 
         // Code 4: 16 bits
         data[3] = 0x08;
-        let (header, _) = FrameHeader::parse(&data).unwrap();
+        let (header, _) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.sample_size, Some(16));
 
         // Code 6: 24 bits
         data[3] = 0x0C;
-        let (header, _) = FrameHeader::parse(&data).unwrap();
+        let (header, _) = FrameHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.sample_size, Some(24));
     }
 }

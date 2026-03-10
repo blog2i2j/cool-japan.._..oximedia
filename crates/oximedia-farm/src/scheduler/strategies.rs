@@ -220,8 +220,12 @@ mod tests {
 
         let task = create_task(Priority::Normal, false);
 
-        let selected1 = lb.select_worker(&workers, &task).unwrap();
-        let selected2 = lb.select_worker(&workers, &task).unwrap();
+        let selected1 = lb
+            .select_worker(&workers, &task)
+            .expect("select_worker should succeed");
+        let selected2 = lb
+            .select_worker(&workers, &task)
+            .expect("select_worker should succeed");
 
         // Should alternate between workers
         assert_ne!(selected1.worker_id, selected2.worker_id);
@@ -235,7 +239,9 @@ mod tests {
         let workers = vec![&w1, &w2];
 
         let task = create_task(Priority::Normal, false);
-        let selected = lb.select_worker(&workers, &task).unwrap();
+        let selected = lb
+            .select_worker(&workers, &task)
+            .expect("select_worker should succeed");
 
         // Should select w2 (lower load)
         assert_eq!(selected.worker_id.as_str(), "w2");
@@ -249,7 +255,9 @@ mod tests {
         let workers = vec![&w1, &w2];
 
         let task = create_task(Priority::Normal, true);
-        let selected = lb.select_worker(&workers, &task).unwrap();
+        let selected = lb
+            .select_worker(&workers, &task)
+            .expect("select_worker should succeed");
 
         // Should select w2 (has GPU)
         assert_eq!(selected.worker_id.as_str(), "w2");
@@ -263,7 +271,9 @@ mod tests {
         let workers = vec![&w1, &w2];
 
         let task = create_task(Priority::High, false);
-        let selected = lb.select_worker(&workers, &task).unwrap();
+        let selected = lb
+            .select_worker(&workers, &task)
+            .expect("select_worker should succeed");
 
         // High priority should select least loaded
         assert_eq!(selected.worker_id.as_str(), "w2");
@@ -277,7 +287,9 @@ mod tests {
         let workers = vec![&w1, &w2];
 
         let task = create_task(Priority::Low, false);
-        let selected = lb.select_worker(&workers, &task).unwrap();
+        let selected = lb
+            .select_worker(&workers, &task)
+            .expect("select_worker should succeed");
 
         // Low priority uses round-robin
         assert!(!selected.worker_id.as_str().is_empty());
@@ -302,7 +314,9 @@ mod tests {
         let workers = vec![&w1, &w2];
 
         let task = create_task(Priority::Normal, false);
-        let selected = lb.select_worker(&workers, &task).unwrap();
+        let selected = lb
+            .select_worker(&workers, &task)
+            .expect("select_worker should succeed");
 
         // Should select one of the workers
         assert!(selected.worker_id.as_str() == "w1" || selected.worker_id.as_str() == "w2");

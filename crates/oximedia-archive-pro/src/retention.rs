@@ -205,7 +205,10 @@ mod tests {
     fn test_review_annually_has_review_due() {
         let r = RetentionRecord::new("asset-7", RetentionPolicy::ReviewAnnually, T0);
         assert!(r.review_due.is_some());
-        assert_eq!(r.review_due.unwrap(), T0 + SECS_PER_YEAR);
+        assert_eq!(
+            r.review_due.expect("operation should succeed"),
+            T0 + SECS_PER_YEAR
+        );
     }
 
     #[test]
@@ -220,20 +223,25 @@ mod tests {
         let mut r = RetentionRecord::new("asset-9", RetentionPolicy::ReviewAnnually, T0);
         let new_access = T0 + 500;
         r.mark_accessed(new_access);
-        assert_eq!(r.review_due.unwrap(), new_access + SECS_PER_YEAR);
+        assert_eq!(
+            r.review_due.expect("operation should succeed"),
+            new_access + SECS_PER_YEAR
+        );
     }
 
     #[test]
     fn test_days_until_expiry_positive() {
         let r = RetentionRecord::new("asset-10", RetentionPolicy::YearsFromCreation(1), T0);
-        let days = r.days_until_expiry(T0).unwrap();
+        let days = r.days_until_expiry(T0).expect("operation should succeed");
         assert_eq!(days, 365);
     }
 
     #[test]
     fn test_days_until_expiry_negative_when_expired() {
         let r = RetentionRecord::new("asset-11", RetentionPolicy::YearsFromCreation(1), T0);
-        let days = r.days_until_expiry(T0 + year_secs(2)).unwrap();
+        let days = r
+            .days_until_expiry(T0 + year_secs(2))
+            .expect("operation should succeed");
         assert!(days < 0);
     }
 

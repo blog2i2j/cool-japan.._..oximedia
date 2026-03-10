@@ -30,12 +30,12 @@ use std::sync::{Arc, RwLock};
 ///
 /// // Write to the buffer
 /// {
-///     let mut guard = buffer.as_ref().unwrap().write().unwrap();
+///     let mut guard = buffer.as_ref()?.write()?;
 ///     guard[0] = 42;
 /// }
 ///
 /// // Release it back to the pool
-/// pool.release(buffer.unwrap());
+/// pool.release(buffer?);
 /// ```
 #[derive(Debug)]
 pub struct BufferPool {
@@ -135,7 +135,7 @@ impl BufferPool {
     ///
     /// let pool = BufferPool::new(0, 1024); // Empty pool
     /// let buffer = pool.acquire_or_alloc();
-    /// assert_eq!(buffer.read().unwrap().len(), 1024);
+    /// assert_eq!(buffer.read()?.len(), 1024);
     /// ```
     #[must_use]
     pub fn acquire_or_alloc(&self) -> Arc<RwLock<Vec<u8>>> {
@@ -158,7 +158,7 @@ impl BufferPool {
     /// use oximedia_core::alloc::BufferPool;
     ///
     /// let pool = BufferPool::new(2, 1024);
-    /// let buffer = pool.acquire().unwrap();
+    /// let buffer = pool.acquire()?;
     /// // Use the buffer...
     /// pool.release(buffer);
     /// ```
@@ -254,10 +254,10 @@ mod tests {
         let pool = BufferPool::new(2, 1024);
         assert_eq!(pool.available(), 2);
 
-        let buf1 = pool.acquire().unwrap();
+        let buf1 = pool.acquire().expect("acquire should succeed");
         assert_eq!(pool.available(), 1);
 
-        let buf2 = pool.acquire().unwrap();
+        let buf2 = pool.acquire().expect("acquire should succeed");
         assert_eq!(pool.available(), 0);
 
         assert!(pool.acquire().is_none());
@@ -275,33 +275,33 @@ mod tests {
         assert_eq!(pool.available(), 0);
 
         let buffer = pool.acquire_or_alloc();
-        assert_eq!(buffer.read().unwrap().len(), 1024);
+        assert_eq!(buffer.read().expect("read lock should succeed").len(), 1024);
     }
 
     #[test]
     fn test_buffer_contents() {
         let pool = BufferPool::new(1, 64);
-        let buffer = pool.acquire().unwrap();
+        let buffer = pool.acquire().expect("acquire should succeed");
 
         // Write to buffer
         {
-            let mut guard = buffer.write().unwrap();
+            let mut guard = buffer.write().expect("write lock should succeed");
             guard[0] = 42;
             guard[63] = 255;
         }
 
         // Read from buffer
         {
-            let guard = buffer.read().unwrap();
+            let guard = buffer.read().expect("read lock should succeed");
             assert_eq!(guard[0], 42);
             assert_eq!(guard[63], 255);
         }
 
         // Release and reacquire - buffer should be zeroed
         pool.release(buffer);
-        let buffer = pool.acquire().unwrap();
+        let buffer = pool.acquire().expect("acquire should succeed");
         {
-            let guard = buffer.read().unwrap();
+            let guard = buffer.read().expect("read lock should succeed");
             assert_eq!(guard[0], 0);
             assert_eq!(guard[63], 0);
         }

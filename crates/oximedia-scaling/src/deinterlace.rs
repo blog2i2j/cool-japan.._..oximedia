@@ -122,30 +122,149 @@ impl DeinterlaceProcessor {
     }
 
     /// Process a single [`VideoField`] and return a progressive frame as raw
-    /// luma bytes.
+    /// luma bytes (full-height output, one byte per pixel row × width).
     ///
-    /// For `FieldDrop` and `Bob` the field luma is simply returned as-is
-    /// (a real implementation would scale the field to full height).
-    /// For `Blend`/`Weave`/`MotionAdaptive`/`Yadif` a previous field is needed;
-    /// this simplified version returns the input unchanged.
+    /// For `FieldDrop` the field luma is returned as-is (half-height).
+    /// For `Bob` and `Blend` the missing interlaced lines are reconstructed by
+    /// averaging the two spatially adjacent field lines (bob deinterlacing).
+    /// The edge lines are handled by duplicating the nearest available line.
+    /// For temporal methods (`MotionAdaptive`, `Yadif`) a single-field fallback
+    /// using the same bob approach is applied (temporal neighbours are needed for
+    /// full quality but are not available in this single-field interface).
     pub fn process_field(&self, field: &VideoField) -> Vec<u8> {
         if self.config.is_progressive_passthrough() {
             return field.luma.clone();
         }
 
         match self.config.method {
-            DeinterlaceMethod::FieldDrop | DeinterlaceMethod::Bob => {
+            DeinterlaceMethod::FieldDrop => {
                 // Return field data unchanged (caller would up-scale in practice).
                 field.luma.clone()
             }
-            DeinterlaceMethod::Blend => {
-                // Single-field blend: halve each luma sample (placeholder).
-                field.luma.iter().map(|&v| v / 2).collect()
+            DeinterlaceMethod::Bob
+            | DeinterlaceMethod::Blend
+            | DeinterlaceMethod::Weave
+            | DeinterlaceMethod::MotionAdaptive
+            | DeinterlaceMethod::Yadif => {
+                // Bob deinterlacing: reconstruct a full-height progressive frame
+                // from a single field.
+                //
+                // field_index == 0  → top/even field  → rows 0, 2, 4, …  are known
+                //                                      → rows 1, 3, 5, …  are missing
+                // field_index == 1  → bottom/odd field → rows 0, 2, 4, …  are missing
+                //                                      → rows 1, 3, 5, …  are known
+                //
+                // The field luma stores only the field's own lines packed
+                // sequentially (height rows of width bytes each).  The output is
+                // a full progressive frame with 2×height rows.
+                bob_deinterlace(field)
             }
-            _ => field.luma.clone(),
+        }
+    }
+}
+
+/// Reconstruct a full-height progressive frame from a single interlaced field
+/// using bob deinterlacing.
+///
+/// The `field.luma` buffer contains `field.height` rows of `field.width` bytes,
+/// each row representing one spatial line belonging to this field.
+///
+/// Output layout (2 × `field.height` rows):
+///
+/// * Even field (`field_index == 0`): known lines sit at even output row indices
+///   (0, 2, 4, …).  Missing odd lines are interpolated.
+/// * Odd field (`field_index == 1`): known lines sit at odd output row indices
+///   (1, 3, 5, …).  Missing even lines are interpolated.
+///
+/// Interpolation rule:
+/// * Interior missing line: average of the two adjacent known lines.
+/// * Edge missing line (top or bottom): duplicate the nearest known line.
+fn bob_deinterlace(field: &VideoField) -> Vec<u8> {
+    let w = field.width as usize;
+    let fh = field.height as usize; // number of lines in this field
+    let full_h = fh * 2; // output progressive frame height
+
+    let mut out = vec![0u8; w * full_h];
+
+    // Determine which output rows belong to this field.
+    // field_index 0 → even rows (0, 2, 4, …)
+    // field_index 1 → odd  rows (1, 3, 5, …)
+    let field_row_offset = (field.field_index & 1) as usize; // 0 or 1
+
+    // Copy known field lines into their output positions.
+    for fi in 0..fh {
+        let out_row = field_row_offset + fi * 2;
+        let src_start = fi * w;
+        let dst_start = out_row * w;
+        out[dst_start..dst_start + w].copy_from_slice(&field.luma[src_start..src_start + w]);
+    }
+
+    // Fill in the missing (interpolated) rows.
+    // Missing rows are those at the opposite parity: start at `1 - field_row_offset`.
+    let missing_offset = 1 - field_row_offset;
+    for mi in 0..fh {
+        let missing_row = missing_offset + mi * 2;
+
+        // The two adjacent known rows in the output.
+        // Since known rows are spaced 2 apart, the neighbours are:
+        //   above known row: missing_row - 1  (if ≥ 0)
+        //   below known row: missing_row + 1  (if < full_h)
+        let above_known = missing_row.checked_sub(1);
+        let below_known = {
+            let r = missing_row + 1;
+            if r < full_h {
+                Some(r)
+            } else {
+                None
+            }
+        };
+
+        let dst_start = missing_row * w;
+
+        match (above_known, below_known) {
+            (Some(above), Some(below)) => {
+                // Interior: average the two adjacent known lines.
+                // Collect the averaged values first to avoid simultaneous borrows.
+                let above_start = above * w;
+                let below_start = below * w;
+                let averaged: Vec<u8> = (0..w)
+                    .map(|x| {
+                        let a = out[above_start + x] as u16;
+                        let b = out[below_start + x] as u16;
+                        ((a + b + 1) / 2) as u8
+                    })
+                    .collect();
+                out[dst_start..dst_start + w].copy_from_slice(&averaged);
+            }
+            (None, Some(below)) => {
+                // Top edge: duplicate the line below.
+                // dst_start < below_start always holds here because the missing
+                // row is above the first known row.
+                let below_start = below * w;
+                // Split so that the source and destination slices are disjoint.
+                // dst_start is always 0 for the top-edge case, and below_start > dst_start.
+                let (left, right) = out.split_at_mut(below_start);
+                left[dst_start..dst_start + w].copy_from_slice(&right[..w]);
+            }
+            (Some(above), None) => {
+                // Bottom edge: duplicate the line above.
+                // The above row is already written, so we can read and write
+                // from separate slices by splitting.
+                let above_start = above * w;
+                // Both above_start and dst_start are in `out`, but dst_start > above_start.
+                let (left, right) = out.split_at_mut(dst_start);
+                right[..w].copy_from_slice(&left[above_start..above_start + w]);
+            }
+            (None, None) => {
+                // Single-line degenerate case: leave as zero.
+            }
         }
     }
 
+    out
+}
+
+impl DeinterlaceProcessor {
     /// Output frame rate given the input frame rate (in fps numerator/denominator).
     #[allow(clippy::cast_precision_loss)]
     pub fn output_fps(&self, input_fps_num: u32, input_fps_den: u32) -> f64 {
@@ -236,12 +355,32 @@ mod tests {
 
     #[test]
     fn test_process_field_blend() {
+        // Blend now uses bob deinterlacing instead of the old halve-each-sample stub.
+        // field_index=1 (bottom/odd field), width=2, height=2 field-lines.
+        // luma = [row0=[100,200], row1=[50,150]]
+        // Bob produces a full-height (4-row) progressive frame:
+        //   output row 0 (missing, top edge): duplicate of output row 1 → [100, 200]
+        //   output row 1 (known):             field line 0              → [100, 200]
+        //   output row 2 (missing, interior): avg of rows 1 & 3        → [75,  175]
+        //   output row 3 (known):             field line 1              → [50,  150]
         let cfg = DeinterlaceConfig::new(FieldOrder::BottomFieldFirst, DeinterlaceMethod::Blend);
         let proc = DeinterlaceProcessor::new(cfg);
         let mut field = VideoField::blank(1, 2, 2);
         field.luma = vec![100, 200, 50, 150];
         let out = proc.process_field(&field);
-        assert_eq!(out, vec![50, 100, 25, 75]);
+        assert_eq!(
+            out.len(),
+            8,
+            "bob output must be full-height (4 rows × 2 px)"
+        );
+        assert_eq!(
+            out[0..2],
+            [100, 200],
+            "row 0: top-edge duplication of row 1"
+        );
+        assert_eq!(out[2..4], [100, 200], "row 1: known field line 0");
+        assert_eq!(out[4..6], [75, 175], "row 2: average of rows 1 and 3");
+        assert_eq!(out[6..8], [50, 150], "row 3: known field line 1");
     }
 
     #[test]

@@ -293,7 +293,9 @@ mod tests {
     fn test_store_record_and_check() {
         let mut store = BaselineStore::new();
         store.record(baseline("enc", "fps", 30.0, 1000));
-        let check = store.check_regression("enc", "fps", 27.0, 5.0).unwrap();
+        let check = store
+            .check_regression("enc", "fps", 27.0, 5.0)
+            .expect("check should be valid");
         assert!(check.is_regression());
     }
 
@@ -308,7 +310,7 @@ mod tests {
         let mut store = BaselineStore::new();
         store.record(baseline("enc", "fps", 30.0, 1000));
         store.update("enc", "fps", 35.0, 2000);
-        let latest = store.latest("enc", "fps").unwrap();
+        let latest = store.latest("enc", "fps").expect("latest should be valid");
         assert_eq!(latest.value, 35.0);
         assert_eq!(latest.recorded_at, 2000);
     }
@@ -318,7 +320,9 @@ mod tests {
         let mut store = BaselineStore::new();
         store.update("new_bench", "latency", 5.0, 1000);
         assert_eq!(store.len(), 1);
-        let b = store.latest("new_bench", "latency").unwrap();
+        let b = store
+            .latest("new_bench", "latency")
+            .expect("b should be valid");
         assert_eq!(b.value, 5.0);
     }
 
@@ -327,7 +331,9 @@ mod tests {
         let mut store = BaselineStore::new();
         store.record(baseline("enc", "fps", 30.0, 1000));
         store.record(baseline("enc", "fps", 40.0, 2000)); // newer
-        let check = store.check_regression("enc", "fps", 38.0, 5.0).unwrap();
+        let check = store
+            .check_regression("enc", "fps", 38.0, 5.0)
+            .expect("check should be valid");
         // Should compare against 40.0 (latest)
         assert!((check.baseline.value - 40.0).abs() < 1e-9);
     }

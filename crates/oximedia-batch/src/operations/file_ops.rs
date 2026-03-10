@@ -6,6 +6,7 @@ use crate::operations::OperationExecutor;
 use async_trait::async_trait;
 use flate2::write::GzEncoder;
 use flate2::Compression;
+use oxiarc_archive::zip::{ZipCompressionLevel, ZipWriter};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
@@ -13,8 +14,6 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use tar::Builder;
 use walkdir::WalkDir;
-use zip::write::FileOptions;
-use zip::ZipWriter;
 
 /// File operation types
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -155,9 +154,13 @@ impl FileOperationExecutor {
         let file = fs::File::create(output)?;
         let mut zip = ZipWriter::new(file);
 
-        let options = FileOptions::<()>::default()
-            .compression_method(zip::CompressionMethod::Deflated)
-            .compression_level(Some(i64::from(compression)));
+        let level = match compression {
+            0 => ZipCompressionLevel::Store,
+            1..=3 => ZipCompressionLevel::Fast,
+            4..=7 => ZipCompressionLevel::Normal,
+            _ => ZipCompressionLevel::Best,
+        };
+        zip.set_compression(level);
 
         for input_path in files {
             if input_path.is_file() {
@@ -169,9 +172,11 @@ impl FileOperationExecutor {
                         BatchError::FileOperationError("Non-UTF8 file name".to_string())
                     })?;
 
-                zip.start_file(file_name, options)?;
                 let mut f = fs::File::open(input_path)?;
-                std::io::copy(&mut f, &mut zip)?;
+                let mut buffer = Vec::new();
+                f.read_to_end(&mut buffer)?;
+                zip.add_file(file_name, &buffer)
+                    .map_err(|e| BatchError::FileOperationError(format!("Zip add error: {e}")))?;
             } else if input_path.is_dir() {
                 for entry in WalkDir::new(input_path) {
                     let entry = entry
@@ -187,15 +192,19 @@ impl FileOperationExecutor {
                             .ok_or_else(|| {
                                 BatchError::FileOperationError("Non-UTF8 path".to_string())
                             })?;
-                        zip.start_file(name, options)?;
                         let mut f = fs::File::open(path)?;
-                        std::io::copy(&mut f, &mut zip)?;
+                        let mut buffer = Vec::new();
+                        f.read_to_end(&mut buffer)?;
+                        zip.add_file(name, &buffer).map_err(|e| {
+                            BatchError::FileOperationError(format!("Zip add error: {e}"))
+                        })?;
                     }
                 }
             }
         }
 
-        zip.finish()?;
+        zip.finish()
+            .map_err(|e| BatchError::FileOperationError(format!("Zip finish error: {e}")))?;
         Ok(())
     }
 
@@ -369,28 +378,28 @@ mod tests {
 
     #[test]
     fn test_copy_file() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
         let src = temp_dir.path().join("source.txt");
         let dst = temp_dir.path().join("dest.txt");
 
-        fs::write(&src, b"test content").unwrap();
+        fs::write(&src, b"test content").expect("operation should succeed");
 
         let result = FileOperationExecutor::copy_file(&src, &dst, false);
         assert!(result.is_ok());
         assert!(dst.exists());
 
-        let content = fs::read_to_string(&dst).unwrap();
+        let content = fs::read_to_string(&dst).expect("formatting should succeed");
         assert_eq!(content, "test content");
     }
 
     #[test]
     fn test_copy_file_no_overwrite() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
         let src = temp_dir.path().join("source.txt");
         let dst = temp_dir.path().join("dest.txt");
 
-        fs::write(&src, b"test content").unwrap();
-        fs::write(&dst, b"existing content").unwrap();
+        fs::write(&src, b"test content").expect("operation should succeed");
+        fs::write(&dst, b"existing content").expect("operation should succeed");
 
         let result = FileOperationExecutor::copy_file(&src, &dst, false);
         assert!(result.is_err());
@@ -398,11 +407,11 @@ mod tests {
 
     #[test]
     fn test_move_file() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
         let src = temp_dir.path().join("source.txt");
         let dst = temp_dir.path().join("dest.txt");
 
-        fs::write(&src, b"test content").unwrap();
+        fs::write(&src, b"test content").expect("operation should succeed");
 
         let result = FileOperationExecutor::move_file(&src, &dst, false);
         assert!(result.is_ok());
@@ -412,10 +421,10 @@ mod tests {
 
     #[test]
     fn test_delete_file() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
         let file = temp_dir.path().join("test.txt");
 
-        fs::write(&file, b"test content").unwrap();
+        fs::write(&file, b"test content").expect("operation should succeed");
 
         let result = FileOperationExecutor::delete_file(&file);
         assert!(result.is_ok());
@@ -424,27 +433,27 @@ mod tests {
 
     #[test]
     fn test_calculate_sha256() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
         let file = temp_dir.path().join("test.txt");
 
-        fs::write(&file, b"test content").unwrap();
+        fs::write(&file, b"test content").expect("operation should succeed");
 
         let result = FileOperationExecutor::calculate_sha256(&file);
         assert!(result.is_ok());
 
-        let hash = result.unwrap();
+        let hash = result.expect("result should be valid");
         assert_eq!(hash.len(), 64); // SHA-256 is 64 hex characters
     }
 
     #[test]
     fn test_create_zip_archive() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
         let file1 = temp_dir.path().join("file1.txt");
         let file2 = temp_dir.path().join("file2.txt");
         let archive = temp_dir.path().join("archive.zip");
 
-        fs::write(&file1, b"content 1").unwrap();
-        fs::write(&file2, b"content 2").unwrap();
+        fs::write(&file1, b"content 1").expect("operation should succeed");
+        fs::write(&file2, b"content 2").expect("operation should succeed");
 
         let result = FileOperationExecutor::create_zip_archive(&[file1, file2], &archive, 6);
         assert!(result.is_ok());

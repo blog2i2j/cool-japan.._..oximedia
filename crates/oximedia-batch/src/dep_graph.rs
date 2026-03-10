@@ -214,7 +214,7 @@ mod tests {
     #[test]
     fn test_topological_sort_linear() {
         let g = linear_graph();
-        let order = topological_sort(&g).unwrap();
+        let order = topological_sort(&g).expect("operation should succeed");
         assert_eq!(order, vec![1, 2, 3]);
     }
 
@@ -226,9 +226,9 @@ mod tests {
         g.add_dependency(1, 3);
         g.add_dependency(2, 4);
         g.add_dependency(3, 4);
-        let order = topological_sort(&g).unwrap();
+        let order = topological_sort(&g).expect("operation should succeed");
         assert_eq!(order[0], 1);
-        assert_eq!(*order.last().unwrap(), 4);
+        assert_eq!(*order.last().expect("should have last element"), 4);
         assert_eq!(order.len(), 4);
     }
 

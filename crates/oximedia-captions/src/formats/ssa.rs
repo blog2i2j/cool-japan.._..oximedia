@@ -75,11 +75,11 @@ mod tests {
                 Timestamp::from_secs(3),
                 "Test".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
         let writer = SsaWriter;
-        let output = writer.write(&track).unwrap();
-        let text = String::from_utf8(output).unwrap();
+        let output = writer.write(&track).expect("writing should succeed");
+        let text = String::from_utf8(output).expect("output should be valid UTF-8");
 
         assert!(text.contains("[Script Info]"));
         assert!(text.contains("v4.00"));

@@ -127,12 +127,6 @@ impl From<r2d2::Error> for BatchError {
     }
 }
 
-impl From<zip::result::ZipError> for BatchError {
-    fn from(err: zip::result::ZipError) -> Self {
-        Self::FileOperationError(err.to_string())
-    }
-}
-
 impl From<walkdir::Error> for BatchError {
     fn from(err: walkdir::Error) -> Self {
         Self::FileOperationError(err.to_string())

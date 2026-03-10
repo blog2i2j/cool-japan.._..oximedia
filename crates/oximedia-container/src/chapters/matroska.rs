@@ -349,7 +349,7 @@ mod tests {
         assert_eq!(chapter.title("eng"), Some("Chapter 1"));
         assert_eq!(chapter.duration_ns(), Some(5_000_000_000));
         assert!((chapter.start_time_secs() - 0.0).abs() < 0.001);
-        assert!((chapter.end_time_secs().unwrap() - 5.0).abs() < 0.001);
+        assert!((chapter.end_time_secs().expect("operation should succeed") - 5.0).abs() < 0.001);
     }
 
     #[test]
@@ -369,7 +369,7 @@ mod tests {
 
         let chapter = edition.chapter_at_time(3_000_000_000);
         assert!(chapter.is_some());
-        assert_eq!(chapter.unwrap().uid, 1);
+        assert_eq!(chapter.expect("operation should succeed").uid, 1);
     }
 
     #[test]
@@ -384,7 +384,7 @@ mod tests {
 
         let default = chapters.default_edition();
         assert!(default.is_some());
-        assert!(default.unwrap().is_default);
+        assert!(default.expect("operation should succeed").is_default);
     }
 
     #[test]
@@ -397,7 +397,9 @@ mod tests {
         let chapters = builder.build();
         assert_eq!(chapters.total_chapter_count(), 3);
 
-        let edition = chapters.default_edition().unwrap();
+        let edition = chapters
+            .default_edition()
+            .expect("operation should succeed");
         assert_eq!(edition.chapters[2].duration_ns(), Some(5_000_000_000));
     }
 

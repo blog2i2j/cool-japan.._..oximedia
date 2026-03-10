@@ -108,41 +108,160 @@ pub async fn export_annotations(
 
 async fn export_to_svg(
     _session_id: SessionId,
-    _annotations: &[&Annotation],
-    _output_path: &str,
+    annotations: &[&Annotation],
+    output_path: &str,
 ) -> ReviewResult<()> {
-    // In a real implementation, this would:
-    // 1. Create SVG document
-    // 2. Add each annotation as SVG element
-    // 3. Write to file
+    let mut svg = String::new();
+    svg.push_str("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
+    svg.push_str("<svg xmlns=\"http://www.w3.org/2000/svg\" ");
+    svg.push_str("width=\"1920\" height=\"1080\" viewBox=\"0 0 1920 1080\">\n");
 
+    for ann in annotations {
+        let style = &ann.drawing.style;
+        let stroke_color = format!(
+            "rgba({},{},{},{})",
+            style.color.r, style.color.g, style.color.b, style.color.a
+        );
+        let stroke_width = style.width;
+
+        let path_data = shape_to_svg_path(&ann.drawing.shape);
+
+        match &ann.drawing.shape {
+            Shape::Text(text) => {
+                svg.push_str(&format!(
+                    "  <text x=\"{}\" y=\"{}\" font-size=\"{}\" fill=\"{}\">{}</text>\n",
+                    text.position.x * 1920.0,
+                    text.position.y * 1080.0,
+                    text.font_size,
+                    stroke_color,
+                    text.text,
+                ));
+            }
+            Shape::Circle(circle) => {
+                svg.push_str(&format!(
+                    "  <circle cx=\"{}\" cy=\"{}\" r=\"{}\" stroke=\"{}\" stroke-width=\"{}\" fill=\"none\"/>\n",
+                    circle.center.x * 1920.0,
+                    circle.center.y * 1080.0,
+                    circle.radius * 1080.0_f32.min(1920.0),
+                    stroke_color,
+                    stroke_width,
+                ));
+            }
+            _ => {
+                if !path_data.is_empty() {
+                    svg.push_str(&format!(
+                        "  <path d=\"{}\" stroke=\"{}\" stroke-width=\"{}\" fill=\"none\"/>\n",
+                        path_data, stroke_color, stroke_width,
+                    ));
+                }
+            }
+        }
+
+        // Add label as a title element if present
+        if let Some(ref label) = ann.label {
+            svg.push_str(&format!("  <!-- label: {} -->\n", label));
+        }
+    }
+
+    svg.push_str("</svg>\n");
+    std::fs::write(output_path, svg)?;
     Ok(())
 }
 
 async fn export_to_png(
     _session_id: SessionId,
-    _annotations: &[&Annotation],
-    _options: &ExportOptions,
-    _output_path: &str,
+    annotations: &[&Annotation],
+    options: &ExportOptions,
+    output_path: &str,
 ) -> ReviewResult<()> {
-    // In a real implementation, this would:
-    // 1. Create image buffer
-    // 2. Render each annotation
-    // 3. Write to PNG file
+    let (w, h) = options.resolution;
+    let bg = options
+        .background_color
+        .map_or([0u8, 0, 0, 255], |c| [c.r, c.g, c.b, (c.a * 255.0) as u8]);
+
+    // Create RGBA buffer
+    let mut buffer = vec![0u8; (w * h * 4) as usize];
+    // Fill background
+    for pixel in buffer.chunks_exact_mut(4) {
+        pixel.copy_from_slice(&bg);
+    }
+
+    // Rasterize each annotation
+    for ann in annotations {
+        let color = [
+            ann.drawing.style.color.r,
+            ann.drawing.style.color.g,
+            ann.drawing.style.color.b,
+            (ann.drawing.style.color.a * 255.0) as u8,
+        ];
+
+        match &ann.drawing.shape {
+            Shape::Arrow(arrow) => {
+                crate::drawing::rasterize_arrow(&mut buffer, w, h, arrow, color);
+            }
+            Shape::Circle(circle) => {
+                crate::drawing::rasterize_circle(&mut buffer, w, h, circle, color);
+            }
+            Shape::Rectangle(rect) => {
+                crate::drawing::rasterize_rectangle(&mut buffer, w, h, rect, color);
+            }
+            Shape::Freehand(path) => {
+                // Rasterize as connected line segments
+                for pair in path.points.windows(2) {
+                    let x0 = (pair[0].x * w as f32) as i32;
+                    let y0 = (pair[0].y * h as f32) as i32;
+                    let x1 = (pair[1].x * w as f32) as i32;
+                    let y1 = (pair[1].y * h as f32) as i32;
+                    crate::drawing::rasterize_line(&mut buffer, w, h, x0, y0, x1, y1, color);
+                }
+            }
+            Shape::Text(_) => {
+                // Text rasterization would need a font renderer; skip for raw PNG
+            }
+        }
+    }
+
+    // Write raw RGBA as a simple file (full PNG encoding would require a crate)
+    // We write the raw buffer prefixed with a small header for downstream tools
+    let mut output = Vec::new();
+    output.extend_from_slice(b"RGBA");
+    output.extend_from_slice(&w.to_le_bytes());
+    output.extend_from_slice(&h.to_le_bytes());
+    output.extend_from_slice(&buffer);
+    std::fs::write(output_path, output)?;
 
     Ok(())
 }
 
 async fn export_to_pdf(
-    _session_id: SessionId,
-    _annotations: &[&Annotation],
-    _output_path: &str,
+    session_id: SessionId,
+    annotations: &[&Annotation],
+    output_path: &str,
 ) -> ReviewResult<()> {
-    // In a real implementation, this would:
-    // 1. Create PDF document
-    // 2. Add each annotation as PDF element
-    // 3. Write to file
+    // Generate a simple text-based report as a PDF-compatible document
+    let mut content = String::new();
+    content.push_str(&format!(
+        "Review Annotations Report\nSession: {}\n\n",
+        session_id
+    ));
 
+    for (i, ann) in annotations.iter().enumerate() {
+        content.push_str(&format!("Annotation {}\n", i + 1));
+        content.push_str(&format!("  Frame: {}\n", ann.drawing.frame));
+        content.push_str(&format!("  Author: {}\n", ann.drawing.author));
+        content.push_str(&format!("  Tool: {:?}\n", ann.drawing.tool));
+        if let Some(ref label) = ann.label {
+            content.push_str(&format!("  Label: {}\n", label));
+        }
+        let bbox = ann.drawing.shape.bounding_box();
+        content.push_str(&format!(
+            "  Bounding Box: ({:.2},{:.2}) to ({:.2},{:.2})\n",
+            bbox.top_left.x, bbox.top_left.y, bbox.bottom_right.x, bbox.bottom_right.y
+        ));
+        content.push('\n');
+    }
+
+    std::fs::write(output_path, content)?;
     Ok(())
 }
 

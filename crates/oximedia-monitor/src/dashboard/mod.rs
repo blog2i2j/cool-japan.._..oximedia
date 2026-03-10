@@ -252,8 +252,9 @@ impl Dashboard {
         let mut summaries: Vec<ErrorSummary> = groups
             .into_iter()
             .map(|((component, message), timestamps)| {
-                let first_seen = *timestamps.iter().min().unwrap();
-                let last_seen = *timestamps.iter().max().unwrap();
+                let now = Utc::now();
+                let first_seen = timestamps.iter().copied().min().unwrap_or(now);
+                let last_seen = timestamps.iter().copied().max().unwrap_or(now);
                 ErrorSummary {
                     message,
                     component,

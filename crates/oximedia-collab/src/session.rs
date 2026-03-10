@@ -621,10 +621,16 @@ mod tests {
         );
 
         let editor = User::new("Bob".to_string(), UserRole::Editor);
-        session.add_user(editor.clone()).await.unwrap();
+        session
+            .add_user(editor.clone())
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(session.user_count().await, 2);
 
-        session.remove_user(editor.id).await.unwrap();
+        session
+            .remove_user(editor.id)
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(session.user_count().await, 1);
     }
 
@@ -639,7 +645,10 @@ mod tests {
         );
 
         let viewer = User::new("Bob".to_string(), UserRole::Viewer);
-        session.add_user(viewer.clone()).await.unwrap();
+        session
+            .add_user(viewer.clone())
+            .await
+            .expect("collab test operation should succeed");
 
         // Owner can edit
         assert!(session.check_permission(owner.id, "edit").is_ok());
@@ -659,10 +668,16 @@ mod tests {
         );
 
         let editor = User::new("Bob".to_string(), UserRole::Editor);
-        session.add_user(editor.clone()).await.unwrap();
+        session
+            .add_user(editor.clone())
+            .await
+            .expect("collab test operation should succeed");
 
         // Owner can kick editor
-        session.kick_user(owner.id, editor.id).await.unwrap();
+        session
+            .kick_user(owner.id, editor.id)
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(session.user_count().await, 1);
     }
 
@@ -671,7 +686,10 @@ mod tests {
         let manager = SessionManager::new(CollabConfig::default());
         let owner = User::new("Alice".to_string(), UserRole::Owner);
 
-        let session = manager.create_session(Uuid::new_v4(), owner).await.unwrap();
+        let session = manager
+            .create_session(Uuid::new_v4(), owner)
+            .await
+            .expect("collab test operation should succeed");
         let session_id = session.id;
 
         assert!(manager.get_session(session_id).is_some());

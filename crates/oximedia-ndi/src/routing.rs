@@ -294,7 +294,9 @@ mod tests {
         ));
 
         assert_eq!(router.route_count(), 1);
-        let route = router.find_by_name("CAM1").unwrap();
+        let route = router
+            .find_by_name("CAM1")
+            .expect("expected to find by name");
         assert_eq!(route.source_port, 5961);
     }
 
@@ -345,7 +347,7 @@ mod tests {
         let mut mixer = NdiVideoMixer::new();
         mixer.add_source("CAM1", 0.5);
         mixer.set_level("CAM1", 0.9);
-        assert!((mixer.get_level("CAM1").unwrap() - 0.9).abs() < 1e-6);
+        assert!((mixer.get_level("CAM1").expect("expected level to exist") - 0.9).abs() < 1e-6);
     }
 
     #[test]

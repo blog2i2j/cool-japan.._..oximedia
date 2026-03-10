@@ -194,10 +194,10 @@ pub fn probe_media(data: &[u8]) -> Result<JsValue, JsValue> {
     };
 
     serde_json::to_string(&info)
-        .map_err(|e| JsValue::from_str(&format!("Serialization error: {e}")))
+        .map_err(|e| crate::utils::js_err(&format!("Serialization error: {e}")))
         .and_then(|json| {
             js_sys::JSON::parse(&json)
-                .map_err(|e| JsValue::from_str(&format!("JSON parse error: {e:?}")))
+                .map_err(|e| crate::utils::js_err(&format!("JSON parse error: {e:?}")))
         })
 }
 
@@ -208,7 +208,7 @@ mod tests {
     #[test]
     fn test_probe_webm() {
         let data = [0x1A, 0x45, 0xDF, 0xA3, 0x01, 0x00, 0x00, 0x00];
-        let result = probe_format(&data).unwrap();
+        let result = probe_format(&data).expect("probe should succeed");
         assert_eq!(result.format(), "Matroska");
         assert!(result.confidence() > 0.9);
         assert!(result.is_video_container());
@@ -217,14 +217,14 @@ mod tests {
     #[test]
     fn test_probe_ogg() {
         let data = b"OggS\x00\x02\x00\x00\x00\x00\x00\x00";
-        let result = probe_format(data).unwrap();
+        let result = probe_format(data).expect("probe should succeed");
         assert_eq!(result.format(), "Ogg");
     }
 
     #[test]
     fn test_probe_flac() {
         let data = b"fLaC\x00\x00\x00\x22";
-        let result = probe_format(data).unwrap();
+        let result = probe_format(data).expect("probe should succeed");
         assert_eq!(result.format(), "Flac");
         assert!(result.is_audio_only());
     }
@@ -265,7 +265,7 @@ mod tests {
             stream_count: 1,
         };
 
-        let json = serde_json::to_string(&info).unwrap();
+        let json = serde_json::to_string(&info).expect("serde_json::to_string should succeed");
         assert!(json.contains("\"format\":\"Matroska\""));
         assert!(json.contains("\"confidence\":0.95"));
         assert!(json.contains("\"is_video_container\":true"));

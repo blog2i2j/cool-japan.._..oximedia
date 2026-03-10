@@ -173,7 +173,7 @@ mod tests {
 
     #[test]
     fn test_audio_meter_process() {
-        let mut meter = AudioMeter::new(48000.0, 2).unwrap();
+        let mut meter = AudioMeter::new(48000.0, 2).expect("failed to create");
 
         // Process some samples
         let samples = vec![0.5f32; 1000];

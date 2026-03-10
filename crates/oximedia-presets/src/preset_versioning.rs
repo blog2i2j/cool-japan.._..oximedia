@@ -420,7 +420,7 @@ mod tests {
 
     #[test]
     fn test_version_parse() {
-        let v = PresetVersion::parse("1.2.3").unwrap();
+        let v = PresetVersion::parse("1.2.3").expect("v should be valid");
         assert_eq!(v.major, 1);
         assert_eq!(v.minor, 2);
         assert_eq!(v.patch, 3);
@@ -524,7 +524,7 @@ mod tests {
 
         let path = reg
             .find_path(&PresetVersion::new(1, 0, 0), &PresetVersion::new(1, 2, 0))
-            .unwrap();
+            .expect("test expectation failed");
         assert_eq!(path.len(), 2);
     }
 
@@ -585,11 +585,11 @@ mod tests {
 
         assert_eq!(history.len(), 2);
         assert_eq!(
-            history.first().unwrap().version,
+            history.first().expect("first should succeed").version,
             PresetVersion::new(1, 0, 0)
         );
         assert_eq!(
-            history.latest().unwrap().version,
+            history.latest().expect("latest should succeed").version,
             PresetVersion::new(1, 1, 0)
         );
     }

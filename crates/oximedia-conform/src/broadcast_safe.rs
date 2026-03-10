@@ -157,7 +157,10 @@ impl BroadcastSafeAnalyzer {
             chroma_violations: cv,
             total_pixels: total,
         });
-        self.results.last().unwrap()
+        // Safety: we just pushed an element so `last()` is always `Some`.
+        self.results
+            .last()
+            .expect("results is non-empty after push")
     }
 
     /// Total violation count across all analyzed frames.

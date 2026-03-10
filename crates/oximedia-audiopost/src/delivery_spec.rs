@@ -265,7 +265,7 @@ mod tests {
     fn test_spec_with_codec() {
         let spec =
             AudioDeliverySpec::from_target(DeliveryTarget::Streaming, 2, 48_000).with_codec("AAC");
-        assert_eq!(spec.codec.unwrap(), "AAC");
+        assert_eq!(spec.codec.expect("codec should be valid"), "AAC");
     }
 
     #[test]

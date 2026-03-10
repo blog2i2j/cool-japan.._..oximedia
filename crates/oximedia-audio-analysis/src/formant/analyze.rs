@@ -117,7 +117,7 @@ impl FormantAnalyzer {
             .collect();
 
         // Sort by frequency
-        formants.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        formants.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         // Take first 4 formants
         formants.truncate(4);
@@ -247,7 +247,7 @@ mod tests {
         let result = analyzer.analyze(&samples, sample_rate);
         assert!(result.is_ok());
 
-        let formants = result.unwrap().formants;
+        let formants = result.expect("expected successful result").formants;
         assert_eq!(formants.len(), 4);
 
         // All formants should be positive

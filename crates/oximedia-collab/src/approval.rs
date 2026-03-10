@@ -320,8 +320,11 @@ mod tests {
             make_reviewer("prod", ReviewerRole::Producer),
         ];
         wf.submit(make_request("req-1", reviewers));
-        wf.record_decision("req-1", approve("dir", 1000)).unwrap();
-        let status = wf.record_decision("req-1", approve("prod", 2000)).unwrap();
+        wf.record_decision("req-1", approve("dir", 1000))
+            .expect("collab test operation should succeed");
+        let status = wf
+            .record_decision("req-1", approve("prod", 2000))
+            .expect("collab test operation should succeed");
         assert_eq!(status, ApprovalStatus::Approved);
         assert_eq!(wf.pending_count(), 0);
     }
@@ -334,8 +337,11 @@ mod tests {
             make_reviewer("legal", ReviewerRole::Legal),
         ];
         wf.submit(make_request("req-1", reviewers));
-        wf.record_decision("req-1", approve("dir", 1000)).unwrap();
-        let status = wf.record_decision("req-1", reject("legal", 2000)).unwrap();
+        wf.record_decision("req-1", approve("dir", 1000))
+            .expect("collab test operation should succeed");
+        let status = wf
+            .record_decision("req-1", reject("legal", 2000))
+            .expect("collab test operation should succeed");
         assert_eq!(status, ApprovalStatus::Rejected);
     }
 
@@ -346,7 +352,9 @@ mod tests {
             "req-1",
             vec![make_reviewer("qc", ReviewerRole::QC)],
         ));
-        let status = wf.record_decision("req-1", changes("qc", 1000)).unwrap();
+        let status = wf
+            .record_decision("req-1", changes("qc", 1000))
+            .expect("collab test operation should succeed");
         assert_eq!(status, ApprovalStatus::ChangesRequested);
     }
 
@@ -358,7 +366,9 @@ mod tests {
             make_reviewer("client", ReviewerRole::Client),
         ];
         wf.submit(make_request("req-1", reviewers));
-        let status = wf.record_decision("req-1", approve("dir", 1000)).unwrap();
+        let status = wf
+            .record_decision("req-1", approve("dir", 1000))
+            .expect("collab test operation should succeed");
         assert_eq!(status, ApprovalStatus::Pending);
         assert_eq!(wf.pending_count(), 1);
     }
@@ -388,8 +398,11 @@ mod tests {
             "req-1",
             vec![make_reviewer("dir", ReviewerRole::Director)],
         ));
-        wf.record_decision("req-1", changes("dir", 1000)).unwrap();
-        let status = wf.record_decision("req-1", approve("dir", 2000)).unwrap();
+        wf.record_decision("req-1", changes("dir", 1000))
+            .expect("collab test operation should succeed");
+        let status = wf
+            .record_decision("req-1", approve("dir", 2000))
+            .expect("collab test operation should succeed");
         assert_eq!(status, ApprovalStatus::Approved);
         // Only one decision stored
         assert_eq!(wf.get_decisions("req-1").len(), 1);
@@ -400,7 +413,9 @@ mod tests {
         let mut wf = ApprovalWorkflow::new();
         wf.submit(make_request("req-1", vec![]));
         // Aggregation with 0 reviewers → Approved immediately
-        let req = wf.get_request("req-1").unwrap();
+        let req = wf
+            .get_request("req-1")
+            .expect("collab test operation should succeed");
         // Initially Pending until a decision triggers aggregation;
         // we verify the aggregate logic directly
         assert_eq!(req.status, ApprovalStatus::Pending);

@@ -92,14 +92,21 @@ impl RdoEngine {
 
         let best = results
             .iter()
-            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
-            .unwrap();
+            .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
 
-        RdoResult {
-            best_mode_idx: best.0,
-            cost: best.1,
-            distortion: best.2,
-            rate: best.3,
+        match best {
+            Some(b) => RdoResult {
+                best_mode_idx: b.0,
+                cost: b.1,
+                distortion: b.2,
+                rate: b.3,
+            },
+            None => RdoResult {
+                best_mode_idx: 0,
+                cost: f64::MAX,
+                distortion: 0.0,
+                rate: 0.0,
+            },
         }
     }
 
@@ -156,14 +163,14 @@ mod tests {
     #[test]
     fn test_rdo_engine_creation() {
         let config = OptimizerConfig::default();
-        let engine = RdoEngine::new(&config).unwrap();
+        let engine = RdoEngine::new(&config).expect("RDO engine creation should succeed");
         assert_eq!(engine.optimization_level(), OptimizationLevel::Medium);
     }
 
     #[test]
     fn test_cost_calculation() {
         let config = OptimizerConfig::default();
-        let engine = RdoEngine::new(&config).unwrap();
+        let engine = RdoEngine::new(&config).expect("RDO engine creation should succeed");
         let cost = engine.calculate_cost(100.0, 50.0, 26);
         assert!(cost > 100.0); // Should include rate penalty
     }
@@ -171,7 +178,7 @@ mod tests {
     #[test]
     fn test_mode_evaluation() {
         let config = OptimizerConfig::default();
-        let engine = RdoEngine::new(&config).unwrap();
+        let engine = RdoEngine::new(&config).expect("RDO engine creation should succeed");
 
         let candidates = vec![
             ModeCandidate {

@@ -498,7 +498,7 @@ mod tests {
     fn test_flare_map_uniform() {
         let flare = FlareRgb::new(0.01, 0.01, 0.01);
         let map = FlareMap::uniform(10, 10, &flare);
-        let val = map.get(5, 5).unwrap();
+        let val = map.get(5, 5).expect("expected key to exist");
         assert!((val.r - 0.01).abs() < 1e-10);
     }
 
@@ -506,7 +506,7 @@ mod tests {
     fn test_flare_map_set_get() {
         let mut map = FlareMap::uniform(10, 10, &FlareRgb::zero());
         map.set(3, 4, &FlareRgb::new(0.5, 0.6, 0.7));
-        let val = map.get(3, 4).unwrap();
+        let val = map.get(3, 4).expect("expected key to exist");
         assert!((val.r - 0.5).abs() < 1e-10);
         assert!((val.g - 0.6).abs() < 1e-10);
         assert!(map.get(20, 20).is_none());
@@ -518,10 +518,10 @@ mod tests {
         let edge = FlareRgb::new(0.05, 0.05, 0.05);
         let map = FlareCorrector::generate_radial_flare_map(20, 20, &center, &edge);
         // Center should be close to center_flare
-        let c = map.get(10, 10).unwrap();
+        let c = map.get(10, 10).expect("expected key to exist");
         assert!(c.r < 0.03);
         // Corner should be close to edge_flare
-        let corner = map.get(0, 0).unwrap();
+        let corner = map.get(0, 0).expect("expected key to exist");
         assert!(corner.r > c.r);
     }
 }

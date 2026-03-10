@@ -408,7 +408,7 @@ mod tests {
         assert!(during.is_empty()); // too small for any boundary
         let last = chunker.finish();
         assert!(last.is_some());
-        assert_eq!(last.unwrap().chunk_len, 50);
+        assert_eq!(last.expect("operation should succeed").chunk_len, 50);
     }
 
     #[test]

@@ -136,7 +136,7 @@ mod tests {
 
     #[test]
     fn test_rgb_to_rgb_same_space() {
-        let srgb = ColorSpace::srgb().unwrap();
+        let srgb = ColorSpace::srgb().expect("sRGB color space creation should succeed");
         let rgb = [0.5, 0.3, 0.7];
 
         let result = rgb_to_rgb(&rgb, &srgb, &srgb);
@@ -148,8 +148,8 @@ mod tests {
 
     #[test]
     fn test_rgb_to_rgb_different_spaces() {
-        let srgb = ColorSpace::srgb().unwrap();
-        let rec2020 = ColorSpace::rec2020().unwrap();
+        let srgb = ColorSpace::srgb().expect("sRGB color space creation should succeed");
+        let rec2020 = ColorSpace::rec2020().expect("Rec.2020 color space creation should succeed");
 
         let rgb = [0.5, 0.3, 0.7];
         let result = rgb_to_rgb(&rgb, &srgb, &rec2020);
@@ -162,10 +162,11 @@ mod tests {
 
     #[test]
     fn test_create_rgb_to_rgb_matrix() {
-        let srgb = ColorSpace::srgb().unwrap();
-        let rec709 = ColorSpace::rec709().unwrap();
+        let srgb = ColorSpace::srgb().expect("sRGB color space creation should succeed");
+        let rec709 = ColorSpace::rec709().expect("Rec.709 color space creation should succeed");
 
-        let matrix = create_rgb_to_rgb_matrix(&srgb, &rec709).unwrap();
+        let matrix = create_rgb_to_rgb_matrix(&srgb, &rec709)
+            .expect("RGB to RGB matrix creation should succeed");
 
         // Matrix should be close to identity (same primaries)
         assert!((matrix[0][0] - 1.0).abs() < 0.01);

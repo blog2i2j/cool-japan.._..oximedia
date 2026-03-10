@@ -404,7 +404,9 @@ mod tests {
             extension: None,
         });
 
-        let duration = demuxer.duration_seconds().unwrap();
+        let duration = demuxer
+            .duration_seconds()
+            .expect("operation should succeed");
         assert!((duration - 1.0).abs() < 0.001);
     }
 

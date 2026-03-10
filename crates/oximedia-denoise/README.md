@@ -1,7 +1,7 @@
 # oximedia-denoise
 
 ![Status: Stable](https://img.shields.io/badge/status-stable-green)
-![Version: 0.1.0](https://img.shields.io/badge/version-0.1.0-blue)
+![Version: 0.1.1](https://img.shields.io/badge/version-0.1.1-blue)
 
 Professional video and audio denoising for OxiMedia, with spatial, temporal, hybrid, and frequency-domain algorithms.
 
@@ -30,7 +30,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-denoise = "0.1.0"
+oximedia-denoise = "0.1.1"
 ```
 
 ```rust

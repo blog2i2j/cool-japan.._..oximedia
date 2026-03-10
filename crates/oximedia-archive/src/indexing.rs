@@ -166,10 +166,18 @@ mod tests {
         let id0 = idx.add("/archive/film.mov", 1_000_000, "video/quicktime");
         let id1 = idx.add("/archive/audio.wav", 500_000, "audio/wav");
         let id2 = idx.add("/archive/photo.tiff", 200_000, "image/tiff");
-        idx.get_mut(id0).unwrap().add_tag("rushes");
-        idx.get_mut(id1).unwrap().add_tag("score");
-        idx.get_mut(id2).unwrap().add_tag("rushes");
-        idx.get_mut(id2).unwrap().add_tag("still");
+        idx.get_mut(id0)
+            .expect("get_mut should succeed")
+            .add_tag("rushes");
+        idx.get_mut(id1)
+            .expect("get_mut should succeed")
+            .add_tag("score");
+        idx.get_mut(id2)
+            .expect("get_mut should succeed")
+            .add_tag("rushes");
+        idx.get_mut(id2)
+            .expect("get_mut should succeed")
+            .add_tag("still");
         let _ = (id0, id1, id2);
         idx
     }

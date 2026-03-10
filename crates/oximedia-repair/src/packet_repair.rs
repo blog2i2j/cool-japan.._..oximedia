@@ -109,7 +109,10 @@ impl PacketRepairer {
             return;
         }
         let first = seq_numbers[0];
-        let last = *seq_numbers.last().unwrap();
+        let last = match seq_numbers.last() {
+            Some(&v) => v,
+            None => return,
+        };
         let expected_count = (last - first + 1) as u64;
         self.total_packets_seen += expected_count;
         self.total_packets_lost += expected_count - seq_numbers.len() as u64;

@@ -356,7 +356,9 @@ mod tests {
     #[test]
     fn test_curve_model_linear_inverse() {
         let model = CurveModel::linear(-0.5, 50.0, 0.99);
-        let qp = model.inverse_predict(40.0).unwrap();
+        let qp = model
+            .inverse_predict(40.0)
+            .expect("inverse prediction should succeed");
         assert!((qp - 20.0).abs() < f64::EPSILON);
     }
 
@@ -409,7 +411,9 @@ mod tests {
             let psnr = -0.5 * qp as f64 + 50.0;
             builder.add_sample(QpQualitySample::new(qp as f64, psnr, 0.95, 1_000_000.0));
         }
-        let model = builder.fit_linear_psnr().unwrap();
+        let model = builder
+            .fit_linear_psnr()
+            .expect("linear PSNR fit should succeed");
         assert!((model.coeff_a - (-0.5)).abs() < 0.01);
         assert!((model.coeff_b - 50.0).abs() < 0.1);
         assert!(model.r_squared > 0.99);
@@ -420,7 +424,7 @@ mod tests {
         let mut builder = QuantizerCurveBuilder::new();
         builder.add_sample(QpQualitySample::new(18.0, 44.0, 0.98, 8_000_000.0));
         builder.add_sample(QpQualitySample::new(38.0, 34.0, 0.90, 2_000_000.0));
-        let (min, max) = builder.qp_range().unwrap();
+        let (min, max) = builder.qp_range().expect("QP range should be available");
         assert!((min - 18.0).abs() < f64::EPSILON);
         assert!((max - 38.0).abs() < f64::EPSILON);
     }
@@ -430,7 +434,9 @@ mod tests {
         let mut builder = QuantizerCurveBuilder::new();
         builder.add_sample(QpQualitySample::new(18.0, 44.0, 0.98, 8_000_000.0));
         builder.add_sample(QpQualitySample::new(38.0, 34.0, 0.90, 2_000_000.0));
-        let (min, max) = builder.psnr_range().unwrap();
+        let (min, max) = builder
+            .psnr_range()
+            .expect("PSNR range should be available");
         assert!((min - 34.0).abs() < f64::EPSILON);
         assert!((max - 44.0).abs() < f64::EPSILON);
     }
@@ -448,9 +454,19 @@ mod tests {
         lut.insert(22, 42.0, 0.97, 5_000_000.0);
         lut.insert(28, 38.0, 0.94, 3_000_000.0);
         assert_eq!(lut.len(), 2);
-        assert!((lut.lookup_psnr(22).unwrap() - 42.0).abs() < f64::EPSILON);
-        assert!((lut.lookup_ssim(28).unwrap() - 0.94).abs() < f64::EPSILON);
-        assert!((lut.lookup_bitrate(22).unwrap() - 5_000_000.0).abs() < f64::EPSILON);
+        assert!(
+            (lut.lookup_psnr(22).expect("PSNR lookup should succeed") - 42.0).abs() < f64::EPSILON
+        );
+        assert!(
+            (lut.lookup_ssim(28).expect("SSIM lookup should succeed") - 0.94).abs() < f64::EPSILON
+        );
+        assert!(
+            (lut.lookup_bitrate(22)
+                .expect("bitrate lookup should succeed")
+                - 5_000_000.0)
+                .abs()
+                < f64::EPSILON
+        );
     }
 
     #[test]
@@ -460,7 +476,9 @@ mod tests {
         lut.insert(22, 42.0, 0.97, 5_000_000.0);
         lut.insert(28, 38.0, 0.94, 3_000_000.0);
         lut.insert(34, 34.0, 0.90, 1_500_000.0);
-        let qp = lut.find_qp_for_psnr(40.0).unwrap();
+        let qp = lut
+            .find_qp_for_psnr(40.0)
+            .expect("QP for target PSNR should be found");
         assert_eq!(qp, 22); // Closest to 42.0
     }
 
@@ -470,7 +488,9 @@ mod tests {
         lut.insert(18, 46.0, 0.99, 10_000_000.0);
         lut.insert(28, 38.0, 0.94, 3_000_000.0);
         lut.insert(34, 34.0, 0.90, 1_500_000.0);
-        let qp = lut.find_qp_for_bitrate(2_000_000.0).unwrap();
+        let qp = lut
+            .find_qp_for_bitrate(2_000_000.0)
+            .expect("QP for target bitrate should be found");
         assert_eq!(qp, 34); // 1_500_000 is closest to 2_000_000
     }
 

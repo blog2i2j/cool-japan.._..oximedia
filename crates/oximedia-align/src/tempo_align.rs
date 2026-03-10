@@ -364,7 +364,14 @@ fn estimate_bpm_from_beats(beats: &[BeatPosition]) -> f64 {
     if beats.len() < 2 {
         return 0.0;
     }
-    let total_time = beats.last().unwrap().time_secs - beats.first().unwrap().time_secs;
+    let total_time = beats
+        .last()
+        .expect("beats non-empty: len < 2 check returned above")
+        .time_secs
+        - beats
+            .first()
+            .expect("beats non-empty: len < 2 check returned above")
+            .time_secs;
     if total_time <= 0.0 {
         return 0.0;
     }

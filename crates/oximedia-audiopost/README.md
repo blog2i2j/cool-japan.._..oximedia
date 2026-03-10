@@ -99,7 +99,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-audiopost = "0.1.0"
+oximedia-audiopost = "0.1.1"
 ```
 
 ### ADR Session Example

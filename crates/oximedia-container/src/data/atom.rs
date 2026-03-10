@@ -280,7 +280,7 @@ mod tests {
     #[test]
     fn test_atom_header_parse_basic() {
         let buf = build_atom(16, b"ftyp", &[0u8; 8]);
-        let hdr = AtomHeader::parse(&buf).unwrap();
+        let hdr = AtomHeader::parse(&buf).expect("operation should succeed");
         assert_eq!(hdr.size, 16);
         assert_eq!(hdr.atom_type, FourCC::from_ascii(b"ftyp"));
         assert_eq!(hdr.header_size, 8);
@@ -304,7 +304,7 @@ mod tests {
     #[test]
     fn test_atom_header_eof_sentinel() {
         let buf = build_atom(0, b"mdat", &[1, 2, 3]);
-        let hdr = AtomHeader::parse(&buf).unwrap();
+        let hdr = AtomHeader::parse(&buf).expect("operation should succeed");
         assert_eq!(hdr.size, u64::MAX);
         assert!(hdr.payload_size().is_none());
     }
@@ -312,7 +312,7 @@ mod tests {
     #[test]
     fn test_atom_parse_ok() {
         let buf = build_atom(12, b"moov", &[0xDE, 0xAD, 0xBE, 0xEF]);
-        let atom = Atom::parse(&buf).unwrap();
+        let atom = Atom::parse(&buf).expect("operation should succeed");
         assert_eq!(atom.payload.len(), 4);
         assert_eq!(atom.payload[0], 0xDE);
     }
@@ -339,7 +339,7 @@ mod tests {
     #[test]
     fn test_atom_is_size_valid() {
         let buf = build_atom(12, b"free", &[0u8; 4]);
-        let atom = Atom::parse(&buf).unwrap();
+        let atom = Atom::parse(&buf).expect("operation should succeed");
         assert!(atom.is_size_valid(buf.len()));
         assert!(!atom.is_size_valid(4)); // smaller than declared size
     }

@@ -425,7 +425,7 @@ mod tests {
         pl.push(PlaylistItem::new("c2", "B", 1000));
         let removed = pl.remove(0);
         assert!(removed.is_some());
-        assert_eq!(removed.unwrap().clip_id, "c1");
+        assert_eq!(removed.expect("value should be valid").clip_id, "c1");
         assert_eq!(pl.len(), 1);
     }
 

@@ -447,7 +447,7 @@ mod tests {
 
     #[test]
     fn test_spectral_noise_reducer() {
-        let mut reducer = SpectralNoiseReducer::new(48000, 1024).unwrap();
+        let mut reducer = SpectralNoiseReducer::new(48000, 1024).expect("failed to create");
         let noise = vec![0.01_f32; 2048];
         reducer.capture_noise_profile(&noise);
         reducer.set_reduction_amount(0.7);
@@ -456,7 +456,7 @@ mod tests {
 
     #[test]
     fn test_hiss_remover() {
-        let mut hiss_remover = HissRemover::new(48000).unwrap();
+        let mut hiss_remover = HissRemover::new(48000).expect("failed to create");
         assert!(hiss_remover.set_threshold(-30.0).is_ok());
         hiss_remover.set_reduction(0.6);
         assert_eq!(hiss_remover.reduction, 0.6);
@@ -464,7 +464,7 @@ mod tests {
 
     #[test]
     fn test_hum_remover() {
-        let hum_remover = HumRemover::new(48000, 60.0).unwrap();
+        let hum_remover = HumRemover::new(48000, 60.0).expect("failed to create");
         let harmonics = hum_remover.get_harmonic_frequencies();
         assert_eq!(harmonics[0], 60.0);
         assert_eq!(harmonics[1], 120.0);
@@ -477,7 +477,7 @@ mod tests {
 
     #[test]
     fn test_click_remover() {
-        let mut click_remover = ClickRemover::new(48000).unwrap();
+        let mut click_remover = ClickRemover::new(48000).expect("failed to create");
         click_remover.set_sensitivity(0.7);
 
         let mut audio = vec![0.0_f32; 100];
@@ -489,7 +489,7 @@ mod tests {
 
     #[test]
     fn test_click_removal() {
-        let click_remover = ClickRemover::new(48000).unwrap();
+        let click_remover = ClickRemover::new(48000).expect("failed to create");
         let mut input = vec![0.0_f32; 100];
         input[50] = 10.0;
 
@@ -501,7 +501,7 @@ mod tests {
 
     #[test]
     fn test_declipper() {
-        let mut declipper = Declipper::new(48000).unwrap();
+        let mut declipper = Declipper::new(48000).expect("failed to create");
         declipper.set_threshold(0.9);
 
         let mut audio = vec![0.5_f32; 100];
@@ -513,7 +513,7 @@ mod tests {
 
     #[test]
     fn test_declipping_process() {
-        let declipper = Declipper::new(48000).unwrap();
+        let declipper = Declipper::new(48000).expect("failed to create");
         let mut input = vec![0.0_f32; 100];
         input[50] = 1.0;
         input[51] = 1.0;
@@ -526,13 +526,13 @@ mod tests {
 
     #[test]
     fn test_spectral_repair() {
-        let repair = SpectralRepair::new(48000, 2048).unwrap();
+        let repair = SpectralRepair::new(48000, 2048).expect("failed to create");
         assert_eq!(repair.fft_size, 2048);
     }
 
     #[test]
     fn test_phase_corrector() {
-        let corrector = PhaseCorrector::new(48000).unwrap();
+        let corrector = PhaseCorrector::new(48000).expect("failed to create");
         let left = vec![1.0_f32; 100];
         let right = vec![1.0_f32; 100];
 
@@ -542,14 +542,14 @@ mod tests {
 
     #[test]
     fn test_stereo_enhancer() {
-        let mut enhancer = StereoEnhancer::new(48000).unwrap();
+        let mut enhancer = StereoEnhancer::new(48000).expect("failed to create");
         enhancer.set_width(1.5);
         assert_eq!(enhancer.width, 1.5);
     }
 
     #[test]
     fn test_stereo_enhancement() {
-        let enhancer = StereoEnhancer::new(48000).unwrap();
+        let enhancer = StereoEnhancer::new(48000).expect("failed to create");
         let left = vec![1.0_f32; 100];
         let right = vec![-1.0_f32; 100];
         let mut out_left = vec![0.0_f32; 100];

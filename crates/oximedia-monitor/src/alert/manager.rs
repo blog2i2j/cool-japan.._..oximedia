@@ -106,7 +106,7 @@ mod tests {
         let config = AlertConfig::default();
         let manager = AlertManager::new(config);
 
-        manager.start().await.unwrap();
+        manager.start().await.expect("await should be valid");
 
         let alert = Alert::new(
             "test",

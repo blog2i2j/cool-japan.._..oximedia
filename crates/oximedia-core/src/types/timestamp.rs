@@ -115,7 +115,7 @@ impl Timestamp {
     /// use oximedia_core::types::{Timestamp, Rational};
     ///
     /// let ts = Timestamp::with_dts(3000, Some(2000), Rational::new(1, 1000), None);
-    /// assert!((ts.dts_to_seconds().unwrap() - 2.0).abs() < 0.001);
+    /// assert!((ts.dts_to_seconds()? - 2.0).abs() < 0.001);
     /// ```
     #[must_use]
     #[allow(clippy::cast_precision_loss)]
@@ -131,7 +131,7 @@ impl Timestamp {
     /// use oximedia_core::types::{Timestamp, Rational};
     ///
     /// let ts = Timestamp::with_dts(0, None, Rational::new(1, 1000), Some(33));
-    /// assert!((ts.duration_seconds().unwrap() - 0.033).abs() < 0.001);
+    /// assert!((ts.duration_seconds()? - 0.033).abs() < 0.001);
     /// ```
     #[must_use]
     #[allow(clippy::cast_precision_loss)]
@@ -270,13 +270,25 @@ mod tests {
         assert!(ts.dts_to_seconds().is_none());
 
         let ts = Timestamp::with_dts(3000, Some(2000), Rational::new(1, 1000), None);
-        assert!((ts.dts_to_seconds().unwrap() - 2.0).abs() < 0.001);
+        assert!(
+            (ts.dts_to_seconds()
+                .expect("dts_to_seconds should return value")
+                - 2.0)
+                .abs()
+                < 0.001
+        );
     }
 
     #[test]
     fn test_duration_seconds() {
         let ts = Timestamp::with_dts(0, None, Rational::new(1, 1000), Some(33));
-        assert!((ts.duration_seconds().unwrap() - 0.033).abs() < 0.001);
+        assert!(
+            (ts.duration_seconds()
+                .expect("duration_seconds should return value")
+                - 0.033)
+                .abs()
+                < 0.001
+        );
     }
 
     #[test]

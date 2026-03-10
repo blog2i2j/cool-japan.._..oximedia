@@ -369,7 +369,7 @@ mod tests {
     #[test]
     fn test_create_job_from_preset() {
         let manager = PresetManager::new();
-        let preset = manager.get("transcode-web").unwrap();
+        let preset = manager.get("transcode-web").expect("failed to get value");
 
         let job = preset.create_job("test-job".to_string());
         assert_eq!(job.name, "test-job");

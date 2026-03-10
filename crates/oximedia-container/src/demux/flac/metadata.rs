@@ -545,7 +545,7 @@ mod tests {
         data.extend_from_slice(&[0x00, 0x00, 0x08]); // length=8
         data.extend_from_slice(&[0x00; 8]); // padding data
 
-        let (block, consumed) = MetadataBlock::parse(&data).unwrap();
+        let (block, consumed) = MetadataBlock::parse(&data).expect("operation should succeed");
         assert!(!block.is_last);
         assert_eq!(block.block_type, BlockType::Padding);
         assert_eq!(block.length, 8);
@@ -557,7 +557,7 @@ mod tests {
     fn test_metadata_block_is_last() {
         let data = vec![0x81, 0x00, 0x00, 0x00]; // is_last=true, type=1, length=0
 
-        let (block, _) = MetadataBlock::parse(&data).unwrap();
+        let (block, _) = MetadataBlock::parse(&data).expect("operation should succeed");
         assert!(block.is_last);
         assert!(block.is_last());
     }
@@ -589,7 +589,7 @@ mod tests {
         data[12] = 0x42;
         data[13] = 0xF0;
 
-        let info = StreamInfo::parse(&data).unwrap();
+        let info = StreamInfo::parse(&data).expect("operation should succeed");
         assert_eq!(info.min_block_size, 4096);
         assert_eq!(info.max_block_size, 4096);
         assert_eq!(info.sample_rate, 44100);
@@ -628,10 +628,10 @@ mod tests {
         data[16] = 0xBA;
         data[17] = 0xA8;
 
-        let info = StreamInfo::parse(&data).unwrap();
+        let info = StreamInfo::parse(&data).expect("operation should succeed");
         assert_eq!(info.sample_rate, 44100);
         assert_eq!(info.total_samples, 441000);
-        let duration = info.duration_seconds().unwrap();
+        let duration = info.duration_seconds().expect("operation should succeed");
         assert!((duration - 10.0).abs() < 0.001);
     }
 
@@ -644,7 +644,7 @@ mod tests {
         data[13] = 0xF0;
         // total_samples = 0
 
-        let info = StreamInfo::parse(&data).unwrap();
+        let info = StreamInfo::parse(&data).expect("operation should succeed");
         assert!(info.duration_seconds().is_none());
     }
 
@@ -656,7 +656,7 @@ mod tests {
         data[12] = 0x42;
         data[13] = 0xF0; // 16 bits
 
-        let info = StreamInfo::parse(&data).unwrap();
+        let info = StreamInfo::parse(&data).expect("operation should succeed");
         assert_eq!(info.bytes_per_sample(), 2);
     }
 
@@ -668,12 +668,12 @@ mod tests {
         data[12] = 0x42;
         data[13] = 0xF0;
 
-        let info = StreamInfo::parse(&data).unwrap();
+        let info = StreamInfo::parse(&data).expect("operation should succeed");
         assert!(!info.has_md5());
 
         // Set MD5
         data[18] = 0x01;
-        let info = StreamInfo::parse(&data).unwrap();
+        let info = StreamInfo::parse(&data).expect("operation should succeed");
         assert!(info.has_md5());
     }
 
@@ -698,7 +698,7 @@ mod tests {
         data.extend_from_slice(&(comment2.len() as u32).to_le_bytes());
         data.extend_from_slice(comment2);
 
-        let vc = VorbisComment::parse(&data).unwrap();
+        let vc = VorbisComment::parse(&data).expect("operation should succeed");
         assert_eq!(vc.vendor, "Test");
         assert_eq!(vc.len(), 2);
         assert_eq!(vc.get("ARTIST"), Some("Test Artist"));
@@ -712,7 +712,7 @@ mod tests {
         data.extend_from_slice(&0u32.to_le_bytes()); // vendor length = 0
         data.extend_from_slice(&0u32.to_le_bytes()); // comment count = 0
 
-        let vc = VorbisComment::parse(&data).unwrap();
+        let vc = VorbisComment::parse(&data).expect("operation should succeed");
         assert!(vc.vendor.is_empty());
         assert!(vc.is_empty());
         assert_eq!(vc.len(), 0);
@@ -733,7 +733,7 @@ mod tests {
         data.extend_from_slice(&(genre2.len() as u32).to_le_bytes());
         data.extend_from_slice(genre2);
 
-        let vc = VorbisComment::parse(&data).unwrap();
+        let vc = VorbisComment::parse(&data).expect("operation should succeed");
         let genres = vc.get_all("GENRE");
         assert_eq!(genres.len(), 2);
         assert!(genres.contains(&"Rock"));
@@ -750,7 +750,7 @@ mod tests {
         data.extend_from_slice(&(comment.len() as u32).to_le_bytes());
         data.extend_from_slice(comment);
 
-        let vc = VorbisComment::parse(&data).unwrap();
+        let vc = VorbisComment::parse(&data).expect("operation should succeed");
         let entries: Vec<_> = vc.iter().collect();
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0], ("KEY", "value"));

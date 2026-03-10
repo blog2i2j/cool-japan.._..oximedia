@@ -1,8 +1,8 @@
 //! Shot type classification (ECU, CU, MCU, MS, MLS, LS, ELS).
 
 use crate::error::{ShotError, ShotResult};
+use crate::frame_buffer::{FrameBuffer, GrayImage};
 use crate::types::ShotType;
-use ndarray::Array3;
 
 /// Shot type classifier using face/person detection and framing analysis.
 pub struct ShotTypeClassifier {
@@ -24,7 +24,7 @@ impl ShotTypeClassifier {
     /// # Errors
     ///
     /// Returns error if frame is invalid.
-    pub fn classify(&self, frame: &Array3<u8>) -> ShotResult<(ShotType, f32)> {
+    pub fn classify(&self, frame: &FrameBuffer) -> ShotResult<(ShotType, f32)> {
         let shape = frame.dim();
         if shape.2 < 3 {
             return Err(ShotError::InvalidFrame(
@@ -64,7 +64,7 @@ impl ShotTypeClassifier {
     }
 
     /// Detect face size ratio in frame (simplified Haar-like features).
-    fn detect_face_size_ratio(&self, frame: &Array3<u8>) -> ShotResult<f32> {
+    fn detect_face_size_ratio(&self, frame: &FrameBuffer) -> ShotResult<f32> {
         let shape = frame.dim();
         let height = shape.0;
         let width = shape.1;
@@ -98,16 +98,16 @@ impl ShotTypeClassifier {
     }
 
     /// Convert RGB to grayscale.
-    fn to_grayscale(&self, frame: &Array3<u8>) -> ndarray::Array2<u8> {
+    fn to_grayscale(&self, frame: &FrameBuffer) -> GrayImage {
         let shape = frame.dim();
-        let mut gray = ndarray::Array2::zeros((shape.0, shape.1));
+        let mut gray = GrayImage::zeros(shape.0, shape.1);
 
         for y in 0..shape.0 {
             for x in 0..shape.1 {
-                let r = f32::from(frame[[y, x, 0]]);
-                let g = f32::from(frame[[y, x, 1]]);
-                let b = f32::from(frame[[y, x, 2]]);
-                gray[[y, x]] = ((r * 0.299) + (g * 0.587) + (b * 0.114)) as u8;
+                let r = f32::from(frame.get(y, x, 0));
+                let g = f32::from(frame.get(y, x, 1));
+                let b = f32::from(frame.get(y, x, 2));
+                gray.set(y, x, ((r * 0.299) + (g * 0.587) + (b * 0.114)) as u8);
             }
         }
 
@@ -117,7 +117,7 @@ impl ShotTypeClassifier {
     /// Detect skin tone ratio in region (simplified).
     fn detect_skin_tone_ratio(
         &self,
-        _gray: &ndarray::Array2<u8>,
+        _gray: &GrayImage,
         _x: usize,
         _y: usize,
         _w: usize,
@@ -128,14 +128,7 @@ impl ShotTypeClassifier {
     }
 
     /// Calculate symmetry in region.
-    fn calculate_symmetry(
-        &self,
-        gray: &ndarray::Array2<u8>,
-        x: usize,
-        y: usize,
-        w: usize,
-        h: usize,
-    ) -> f32 {
+    fn calculate_symmetry(&self, gray: &GrayImage, x: usize, y: usize, w: usize, h: usize) -> f32 {
         let shape = gray.dim();
         let x_end = (x + w).min(shape.1);
         let y_end = (y + h).min(shape.0);
@@ -150,8 +143,8 @@ impl ShotTypeClassifier {
                 let right_x = mid_x + (mid_x - left_x);
 
                 if right_x < x_end {
-                    let left_val = f32::from(gray[[dy, left_x]]);
-                    let right_val = f32::from(gray[[dy, right_x]]);
+                    let left_val = f32::from(gray.get(dy, left_x));
+                    let right_val = f32::from(gray.get(dy, right_x));
                     let diff = (left_val - right_val).abs();
                     symmetry_score += 1.0 - (diff / 255.0);
                     count += 1;
@@ -167,7 +160,7 @@ impl ShotTypeClassifier {
     }
 
     /// Analyze composition for scene classification.
-    fn analyze_composition(&self, frame: &Array3<u8>) -> ShotResult<f32> {
+    fn analyze_composition(&self, frame: &FrameBuffer) -> ShotResult<f32> {
         let shape = frame.dim();
 
         // Calculate edge density (landscape shots have more edges)
@@ -175,9 +168,9 @@ impl ShotTypeClassifier {
         let mut edge_count = 0;
         let total_pixels = (shape.0 * shape.1) as f32;
 
-        for y in 1..(shape.0 - 1) {
-            for x in 1..(shape.1 - 1) {
-                let center = i32::from(gray[[y, x]]);
+        for y in 1..(shape.0.saturating_sub(1)) {
+            for x in 1..(shape.1.saturating_sub(1)) {
+                let center = i32::from(gray.get(y, x));
                 let mut grad = 0;
 
                 for dy in -1..=1 {
@@ -185,7 +178,7 @@ impl ShotTypeClassifier {
                         if dx != 0 || dy != 0 {
                             let ny = (y as i32 + dy) as usize;
                             let nx = (x as i32 + dx) as usize;
-                            grad += (center - i32::from(gray[[ny, nx]])).abs();
+                            grad += (center - i32::from(gray.get(ny, nx))).abs();
                         }
                     }
                 }
@@ -219,17 +212,18 @@ mod tests {
     #[test]
     fn test_classify_black_frame() {
         let classifier = ShotTypeClassifier::new();
-        let frame = Array3::zeros((100, 100, 3));
+        let frame = FrameBuffer::zeros(100, 100, 3);
         let result = classifier.classify(&frame);
         assert!(result.is_ok());
-        let (shot_type, _) = result.expect("should succeed in test");
-        assert_ne!(shot_type, ShotType::ExtremeCloseUp);
+        if let Ok((shot_type, _)) = result {
+            assert_ne!(shot_type, ShotType::ExtremeCloseUp);
+        }
     }
 
     #[test]
     fn test_classify_uniform_frame() {
         let classifier = ShotTypeClassifier::new();
-        let frame = Array3::from_elem((100, 100, 3), 128);
+        let frame = FrameBuffer::from_elem(100, 100, 3, 128);
         let result = classifier.classify(&frame);
         assert!(result.is_ok());
     }

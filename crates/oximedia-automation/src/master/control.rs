@@ -233,10 +233,15 @@ mod tests {
             eas_enabled: false,
             ..Default::default()
         };
-        let mut master = MasterControl::new(config).await.unwrap();
+        let mut master = MasterControl::new(config)
+            .await
+            .expect("new should succeed");
 
         assert!(master.start().await.is_ok());
-        assert_eq!(master.status().await.unwrap(), SystemStatus::Running);
+        assert_eq!(
+            master.status().await.expect("value should be valid"),
+            SystemStatus::Running
+        );
         assert!(master.stop().await.is_ok());
     }
 
@@ -247,7 +252,9 @@ mod tests {
             eas_enabled: false,
             ..Default::default()
         };
-        let master = MasterControl::new(config).await.unwrap();
+        let master = MasterControl::new(config)
+            .await
+            .expect("new should succeed");
 
         assert!(master.get_channel(0).is_some());
         assert!(master.get_channel(1).is_some());

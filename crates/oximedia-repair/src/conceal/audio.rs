@@ -58,7 +58,8 @@ mod tests {
         let prev = vec![0, 0, 0, 0];
         let next = vec![100, 100, 100, 100];
 
-        conceal_audio_interpolation(&mut corrupt, &prev, &next).unwrap();
+        conceal_audio_interpolation(&mut corrupt, &prev, &next)
+            .expect("audio concealment should succeed");
         assert!(corrupt[0] < corrupt[3]);
     }
 }

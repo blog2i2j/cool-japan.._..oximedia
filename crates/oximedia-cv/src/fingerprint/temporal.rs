@@ -422,8 +422,9 @@ fn compute_contrast(data: &[u8]) -> f32 {
         return 0.0;
     }
 
-    let min_val = *data.iter().min().unwrap();
-    let max_val = *data.iter().max().unwrap();
+    // data is non-empty (checked above), so min() and max() always return Some.
+    let min_val = data.iter().copied().min().unwrap_or(0);
+    let max_val = data.iter().copied().max().unwrap_or(0);
 
     f32::from(max_val - min_val) / 255.0
 }
@@ -608,7 +609,8 @@ mod tests {
     #[test]
     fn test_extract_keyframes() {
         let frames = create_test_frames(100);
-        let keyframes = extract_keyframes(&frames, 10, 5, 0.3).unwrap();
+        let keyframes =
+            extract_keyframes(&frames, 10, 5, 0.3).expect("extract_keyframes should succeed");
         assert!(!keyframes.is_empty());
         assert!(keyframes.len() <= 5);
     }
@@ -621,21 +623,24 @@ mod tests {
             frames[i] = create_test_frame(64, 64, 200);
         }
 
-        let boundaries = detect_shot_boundaries(&frames, 0.3).unwrap();
+        let boundaries =
+            detect_shot_boundaries(&frames, 0.3).expect("detect_shot_boundaries should succeed");
         assert!(!boundaries.is_empty());
     }
 
     #[test]
     fn test_compute_temporal_signature() {
         let frames = create_test_frames(10);
-        let signature = compute_temporal_signature(&frames, 2).unwrap();
+        let signature = compute_temporal_signature(&frames, 2)
+            .expect("compute_temporal_signature should succeed");
         assert!(!signature.is_empty());
     }
 
     #[test]
     fn test_temporal_features() {
         let frame = create_test_frame(64, 64, 128);
-        let features = extract_temporal_features(&frame).unwrap();
+        let features =
+            extract_temporal_features(&frame).expect("extract_temporal_features should succeed");
         assert_eq!(features.len(), 8);
     }
 
@@ -654,21 +659,22 @@ mod tests {
     #[test]
     fn test_sample_uniform() {
         let frames = create_test_frames(100);
-        let samples = sample_uniform(&frames, 10).unwrap();
+        let samples = sample_uniform(&frames, 10).expect("sample_uniform should succeed");
         assert_eq!(samples.len(), 10);
     }
 
     #[test]
     fn test_sample_adaptive() {
         let frames = create_test_frames(100);
-        let samples = sample_adaptive(&frames, 10).unwrap();
+        let samples = sample_adaptive(&frames, 10).expect("sample_adaptive should succeed");
         assert_eq!(samples.len(), 10);
     }
 
     #[test]
     fn test_sample_scene_based() {
         let frames = create_test_frames(100);
-        let samples = sample_scene_based(&frames, 10, 0.3).unwrap();
+        let samples =
+            sample_scene_based(&frames, 10, 0.3).expect("sample_scene_based should succeed");
         assert!(!samples.is_empty());
     }
 
@@ -687,7 +693,7 @@ mod tests {
     #[test]
     fn test_hash_segment() {
         let frames = create_test_frames(10);
-        let hash = hash_segment(&frames, 0, 5).unwrap();
+        let hash = hash_segment(&frames, 0, 5).expect("hash_segment should succeed");
         assert!(!hash.is_empty());
     }
 

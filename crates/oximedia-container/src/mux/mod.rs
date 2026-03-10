@@ -55,6 +55,7 @@ pub mod mpegts;
 pub mod ogg;
 mod traits;
 pub mod wav;
+pub mod y4m;
 
 pub use flac::FlacMuxer;
 pub use matroska::MatroskaMuxer;
@@ -62,3 +63,4 @@ pub use mpegts::MpegTsMuxer;
 pub use ogg::OggMuxer;
 pub use traits::{Muxer, MuxerConfig, OutputFormat};
 pub use wav::WavMuxer;
+pub use y4m::{Y4mMuxer, Y4mMuxerBuilder};

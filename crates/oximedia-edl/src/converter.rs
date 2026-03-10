@@ -301,7 +301,9 @@ mod tests {
     fn test_same_format_conversion() {
         let edl = Edl::new(EdlFormat::Cmx3600);
         let converter = EdlConverter::new();
-        let result = converter.convert(&edl, EdlFormat::Cmx3600).unwrap();
+        let result = converter
+            .convert(&edl, EdlFormat::Cmx3600)
+            .expect("conversion should succeed");
         assert_eq!(result.format, EdlFormat::Cmx3600);
     }
 
@@ -310,8 +312,8 @@ mod tests {
         let mut edl = Edl::new(EdlFormat::Cmx3600);
         edl.set_frame_rate(EdlFrameRate::Fps25);
 
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).expect("failed to create");
 
         let event = EdlEvent::new(
             1,
@@ -324,10 +326,12 @@ mod tests {
             tc2,
         );
 
-        edl.add_event(event).unwrap();
+        edl.add_event(event).expect("add_event should succeed");
 
         let converter = EdlConverter::new();
-        let result = converter.convert(&edl, EdlFormat::Cmx3400).unwrap();
+        let result = converter
+            .convert(&edl, EdlFormat::Cmx3400)
+            .expect("conversion should succeed");
         assert_eq!(result.format, EdlFormat::Cmx3400);
         assert_eq!(result.events.len(), 1);
     }
@@ -337,8 +341,8 @@ mod tests {
         let mut edl = Edl::new(EdlFormat::Cmx3600);
         edl.set_frame_rate(EdlFrameRate::Fps25);
 
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).expect("failed to create");
 
         let mut event = EdlEvent::new(
             1,
@@ -353,7 +357,7 @@ mod tests {
         event.set_transition_duration(30);
         event.set_wipe_pattern(crate::event::WipePattern::Horizontal);
 
-        edl.add_event(event).unwrap();
+        edl.add_event(event).expect("add_event should succeed");
 
         // Lossless conversion should fail
         let converter = EdlConverter::lossless();
@@ -361,7 +365,9 @@ mod tests {
 
         // Lossy conversion should succeed
         let converter = EdlConverter::lossy();
-        let result = converter.convert(&edl, EdlFormat::Cmx3400).unwrap();
+        let result = converter
+            .convert(&edl, EdlFormat::Cmx3400)
+            .expect("conversion should succeed");
         assert_eq!(result.format, EdlFormat::Cmx3400);
     }
 
@@ -370,8 +376,8 @@ mod tests {
         let mut edl = Edl::new(EdlFormat::Cmx3600);
         edl.set_frame_rate(EdlFrameRate::Fps25);
 
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).expect("failed to create");
 
         let mut event = EdlEvent::new(
             1,
@@ -385,10 +391,10 @@ mod tests {
         );
         event.set_transition_duration(1); // Very short dissolve
 
-        edl.add_event(event).unwrap();
+        edl.add_event(event).expect("add_event should succeed");
 
         let converter = EdlConverter::lossy();
-        let result = converter.simplify(&edl).unwrap();
+        let result = converter.simplify(&edl).expect("simplify should succeed");
 
         assert_eq!(result.events[0].edit_type, EditType::Cut);
         assert_eq!(result.events[0].transition_duration, None);
@@ -400,9 +406,9 @@ mod tests {
         edl.set_frame_rate(EdlFrameRate::Fps25);
 
         // Two adjacent cuts from the same reel
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).unwrap();
-        let tc3 = EdlTimecode::new(1, 0, 10, 0, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc3 = EdlTimecode::new(1, 0, 10, 0, EdlFrameRate::Fps25).expect("failed to create");
 
         let event1 = EdlEvent::new(
             1,
@@ -426,11 +432,11 @@ mod tests {
             tc3,
         );
 
-        edl.add_event(event1).unwrap();
-        edl.add_event(event2).unwrap();
+        edl.add_event(event1).expect("add_event should succeed");
+        edl.add_event(event2).expect("add_event should succeed");
 
         let converter = EdlConverter::new();
-        let result = converter.optimize(&edl).unwrap();
+        let result = converter.optimize(&edl).expect("optimize should succeed");
 
         // Should merge into a single event
         assert_eq!(result.events.len(), 1);

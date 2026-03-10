@@ -529,15 +529,15 @@ mod tests {
         let mut data = HashMap::new();
         data.insert("title".to_string(), "Test Title".to_string());
 
-        let rendered = template.render(&data).unwrap();
+        let rendered = template.render(&data).expect("rendered should be valid");
         assert_eq!(rendered.layers.len(), 1);
     }
 
     #[test]
     fn test_template_json() {
         let template = Template::new("test".to_string(), (1920, 1080));
-        let json = template.to_json().unwrap();
-        let loaded = Template::from_json(&json).unwrap();
+        let json = template.to_json().expect("json should be valid");
+        let loaded = Template::from_json(&json).expect("loaded should be valid");
         assert_eq!(loaded.name, template.name);
         assert_eq!(loaded.resolution, template.resolution);
     }
@@ -558,7 +558,7 @@ mod tests {
         );
 
         let data = HashMap::new();
-        let rendered = layer.render(&data).unwrap();
+        let rendered = layer.render(&data).expect("rendered should be valid");
         assert!(rendered.is_some());
     }
 
@@ -579,12 +579,12 @@ mod tests {
         layer.visible_if = Some("show_bg".to_string());
 
         let data = HashMap::new();
-        let rendered = layer.render(&data).unwrap();
+        let rendered = layer.render(&data).expect("rendered should be valid");
         assert!(rendered.is_none());
 
         let mut data = HashMap::new();
         data.insert("show_bg".to_string(), "true".to_string());
-        let rendered = layer.render(&data).unwrap();
+        let rendered = layer.render(&data).expect("rendered should be valid");
         assert!(rendered.is_some());
     }
 

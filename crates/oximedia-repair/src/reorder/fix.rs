@@ -60,7 +60,7 @@ mod tests {
             },
         ];
 
-        reorder_to_presentation_order(&mut frames).unwrap();
+        reorder_to_presentation_order(&mut frames).expect("reorder should succeed");
         assert_eq!(frames[0].pts, 100);
         assert_eq!(frames[1].pts, 200);
     }
@@ -74,7 +74,7 @@ mod tests {
             data: vec![],
         }];
 
-        let fixed = fix_dts_pts(&mut frames).unwrap();
+        let fixed = fix_dts_pts(&mut frames).expect("DTS/PTS fix should succeed");
         assert_eq!(fixed, 1);
         assert_eq!(frames[0].dts, 100);
     }

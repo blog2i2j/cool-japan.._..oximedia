@@ -78,34 +78,37 @@
 //! # Example
 //!
 //! ```rust
-//! use oximedia_mixer::{AudioMixer, MixerConfig, ChannelType};
+//! use oximedia_mixer::{AudioMixer, MixerConfig, ChannelType, MixerResult};
 //! use oximedia_audio::ChannelLayout;
 //!
-//! // Create mixer with default configuration
-//! let config = MixerConfig {
-//!     sample_rate: 48000,
-//!     buffer_size: 512,
-//!     max_channels: 64,
-//!     ..Default::default()
-//! };
+//! fn example() -> MixerResult<()> {
+//!     // Create mixer with default configuration
+//!     let config = MixerConfig {
+//!         sample_rate: 48000,
+//!         buffer_size: 512,
+//!         max_channels: 64,
+//!         ..Default::default()
+//!     };
 //!
-//! let mut mixer = AudioMixer::new(config);
+//!     let mut mixer = AudioMixer::new(config);
 //!
-//! // Add a stereo channel
-//! let channel_id = mixer.add_channel(
-//!     "Vocals".to_string(),
-//!     ChannelType::Stereo,
-//!     ChannelLayout::Stereo,
-//! ).unwrap();
+//!     // Add a stereo channel
+//!     let channel_id = mixer.add_channel(
+//!         "Vocals".to_string(),
+//!         ChannelType::Stereo,
+//!         ChannelLayout::Stereo,
+//!     )?;
 //!
-//! // Set channel gain (0.0 = -inf dB, 1.0 = 0 dB)
-//! mixer.set_channel_gain(channel_id, 0.8).unwrap();
+//!     // Set channel gain (0.0 = -inf dB, 1.0 = 0 dB)
+//!     mixer.set_channel_gain(channel_id, 0.8)?;
 //!
-//! // Pan center
-//! mixer.set_channel_pan(channel_id, 0.0).unwrap();
+//!     // Pan center
+//!     mixer.set_channel_pan(channel_id, 0.0)?;
 //!
-//! // Process audio
-//! // mixer.process(&input_buffer, &mut output_buffer);
+//!     // Process audio
+//!     // let output = mixer.process(&input_frame)?;
+//!     Ok(())
+//! }
 //! ```
 
 #![forbid(unsafe_code)]
@@ -376,23 +379,70 @@ impl AudioMixer {
         Ok(())
     }
 
-    /// Process audio for one buffer.
+    /// Process audio for one buffer period.
+    ///
+    /// The full DSP pipeline:
+    /// 1. Extract f32 samples from the input frame's raw byte buffer
+    /// 2. For each channel: input gain -> effects -> fader -> pan
+    /// 3. Sum all channel outputs into master stereo bus
+    /// 4. Apply master bus soft clipping to prevent digital overs
+    /// 5. Pack the result back into an `AudioFrame`
     ///
     /// # Errors
     ///
     /// Returns `MixerError::ProcessingError` if audio processing fails.
-    pub fn process(&mut self, _frame: &AudioFrame) -> MixerResult<AudioFrame> {
-        // This is a skeleton implementation
-        // Full implementation would process all channels, effects, buses, etc.
+    pub fn process(&mut self, frame: &AudioFrame) -> MixerResult<AudioFrame> {
+        let buffer_size = self.config.buffer_size;
 
-        self.sample_count += self.config.buffer_size as u64;
+        // Master bus stereo accumulators
+        let mut master_left = vec![0.0_f32; buffer_size];
+        let mut master_right = vec![0.0_f32; buffer_size];
 
-        // Create output frame
-        let output = AudioFrame::new(
+        // Extract f32 samples from the raw byte data in the input frame.
+        // AudioBuffer stores raw bytes; for F32 format each sample is 4 bytes LE.
+        let input_samples = extract_f32_samples(frame, buffer_size);
+
+        // Process each channel through its strip
+        let channel_ids: Vec<ChannelId> = self.channels.keys().copied().collect();
+
+        for channel_id in &channel_ids {
+            if let Some(channel) = self.channels.get(channel_id) {
+                let mut ch_left = vec![0.0_f32; buffer_size];
+                let mut ch_right = vec![0.0_f32; buffer_size];
+
+                // Process through the channel strip
+                channel.process_strip(&input_samples, &mut ch_left, &mut ch_right);
+
+                // Sum into master bus
+                for i in 0..buffer_size {
+                    master_left[i] += ch_left[i];
+                    master_right[i] += ch_right[i];
+                }
+            }
+        }
+
+        // Apply master bus soft clipping to prevent digital overs
+        for i in 0..buffer_size {
+            master_left[i] = soft_clip(master_left[i]);
+            master_right[i] = soft_clip(master_right[i]);
+        }
+
+        self.sample_count += buffer_size as u64;
+
+        // Create output frame with interleaved stereo packed as raw bytes
+        let mut output = AudioFrame::new(
             oximedia_core::SampleFormat::F32,
             self.config.sample_rate,
             ChannelLayout::Stereo,
         );
+
+        // Pack interleaved stereo f32 samples into bytes (little-endian)
+        let mut raw_bytes = Vec::with_capacity(buffer_size * 2 * 4);
+        for i in 0..buffer_size {
+            raw_bytes.extend_from_slice(&master_left[i].to_le_bytes());
+            raw_bytes.extend_from_slice(&master_right[i].to_le_bytes());
+        }
+        output.samples = oximedia_audio::AudioBuffer::Interleaved(bytes::Bytes::from(raw_bytes));
 
         Ok(output)
     }
@@ -459,6 +509,63 @@ impl AudioMixer {
     }
 }
 
+/// Extract f32 samples from an `AudioFrame`.
+///
+/// Interprets the raw bytes in the frame as little-endian f32 values.
+/// Returns a mono buffer of at most `max_samples` samples.
+fn extract_f32_samples(frame: &AudioFrame, max_samples: usize) -> Vec<f32> {
+    let raw_bytes = match &frame.samples {
+        oximedia_audio::AudioBuffer::Interleaved(data) => data.as_ref(),
+        oximedia_audio::AudioBuffer::Planar(planes) => {
+            if let Some(first) = planes.first() {
+                first.as_ref()
+            } else {
+                return vec![0.0; max_samples];
+            }
+        }
+    };
+
+    // Each f32 sample is 4 bytes
+    let num_f32_samples = raw_bytes.len() / 4;
+    let count = num_f32_samples.min(max_samples);
+
+    let mut samples = Vec::with_capacity(count);
+    for i in 0..count {
+        let offset = i * 4;
+        if offset + 4 <= raw_bytes.len() {
+            let bytes: [u8; 4] = [
+                raw_bytes[offset],
+                raw_bytes[offset + 1],
+                raw_bytes[offset + 2],
+                raw_bytes[offset + 3],
+            ];
+            samples.push(f32::from_le_bytes(bytes));
+        }
+    }
+
+    // Pad with zeros if input is shorter than buffer_size
+    samples.resize(max_samples, 0.0);
+    samples
+}
+
+/// Soft clipping function using tanh-like saturation.
+///
+/// Maps input linearly near zero and smoothly saturates towards +/-1.0.
+/// This prevents hard digital clipping artifacts.
+fn soft_clip(x: f32) -> f32 {
+    if x.abs() < 0.5 {
+        x // Linear region for small signals
+    } else if x > 0.0 {
+        // Soft saturation for positive values
+        let t = (x - 0.5) * 2.0;
+        0.5 + 0.5 * (1.0 - (-t).exp()) / (1.0 + (-t).exp())
+    } else {
+        // Soft saturation for negative values
+        let t = (-x - 0.5) * 2.0;
+        -(0.5 + 0.5 * (1.0 - (-t).exp()) / (1.0 + (-t).exp()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -481,7 +588,7 @@ mod tests {
                 ChannelType::Stereo,
                 ChannelLayout::Stereo,
             )
-            .unwrap();
+            .expect("test expectation failed");
 
         assert!(mixer.get_channel(id).is_ok());
     }
@@ -497,10 +604,12 @@ mod tests {
                 ChannelType::Stereo,
                 ChannelLayout::Stereo,
             )
-            .unwrap();
+            .expect("test expectation failed");
 
-        mixer.set_channel_gain(id, 0.5).unwrap();
-        let channel = mixer.get_channel(id).unwrap();
+        mixer
+            .set_channel_gain(id, 0.5)
+            .expect("set_channel_gain should succeed");
+        let channel = mixer.get_channel(id).expect("channel should be valid");
         assert!((channel.gain() - 0.5).abs() < f32::EPSILON);
     }
 
@@ -518,14 +627,14 @@ mod tests {
                 ChannelType::Stereo,
                 ChannelLayout::Stereo,
             )
-            .unwrap();
+            .expect("test expectation failed");
         mixer
             .add_channel(
                 "Channel 2".to_string(),
                 ChannelType::Stereo,
                 ChannelLayout::Stereo,
             )
-            .unwrap();
+            .expect("test expectation failed");
 
         let result = mixer.add_channel(
             "Channel 3".to_string(),

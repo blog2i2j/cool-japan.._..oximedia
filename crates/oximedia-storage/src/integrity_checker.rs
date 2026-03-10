@@ -366,7 +366,7 @@ mod tests {
             data.len() as u64,
             0,
         ));
-        let result = store.verify("obj", data).unwrap();
+        let result = store.verify("obj", data).expect("verify should succeed");
         assert!(result.is_ok());
     }
 

@@ -85,7 +85,7 @@ impl MultiCameraManager {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nalgebra::{Point3, UnitQuaternion};
+    use crate::math::{Point3, UnitQuaternion};
 
     #[test]
     fn test_multicam_manager() {

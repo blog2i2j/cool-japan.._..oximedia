@@ -398,7 +398,10 @@ impl SuperResUpscaler {
         bd: u8,
     ) -> ReconstructResult<()> {
         let max_val = (1i32 << bd) - 1;
-        let config = self.config.as_ref().unwrap();
+        let config = self
+            .config
+            .as_ref()
+            .expect("config initialized before upscale_lanczos is called");
 
         // Process each row
         for y in 0..height {

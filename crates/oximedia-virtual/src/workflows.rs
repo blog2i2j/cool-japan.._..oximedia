@@ -99,7 +99,7 @@ impl LedWallWorkflow {
 
         // Add a default panel so the renderer can work
         use crate::led::LedPanel;
-        use nalgebra::Point3;
+        use crate::math::Point3;
         led_wall.add_panel(LedPanel::new(
             Point3::new(0.0, 0.0, 0.0),
             5.0,

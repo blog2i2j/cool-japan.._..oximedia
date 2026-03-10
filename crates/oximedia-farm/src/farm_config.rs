@@ -304,7 +304,9 @@ mod tests {
         let mut cfg = FarmConfig::new();
         cfg.add_profile(EncodingProfile::new("4k-hevc", "hevc"));
         assert_eq!(cfg.profile_count(), 2);
-        let p = cfg.get_profile("4k-hevc").unwrap();
+        let p = cfg
+            .get_profile("4k-hevc")
+            .expect("get_profile should succeed");
         assert_eq!(p.codec, "hevc");
     }
 
@@ -313,7 +315,7 @@ mod tests {
         let mut cfg = FarmConfig::new();
         cfg.add_quota("heavy", ResourceQuota::new(32, 65536));
         assert_eq!(cfg.quota_count(), 2);
-        let q = cfg.get_quota("heavy").unwrap();
+        let q = cfg.get_quota("heavy").expect("get_quota should succeed");
         assert_eq!(q.max_cpu_cores, 32);
     }
 

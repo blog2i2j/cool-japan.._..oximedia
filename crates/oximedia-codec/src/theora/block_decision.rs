@@ -86,7 +86,7 @@ impl BlockDecisionEngine {
             return self.decide_intra_mode(current, intra_ctx);
         }
 
-        let reference = reference.unwrap();
+        let reference = reference.expect("reference is Some: checked is_none() above");
 
         // Try both intra and inter modes
         let intra_decision = self.decide_intra_mode(current, intra_ctx);

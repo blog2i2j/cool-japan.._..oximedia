@@ -136,8 +136,8 @@ impl CloudManager {
             let instance = CloudInstance {
                 id: instance_id.clone(),
                 instance_type: instance_type.clone(),
-                public_ip: "0.0.0.0".parse().expect("hardcoded IP literal is valid"),
-                private_ip: "10.0.0.1".parse().expect("hardcoded IP literal is valid"),
+                public_ip: std::net::IpAddr::V4(std::net::Ipv4Addr::UNSPECIFIED),
+                private_ip: std::net::IpAddr::V4(std::net::Ipv4Addr::new(10, 0, 0, 1)),
                 state: InstanceState::Pending,
                 launch_time: chrono::Utc::now(),
             };

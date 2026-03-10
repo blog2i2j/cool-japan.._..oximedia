@@ -180,7 +180,7 @@ mod tests {
                 "wmv",
                 PreservationFormat::VideoFfv1Mkv,
             )
-            .unwrap();
+            .expect("operation should succeed");
 
         assert_eq!(plan.source_format, "wmv");
         assert_eq!(plan.target_format, PreservationFormat::VideoFfv1Mkv);

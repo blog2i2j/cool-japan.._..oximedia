@@ -333,7 +333,7 @@ mod tests {
         log.append(LogEntry::new(1, 1, "cmd1"));
         log.append(LogEntry::new(2, 2, "cmd2"));
 
-        let e = log.get(1).unwrap();
+        let e = log.get(1).expect("get should return a value");
         assert_eq!(e.command, "cmd1");
         assert_eq!(e.term, 1);
     }

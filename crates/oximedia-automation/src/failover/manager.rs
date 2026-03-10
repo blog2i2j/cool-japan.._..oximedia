@@ -180,14 +180,22 @@ mod tests {
     #[tokio::test]
     async fn test_failover_state() {
         let config = FailoverConfig::default();
-        let mut manager = FailoverManager::new(config).await.unwrap();
+        let mut manager = FailoverManager::new(config)
+            .await
+            .expect("new should succeed");
 
         assert_eq!(manager.get_state(0).await, FailoverState::Primary);
 
-        manager.trigger_failover(0).await.unwrap();
+        manager
+            .trigger_failover(0)
+            .await
+            .expect("operation should succeed");
         assert_eq!(manager.get_state(0).await, FailoverState::Secondary);
 
-        manager.restore_primary(0).await.unwrap();
+        manager
+            .restore_primary(0)
+            .await
+            .expect("operation should succeed");
         assert_eq!(manager.get_state(0).await, FailoverState::Primary);
     }
 }

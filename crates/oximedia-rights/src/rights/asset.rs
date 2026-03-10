@@ -128,18 +128,27 @@ impl Asset {
         .fetch_optional(db.pool())
         .await?;
 
-        Ok(row.map(|r| Asset {
-            id: r.get("id"),
-            name: r.get("name"),
-            asset_type: AssetType::from_str(r.get("asset_type")),
-            description: r.get("description"),
-            created_at: DateTime::parse_from_rfc3339(r.get("created_at"))
-                .unwrap()
-                .with_timezone(&Utc),
-            updated_at: DateTime::parse_from_rfc3339(r.get("updated_at"))
-                .unwrap()
-                .with_timezone(&Utc),
-        }))
+        row.map(|r| {
+            let created_at = DateTime::parse_from_rfc3339(r.get("created_at"))
+                .map_err(|e| {
+                    crate::RightsError::InvalidLicense(format!("Invalid created_at: {e}"))
+                })?
+                .with_timezone(&Utc);
+            let updated_at = DateTime::parse_from_rfc3339(r.get("updated_at"))
+                .map_err(|e| {
+                    crate::RightsError::InvalidLicense(format!("Invalid updated_at: {e}"))
+                })?
+                .with_timezone(&Utc);
+            Ok(Asset {
+                id: r.get("id"),
+                name: r.get("name"),
+                asset_type: AssetType::from_str(r.get("asset_type")),
+                description: r.get("description"),
+                created_at,
+                updated_at,
+            })
+        })
+        .transpose()
     }
 
     /// List all assets
@@ -154,21 +163,28 @@ impl Asset {
         .fetch_all(db.pool())
         .await?;
 
-        Ok(rows
-            .into_iter()
-            .map(|r| Asset {
-                id: r.get("id"),
-                name: r.get("name"),
-                asset_type: AssetType::from_str(r.get("asset_type")),
-                description: r.get("description"),
-                created_at: DateTime::parse_from_rfc3339(r.get("created_at"))
-                    .unwrap()
-                    .with_timezone(&Utc),
-                updated_at: DateTime::parse_from_rfc3339(r.get("updated_at"))
-                    .unwrap()
-                    .with_timezone(&Utc),
+        rows.into_iter()
+            .map(|r| {
+                let created_at = DateTime::parse_from_rfc3339(r.get("created_at"))
+                    .map_err(|e| {
+                        crate::RightsError::InvalidLicense(format!("Invalid created_at: {e}"))
+                    })?
+                    .with_timezone(&Utc);
+                let updated_at = DateTime::parse_from_rfc3339(r.get("updated_at"))
+                    .map_err(|e| {
+                        crate::RightsError::InvalidLicense(format!("Invalid updated_at: {e}"))
+                    })?
+                    .with_timezone(&Utc);
+                Ok(Asset {
+                    id: r.get("id"),
+                    name: r.get("name"),
+                    asset_type: AssetType::from_str(r.get("asset_type")),
+                    description: r.get("description"),
+                    created_at,
+                    updated_at,
+                })
             })
-            .collect())
+            .collect()
     }
 
     /// Delete asset from database
@@ -197,18 +213,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_asset_save_and_load() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("rights test operation should succeed");
         let db_path = format!("sqlite://{}/test.db", temp_dir.path().display());
-        let db = RightsDatabase::new(&db_path).await.unwrap();
+        let db = RightsDatabase::new(&db_path)
+            .await
+            .expect("rights test operation should succeed");
 
         let asset = Asset::new("Test Asset", AssetType::Image);
         let asset_id = asset.id.clone();
 
-        asset.save(&db).await.unwrap();
+        asset
+            .save(&db)
+            .await
+            .expect("rights test operation should succeed");
 
-        let loaded = Asset::load(&db, &asset_id).await.unwrap();
+        let loaded = Asset::load(&db, &asset_id)
+            .await
+            .expect("rights test operation should succeed");
         assert!(loaded.is_some());
-        let loaded = loaded.unwrap();
+        let loaded = loaded.expect("rights test operation should succeed");
         assert_eq!(loaded.name, "Test Asset");
         assert_eq!(loaded.asset_type, AssetType::Image);
     }

@@ -279,7 +279,10 @@ impl UploadQueue {
     /// Cancel a pending upload by ID.
     pub fn cancel(&mut self, id: UploadId) -> bool {
         if let Some(pos) = self.queue.iter().position(|r| r.id == id) {
-            let mut request = self.queue.remove(pos).unwrap();
+            let mut request = match self.queue.remove(pos) {
+                Some(r) => r,
+                None => return false,
+            };
             request.state = UploadState::Cancelled;
             self.cancelled_count += 1;
             self.completed.push(request);
@@ -458,10 +461,12 @@ mod tests {
         let mut queue = UploadQueue::with_config(config);
         let t1 = make_target(4096);
         let t2 = make_target(4096);
-        let _low_id = queue.enqueue(vec![1], t1, UploadPriority::Low).unwrap();
+        let _low_id = queue
+            .enqueue(vec![1], t1, UploadPriority::Low)
+            .expect("enqueue should succeed");
         let high_id = queue
             .enqueue(vec![2], t2, UploadPriority::Critical)
-            .unwrap();
+            .expect("operation should succeed in test");
         let processed = queue.flush();
         assert_eq!(processed.len(), 1);
         assert_eq!(processed[0], high_id);
@@ -473,7 +478,7 @@ mod tests {
         let target = make_target(4096);
         let id = queue
             .enqueue(vec![0; 100], target, UploadPriority::Normal)
-            .unwrap();
+            .expect("operation should succeed in test");
         assert!(queue.cancel(id));
         assert!(queue.is_empty());
         assert_eq!(queue.request_state(id), Some(UploadState::Cancelled));
@@ -491,7 +496,7 @@ mod tests {
         let target = make_target(4096);
         let id = queue
             .enqueue(vec![0; 100], target, UploadPriority::Normal)
-            .unwrap();
+            .expect("operation should succeed in test");
         assert_eq!(queue.request_state(id), Some(UploadState::Queued));
         queue.flush();
         assert_eq!(queue.request_state(id), Some(UploadState::Completed));
@@ -504,7 +509,7 @@ mod tests {
         let target = UploadTarget::new(1, 0, 10);
         let id = queue
             .enqueue(vec![0; 100], target, UploadPriority::Normal)
-            .unwrap();
+            .expect("operation should succeed in test");
         queue.flush();
         assert_eq!(queue.request_state(id), Some(UploadState::Failed));
     }
@@ -560,8 +565,8 @@ mod tests {
         let target = make_target(4096);
         let id = queue
             .enqueue(vec![0; 100], target, UploadPriority::Normal)
-            .unwrap();
-        let peeked = queue.peek_next().unwrap();
+            .expect("operation should succeed in test");
+        let peeked = queue.peek_next().expect("peek should return next item");
         assert_eq!(peeked.id, id);
     }
 

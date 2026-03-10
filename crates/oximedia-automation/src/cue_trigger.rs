@@ -505,8 +505,8 @@ mod tests {
             .with_cue_frame(50);
         let t2 = CueTrigger::new("late", "Late", CueSourceType::Timecode, CueAction::Noop)
             .with_cue_frame(200);
-        manager.add_trigger(t1).unwrap();
-        manager.add_trigger(t2).unwrap();
+        manager.add_trigger(t1).expect("add_trigger should succeed");
+        manager.add_trigger(t2).expect("add_trigger should succeed");
         let fired = manager.fire_at_frame(100);
         assert_eq!(fired.len(), 1);
         assert_eq!(fired[0], "early");
@@ -517,8 +517,8 @@ mod tests {
         let mut manager = CueTriggerManager::new(10);
         let t1 = CueTrigger::new("x", "X", CueSourceType::Manual, CueAction::Noop);
         let t2 = CueTrigger::new("y", "Y", CueSourceType::Manual, CueAction::Noop);
-        manager.add_trigger(t1).unwrap();
-        manager.add_trigger(t2).unwrap();
+        manager.add_trigger(t1).expect("add_trigger should succeed");
+        manager.add_trigger(t2).expect("add_trigger should succeed");
         manager.disarm_all();
         assert_eq!(manager.armed_count(), 0);
         manager.arm_all();
@@ -532,8 +532,8 @@ mod tests {
         t1.fire();
         t1.mark_executed();
         let t2 = CueTrigger::new("alive", "Alive", CueSourceType::Manual, CueAction::Noop);
-        manager.add_trigger(t1).unwrap();
-        manager.add_trigger(t2).unwrap();
+        manager.add_trigger(t1).expect("add_trigger should succeed");
+        manager.add_trigger(t2).expect("add_trigger should succeed");
         let cleaned = manager.cleanup_terminal();
         assert_eq!(cleaned, 1);
         assert_eq!(manager.count(), 1);
@@ -545,9 +545,9 @@ mod tests {
         let t1 = CueTrigger::new("gpi1", "GPI 1", CueSourceType::Gpi, CueAction::Noop);
         let t2 = CueTrigger::new("tc1", "TC 1", CueSourceType::Timecode, CueAction::Noop);
         let t3 = CueTrigger::new("gpi2", "GPI 2", CueSourceType::Gpi, CueAction::Noop);
-        manager.add_trigger(t1).unwrap();
-        manager.add_trigger(t2).unwrap();
-        manager.add_trigger(t3).unwrap();
+        manager.add_trigger(t1).expect("add_trigger should succeed");
+        manager.add_trigger(t2).expect("add_trigger should succeed");
+        manager.add_trigger(t3).expect("add_trigger should succeed");
         let gpi_triggers = manager.triggers_by_source(CueSourceType::Gpi);
         assert_eq!(gpi_triggers.len(), 2);
     }

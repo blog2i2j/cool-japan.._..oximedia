@@ -277,7 +277,7 @@ mod tests {
         sel.add_node(make_node("slow", 200, 10));
         sel.add_node(make_node("fast", 5, 10));
         let client = GeoCoord::new(40.0, -74.0);
-        let best = sel.select_best(&client).unwrap();
+        let best = sel.select_best(&client).expect("best should be valid");
         assert_eq!(best.id, "fast");
     }
 

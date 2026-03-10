@@ -60,7 +60,7 @@ mod tests {
 
     #[test]
     fn test_list_devices() {
-        let devices = GameAudioCapture::list_devices().unwrap();
+        let devices = GameAudioCapture::list_devices().expect("list devices should succeed");
         assert!(!devices.is_empty());
     }
 }

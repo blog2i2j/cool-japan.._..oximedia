@@ -304,14 +304,15 @@ mod tests {
 
     #[test]
     fn test_luminance_meter() {
-        let mut meter = LuminanceMeter::new(1920, 1080, 1000.0, 256).unwrap();
+        let mut meter =
+            LuminanceMeter::new(1920, 1080, 1000.0, 256).expect("test expectation failed");
 
         // Create test frame with known values
         let frame = Array2::from_shape_fn((1080, 1920), |(y, x)| {
             (x + y) as f64 / (1920 + 1080) as f64 * 100.0
         });
 
-        meter.process(&frame).unwrap();
+        meter.process(&frame).expect("process should succeed");
 
         assert!(meter.peak_nits() > 0.0);
         assert!(meter.average_nits() > 0.0);
@@ -320,11 +321,12 @@ mod tests {
 
     #[test]
     fn test_sdr_detection() {
-        let mut meter = LuminanceMeter::new(100, 100, 1000.0, 256).unwrap();
+        let mut meter =
+            LuminanceMeter::new(100, 100, 1000.0, 256).expect("test expectation failed");
 
         // SDR frame (max 100 nits)
         let frame = Array2::from_elem((100, 100), 80.0);
-        meter.process(&frame).unwrap();
+        meter.process(&frame).expect("process should succeed");
 
         assert!(meter.is_sdr());
         assert!(!meter.is_hdr10());
@@ -332,11 +334,12 @@ mod tests {
 
     #[test]
     fn test_hdr_detection() {
-        let mut meter = LuminanceMeter::new(100, 100, 1000.0, 256).unwrap();
+        let mut meter =
+            LuminanceMeter::new(100, 100, 1000.0, 256).expect("test expectation failed");
 
         // HDR frame (500 nits)
         let frame = Array2::from_elem((100, 100), 500.0);
-        meter.process(&frame).unwrap();
+        meter.process(&frame).expect("process should succeed");
 
         assert!(!meter.is_sdr());
         assert!(meter.is_hdr10());
@@ -344,14 +347,15 @@ mod tests {
 
     #[test]
     fn test_contrast_ratio() {
-        let mut meter = LuminanceMeter::new(100, 100, 1000.0, 256).unwrap();
+        let mut meter =
+            LuminanceMeter::new(100, 100, 1000.0, 256).expect("test expectation failed");
 
         // Frame with known contrast
         let mut frame = Array2::zeros((100, 100));
         frame[[0, 0]] = 1.0; // Min
         frame[[99, 99]] = 100.0; // Max
 
-        meter.process(&frame).unwrap();
+        meter.process(&frame).expect("process should succeed");
 
         assert_eq!(meter.peak_nits(), 100.0);
         assert_eq!(meter.min_nits(), 0.0);
@@ -359,11 +363,12 @@ mod tests {
 
     #[test]
     fn test_black_white_level_meter() {
-        let mut meter = BlackWhiteLevelMeter::new(100, 100, 0.0, 1.0).unwrap();
+        let mut meter =
+            BlackWhiteLevelMeter::new(100, 100, 0.0, 1.0).expect("test expectation failed");
 
         // Compliant frame
         let frame = Array2::from_elem((100, 100), 0.5);
-        meter.process(&frame).unwrap();
+        meter.process(&frame).expect("process should succeed");
 
         assert!(meter.is_compliant());
         assert_eq!(meter.illegal_pixel_percentage(), 0.0);
@@ -371,14 +376,15 @@ mod tests {
 
     #[test]
     fn test_illegal_pixels() {
-        let mut meter = BlackWhiteLevelMeter::new(100, 100, 0.0, 1.0).unwrap();
+        let mut meter =
+            BlackWhiteLevelMeter::new(100, 100, 0.0, 1.0).expect("test expectation failed");
 
         // Frame with illegal pixels
         let mut frame = Array2::from_elem((100, 100), 0.5);
         frame[[0, 0]] = -0.1; // Below black
         frame[[99, 99]] = 1.1; // Above white
 
-        meter.process(&frame).unwrap();
+        meter.process(&frame).expect("process should succeed");
 
         assert!(!meter.is_compliant());
         assert!(meter.below_black_count() > 0);

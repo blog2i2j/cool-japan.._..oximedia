@@ -258,14 +258,16 @@ mod tests {
     #[test]
     fn manager_acquire_success() {
         let mut mgr = LockManager::new();
-        mgr.acquire("u1".into(), clip_scope("c1"), 0, 60).unwrap();
+        mgr.acquire("u1".into(), clip_scope("c1"), 0, 60)
+            .expect("collab test operation should succeed");
         assert!(mgr.is_locked(&clip_scope("c1"), 0));
     }
 
     #[test]
     fn manager_acquire_conflict() {
         let mut mgr = LockManager::new();
-        mgr.acquire("u1".into(), clip_scope("c1"), 0, 60).unwrap();
+        mgr.acquire("u1".into(), clip_scope("c1"), 0, 60)
+            .expect("collab test operation should succeed");
         let err = mgr
             .acquire("u2".into(), clip_scope("c1"), 0, 60)
             .unwrap_err();
@@ -280,25 +282,32 @@ mod tests {
     #[test]
     fn manager_acquire_after_expiry() {
         let mut mgr = LockManager::new();
-        mgr.acquire("u1".into(), clip_scope("c1"), 0, 10).unwrap();
+        mgr.acquire("u1".into(), clip_scope("c1"), 0, 10)
+            .expect("collab test operation should succeed");
         // Lock expired at t=10; u2 can now acquire at t=20
-        mgr.acquire("u2".into(), clip_scope("c1"), 20, 60).unwrap();
-        let lock = mgr.get_lock(&clip_scope("c1"), 20).unwrap();
+        mgr.acquire("u2".into(), clip_scope("c1"), 20, 60)
+            .expect("collab test operation should succeed");
+        let lock = mgr
+            .get_lock(&clip_scope("c1"), 20)
+            .expect("collab test operation should succeed");
         assert_eq!(lock.holder_id, "u2");
     }
 
     #[test]
     fn manager_release_success() {
         let mut mgr = LockManager::new();
-        mgr.acquire("u1".into(), clip_scope("c1"), 0, 60).unwrap();
-        mgr.release("u1", &clip_scope("c1")).unwrap();
+        mgr.acquire("u1".into(), clip_scope("c1"), 0, 60)
+            .expect("collab test operation should succeed");
+        mgr.release("u1", &clip_scope("c1"))
+            .expect("collab test operation should succeed");
         assert!(!mgr.is_locked(&clip_scope("c1"), 0));
     }
 
     #[test]
     fn manager_release_not_holder() {
         let mut mgr = LockManager::new();
-        mgr.acquire("u1".into(), clip_scope("c1"), 0, 60).unwrap();
+        mgr.acquire("u1".into(), clip_scope("c1"), 0, 60)
+            .expect("collab test operation should succeed");
         let err = mgr.release("u2", &clip_scope("c1")).unwrap_err();
         assert_eq!(err, LockError::NotHolder);
     }
@@ -306,8 +315,10 @@ mod tests {
     #[test]
     fn manager_evict_expired() {
         let mut mgr = LockManager::new();
-        mgr.acquire("u1".into(), clip_scope("c1"), 0, 10).unwrap();
-        mgr.acquire("u2".into(), clip_scope("c2"), 0, 0).unwrap(); // permanent
+        mgr.acquire("u1".into(), clip_scope("c1"), 0, 10)
+            .expect("collab test operation should succeed");
+        mgr.acquire("u2".into(), clip_scope("c2"), 0, 0)
+            .expect("collab test operation should succeed"); // permanent
         let evicted = mgr.evict_expired(50);
         assert_eq!(evicted, 1);
         assert_eq!(mgr.lock_count(), 1);

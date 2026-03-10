@@ -662,7 +662,7 @@ impl Worker {
                 encoding_speed: 30.0,
                 estimated_completion_timestamp: SystemTime::now()
                     .duration_since(UNIX_EPOCH)
-                    .unwrap()
+                    .unwrap_or_default()
                     .as_secs() as i64
                     + 60,
             };

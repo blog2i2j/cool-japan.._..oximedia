@@ -277,7 +277,9 @@ mod tests {
         for i in 4800..5280 {
             samples[i] = 1.0;
         }
-        let idx = aligner.detect_downbeat(&samples).unwrap();
+        let idx = aligner
+            .detect_downbeat(&samples)
+            .expect("idx should be valid");
         // Should be somewhere near 4800
         assert!(idx >= 4320 && idx <= 5280);
     }

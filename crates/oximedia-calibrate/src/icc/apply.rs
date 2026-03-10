@@ -149,7 +149,7 @@ mod tests {
         let result = applicator.apply_to_image(&image, 2, 1);
 
         assert!(result.is_ok());
-        let output = result.unwrap();
+        let output = result.expect("expected successful result");
         assert_eq!(output.len(), image.len());
     }
 

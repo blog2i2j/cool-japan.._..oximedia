@@ -345,7 +345,7 @@ mod tests {
         data[25] = 0x80; // 1920
         data[26] = 0x04;
         data[27] = 0x38; // 1080
-        let result = parse_sample_entry(*b"avc1", &data).unwrap();
+        let result = parse_sample_entry(*b"avc1", &data).expect("operation should succeed");
         assert!(result.is_video());
         if let SampleEntry::Video(v) = result {
             assert_eq!(v.width, 1920);
@@ -366,7 +366,7 @@ mod tests {
                          // sample rate (fixed 16.16) at 20-23: 48000 << 16
         let sr_fixed = 48000u32 << 16;
         data[20..24].copy_from_slice(&sr_fixed.to_be_bytes());
-        let result = parse_sample_entry(*b"mp4a", &data).unwrap();
+        let result = parse_sample_entry(*b"mp4a", &data).expect("operation should succeed");
         assert!(result.is_audio());
         if let SampleEntry::Audio(a) = result {
             assert_eq!(a.sample_rate, 48000);

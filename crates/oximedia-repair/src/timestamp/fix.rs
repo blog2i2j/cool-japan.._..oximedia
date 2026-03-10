@@ -94,7 +94,10 @@ pub fn normalize_timestamps(timestamps: &mut [i64]) {
         return;
     }
 
-    let min_ts = *timestamps.iter().min().unwrap();
+    let min_ts = match timestamps.iter().min() {
+        Some(&v) => v,
+        None => return,
+    };
     if min_ts != 0 {
         for ts in timestamps.iter_mut() {
             *ts -= min_ts;

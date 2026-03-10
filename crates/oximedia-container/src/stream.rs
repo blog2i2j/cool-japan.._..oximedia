@@ -253,7 +253,7 @@ mod tests {
         let mut stream = StreamInfo::new(0, CodecId::Opus, Rational::new(1, 48000));
         stream.duration = Some(480_000); // 10 seconds at 48kHz
 
-        let duration = stream.duration_seconds().unwrap();
+        let duration = stream.duration_seconds().expect("operation should succeed");
         assert!((duration - 10.0).abs() < 0.001);
     }
 

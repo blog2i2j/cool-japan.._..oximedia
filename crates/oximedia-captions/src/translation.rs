@@ -274,7 +274,7 @@ mod tests {
                 Timestamp::from_secs(3),
                 "Hello".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
         let mut project = TranslationProject::new(source);
 
@@ -285,7 +285,7 @@ mod tests {
                 Timestamp::from_secs(3),
                 "Hola".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
         project.add_translation(spanish);
         assert!(project.get_translation("es").is_some());
@@ -300,9 +300,10 @@ mod tests {
                 Timestamp::from_secs(3),
                 "Test".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
-        let csv = export_for_translation(&track, TranslationFormat::Csv).unwrap();
+        let csv =
+            export_for_translation(&track, TranslationFormat::Csv).expect("export should succeed");
         assert!(csv.contains("ID,Start,End,Text"));
         assert!(csv.contains("Test"));
     }
@@ -312,6 +313,6 @@ mod tests {
         let english = "This is an English sentence.";
         let lang = TranslationProject::detect_language(english);
         assert!(lang.is_some());
-        assert_eq!(lang.unwrap().code, "en");
+        assert_eq!(lang.expect("language detection should succeed").code, "en");
     }
 }

@@ -468,7 +468,7 @@ FCM: DROP FRAME
 002  BX       V     C        01:00:10;00 01:00:15;00 01:00:05;00 01:00:10;00
 ";
 
-        let edl = parse(content).unwrap();
+        let edl = parse(content).expect("edl should be valid");
         assert_eq!(edl.title, "Test Project");
         assert!(edl.drop_frame);
         assert_eq!(edl.events.len(), 2);
@@ -488,7 +488,7 @@ FCM: NON-DROP FRAME
 001  AX       V     D        01:00:00:00 01:00:05:00 01:00:00:00 01:00:05:00 030
 ";
 
-        let edl = parse(content).unwrap();
+        let edl = parse(content).expect("edl should be valid");
         assert_eq!(edl.events.len(), 1);
 
         let event = &edl.events[0];
@@ -506,11 +506,11 @@ M2   AX       050   01:00:02;15
 * SLOW MOTION
 ";
 
-        let edl = parse(content).unwrap();
+        let edl = parse(content).expect("edl should be valid");
         let event = &edl.events[0];
 
         assert!(event.motion_effect.is_some());
-        let motion = event.motion_effect.as_ref().unwrap();
+        let motion = event.motion_effect.as_ref().expect("motion should be valid");
         assert_eq!(motion.speed, 0.5);
         assert!(!motion.freeze);
     }
@@ -524,11 +524,11 @@ FCM: DROP FRAME
 * FREEZE FRAME
 ";
 
-        let edl = parse(content).unwrap();
+        let edl = parse(content).expect("edl should be valid");
         let event = &edl.events[0];
 
         assert!(event.motion_effect.is_some());
-        let motion = event.motion_effect.as_ref().unwrap();
+        let motion = event.motion_effect.as_ref().expect("motion should be valid");
         assert!(motion.freeze);
     }
 
@@ -553,7 +553,7 @@ FCM: DROP FRAME
 
         edl.add_event(event);
 
-        let output = write(&edl).unwrap();
+        let output = write(&edl).expect("output should be valid");
         assert!(output.contains("TITLE: Test Project"));
         assert!(output.contains("FCM: DROP FRAME"));
         assert!(output.contains("001  AX       V     C"));
@@ -571,9 +571,9 @@ FCM: DROP FRAME
 002  BX       V     D        01:00:10;00 01:00:15;00 01:00:05;00 01:00:10;00 030
 ";
 
-        let edl = parse(content).unwrap();
-        let output = write(&edl).unwrap();
-        let edl2 = parse(&output).unwrap();
+        let edl = parse(content).expect("edl should be valid");
+        let output = write(&edl).expect("output should be valid");
+        let edl2 = parse(&output).expect("edl2 should be valid");
 
         assert_eq!(edl.title, edl2.title);
         assert_eq!(edl.drop_frame, edl2.drop_frame);
@@ -582,14 +582,14 @@ FCM: DROP FRAME
 
     #[test]
     fn test_timecode_parse() {
-        let tc = Timecode::parse("01:23:45:29", Rational::new(30, 1)).unwrap();
+        let tc = Timecode::parse("01:23:45:29", Rational::new(30, 1)).expect("tc should be valid");
         assert_eq!(tc.hours, 1);
         assert_eq!(tc.minutes, 23);
         assert_eq!(tc.seconds, 45);
         assert_eq!(tc.frames, 29);
         assert!(!tc.drop_frame);
 
-        let tc_df = Timecode::parse("01:23:45;29", Rational::new(30, 1)).unwrap();
+        let tc_df = Timecode::parse("01:23:45;29", Rational::new(30, 1)).expect("tc_df should be valid");
         assert!(tc_df.drop_frame);
     }
 

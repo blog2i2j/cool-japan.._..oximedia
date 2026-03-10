@@ -422,7 +422,7 @@ mod tests {
     #[test]
     fn test_chain_ancestors() {
         let chain = sample_chain();
-        let ancestors = chain.ancestors("leaf-1").unwrap();
+        let ancestors = chain.ancestors("leaf-1").expect("ancestors should succeed");
         assert_eq!(ancestors, vec!["leaf-1", "root-1"]);
     }
 

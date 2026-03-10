@@ -314,7 +314,9 @@ mod tests {
         let exporter = ReplayExporter::default();
         let segment = seg(0, 10_000); // 10 seconds
         let config = ReplayExportConfig::default();
-        let data = exporter.export_segment(&segment, &config).unwrap();
+        let data = exporter
+            .export_segment(&segment, &config)
+            .expect("export should succeed");
         assert!(!data.is_empty());
     }
 
@@ -341,8 +343,12 @@ mod tests {
             quality: ExportQuality::High,
             include_audio: false,
         };
-        let low_data = exporter.export_segment(&segment, &low_config).unwrap();
-        let high_data = exporter.export_segment(&segment, &high_config).unwrap();
+        let low_data = exporter
+            .export_segment(&segment, &low_config)
+            .expect("export should succeed");
+        let high_data = exporter
+            .export_segment(&segment, &high_config)
+            .expect("export should succeed");
         assert!(high_data.len() > low_data.len());
     }
 
@@ -360,10 +366,13 @@ mod tests {
             quality: ExportQuality::Medium,
             include_audio: true,
         };
-        let no_audio_size = exporter.export_segment(&segment, &no_audio).unwrap().len();
+        let no_audio_size = exporter
+            .export_segment(&segment, &no_audio)
+            .expect("export should succeed")
+            .len();
         let with_audio_size = exporter
             .export_segment(&segment, &with_audio)
-            .unwrap()
+            .expect("should succeed")
             .len();
         assert!(with_audio_size >= no_audio_size);
     }
@@ -374,7 +383,10 @@ mod tests {
         let segment = seg(0, 10_000);
         let config = ReplayExportConfig::default();
         let estimated = exporter.estimate_size(&segment, &config);
-        let actual = exporter.export_segment(&segment, &config).unwrap().len() as u64;
+        let actual = exporter
+            .export_segment(&segment, &config)
+            .expect("export should succeed")
+            .len() as u64;
         // The estimate should match the actual payload size
         assert_eq!(estimated, actual);
     }

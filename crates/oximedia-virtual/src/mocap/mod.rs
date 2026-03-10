@@ -6,7 +6,7 @@ pub mod integrate;
 pub mod prop;
 pub mod skeleton;
 
-use nalgebra::Point3;
+use crate::math::Point3;
 use serde::{Deserialize, Serialize};
 
 /// Motion capture marker

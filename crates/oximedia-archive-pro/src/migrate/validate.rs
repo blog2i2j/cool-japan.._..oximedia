@@ -182,7 +182,9 @@ mod tests {
         };
 
         let validator = MigrationValidator::new();
-        let validation = validator.validate(&result).unwrap();
+        let validation = validator
+            .validate(&result)
+            .expect("operation should succeed");
 
         assert!(validation.migration_success);
     }
@@ -199,7 +201,9 @@ mod tests {
         };
 
         let validator = MigrationValidator::new();
-        let validation = validator.validate(&result).unwrap();
+        let validation = validator
+            .validate(&result)
+            .expect("operation should succeed");
 
         assert!(!validation.passed);
         assert!(!validation.errors.is_empty());

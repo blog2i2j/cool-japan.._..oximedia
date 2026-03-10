@@ -20,7 +20,7 @@
 //! let mut frame = VideoFrame::new(PixelFormat::Yuv420p, 1920, 1080);
 //! frame.allocate();
 //!
-//! let info = calculate_temporal_info(&frame).unwrap();
+//! let info = calculate_temporal_info(&frame)?;
 //! println!("TI: {:.2}", info.ti);
 //! ```
 
@@ -98,7 +98,7 @@ impl Default for TemporalInfo {
 /// let mut frame = VideoFrame::new(PixelFormat::Yuv420p, 1280, 720);
 /// frame.allocate();
 ///
-/// let info = calculate_temporal_info(&frame).unwrap();
+/// let info = calculate_temporal_info(&frame)?;
 /// assert!(info.ti >= 0.0);
 /// ```
 pub fn calculate_temporal_info(frame: &VideoFrame) -> CvResult<TemporalInfo> {
@@ -183,7 +183,7 @@ pub fn calculate_temporal_info(frame: &VideoFrame) -> CvResult<TemporalInfo> {
 /// let mut frame2 = VideoFrame::new(PixelFormat::Yuv420p, 1920, 1080);
 /// frame2.allocate();
 ///
-/// let metrics = calculate_temporal_metrics(&frame1, &frame2).unwrap();
+/// let metrics = calculate_temporal_metrics(&frame1, &frame2)?;
 /// assert!(metrics.coherence >= 0.0 && metrics.coherence <= 1.0);
 /// ```
 pub fn calculate_temporal_metrics(
@@ -433,7 +433,7 @@ fn calculate_gradient_magnitude(data: &[u8], x: usize, y: usize, stride: usize) 
 ///     frames.push(frame);
 /// }
 ///
-/// let stability = calculate_temporal_stability(&frames).unwrap();
+/// let stability = calculate_temporal_stability(&frames)?;
 /// assert!(stability >= 0.0 && stability <= 1.0);
 /// ```
 pub fn calculate_temporal_stability(frames: &[VideoFrame]) -> CvResult<f64> {
@@ -489,7 +489,7 @@ pub fn calculate_temporal_stability(frames: &[VideoFrame]) -> CvResult<f64> {
 ///     frames.push(frame);
 /// }
 ///
-/// let scene_changes = detect_scene_changes(&frames, 0.3).unwrap();
+/// let scene_changes = detect_scene_changes(&frames, 0.3)?;
 /// // scene_changes contains indices where scenes change
 /// ```
 pub fn detect_scene_changes(frames: &[VideoFrame], threshold: f64) -> CvResult<Vec<usize>> {

@@ -165,22 +165,37 @@ mod tests {
 
     #[tokio::test]
     async fn test_playout_lifecycle() {
-        let mut playout = PlayoutEngine::new(0).await.unwrap();
+        let mut playout = PlayoutEngine::new(0).await.expect("new should succeed");
 
-        assert_eq!(playout.get_state().await.unwrap(), PlayoutState::Stopped);
-        playout.start().await.unwrap();
-        assert_eq!(playout.get_state().await.unwrap(), PlayoutState::Playing);
-        playout.pause().await.unwrap();
-        assert_eq!(playout.get_state().await.unwrap(), PlayoutState::Paused);
-        playout.resume().await.unwrap();
-        assert_eq!(playout.get_state().await.unwrap(), PlayoutState::Playing);
-        playout.stop().await.unwrap();
-        assert_eq!(playout.get_state().await.unwrap(), PlayoutState::Stopped);
+        assert_eq!(
+            playout.get_state().await.expect("value should be valid"),
+            PlayoutState::Stopped
+        );
+        playout.start().await.expect("operation should succeed");
+        assert_eq!(
+            playout.get_state().await.expect("value should be valid"),
+            PlayoutState::Playing
+        );
+        playout.pause().await.expect("operation should succeed");
+        assert_eq!(
+            playout.get_state().await.expect("value should be valid"),
+            PlayoutState::Paused
+        );
+        playout.resume().await.expect("operation should succeed");
+        assert_eq!(
+            playout.get_state().await.expect("value should be valid"),
+            PlayoutState::Playing
+        );
+        playout.stop().await.expect("operation should succeed");
+        assert_eq!(
+            playout.get_state().await.expect("value should be valid"),
+            PlayoutState::Stopped
+        );
     }
 
     #[tokio::test]
     async fn test_load_item() {
-        let mut playout = PlayoutEngine::new(0).await.unwrap();
+        let mut playout = PlayoutEngine::new(0).await.expect("new should succeed");
 
         let item = PlayoutItem {
             id: "test1".to_string(),
@@ -190,9 +205,12 @@ mod tests {
             scheduled_start: None,
         };
 
-        playout.load_next_item(item.clone()).await.unwrap();
+        playout
+            .load_next_item(item.clone())
+            .await
+            .expect("operation should succeed");
         let current = playout.current_item().await;
         assert!(current.is_some());
-        assert_eq!(current.unwrap().id, "test1");
+        assert_eq!(current.expect("value should be valid").id, "test1");
     }
 }

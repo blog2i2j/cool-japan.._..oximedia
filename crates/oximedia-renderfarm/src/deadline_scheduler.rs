@@ -424,7 +424,9 @@ mod tests {
             "t1",
             "t1",
             TaskPriority::Normal,
-            Instant::now().checked_sub(Duration::from_secs(1)).unwrap(), // past
+            Instant::now()
+                .checked_sub(Duration::from_secs(1))
+                .expect("test expectation failed"), // past
             Duration::from_secs(5),
             4,
             8192,
@@ -489,7 +491,9 @@ mod tests {
             "exp",
             "exp",
             TaskPriority::Normal,
-            Instant::now().checked_sub(Duration::from_secs(1)).unwrap(),
+            Instant::now()
+                .checked_sub(Duration::from_secs(1))
+                .expect("test expectation failed"),
             Duration::from_secs(5),
             4,
             8192,

@@ -1083,21 +1083,21 @@ mod tests {
 
     #[test]
     fn test_edit_rate_parsing() {
-        let rate = EditRate::from_str("24 1").unwrap();
+        let rate = EditRate::from_str("24 1").expect("rate should be valid");
         assert_eq!(rate, EditRate::fps_24());
 
-        let rate = EditRate::from_str("24000 1001").unwrap();
+        let rate = EditRate::from_str("24000 1001").expect("rate should be valid");
         assert_eq!(rate, EditRate::fps_23_976());
     }
 
     #[test]
     fn test_sequence_type() {
         assert_eq!(
-            SequenceType::from_str("MainImageSequence").unwrap(),
+            SequenceType::from_str("MainImageSequence").expect("test expectation failed"),
             SequenceType::MainImage
         );
         assert_eq!(
-            SequenceType::from_str("MainAudioSequence").unwrap(),
+            SequenceType::from_str("MainAudioSequence").expect("test expectation failed"),
             SequenceType::MainAudio
         );
     }

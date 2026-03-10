@@ -419,7 +419,7 @@ mod tests {
         let mut reg = GroupEditRegistry::new();
         let gid = reg.create_group("G1");
         assert!(reg.add_clip_to_group(gid, 100));
-        assert!(reg.get(gid).unwrap().contains(100));
+        assert!(reg.get(gid).expect("get should succeed").contains(100));
     }
 
     #[test]
@@ -428,7 +428,7 @@ mod tests {
         let gid = reg.create_group("G1");
         reg.add_clip_to_group(gid, 100);
         assert!(reg.remove_clip_from_group(gid, 100));
-        assert!(!reg.get(gid).unwrap().contains(100));
+        assert!(!reg.get(gid).expect("get should succeed").contains(100));
     }
 
     #[test]
@@ -458,7 +458,7 @@ mod tests {
         let mut reg = GroupEditRegistry::new();
         let gid = reg.create_group("Locked");
         reg.add_clip_to_group(gid, 1);
-        reg.get_mut(gid).unwrap().locked = true;
+        reg.get_mut(gid).expect("get_mut should succeed").locked = true;
         let result = reg.plan_batch_op(gid, &BatchOp::Delete);
         assert_eq!(result.affected, 0);
         assert_eq!(result.skipped, 1);

@@ -354,7 +354,7 @@ mod tests {
         let buf = w.flush();
         assert_eq!(buf.len(), 8);
         let mut r = BitstreamReader::new(buf);
-        let read_back = r.read_bits(64).unwrap();
+        let read_back = r.read_bits(64).expect("should succeed");
         assert_eq!(read_back, value);
         assert!(r.is_exhausted());
     }

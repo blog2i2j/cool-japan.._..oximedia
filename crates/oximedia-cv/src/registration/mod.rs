@@ -469,7 +469,7 @@ mod tests {
     #[test]
     fn test_transform_matrix_inverse() {
         let t = TransformMatrix::translation(10.0, 20.0);
-        let inv = t.inverse().unwrap();
+        let inv = t.inverse().expect("inverse should succeed");
         let identity = t.compose(&inv);
         let (x, y) = identity.transform_point(5.0, 15.0);
         assert!((x - 5.0).abs() < 1e-6);

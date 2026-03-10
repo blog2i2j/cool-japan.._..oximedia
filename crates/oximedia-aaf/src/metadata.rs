@@ -540,14 +540,14 @@ mod tests {
 
     #[test]
     fn test_timecode_parse() {
-        let tc = Timecode::parse("01:02:03:04", 25).unwrap();
+        let tc = Timecode::parse("01:02:03:04", 25).expect("tc should be valid");
         assert_eq!(tc.hours, 1);
         assert_eq!(tc.minutes, 2);
         assert_eq!(tc.seconds, 3);
         assert_eq!(tc.frames, 4);
         assert!(!tc.drop_frame);
 
-        let tc_df = Timecode::parse("01:02:03;04", 30).unwrap();
+        let tc_df = Timecode::parse("01:02:03;04", 30).expect("tc_df should be valid");
         assert!(tc_df.drop_frame);
     }
 

@@ -1,6 +1,6 @@
 //! Prop tracking for motion capture
 
-use nalgebra::Point3;
+use crate::math::Point3;
 
 /// Tracked prop
 #[derive(Debug, Clone)]

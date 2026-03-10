@@ -144,20 +144,23 @@ mod tests {
 
     #[test]
     fn test_format_frames_frames() {
-        let fmt = TimecodeFormatter::new(TimecodeFormat::Frames, 25, false).unwrap();
+        let fmt = TimecodeFormatter::new(TimecodeFormat::Frames, 25, false)
+            .expect("valid timecode formatter");
         assert_eq!(fmt.format_frames(1234), "1234");
     }
 
     #[test]
     fn test_format_frames_seconds() {
-        let fmt = TimecodeFormatter::new(TimecodeFormat::Seconds, 25, false).unwrap();
+        let fmt = TimecodeFormatter::new(TimecodeFormat::Seconds, 25, false)
+            .expect("valid timecode formatter");
         // 25 frames at 25 fps = 1.000 s
         assert_eq!(fmt.format_frames(25), "1.000");
     }
 
     #[test]
     fn test_format_frames_feet() {
-        let fmt = TimecodeFormatter::new(TimecodeFormat::Feet, 24, false).unwrap();
+        let fmt = TimecodeFormatter::new(TimecodeFormat::Feet, 24, false)
+            .expect("valid timecode formatter");
         // 16 frames = 1 foot + 0 frames
         assert_eq!(fmt.format_frames(16), "1+00");
         // 17 frames = 1 foot + 1 frame
@@ -166,55 +169,63 @@ mod tests {
 
     #[test]
     fn test_format_frames_smpte_ndf() {
-        let fmt = TimecodeFormatter::new(TimecodeFormat::Smpte, 25, false).unwrap();
+        let fmt = TimecodeFormatter::new(TimecodeFormat::Smpte, 25, false)
+            .expect("valid timecode formatter");
         // 1 hour = 25 * 3600 = 90000 frames
         assert_eq!(fmt.format_frames(90000), "01:00:00:00");
     }
 
     #[test]
     fn test_format_frames_smpte_df() {
-        let fmt = TimecodeFormatter::new(TimecodeFormat::Smpte, 30, true).unwrap();
+        let fmt = TimecodeFormatter::new(TimecodeFormat::Smpte, 30, true)
+            .expect("valid timecode formatter");
         // Frame 30 → 0h 0m 1s 0f
         assert_eq!(fmt.format_frames(30), "00:00:01;00");
     }
 
     #[test]
     fn test_format_frames_smpte_mixed() {
-        let fmt = TimecodeFormatter::new(TimecodeFormat::Smpte, 25, false).unwrap();
+        let fmt = TimecodeFormatter::new(TimecodeFormat::Smpte, 25, false)
+            .expect("valid timecode formatter");
         // 01:02:03:04 = (1*3600 + 2*60 + 3)*25 + 4 = (3723)*25+4 = 93079
         assert_eq!(fmt.format_frames(93079), "01:02:03:04");
     }
 
     #[test]
     fn test_parse_smpte_valid_colon() {
-        let fmt = TimecodeFormatter::new(TimecodeFormat::Smpte, 25, false).unwrap();
-        let frames = fmt.parse_smpte("01:02:03:04").unwrap();
+        let fmt = TimecodeFormatter::new(TimecodeFormat::Smpte, 25, false)
+            .expect("valid timecode formatter");
+        let frames = fmt.parse_smpte("01:02:03:04").expect("valid SMPTE parse");
         // Should round-trip with format_frames
         assert_eq!(fmt.format_frames(frames), "01:02:03:04");
     }
 
     #[test]
     fn test_parse_smpte_valid_semicolon() {
-        let fmt = TimecodeFormatter::new(TimecodeFormat::Smpte, 30, true).unwrap();
-        let frames = fmt.parse_smpte("00:00:01;00").unwrap();
+        let fmt = TimecodeFormatter::new(TimecodeFormat::Smpte, 30, true)
+            .expect("valid timecode formatter");
+        let frames = fmt.parse_smpte("00:00:01;00").expect("valid SMPTE parse");
         assert_eq!(frames, 30);
     }
 
     #[test]
     fn test_parse_smpte_invalid_too_few_parts() {
-        let fmt = TimecodeFormatter::new(TimecodeFormat::Smpte, 25, false).unwrap();
+        let fmt = TimecodeFormatter::new(TimecodeFormat::Smpte, 25, false)
+            .expect("valid timecode formatter");
         assert!(fmt.parse_smpte("01:02:03").is_none());
     }
 
     #[test]
     fn test_parse_smpte_invalid_frames_exceed_fps() {
-        let fmt = TimecodeFormatter::new(TimecodeFormat::Smpte, 25, false).unwrap();
+        let fmt = TimecodeFormatter::new(TimecodeFormat::Smpte, 25, false)
+            .expect("valid timecode formatter");
         assert!(fmt.parse_smpte("00:00:00:25").is_none());
     }
 
     #[test]
     fn test_parse_smpte_invalid_minutes() {
-        let fmt = TimecodeFormatter::new(TimecodeFormat::Smpte, 25, false).unwrap();
+        let fmt = TimecodeFormatter::new(TimecodeFormat::Smpte, 25, false)
+            .expect("valid timecode formatter");
         assert!(fmt.parse_smpte("00:60:00:00").is_none());
     }
 }

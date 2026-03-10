@@ -407,7 +407,7 @@ mod tests {
             .tag("video".to_string())
             .build();
 
-        let jobs = pipeline.build().unwrap();
+        let jobs = pipeline.build().expect("jobs should be valid");
         assert_eq!(jobs.len(), 2);
         assert_eq!(jobs[0].next_jobs[0], jobs[1].id);
         assert!(jobs[1].dependencies.contains(&jobs[0].id));

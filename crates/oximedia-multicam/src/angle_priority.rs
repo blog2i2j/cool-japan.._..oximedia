@@ -372,9 +372,11 @@ mod tests {
         let mut sel = AnglePrioritySelector::new();
         sel.register_angle(0);
         sel.angle_mut(0)
-            .unwrap()
+            .expect("multicam test operation should succeed")
             .set_score(Criterion::CompositionQuality, 0.8, 1.0);
-        let result = sel.select().unwrap();
+        let result = sel
+            .select()
+            .expect("multicam test operation should succeed");
         assert_eq!(result.angle_id, 0);
     }
 
@@ -386,12 +388,14 @@ mod tests {
         sel.register_angle(0);
         sel.register_angle(1);
         sel.angle_mut(0)
-            .unwrap()
+            .expect("multicam test operation should succeed")
             .set_score(Criterion::CompositionQuality, 0.3, 1.0);
         sel.angle_mut(1)
-            .unwrap()
+            .expect("multicam test operation should succeed")
             .set_score(Criterion::CompositionQuality, 0.9, 1.0);
-        let result = sel.select().unwrap();
+        let result = sel
+            .select()
+            .expect("multicam test operation should succeed");
         assert_eq!(result.angle_id, 1);
     }
 
@@ -403,26 +407,30 @@ mod tests {
         sel.register_angle(0);
         sel.register_angle(1);
         sel.angle_mut(0)
-            .unwrap()
+            .expect("multicam test operation should succeed")
             .set_score(Criterion::AudioActivity, 0.5, 1.0);
         sel.angle_mut(1)
-            .unwrap()
+            .expect("multicam test operation should succeed")
             .set_score(Criterion::AudioActivity, 1.0, 1.0);
 
         // First select picks angle 1 (best)
-        let r = sel.select().unwrap();
+        let r = sel
+            .select()
+            .expect("multicam test operation should succeed");
         assert_eq!(r.angle_id, 1);
 
         // Now make angle 0 the best
         sel.angle_mut(0)
-            .unwrap()
+            .expect("multicam test operation should succeed")
             .set_score(Criterion::AudioActivity, 1.0, 1.0);
         sel.angle_mut(1)
-            .unwrap()
+            .expect("multicam test operation should succeed")
             .set_score(Criterion::AudioActivity, 0.1, 1.0);
 
         // Should stay on angle 1 due to dwell constraint
-        let r = sel.select().unwrap();
+        let r = sel
+            .select()
+            .expect("multicam test operation should succeed");
         assert!(r.dwell_constrained);
         assert_eq!(r.angle_id, 1);
     }
@@ -435,21 +443,25 @@ mod tests {
         sel.register_angle(0);
         sel.register_angle(1);
         sel.angle_mut(0)
-            .unwrap()
+            .expect("multicam test operation should succeed")
             .set_score(Criterion::MotionLevel, 0.7, 1.0);
         sel.angle_mut(1)
-            .unwrap()
+            .expect("multicam test operation should succeed")
             .set_score(Criterion::MotionLevel, 0.8, 1.0);
 
         // First select: picks angle 1
-        let _ = sel.select().unwrap();
+        let _ = sel
+            .select()
+            .expect("multicam test operation should succeed");
         assert_eq!(sel.current_angle(), Some(1));
 
         // Angle 0 only marginally better — hysteresis prevents switch
         sel.angle_mut(0)
-            .unwrap()
+            .expect("multicam test operation should succeed")
             .set_score(Criterion::MotionLevel, 0.85, 1.0);
-        let _ = sel.select().unwrap();
+        let _ = sel
+            .select()
+            .expect("multicam test operation should succeed");
         assert_eq!(sel.current_angle(), Some(1));
     }
 

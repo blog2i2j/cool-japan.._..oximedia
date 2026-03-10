@@ -256,7 +256,9 @@ mod tests {
         assert!((default_india - 0.35).abs() < f64::EPSILON);
 
         // Override India to 0.5
-        table.set_rate(Territory::India, 0.5).unwrap();
+        table
+            .set_rate(Territory::India, 0.5)
+            .expect("rights test operation should succeed");
         let overridden = table.get_multiplier(&Territory::India);
         assert!((overridden - 0.5).abs() < f64::EPSILON);
 

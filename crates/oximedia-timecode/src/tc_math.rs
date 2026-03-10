@@ -215,7 +215,7 @@ mod tests {
     use super::*;
 
     fn tc25(h: u8, m: u8, s: u8, f: u8) -> Timecode {
-        Timecode::new(h, m, s, f, FrameRate::Fps25).unwrap()
+        Timecode::new(h, m, s, f, FrameRate::Fps25).expect("valid timecode")
     }
 
     #[test]
@@ -248,7 +248,7 @@ mod tests {
     #[test]
     fn test_duration_divide() {
         let d = TcDuration::from_frames(300, 25);
-        let result = d.divide(3).unwrap();
+        let result = d.divide(3).expect("divide should succeed");
         assert_eq!(result.frames, 100);
     }
 
@@ -298,7 +298,7 @@ mod tests {
     fn test_math_midpoint() {
         let a = tc25(0, 0, 0, 0);
         let b = tc25(0, 0, 4, 0);
-        let mid = TcMath::midpoint(&a, &b, FrameRate::Fps25).unwrap();
+        let mid = TcMath::midpoint(&a, &b, FrameRate::Fps25).expect("midpoint should succeed");
         assert_eq!(mid.seconds, 2);
         assert_eq!(mid.frames, 0);
     }
@@ -307,7 +307,8 @@ mod tests {
     fn test_math_offset_by_percentage() {
         let tc = tc25(0, 0, 0, 0);
         let dur = TcDuration::from_frames(100, 25);
-        let result = TcMath::offset_by_percentage(&tc, &dur, 50.0, FrameRate::Fps25).unwrap();
+        let result = TcMath::offset_by_percentage(&tc, &dur, 50.0, FrameRate::Fps25)
+            .expect("offset by percentage should succeed");
         assert_eq!(result.to_frames(), 50);
     }
 

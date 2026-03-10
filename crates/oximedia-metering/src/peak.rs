@@ -406,7 +406,8 @@ mod tests {
 
     #[test]
     fn test_sample_peak_meter() {
-        let mut meter = PeakMeter::new(PeakMeterType::Sample, 48000.0, 2, 0.0).unwrap();
+        let mut meter = PeakMeter::new(PeakMeterType::Sample, 48000.0, 2, 0.0)
+            .expect("test expectation failed");
 
         let samples = vec![0.5, 0.3, 0.8, 0.4, 0.6, 0.2];
         meter.process_interleaved(&samples);
@@ -418,7 +419,8 @@ mod tests {
 
     #[test]
     fn test_rms_meter() {
-        let mut meter = PeakMeter::new(PeakMeterType::Rms(0.1), 48000.0, 1, 0.0).unwrap();
+        let mut meter = PeakMeter::new(PeakMeterType::Rms(0.1), 48000.0, 1, 0.0)
+            .expect("test expectation failed");
 
         // Generate 1kHz sine wave
         for i in 0..4800 {
@@ -435,7 +437,8 @@ mod tests {
 
     #[test]
     fn test_vu_meter() {
-        let mut meter = PeakMeter::new(PeakMeterType::Vu, 48000.0, 1, 0.0).unwrap();
+        let mut meter =
+            PeakMeter::new(PeakMeterType::Vu, 48000.0, 1, 0.0).expect("test expectation failed");
 
         // Step input - need more samples for VU ballistics (300ms integration)
         // VU meter should reach 99% of full scale in 300ms at 48kHz = 14400 samples
@@ -456,7 +459,8 @@ mod tests {
 
     #[test]
     fn test_k12_meter() {
-        let mut meter = KSystemMeter::new(KSystemType::K12, 48000.0, 2).unwrap();
+        let mut meter =
+            KSystemMeter::new(KSystemType::K12, 48000.0, 2).expect("test expectation failed");
 
         let samples = vec![0.5, 0.5, 0.5, 0.5];
         meter.process_interleaved(&samples);
@@ -477,7 +481,8 @@ mod tests {
 
     #[test]
     fn test_peak_meter_reset() {
-        let mut meter = PeakMeter::new(PeakMeterType::Sample, 48000.0, 2, 0.0).unwrap();
+        let mut meter = PeakMeter::new(PeakMeterType::Sample, 48000.0, 2, 0.0)
+            .expect("test expectation failed");
 
         meter.process_interleaved(&[0.8, 0.9]);
         meter.reset();

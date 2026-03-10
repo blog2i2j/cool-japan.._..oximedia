@@ -604,7 +604,7 @@ mod tests {
         let mut timeline = Timeline::new(config, 48000.0);
 
         let cue = DescriptionCue::new("cue1", 1.0, 2.0).with_text("Test");
-        timeline.add_cue(cue).unwrap();
+        timeline.add_cue(cue).expect("should succeed");
 
         assert_eq!(timeline.cue_count(), 1);
     }
@@ -615,7 +615,7 @@ mod tests {
         let mut timeline = Timeline::new(config, 48000.0);
 
         let cue = DescriptionCue::new("cue1", 1.0, 2.0).with_text("Test");
-        timeline.add_cue(cue).unwrap();
+        timeline.add_cue(cue).expect("should succeed");
 
         assert!(timeline.get_cue_at(1.5).is_some());
         assert!(timeline.get_cue_at(0.5).is_none());
@@ -631,8 +631,8 @@ mod tests {
         let cue1 = DescriptionCue::new("cue1", 1.0, 2.0).with_text("Test 1");
         let cue2 = DescriptionCue::new("cue2", 3.0, 4.0).with_text("Test 2");
 
-        timeline.add_cue(cue1).unwrap();
-        timeline.add_cue(cue2).unwrap();
+        timeline.add_cue(cue1).expect("should succeed");
+        timeline.add_cue(cue2).expect("should succeed");
 
         let gaps = timeline.detect_gaps();
         assert_eq!(gaps.len(), 3);
@@ -646,8 +646,8 @@ mod tests {
         let cue1 = DescriptionCue::new("cue1", 1.0, 2.0).with_text("Test 1");
         let cue2 = DescriptionCue::new("cue2", 1.5, 2.5).with_text("Test 2");
 
-        timeline.add_cue(cue1).unwrap();
-        timeline.add_cue(cue2).unwrap();
+        timeline.add_cue(cue1).expect("should succeed");
+        timeline.add_cue(cue2).expect("should succeed");
 
         let validation = timeline.validate();
         assert!(!validation.is_valid);
@@ -660,7 +660,7 @@ mod tests {
         let mut timeline = Timeline::new(config, 48000.0);
 
         let cue = DescriptionCue::new("cue1", 1.0, 2.0).with_text("Test");
-        timeline.add_cue(cue).unwrap();
+        timeline.add_cue(cue).expect("should succeed");
 
         let mut scheduler = CueScheduler::new(timeline, 1.0);
 

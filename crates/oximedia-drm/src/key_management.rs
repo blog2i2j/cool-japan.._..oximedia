@@ -331,7 +331,7 @@ mod tests {
         let key = ContentKey::new(vec![0xaa, 0xbb], vec![0x01]);
         let hex_id = key.key_id_hex();
         store.store(key);
-        let retrieved = store.retrieve(&hex_id).unwrap();
+        let retrieved = store.retrieve(&hex_id).expect("retrieved should be valid");
         assert_eq!(retrieved.key_id, vec![0xaa, 0xbb]);
     }
 

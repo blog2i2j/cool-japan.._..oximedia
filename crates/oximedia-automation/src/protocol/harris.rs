@@ -258,7 +258,7 @@ mod tests {
     #[test]
     fn test_decode_response_ok() {
         let data = vec![0x00, 0xDE, 0xAD];
-        let resp = HarrisProtocol::decode_response(&data).unwrap();
+        let resp = HarrisProtocol::decode_response(&data).expect("decode_response should succeed");
         assert_eq!(resp.status, HarrisStatus::Ok);
         assert_eq!(resp.data, vec![0xDE, 0xAD]);
     }
@@ -266,7 +266,7 @@ mod tests {
     #[test]
     fn test_decode_response_busy() {
         let data = vec![HarrisStatus::Busy.as_byte()];
-        let resp = HarrisProtocol::decode_response(&data).unwrap();
+        let resp = HarrisProtocol::decode_response(&data).expect("decode_response should succeed");
         assert_eq!(resp.status, HarrisStatus::Busy);
     }
 
@@ -287,7 +287,7 @@ mod tests {
         ];
         for s in statuses {
             let b = s.as_byte();
-            let parsed = HarrisStatus::from_byte(b).unwrap();
+            let parsed = HarrisStatus::from_byte(b).expect("from_byte should succeed");
             assert_eq!(parsed, s);
         }
     }

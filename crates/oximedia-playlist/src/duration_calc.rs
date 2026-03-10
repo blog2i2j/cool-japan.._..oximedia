@@ -172,13 +172,13 @@ impl DurationCalculator {
                 gaps.push(GapInfo {
                     before_index: i,
                     after_index: j,
-                    gap_duration: next.start.checked_sub(prev_end).unwrap(),
+                    gap_duration: next.start.checked_sub(prev_end).unwrap_or(Duration::ZERO),
                 });
             } else if prev_end > next.start {
                 overlaps.push(OverlapInfo {
                     first_index: i,
                     second_index: j,
-                    overlap_duration: prev_end.checked_sub(next.start).unwrap(),
+                    overlap_duration: prev_end.checked_sub(next.start).unwrap_or(Duration::ZERO),
                 });
             }
         }

@@ -629,14 +629,16 @@ mod tests {
         let image = vec![128u8; 100];
         let config = HybridConfig::new(HybridStrategy::TraditionalOnly);
         let scaler = HybridScaler::new(config);
-        let result = scaler.resize(&image, 10, 10, 8, 8).unwrap();
+        let result = scaler
+            .resize(&image, 10, 10, 8, 8)
+            .expect("resize should succeed");
         assert_eq!(result.len(), 64);
     }
 
     #[test]
     fn test_crop_image() {
         let image = vec![128u8; 100];
-        let cropped = crop_image(&image, 10, 10, 2, 2, 4, 4).unwrap();
+        let cropped = crop_image(&image, 10, 10, 2, 2, 4, 4).expect("crop_image should succeed");
         assert_eq!(cropped.len(), 16);
     }
 
@@ -644,7 +646,7 @@ mod tests {
     fn test_calculate_steps() {
         let steps = calculate_steps(4.0, 2.0);
         assert!(!steps.is_empty());
-        assert_eq!(*steps.last().unwrap(), 4.0);
+        assert_eq!(*steps.last().expect("last should succeed"), 4.0);
     }
 
     #[test]
@@ -652,7 +654,9 @@ mod tests {
         let image = vec![128u8; 100];
         let config = HybridConfig::default();
         let resizer = MultiScaleResizer::new(config, 2.0);
-        let result = resizer.resize(&image, 10, 10, 20, 20).unwrap();
+        let result = resizer
+            .resize(&image, 10, 10, 20, 20)
+            .expect("resize should succeed");
         assert_eq!(result.len(), 400);
     }
 
@@ -660,8 +664,8 @@ mod tests {
     fn test_resize_with_aspect_fit() {
         let image = vec![128u8; 200]; // 10x20
         let config = HybridConfig::default();
-        let result =
-            resize_with_aspect_ratio(&image, 10, 20, 10, 10, AspectMode::Fit, &config).unwrap();
+        let result = resize_with_aspect_ratio(&image, 10, 20, 10, 10, AspectMode::Fit, &config)
+            .expect("resize_with_aspect_ratio should succeed");
         // Should fit height, so width will be 5
         assert_eq!(result.len(), 50); // 5x10
     }

@@ -343,7 +343,10 @@ mod tests {
     fn test_chain_link_with_param() {
         let link = base_link();
         assert_eq!(link.param_count(), 3);
-        assert_eq!(link.get("bitrate").unwrap().as_int(), Some(5_000_000));
+        assert_eq!(
+            link.get("bitrate").expect("get should succeed").as_int(),
+            Some(5_000_000)
+        );
     }
 
     #[test]
@@ -387,11 +390,23 @@ mod tests {
         chain.push(overlay_link());
         let resolved = chain.resolve();
         // overlay's bitrate (8M) should overwrite base's (5M)
-        assert_eq!(resolved.get("bitrate").unwrap().as_int(), Some(8_000_000));
+        assert_eq!(
+            resolved
+                .get("bitrate")
+                .expect("get should succeed")
+                .as_int(),
+            Some(8_000_000)
+        );
         // codec comes from base only
-        assert_eq!(resolved.get("codec").unwrap().as_text(), Some("h264"));
+        assert_eq!(
+            resolved.get("codec").expect("get should succeed").as_text(),
+            Some("h264")
+        );
         // hdr comes from overlay
-        assert_eq!(resolved.get("hdr").unwrap().as_bool(), Some(true));
+        assert_eq!(
+            resolved.get("hdr").expect("get should succeed").as_bool(),
+            Some(true)
+        );
     }
 
     #[test]
@@ -401,7 +416,13 @@ mod tests {
         chain.push(overlay_link());
         let resolved = chain.resolve();
         // base's bitrate (5M) wins
-        assert_eq!(resolved.get("bitrate").unwrap().as_int(), Some(5_000_000));
+        assert_eq!(
+            resolved
+                .get("bitrate")
+                .expect("get should succeed")
+                .as_int(),
+            Some(5_000_000)
+        );
     }
 
     #[test]
@@ -410,7 +431,13 @@ mod tests {
         chain.push(base_link());
         chain.push(overlay_link());
         let resolved = chain.resolve();
-        assert_eq!(resolved.get("bitrate").unwrap().as_int(), Some(8_000_000));
+        assert_eq!(
+            resolved
+                .get("bitrate")
+                .expect("get should succeed")
+                .as_int(),
+            Some(8_000_000)
+        );
     }
 
     #[test]
@@ -419,7 +446,13 @@ mod tests {
         chain.push(base_link());
         chain.push(overlay_link());
         let resolved = chain.resolve();
-        assert_eq!(resolved.get("bitrate").unwrap().as_int(), Some(5_000_000));
+        assert_eq!(
+            resolved
+                .get("bitrate")
+                .expect("get should succeed")
+                .as_int(),
+            Some(5_000_000)
+        );
     }
 
     #[test]
@@ -430,7 +463,13 @@ mod tests {
         disabled.disable();
         chain.push(disabled);
         let resolved = chain.resolve();
-        assert_eq!(resolved.get("bitrate").unwrap().as_int(), Some(5_000_000));
+        assert_eq!(
+            resolved
+                .get("bitrate")
+                .expect("get should succeed")
+                .as_int(),
+            Some(5_000_000)
+        );
         assert!(!resolved.contains_key("hdr"));
     }
 
@@ -473,7 +512,10 @@ mod tests {
         let mid = ChainLink::new("mid");
         chain.insert(1, mid);
         assert_eq!(chain.len(), 3);
-        assert_eq!(chain.get_link(1).unwrap().label, "mid");
+        assert_eq!(
+            chain.get_link(1).expect("get_link should succeed").label,
+            "mid"
+        );
         let removed = chain.remove(1);
         assert_eq!(removed.label, "mid");
         assert_eq!(chain.len(), 2);

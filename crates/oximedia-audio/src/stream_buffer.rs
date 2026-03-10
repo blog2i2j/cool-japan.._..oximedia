@@ -238,9 +238,9 @@ mod tests {
         let mut buf = StreamBuffer::new(cfg);
         buf.push_frame(make_frame(480, 0));
         buf.push_frame(make_frame(480, 480));
-        let first = buf.pop_frame().unwrap();
+        let first = buf.pop_frame().expect("should succeed");
         assert_eq!(first.pts_samples, 0);
-        let second = buf.pop_frame().unwrap();
+        let second = buf.pop_frame().expect("should succeed");
         assert_eq!(second.pts_samples, 480);
     }
 

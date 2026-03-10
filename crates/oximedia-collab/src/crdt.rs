@@ -196,7 +196,8 @@ impl CrdtDocument {
         clips_map.insert(
             &mut txn,
             clip.id.to_string(),
-            serde_json::to_string(&clip).unwrap(),
+            serde_json::to_string(&clip)
+                .map_err(|e| CollabError::CrdtError(format!("Failed to serialize clip: {e}")))?,
         );
 
         Ok(())
@@ -238,7 +239,9 @@ impl CrdtDocument {
             clips_map.insert(
                 &mut txn,
                 clip_id.to_string(),
-                serde_json::to_string(&*clip).unwrap(),
+                serde_json::to_string(&*clip).map_err(|e| {
+                    CollabError::CrdtError(format!("Failed to serialize clip: {e}"))
+                })?,
             );
         }
 
@@ -265,7 +268,9 @@ impl CrdtDocument {
             clips_map.insert(
                 &mut txn,
                 clip_id.to_string(),
-                serde_json::to_string(&*clip).unwrap(),
+                serde_json::to_string(&*clip).map_err(|e| {
+                    CollabError::CrdtError(format!("Failed to serialize clip: {e}"))
+                })?,
             );
         }
 
@@ -285,7 +290,8 @@ impl CrdtDocument {
         tracks_map.insert(
             &mut txn,
             track.id.to_string(),
-            serde_json::to_string(&track).unwrap(),
+            serde_json::to_string(&track)
+                .map_err(|e| CollabError::CrdtError(format!("Failed to serialize track: {e}")))?,
         );
 
         Ok(())
@@ -338,7 +344,9 @@ impl CrdtDocument {
             tracks_map.insert(
                 &mut txn,
                 track_id.to_string(),
-                serde_json::to_string(&*track).unwrap(),
+                serde_json::to_string(&*track).map_err(|e| {
+                    CollabError::CrdtError(format!("Failed to serialize track: {e}"))
+                })?,
             );
         }
 
@@ -365,7 +373,9 @@ impl CrdtDocument {
             tracks_map.insert(
                 &mut txn,
                 track_id.to_string(),
-                serde_json::to_string(&*track).unwrap(),
+                serde_json::to_string(&*track).map_err(|e| {
+                    CollabError::CrdtError(format!("Failed to serialize track: {e}"))
+                })?,
             );
         }
 
@@ -381,7 +391,13 @@ impl CrdtDocument {
         // Update Yrs document
         let mut txn = self.doc.transact_mut();
         let props_map = txn.get_or_insert_map("properties");
-        props_map.insert(&mut txn, key, serde_json::to_string(&value).unwrap());
+        props_map.insert(
+            &mut txn,
+            key,
+            serde_json::to_string(&value).map_err(|e| {
+                CollabError::CrdtError(format!("Failed to serialize property value: {e}"))
+            })?,
+        );
 
         Ok(())
     }
@@ -701,11 +717,13 @@ mod tests {
         let op = TimelineOp::new(
             OpType::InsertClip,
             Uuid::new_v4(),
-            serde_json::to_value(&clip).unwrap(),
+            serde_json::to_value(&clip).expect("collab test operation should succeed"),
             1,
         );
 
-        doc.apply_operation(op).await.unwrap();
+        doc.apply_operation(op)
+            .await
+            .expect("collab test operation should succeed");
 
         let clips = doc.get_clips().await;
         assert_eq!(clips.len(), 1);
@@ -728,10 +746,12 @@ mod tests {
         let insert_op = TimelineOp::new(
             OpType::InsertClip,
             Uuid::new_v4(),
-            serde_json::to_value(&clip).unwrap(),
+            serde_json::to_value(&clip).expect("collab test operation should succeed"),
             1,
         );
-        doc.apply_operation(insert_op).await.unwrap();
+        doc.apply_operation(insert_op)
+            .await
+            .expect("collab test operation should succeed");
 
         // Move clip
         let move_data = serde_json::json!({
@@ -739,9 +759,14 @@ mod tests {
             "start_time": 10.0,
         });
         let move_op = TimelineOp::new(OpType::MoveClip, Uuid::new_v4(), move_data, 2);
-        doc.apply_operation(move_op).await.unwrap();
+        doc.apply_operation(move_op)
+            .await
+            .expect("collab test operation should succeed");
 
-        let moved_clip = doc.get_clip(clip.id).await.unwrap();
+        let moved_clip = doc
+            .get_clip(clip.id)
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(moved_clip.start_time, 10.0);
     }
 
@@ -767,7 +792,10 @@ mod tests {
         );
         op2.timestamp = op1.timestamp + chrono::Duration::seconds(1);
 
-        let resolved = doc.resolve_conflict(&op1, &op2).await.unwrap();
+        let resolved = doc
+            .resolve_conflict(&op1, &op2)
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(resolved.id, op2.id);
     }
 
@@ -783,13 +811,17 @@ mod tests {
                 serde_json::json!({"key": format!("prop{}", i), "value": i}),
                 i,
             );
-            doc.apply_operation(op).await.unwrap();
+            doc.apply_operation(op)
+                .await
+                .expect("collab test operation should succeed");
         }
 
         assert_eq!(doc.operation_count().await, 100);
 
         // Run GC, keep only 10 versions
-        doc.garbage_collect(10).await.unwrap();
+        doc.garbage_collect(10)
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(doc.operation_count().await, 10);
     }
 
@@ -801,7 +833,10 @@ mod tests {
         let _doc = manager.create_document(session_id).await;
         assert!(manager.get_document(session_id).await.is_some());
 
-        manager.remove_document(session_id).await.unwrap();
+        manager
+            .remove_document(session_id)
+            .await
+            .expect("collab test operation should succeed");
         assert!(manager.get_document(session_id).await.is_none());
     }
 }
@@ -1417,7 +1452,9 @@ mod extended_tests {
         let remote = serde_json::json!({"name": "updated", "value": 10});
 
         let merger = ThreeWayMerge::new(Some(base));
-        let result = merger.merge(&local, &remote).unwrap();
+        let result = merger
+            .merge(&local, &remote)
+            .expect("collab test operation should succeed");
 
         assert_eq!(result["name"], "updated");
         assert_eq!(result["value"], 20);
@@ -1427,11 +1464,23 @@ mod extended_tests {
     async fn test_snapshot_manager() {
         let manager = SnapshotManager::new(3);
 
-        manager.create_snapshot(1, vec![1, 2, 3]).await.unwrap();
-        manager.create_snapshot(5, vec![4, 5, 6]).await.unwrap();
-        manager.create_snapshot(10, vec![7, 8, 9]).await.unwrap();
+        manager
+            .create_snapshot(1, vec![1, 2, 3])
+            .await
+            .expect("collab test operation should succeed");
+        manager
+            .create_snapshot(5, vec![4, 5, 6])
+            .await
+            .expect("collab test operation should succeed");
+        manager
+            .create_snapshot(10, vec![7, 8, 9])
+            .await
+            .expect("collab test operation should succeed");
 
-        let (version, data) = manager.get_snapshot(7).await.unwrap();
+        let (version, data) = manager
+            .get_snapshot(7)
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(version, 5);
         assert_eq!(data, vec![4, 5, 6]);
 
@@ -1473,7 +1522,9 @@ mod extended_tests {
         let resolver = ConflictResolver::new(ConflictStrategy::LastWriteWins);
         assert!(resolver.conflicts(&op1, &op2));
 
-        let winner = resolver.resolve(&op1, &op2).unwrap();
+        let winner = resolver
+            .resolve(&op1, &op2)
+            .expect("collab test operation should succeed");
         assert_eq!(winner.user_id, user2);
     }
 
@@ -1486,7 +1537,10 @@ mod extended_tests {
         clock1.increment(user_id);
 
         let op1 = TimelineOp::new(OpType::InsertClip, user_id, serde_json::json!({}), 1);
-        let applied = tracker.add_operation(op1, clock1).await.unwrap();
+        let applied = tracker
+            .add_operation(op1, clock1)
+            .await
+            .expect("collab test operation should succeed");
 
         assert_eq!(applied.len(), 1);
         assert_eq!(tracker.pending_count().await, 0);
@@ -1509,7 +1563,7 @@ mod extended_tests {
         let merged = coordinator
             .multi_way_merge(vec![session1, session2])
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
         assert!(Arc::strong_count(&merged) > 0);
     }
 }

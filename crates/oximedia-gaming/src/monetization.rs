@@ -278,7 +278,7 @@ mod tests {
         let split = RevenueSplit::new()
             .add_party("Creator", 0.6)
             .add_party("Network", 0.4);
-        assert!((split.share_for("Creator").unwrap() - 0.6).abs() < 1e-9);
+        assert!((split.share_for("Creator").expect("share should exist") - 0.6).abs() < 1e-9);
         assert!(split.share_for("Nobody").is_none());
     }
 
@@ -296,7 +296,7 @@ mod tests {
     #[test]
     fn test_share_clamping() {
         let split = RevenueSplit::new().add_party("Over", 1.5);
-        assert!((split.share_for("Over").unwrap() - 1.0).abs() < 1e-9);
+        assert!((split.share_for("Over").expect("share should exist") - 1.0).abs() < 1e-9);
     }
 
     // --- MonetizationConfig ---

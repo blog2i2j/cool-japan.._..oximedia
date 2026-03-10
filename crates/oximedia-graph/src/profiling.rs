@@ -265,7 +265,13 @@ mod tests {
         let mut profiler = GraphProfiler::new();
         profiler.record("node_x", 500);
         assert!(profiler.profile("node_x").is_some());
-        assert_eq!(profiler.profile("node_x").unwrap().call_count, 1);
+        assert_eq!(
+            profiler
+                .profile("node_x")
+                .expect("profile should succeed")
+                .call_count,
+            1
+        );
     }
 
     #[test]
@@ -280,7 +286,7 @@ mod tests {
         for us in [100, 200, 300] {
             profiler.record("n", us);
         }
-        let p = profiler.profile("n").unwrap();
+        let p = profiler.profile("n").expect("profile should succeed");
         assert_eq!(p.call_count, 3);
         assert_eq!(p.total_us, 600);
     }

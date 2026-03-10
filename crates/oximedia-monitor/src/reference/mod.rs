@@ -113,7 +113,7 @@ mod tests {
 
     #[test]
     fn test_reference_compare() {
-        let mut comparator = ReferenceComparator::new().unwrap();
+        let mut comparator = ReferenceComparator::new().expect("failed to create");
 
         let reference = vec![128u8; 100 * 100 * 3];
         comparator.set_reference(reference, 100, 100);
@@ -122,7 +122,7 @@ mod tests {
         let result = comparator.compare(&frame, 100, 100);
         assert!(result.is_ok());
 
-        let diff = result.unwrap();
+        let diff = result.expect("result should be valid");
         assert_eq!(diff.mse, 0.0);
         assert_eq!(diff.psnr, f32::INFINITY);
     }

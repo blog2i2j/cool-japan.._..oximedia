@@ -358,6 +358,15 @@ impl St2110RtpHeader {
 ///
 /// Each line in a video packet is preceded by a 6-byte line header
 /// per the ST 2110-20 specification.
+///
+/// # Wire format (6 bytes)
+///
+/// ```text
+/// Bytes 0-1: Line number (15 bits, MSB-first)
+/// Bytes 2-3: C-bit (MSB) | Horizontal offset (15 bits)
+/// Bytes 4-5: Length — number of octets of pixel data for this line in the
+///            packet (big-endian u16, per SMPTE ST 2110-20 §7.4)
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LineHeader {
     /// Video line number (0-based from the top of the frame).
@@ -366,52 +375,90 @@ pub struct LineHeader {
     pub offset: u16,
     /// Continuation flag: true if more lines follow in this packet.
     pub continuation: bool,
+    /// Number of octets of pixel data for this line contained in the packet.
+    ///
+    /// Per SMPTE ST 2110-20 §7.4 this field is mandatory; a value of `0`
+    /// indicates the field has not yet been populated.
+    pub length: u16,
 }
 
 impl LineHeader {
     /// Size of the line header in bytes.
     pub const SIZE: usize = 6;
 
-    /// Creates a new line header.
+    /// Creates a new line header with an explicit pixel-data length.
+    ///
+    /// `length` is the number of octets of pixel data for this line that are
+    /// carried in the current packet, as required by SMPTE ST 2110-20 §7.4.
     #[must_use]
-    pub const fn new(line_no: u16, offset: u16, continuation: bool) -> Self {
+    pub const fn new(line_no: u16, offset: u16, continuation: bool, length: u16) -> Self {
         Self {
             line_no,
             offset,
             continuation,
+            length,
         }
     }
 
-    /// Encodes the line header into bytes.
+    /// Creates a new line header without a known payload length.
     ///
-    /// Format (per ST 2110-20):
-    /// - Bits 15:0: Line number
-    /// - Bits 31:16: Offset (with C-bit in MSB)
-    /// - Bytes 4-5: Length (set to 0 here, filled by caller)
+    /// The `length` field is initialised to `0` and **must** be updated via
+    /// [`LineHeader::with_length`] before the header is serialised into a real
+    /// packet, otherwise receivers will parse the stream incorrectly.
+    #[must_use]
+    pub const fn new_pending(line_no: u16, offset: u16, continuation: bool) -> Self {
+        Self {
+            line_no,
+            offset,
+            continuation,
+            length: 0,
+        }
+    }
+
+    /// Returns a copy of this header with the `length` field set to `length`.
+    #[must_use]
+    pub const fn with_length(self, length: u16) -> Self {
+        Self { length, ..self }
+    }
+
+    /// Encodes the line header into a 6-byte vector.
+    ///
+    /// Wire format (per SMPTE ST 2110-20 §7.4):
+    ///
+    /// ```text
+    /// Bytes 0-1: Line number (big-endian u16, upper bit reserved = 0)
+    /// Bytes 2-3: C-bit (bit 15) | Horizontal offset (bits 14:0, big-endian)
+    /// Bytes 4-5: Length — octets of pixel data for this line (big-endian u16)
+    /// ```
+    ///
+    /// The `length` field is taken directly from [`LineHeader::length`].  Callers
+    /// that build headers before knowing the payload size should use
+    /// [`LineHeader::new_pending`] and call [`LineHeader::with_length`] once the
+    /// payload size is known.
     #[must_use]
     pub fn encode(&self) -> Vec<u8> {
         let mut buf = Vec::with_capacity(Self::SIZE);
 
-        // Bytes 0-1: Line number
+        // Bytes 0-1: Line number (big-endian)
         buf.push((self.line_no >> 8) as u8);
         buf.push(self.line_no as u8);
 
-        // Bytes 2-3: C-bit | Offset
+        // Bytes 2-3: C-bit (MSB) | Horizontal offset (15 bits, big-endian)
         let c_bit: u16 = if self.continuation { 0x8000 } else { 0 };
         let offset_field = c_bit | (self.offset & 0x7FFF);
         buf.push((offset_field >> 8) as u8);
         buf.push(offset_field as u8);
 
-        // Bytes 4-5: Length (placeholder, 0)
-        buf.push(0);
-        buf.push(0);
+        // Bytes 4-5: Length of this line's pixel data in the packet (big-endian u16)
+        buf.push((self.length >> 8) as u8);
+        buf.push(self.length as u8);
 
         buf
     }
 
     /// Decodes a line header from bytes.
     ///
-    /// Returns `None` if data is too short.
+    /// Returns `None` if the data slice is shorter than [`LineHeader::SIZE`].
     #[must_use]
     pub fn decode(data: &[u8]) -> Option<Self> {
         if data.len() < Self::SIZE {
@@ -422,11 +469,13 @@ impl LineHeader {
         let offset_field = u16::from_be_bytes([data[2], data[3]]);
         let continuation = (offset_field & 0x8000) != 0;
         let offset = offset_field & 0x7FFF;
+        let length = u16::from_be_bytes([data[4], data[5]]);
 
         Some(Self {
             line_no,
             offset,
             continuation,
+            length,
         })
     }
 }
@@ -543,7 +592,9 @@ mod tests {
 
     #[test]
     fn test_line_header_encode_decode_roundtrip() {
-        let lh = LineHeader::new(540, 0, true);
+        // 1920 pixels × 5 bytes per 2 pixels (10-bit YCbCr 4:2:2) → 4800 bytes/line
+        let line_length: u16 = 4800;
+        let lh = LineHeader::new(540, 0, true, line_length);
         let encoded = lh.encode();
         assert_eq!(encoded.len(), LineHeader::SIZE);
 
@@ -551,16 +602,39 @@ mod tests {
         assert_eq!(decoded.line_no, 540);
         assert_eq!(decoded.offset, 0);
         assert!(decoded.continuation);
+        assert_eq!(decoded.length, line_length);
     }
 
     #[test]
     fn test_line_header_no_continuation() {
-        let lh = LineHeader::new(1079, 100, false);
+        let lh = LineHeader::new(1079, 100, false, 1280);
         let encoded = lh.encode();
         let decoded = LineHeader::decode(&encoded).expect("should succeed in test");
         assert_eq!(decoded.line_no, 1079);
         assert_eq!(decoded.offset, 100);
         assert!(!decoded.continuation);
+        assert_eq!(decoded.length, 1280);
+    }
+
+    #[test]
+    fn test_line_header_length_bigendian() {
+        // Verify the length bytes are in correct big-endian positions
+        let lh = LineHeader::new(0, 0, false, 0x0102);
+        let enc = lh.encode();
+        // Bytes 4-5 must be [0x01, 0x02]
+        assert_eq!(enc[4], 0x01);
+        assert_eq!(enc[5], 0x02);
+    }
+
+    #[test]
+    fn test_line_header_pending_then_with_length() {
+        let lh = LineHeader::new_pending(10, 0, false);
+        assert_eq!(lh.length, 0);
+        let lh = lh.with_length(2400);
+        assert_eq!(lh.length, 2400);
+        let enc = lh.encode();
+        let dec = LineHeader::decode(&enc).expect("decode");
+        assert_eq!(dec.length, 2400);
     }
 
     #[test]

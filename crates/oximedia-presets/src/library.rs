@@ -226,7 +226,7 @@ mod tests {
 
     #[test]
     fn test_version_parse_valid() {
-        let v = PresetVersion::parse("2.3.1").unwrap();
+        let v = PresetVersion::parse("2.3.1").expect("v should be valid");
         assert_eq!(v.major, 2);
         assert_eq!(v.minor, 3);
         assert_eq!(v.patch, 1);
@@ -352,7 +352,7 @@ mod tests {
         e2.version = PresetVersion::new(2, 1, 0);
         cat.add(e1);
         cat.add(e2);
-        let latest = cat.latest_version().unwrap();
+        let latest = cat.latest_version().expect("latest should be valid");
         assert_eq!(latest.major, 2);
     }
 

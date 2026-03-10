@@ -290,7 +290,7 @@ mod tests {
     #[test]
     fn test_parse_basic_privmsg() {
         let line = "@badges=broadcaster/1;color=#FF4500;display-name=TestUser :testuser!testuser@testuser.tmi.twitch.tv PRIVMSG #channel :Hello world";
-        let msg = TwitchChatParser::parse_irc_message(line).unwrap();
+        let msg = TwitchChatParser::parse_irc_message(line).expect("valid IRC message");
         assert_eq!(msg.username, "TestUser");
         assert_eq!(msg.message, "Hello world");
         assert_eq!(msg.color, Some("#FF4500".to_string()));
@@ -311,7 +311,7 @@ mod tests {
     #[test]
     fn test_parse_no_color() {
         let line = "@badges=subscriber/6;color=;display-name=SubUser :subuser!subuser@subuser.tmi.twitch.tv PRIVMSG #chan :Nice stream!";
-        let msg = TwitchChatParser::parse_irc_message(line).unwrap();
+        let msg = TwitchChatParser::parse_irc_message(line).expect("valid IRC message");
         assert_eq!(msg.username, "SubUser");
         assert!(msg.color.is_none());
     }
@@ -319,7 +319,7 @@ mod tests {
     #[test]
     fn test_parse_multiple_badges() {
         let line = "@badges=moderator/1,subscriber/12;color=#00FF7F;display-name=ModUser :moduser!moduser@moduser.tmi.twitch.tv PRIVMSG #chan :GG";
-        let msg = TwitchChatParser::parse_irc_message(line).unwrap();
+        let msg = TwitchChatParser::parse_irc_message(line).expect("valid IRC message");
         assert_eq!(msg.badges.len(), 2);
         assert!(msg.badges.contains(&"moderator/1".to_string()));
     }
@@ -327,7 +327,7 @@ mod tests {
     #[test]
     fn test_parse_no_badges() {
         let line = "@badges=;color=#0000FF;display-name=Viewer :viewer!viewer@viewer.tmi.twitch.tv PRIVMSG #chan :Hello";
-        let msg = TwitchChatParser::parse_irc_message(line).unwrap();
+        let msg = TwitchChatParser::parse_irc_message(line).expect("valid IRC message");
         assert!(msg.badges.is_empty());
     }
 
@@ -398,7 +398,9 @@ mod tests {
             language: "en".to_string(),
         };
         let mut integration = TwitchIntegration::new(config);
-        integration.update_category("Fortnite".to_string()).unwrap();
+        integration
+            .update_category("Fortnite".to_string())
+            .expect("update category should succeed");
     }
 
     #[test]

@@ -1,7 +1,7 @@
 //! Dissolve transition detection.
 
 use crate::error::{ShotError, ShotResult};
-use ndarray::Array3;
+use crate::frame_buffer::FrameBuffer;
 
 /// Dissolve transition detector.
 pub struct DissolveDetector {
@@ -26,7 +26,7 @@ impl DissolveDetector {
     /// # Errors
     ///
     /// Returns error if frames are invalid or have mismatched dimensions.
-    pub fn detect_dissolve(&self, frames: &[Array3<u8>]) -> ShotResult<(bool, f32, usize)> {
+    pub fn detect_dissolve(&self, frames: &[FrameBuffer]) -> ShotResult<(bool, f32, usize)> {
         if frames.len() < self.min_duration {
             return Ok((false, 0.0, 0));
         }
@@ -58,7 +58,7 @@ impl DissolveDetector {
     }
 
     /// Calculate variance in a frame (indicates blending).
-    fn calculate_variance(&self, frame: &Array3<u8>) -> ShotResult<f32> {
+    fn calculate_variance(&self, frame: &FrameBuffer) -> ShotResult<f32> {
         let shape = frame.dim();
         if shape.2 < 3 {
             return Err(ShotError::InvalidFrame(
@@ -73,7 +73,7 @@ impl DissolveDetector {
         for y in 0..shape.0 {
             for x in 0..shape.1 {
                 for c in 0..3 {
-                    let val = f32::from(frame[[y, x, c]]);
+                    let val = f32::from(frame.get(y, x, c));
                     sum += val;
                     sum_sq += val * val;
                 }
@@ -130,19 +130,22 @@ mod tests {
     #[test]
     fn test_no_dissolve_in_single_frames() {
         let detector = DissolveDetector::new();
-        let frames = vec![Array3::zeros((100, 100, 3))];
+        let frames = vec![FrameBuffer::zeros(100, 100, 3)];
         let result = detector.detect_dissolve(&frames);
         assert!(result.is_ok());
-        let (is_dissolve, _, _) = result.expect("should succeed in test");
-        assert!(!is_dissolve);
+        if let Ok((is_dissolve, _, _)) = result {
+            assert!(!is_dissolve);
+        }
     }
 
     #[test]
     fn test_variance_calculation() {
         let detector = DissolveDetector::new();
-        let frame = Array3::from_elem((100, 100, 3), 128);
+        let frame = FrameBuffer::from_elem(100, 100, 3, 128);
         let variance = detector.calculate_variance(&frame);
         assert!(variance.is_ok());
-        assert!(variance.expect("should succeed in test").abs() < 0.01); // Low variance for uniform frame
+        if let Ok(v) = variance {
+            assert!(v.abs() < 0.01); // Low variance for uniform frame
+        }
     }
 }

@@ -290,7 +290,7 @@ mod tests {
 
     #[test]
     fn test_parse_df_valid() {
-        let count = DropFrameCalc::parse_df("00;00;00;00").unwrap();
+        let count = DropFrameCalc::parse_df("00;00;00;00").expect("should succeed");
         assert_eq!(count, 0);
     }
 
@@ -349,7 +349,7 @@ mod tests {
     #[test]
     fn test_parse_format_roundtrip() {
         let original = "01;05;30;15";
-        let frame_count = DropFrameCalc::parse_df(original).unwrap();
+        let frame_count = DropFrameCalc::parse_df(original).expect("should succeed");
         let formatted = DropFrameCalc::format_df(frame_count);
         assert_eq!(formatted, original);
     }

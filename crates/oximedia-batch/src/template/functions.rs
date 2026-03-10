@@ -183,7 +183,7 @@ mod tests {
 
         let result = funcs.call("uppercase", "name", &context);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "TEST");
+        assert_eq!(result.expect("result should be valid"), "TEST");
     }
 
     #[test]
@@ -194,7 +194,7 @@ mod tests {
 
         let result = funcs.call("lowercase", "name", &context);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "test");
+        assert_eq!(result.expect("result should be valid"), "test");
     }
 
     #[test]
@@ -205,7 +205,7 @@ mod tests {
 
         let result = funcs.call("replace", "codec, \"h264\", \"hevc\"", &context);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "hevc");
+        assert_eq!(result.expect("result should be valid"), "hevc");
     }
 
     #[test]
@@ -216,7 +216,7 @@ mod tests {
 
         let result = funcs.call("trim", "name", &context);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "test");
+        assert_eq!(result.expect("result should be valid"), "test");
     }
 
     #[test]
@@ -227,7 +227,7 @@ mod tests {
 
         let result = funcs.call("substr", "text, 0, 5", &context);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "hello");
+        assert_eq!(result.expect("result should be valid"), "hello");
     }
 
     #[test]
@@ -238,7 +238,7 @@ mod tests {
 
         let result = funcs.call("pad", "num, 5", &context);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "00042");
+        assert_eq!(result.expect("result should be valid"), "00042");
     }
 
     #[test]
@@ -249,7 +249,7 @@ mod tests {
         let result = funcs.call("date", "\"\"", &context);
         assert!(result.is_ok());
         // Should return current date in YYYY-MM-DD format
-        let date_str = result.unwrap();
+        let date_str = result.expect("result should be valid");
         assert!(date_str.len() >= 10);
     }
 

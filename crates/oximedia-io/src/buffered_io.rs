@@ -280,7 +280,7 @@ mod tests {
     fn test_buffer_pool_acquire_and_release() {
         let mut pool = BufferPool::new(512, 4);
         assert_eq!(pool.available(), 4);
-        let buf = pool.acquire().unwrap();
+        let buf = pool.acquire().expect("acquire should succeed");
         assert_eq!(pool.available(), 3);
         assert_eq!(buf.len(), 512);
         pool.release(buf);
@@ -290,8 +290,8 @@ mod tests {
     #[test]
     fn test_buffer_pool_exhaustion() {
         let mut pool = BufferPool::new(64, 2);
-        let _b1 = pool.acquire().unwrap();
-        let _b2 = pool.acquire().unwrap();
+        let _b1 = pool.acquire().expect("acquire should succeed");
+        let _b2 = pool.acquire().expect("acquire should succeed");
         assert!(pool.acquire().is_none());
     }
 
@@ -317,7 +317,9 @@ mod tests {
         let mut out = [0u8; 8];
         let mut total = 0;
         while total < 8 {
-            let n = rab.read_bytes(&mut out[total..]).unwrap();
+            let n = rab
+                .read_bytes(&mut out[total..])
+                .expect("read_bytes should succeed");
             if n == 0 {
                 break;
             }
@@ -332,7 +334,7 @@ mod tests {
         let src = MemCursor::from_bytes(vec![]);
         let mut rab = ReadAheadBuffer::new(src, 16);
         let mut buf = [0u8; 4];
-        let n = rab.read_bytes(&mut buf).unwrap();
+        let n = rab.read_bytes(&mut buf).expect("read_bytes should succeed");
         assert_eq!(n, 0);
     }
 
@@ -342,7 +344,7 @@ mod tests {
         let mut rab = ReadAheadBuffer::new(src, 4);
         // Prime the buffer
         let mut buf = [0u8; 2];
-        rab.read_bytes(&mut buf).unwrap();
+        rab.read_bytes(&mut buf).expect("read_bytes should succeed");
         assert_eq!(rab.buffered(), 2);
     }
 
@@ -350,7 +352,8 @@ mod tests {
     fn test_coalescing_writer_does_not_flush_below_threshold() {
         let sink = MemCursor::new();
         let mut cw = CoalescingWriter::new(sink, 16);
-        cw.write_bytes(&[1, 2, 3]).unwrap();
+        cw.write_bytes(&[1, 2, 3])
+            .expect("write_bytes should succeed");
         assert_eq!(cw.buffered_bytes(), 3);
         assert_eq!(cw.flush_count(), 0);
     }
@@ -359,7 +362,8 @@ mod tests {
     fn test_coalescing_writer_flushes_at_threshold() {
         let sink = MemCursor::new();
         let mut cw = CoalescingWriter::new(sink, 4);
-        cw.write_bytes(&[1, 2, 3, 4]).unwrap();
+        cw.write_bytes(&[1, 2, 3, 4])
+            .expect("write_bytes should succeed");
         assert_eq!(cw.flush_count(), 1);
         assert_eq!(cw.buffered_bytes(), 0);
     }
@@ -368,8 +372,10 @@ mod tests {
     fn test_coalescing_writer_total_written() {
         let sink = MemCursor::new();
         let mut cw = CoalescingWriter::new(sink, 256);
-        cw.write_bytes(&[0u8; 100]).unwrap();
-        cw.write_bytes(&[0u8; 50]).unwrap();
+        cw.write_bytes(&[0u8; 100])
+            .expect("write_bytes should succeed");
+        cw.write_bytes(&[0u8; 50])
+            .expect("write_bytes should succeed");
         assert_eq!(cw.total_written(), 150);
     }
 
@@ -377,15 +383,16 @@ mod tests {
     fn test_coalescing_writer_into_inner_flushes() {
         let sink = MemCursor::new();
         let mut cw = CoalescingWriter::new(sink, 256);
-        cw.write_bytes(&[9, 8, 7]).unwrap();
-        let out = cw.into_inner().unwrap();
+        cw.write_bytes(&[9, 8, 7])
+            .expect("write_bytes should succeed");
+        let out = cw.into_inner().expect("into_inner should succeed");
         assert_eq!(out.as_slice(), &[9, 8, 7]);
     }
 
     #[test]
     fn test_mem_cursor_read_write() {
         let mut cur = MemCursor::new();
-        cur.write_all(&[1, 2, 3]).unwrap();
+        cur.write_all(&[1, 2, 3]).expect("failed to write");
         assert_eq!(cur.len(), 3);
         assert!(!cur.is_empty());
     }

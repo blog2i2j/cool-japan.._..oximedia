@@ -269,11 +269,11 @@ mod tests {
     #[test]
     fn test_profile_class_parsing() {
         assert_eq!(
-            IccProfile::parse_profile_class(b"mntr").unwrap(),
+            IccProfile::parse_profile_class(b"mntr").expect("profile class parsing should succeed"),
             ProfileClass::Display
         );
         assert_eq!(
-            IccProfile::parse_profile_class(b"scnr").unwrap(),
+            IccProfile::parse_profile_class(b"scnr").expect("profile class parsing should succeed"),
             ProfileClass::Input
         );
     }
@@ -282,7 +282,9 @@ mod tests {
     fn test_rgb_to_xyz_conversion() {
         let profile = IccProfile::srgb();
         let white = [1.0, 1.0, 1.0];
-        let xyz = profile.rgb_to_xyz(white).unwrap();
+        let xyz = profile
+            .rgb_to_xyz(white)
+            .expect("RGB to XYZ conversion should succeed");
 
         // Should be close to D65
         assert!((xyz[0] - 0.95047).abs() < 0.01);

@@ -126,7 +126,9 @@ mod tests {
             .map(|i| (2.0 * std::f32::consts::PI * 3000.0 * i as f32 / sample_rate).sin())
             .collect();
 
-        let result = analyzer.analyze(&samples, sample_rate).unwrap();
+        let result = analyzer
+            .analyze(&samples, sample_rate)
+            .expect("analysis should succeed");
 
         // High frequency should result in high brightness, low warmth
         assert!(result.brightness > 0.5);

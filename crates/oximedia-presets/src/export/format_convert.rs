@@ -216,7 +216,7 @@ mod tests {
 
     #[test]
     fn test_parse_resolution_valid() {
-        let (w, h) = parse_resolution("1920x1080").unwrap();
+        let (w, h) = parse_resolution("1920x1080").expect("test expectation failed");
         assert_eq!(w, 1920);
         assert_eq!(h, 1080);
     }
@@ -234,13 +234,13 @@ mod tests {
 
     #[test]
     fn test_parse_percentage() {
-        let v = parse_percentage("85%").unwrap();
+        let v = parse_percentage("85%").expect("v should be valid");
         assert!((v - 0.85).abs() < 1e-5);
     }
 
     #[test]
     fn test_parse_percentage_no_sign() {
-        let v = parse_percentage("50").unwrap();
+        let v = parse_percentage("50").expect("v should be valid");
         assert!((v - 0.5).abs() < 1e-5);
     }
 
@@ -268,7 +268,7 @@ mod tests {
 
     #[test]
     fn test_pixel_aspect_ratio_new() {
-        let par = PixelAspectRatio::new(16, 9).unwrap();
+        let par = PixelAspectRatio::new(16, 9).expect("par should be valid");
         assert_eq!(par.num, 16);
         assert_eq!(par.den, 9);
         assert_eq!(par.to_string_repr(), "16:9");
@@ -276,7 +276,7 @@ mod tests {
 
     #[test]
     fn test_pixel_aspect_ratio_reduction() {
-        let par = PixelAspectRatio::new(4, 2).unwrap();
+        let par = PixelAspectRatio::new(4, 2).expect("par should be valid");
         assert_eq!(par.num, 2);
         assert_eq!(par.den, 1);
     }
@@ -288,7 +288,7 @@ mod tests {
 
     #[test]
     fn test_pixel_aspect_ratio_ratio() {
-        let par = PixelAspectRatio::new(16, 9).unwrap();
+        let par = PixelAspectRatio::new(16, 9).expect("par should be valid");
         assert!((par.ratio() - 16.0 / 9.0).abs() < 1e-9);
     }
 }

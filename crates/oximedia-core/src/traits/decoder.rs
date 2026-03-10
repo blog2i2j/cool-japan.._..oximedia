@@ -114,9 +114,9 @@ impl AudioFrame {
 /// use oximedia_core::traits::{VideoDecoder, VideoFrame};
 ///
 /// fn decode_video(decoder: &mut impl VideoDecoder, data: &[u8]) -> Vec<VideoFrame> {
-///     decoder.send_packet(data).unwrap();
+///     decoder.send_packet(data)?;
 ///     let mut frames = Vec::new();
-///     while let Some(frame) = decoder.receive_frame().unwrap() {
+///     while let Some(frame) = decoder.receive_frame()? {
 ///         frames.push(frame);
 ///     }
 ///     frames
@@ -183,9 +183,9 @@ pub trait VideoDecoder {
 /// use oximedia_core::traits::{AudioDecoder, AudioFrame};
 ///
 /// fn decode_audio(decoder: &mut impl AudioDecoder, data: &[u8]) -> Vec<AudioFrame> {
-///     decoder.send_packet(data).unwrap();
+///     decoder.send_packet(data)?;
 ///     let mut frames = Vec::new();
-///     while let Some(frame) = decoder.receive_frame().unwrap() {
+///     while let Some(frame) = decoder.receive_frame()? {
 ///         frames.push(frame);
 ///     }
 ///     frames
@@ -349,9 +349,9 @@ pub enum VerticalAlign {
 /// use oximedia_core::traits::{SubtitleDecoder, SubtitleFrame};
 ///
 /// fn decode_subtitle(decoder: &mut impl SubtitleDecoder, data: &[u8]) -> Vec<SubtitleFrame> {
-///     decoder.send_packet(data).unwrap();
+///     decoder.send_packet(data)?;
 ///     let mut frames = Vec::new();
-///     while let Some(frame) = decoder.receive_frame().unwrap() {
+///     while let Some(frame) = decoder.receive_frame()? {
 ///         frames.push(frame);
 ///     }
 ///     frames

@@ -322,7 +322,7 @@ mod tests {
     #[test]
     fn test_ripple_trim_right_shortens_clip() {
         let mut clips = vec![make_clip(1, 0, 200, 0), make_clip(2, 200, 100, 0)];
-        ripple_trim_right(&mut clips, 1, 150).unwrap();
+        ripple_trim_right(&mut clips, 1, 150).expect("test expectation failed");
         assert_eq!(clips[0].duration, 150);
         // Clip 2 was at 200 → shifted left by 50 → 150
         assert_eq!(clips[1].start, 150);
@@ -345,7 +345,7 @@ mod tests {
     #[test]
     fn test_ripple_trim_left_shortens_clip() {
         let mut clips = vec![make_clip(1, 0, 200, 0)];
-        ripple_trim_left(&mut clips, 1, 50).unwrap();
+        ripple_trim_left(&mut clips, 1, 50).expect("test expectation failed");
         assert_eq!(clips[0].start, 50);
         assert_eq!(clips[0].duration, 150);
         assert_eq!(clips[0].source_in, 50);
@@ -361,11 +361,15 @@ mod tests {
     #[test]
     fn test_three_point_edit_insert() {
         let mut clips = vec![make_clip(1, 200, 100, 0)];
-        let new_clip = three_point_edit(&mut clips, 0, 50, 0, RippleMode::Insert).unwrap();
+        let new_clip = three_point_edit(&mut clips, 0, 50, 0, RippleMode::Insert)
+            .expect("new_clip should be valid");
         assert_eq!(new_clip.duration, 50);
         assert_eq!(new_clip.start, 0);
         // Original clip shifted right by 50
-        let orig = clips.iter().find(|c| c.id == 1).unwrap();
+        let orig = clips
+            .iter()
+            .find(|c| c.id == 1)
+            .expect("orig should be valid");
         assert_eq!(orig.start, 250);
     }
 
@@ -379,9 +383,13 @@ mod tests {
     #[test]
     fn test_ripple_mode_overwrite_no_shift() {
         let mut clips = vec![make_clip(1, 100, 100, 0)];
-        three_point_edit(&mut clips, 0, 50, 0, RippleMode::Overwrite).unwrap();
+        three_point_edit(&mut clips, 0, 50, 0, RippleMode::Overwrite)
+            .expect("test expectation failed");
         // Original clip must NOT be shifted
-        let orig = clips.iter().find(|c| c.id == 1).unwrap();
+        let orig = clips
+            .iter()
+            .find(|c| c.id == 1)
+            .expect("orig should be valid");
         assert_eq!(orig.start, 100);
     }
 }

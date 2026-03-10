@@ -1,7 +1,7 @@
 # oximedia-image
 
 ![Status: Stable](https://img.shields.io/badge/status-stable-green)
-![Version: 0.1.0](https://img.shields.io/badge/version-0.1.0-blue)
+![Version: 0.1.1](https://img.shields.io/badge/version-0.1.1-blue)
 
 Professional image sequence I/O for OxiMedia, supporting DPX, OpenEXR, and TIFF with full color depth and cinema-grade processing.
 
@@ -46,7 +46,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-image = "0.1.0"
+oximedia-image = "0.1.1"
 ```
 
 ```rust

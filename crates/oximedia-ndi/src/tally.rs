@@ -557,8 +557,8 @@ mod tests {
     #[test]
     fn test_tally_message() {
         let msg = TallyMessage::new("Test Source".to_string(), TallyState::program());
-        let encoded = msg.encode().unwrap();
-        let decoded = TallyMessage::decode(&encoded).unwrap();
+        let encoded = msg.encode().expect("encoding should succeed");
+        let decoded = TallyMessage::decode(&encoded).expect("unexpected None/Err");
 
         assert_eq!(msg.source_name, decoded.source_name);
         assert_eq!(msg.state, decoded.state);

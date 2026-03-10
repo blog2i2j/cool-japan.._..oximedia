@@ -414,7 +414,9 @@ mod tests {
         let seq = trail.record(make_builder(AuditCategory::CommandExecution), 1000);
         assert_eq!(seq, 1);
         assert_eq!(trail.len(), 1);
-        let entry = trail.get_by_sequence(1).unwrap();
+        let entry = trail
+            .get_by_sequence(1)
+            .expect("get_by_sequence should succeed");
         assert_eq!(entry.principal, "operator1");
     }
 
@@ -423,7 +425,7 @@ mod tests {
         let mut trail = AuditTrail::new();
         trail.record(make_builder(AuditCategory::ConfigChange), 1000);
         trail.record(make_builder(AuditCategory::FailoverEvent), 2000);
-        let latest = trail.latest().unwrap();
+        let latest = trail.latest().expect("latest should succeed");
         assert_eq!(latest.sequence, 2);
         assert_eq!(latest.timestamp_ms, 2000);
     }
@@ -511,9 +513,21 @@ mod tests {
             .meta("device_type", "VTR")
             .meta("error_code", "E_TIMEOUT");
         trail.record(builder, 5000);
-        let entry = trail.latest().unwrap();
-        assert_eq!(entry.metadata.get("device_type").unwrap(), "VTR");
-        assert_eq!(entry.metadata.get("error_code").unwrap(), "E_TIMEOUT");
+        let entry = trail.latest().expect("latest should succeed");
+        assert_eq!(
+            entry
+                .metadata
+                .get("device_type")
+                .expect("get should succeed"),
+            "VTR"
+        );
+        assert_eq!(
+            entry
+                .metadata
+                .get("error_code")
+                .expect("get should succeed"),
+            "E_TIMEOUT"
+        );
     }
 
     #[test]

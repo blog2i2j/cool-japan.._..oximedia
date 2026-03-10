@@ -366,7 +366,7 @@ mod tests {
         let m = mapper();
         let mapping = m.get_mapping(CodecFamily::H264, "mp4");
         assert!(mapping.is_some());
-        let mapping = mapping.unwrap();
+        let mapping = mapping.expect("H264→mp4 mapping should exist");
         assert_eq!(mapping.target, CodecFamily::H264);
         assert!(mapping.direct_copy);
     }

@@ -303,7 +303,9 @@ mod tests {
         matcher.register(ProfileLibrary::web_streaming());
         matcher.register(ProfileLibrary::mobile());
         matcher.register(ProfileLibrary::archive());
-        let best = matcher.best_match(&MediaSpec::hd_video()).unwrap();
+        let best = matcher
+            .best_match(&MediaSpec::hd_video())
+            .expect("should find best profile");
         // Archive should win for HD source with moderate bitrate
         // (mobile is penalised for oversized resolution)
         assert_ne!(best.name, "mobile");

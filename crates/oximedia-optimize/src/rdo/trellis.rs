@@ -94,8 +94,12 @@ impl TrellisQuantizer {
         let (mut best_state_idx, _) = trellis[n - 1]
             .iter()
             .enumerate()
-            .min_by(|(_, a), (_, b)| a.cost.partial_cmp(&b.cost).unwrap())
-            .unwrap();
+            .min_by(|(_, a), (_, b)| {
+                a.cost
+                    .partial_cmp(&b.cost)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .unwrap_or((0, &trellis[n - 1][0]));
 
         // Trace back
         for i in (0..n).rev() {

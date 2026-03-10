@@ -420,8 +420,8 @@ mod tests {
         let mut script = AudioDescriptionScript::new();
         script.add_entry(AudioDescriptionEntry::new(1000, 2000, "Test".to_string()));
 
-        let json = script.to_json().unwrap();
-        let restored = AudioDescriptionScript::from_json(&json).unwrap();
+        let json = script.to_json().expect("json should be valid");
+        let restored = AudioDescriptionScript::from_json(&json).expect("restored should be valid");
 
         assert_eq!(restored.len(), 1);
         assert_eq!(restored.entries()[0].text, "Test");

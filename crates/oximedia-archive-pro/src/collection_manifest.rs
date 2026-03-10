@@ -323,7 +323,7 @@ mod tests {
     fn test_manifest_entry_metadata() {
         let mut e = ManifestEntry::new("E-001", "My Entry");
         e.add_metadata("creator", "test");
-        assert_eq!(e.metadata.get("creator").unwrap(), "test");
+        assert_eq!(e.metadata.get("creator").expect("operation should succeed"), "test");
     }
 
     #[test]

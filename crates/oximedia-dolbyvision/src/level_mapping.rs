@@ -439,7 +439,7 @@ mod tests {
         set.add(LevelMapping::passthrough(600.0));
         set.add(LevelMapping::passthrough(4000.0));
 
-        let closest = set.find_closest(500.0).unwrap();
+        let closest = set.find_closest(500.0).expect("closest should be valid");
         assert!((closest.target_nits - 600.0).abs() < 0.1);
     }
 

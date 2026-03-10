@@ -460,7 +460,7 @@ mod tests {
         let id = store.capture("first");
         assert_eq!(store.count(), 1);
         assert!(store.get(id).is_some());
-        assert_eq!(store.get(id).unwrap().label, "first");
+        assert_eq!(store.get(id).expect("get should succeed").label, "first");
     }
 
     #[test]
@@ -490,7 +490,10 @@ mod tests {
         assert!(store.latest().is_none());
         store.capture("first");
         store.capture("second");
-        assert_eq!(store.latest().unwrap().label, "second");
+        assert_eq!(
+            store.latest().expect("latest should succeed").label,
+            "second"
+        );
     }
 
     #[test]

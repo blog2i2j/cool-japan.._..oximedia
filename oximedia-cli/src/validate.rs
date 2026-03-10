@@ -851,15 +851,15 @@ mod tests {
     #[test]
     fn test_validation_check_parsing() {
         assert_eq!(
-            ValidationCheck::from_str("format").unwrap(),
+            ValidationCheck::from_str("format").expect("ValidationCheck::from_str should succeed"),
             ValidationCheck::Format
         );
         assert_eq!(
-            ValidationCheck::from_str("codec").unwrap(),
+            ValidationCheck::from_str("codec").expect("ValidationCheck::from_str should succeed"),
             ValidationCheck::Codec
         );
         assert_eq!(
-            ValidationCheck::from_str("all").unwrap(),
+            ValidationCheck::from_str("all").expect("ValidationCheck::from_str should succeed"),
             ValidationCheck::All
         );
         assert!(ValidationCheck::from_str("invalid").is_err());

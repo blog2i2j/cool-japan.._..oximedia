@@ -274,7 +274,10 @@ mod tests {
         cat.register(a1);
         cat.register(a2);
         assert_eq!(cat.len(), 1);
-        assert_eq!(cat.find("id1").unwrap().name, "New Name");
+        assert_eq!(
+            cat.find("id1").expect("find should succeed").name,
+            "New Name"
+        );
     }
 
     #[test]

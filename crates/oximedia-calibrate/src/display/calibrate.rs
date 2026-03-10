@@ -337,8 +337,12 @@ mod tests {
             uniformity: None,
         };
 
-        let json = calibrator.save_calibration(&calibration).unwrap();
-        let restored = calibrator.load_calibration(&json).unwrap();
+        let json = calibrator
+            .save_calibration(&calibration)
+            .expect("save should succeed");
+        let restored = calibrator
+            .load_calibration(&json)
+            .expect("load should succeed");
 
         assert_eq!(restored.manufacturer, calibration.manufacturer);
         assert_eq!(restored.model, calibration.model);

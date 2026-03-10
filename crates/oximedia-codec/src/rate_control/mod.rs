@@ -102,7 +102,7 @@
 //! pass1.set_pass(1);
 //!
 //! // Analyze all frames...
-//! let first_pass_data = pass1.finalize_first_pass().unwrap();
+//! let first_pass_data = pass1.finalize_first_pass()?;
 //!
 //! // Second pass
 //! let mut pass2 = VbrController::new(&config);

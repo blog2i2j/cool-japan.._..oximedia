@@ -212,7 +212,7 @@ mod tests {
             axis: PtzAxis::Tilt,
             speed: -0.75,
         };
-        assert!((cmd.speed_magnitude().unwrap() - 0.75).abs() < 1e-6);
+        assert!((cmd.speed_magnitude().expect("expected speed magnitude") - 0.75).abs() < 1e-6);
     }
 
     #[test]

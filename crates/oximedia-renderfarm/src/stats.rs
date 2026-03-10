@@ -52,10 +52,7 @@ impl StatWindow {
             return 0.0;
         }
         let mut sorted: Vec<f64> = self.values.iter().copied().collect();
-        sorted.sort_by(|a, b| {
-            a.partial_cmp(b)
-                .expect("invariant: stat values are finite f64")
-        });
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         sorted[sorted.len() / 2]
     }
 
@@ -93,10 +90,7 @@ impl StatWindow {
             return 0.0;
         }
         let mut sorted: Vec<f64> = self.values.iter().copied().collect();
-        sorted.sort_by(|a, b| {
-            a.partial_cmp(b)
-                .expect("invariant: stat values are finite f64")
-        });
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let idx = ((sorted.len() - 1) as f64 * p / 100.0) as usize;
         sorted[idx]
     }

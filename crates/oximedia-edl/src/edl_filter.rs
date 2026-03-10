@@ -279,7 +279,16 @@ impl FilterBuilder {
         }
 
         let mut iter = self.criteria.into_iter();
-        let first = iter.next().unwrap();
+        // Safety: guarded by the `is_empty()` check above.
+        let first = match iter.next() {
+            Some(c) => c,
+            None => {
+                return EventFilter::new(FilterCriterion::DurationRange {
+                    min_frames: 0,
+                    max_frames: u64::MAX,
+                })
+            }
+        };
         let combined = iter.fold(first, FilterCriterion::and);
         EventFilter::new(combined)
     }

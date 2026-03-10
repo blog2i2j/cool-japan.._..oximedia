@@ -318,7 +318,7 @@ mod tests {
     #[test]
     fn test_write_utf8_u32_small() {
         let mut writer = BitWriter::new();
-        writer.write_utf8_u32(65).unwrap();
+        writer.write_utf8_u32(65).expect("should succeed");
         let data = writer.finish();
         assert_eq!(data, vec![65]);
     }
@@ -326,7 +326,7 @@ mod tests {
     #[test]
     fn test_write_utf8_u32_two_bytes() {
         let mut writer = BitWriter::new();
-        writer.write_utf8_u32(0x80).unwrap();
+        writer.write_utf8_u32(0x80).expect("should succeed");
         let data = writer.finish();
         assert_eq!(data.len(), 2);
         assert_eq!(data[0] & 0xE0, 0xC0);

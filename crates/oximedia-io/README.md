@@ -1,7 +1,7 @@
 # oximedia-io
 
 ![Status: Stable](https://img.shields.io/badge/status-stable-green)
-![Version: 0.1.0](https://img.shields.io/badge/version-0.1.0-blue)
+![Version: 0.1.1](https://img.shields.io/badge/version-0.1.1-blue)
 
 I/O layer for the OxiMedia multimedia framework, providing async media sources, bit-level reading, buffered I/O, memory-mapped files, checksums, compression, and pipeline I/O utilities.
 
@@ -37,7 +37,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-io = "0.1.0"
+oximedia-io = "0.1.1"
 ```
 
 ### File Source

@@ -292,7 +292,9 @@ mod tests {
     fn test_first_frame_returns_no_motion() {
         let mut detector = MotionDetector::new(Sensitivity::Medium, 2, 2);
         let frame = vec![100u8; 16]; // 4x4 grayscale
-        let result = detector.analyze(&frame, 4, 4).unwrap();
+        let result = detector
+            .analyze(&frame, 4, 4)
+            .expect("motion analysis should succeed");
 
         assert_eq!(result.global_magnitude, 0.0);
         assert_eq!(result.changed_pixel_ratio, 0.0);
@@ -306,10 +308,14 @@ mod tests {
         let frame = vec![100u8; 16];
 
         // First call stores the frame.
-        detector.analyze(&frame, 4, 4).unwrap();
+        detector
+            .analyze(&frame, 4, 4)
+            .expect("motion analysis should succeed");
 
         // Second call with identical frame.
-        let result = detector.analyze(&frame, 4, 4).unwrap();
+        let result = detector
+            .analyze(&frame, 4, 4)
+            .expect("motion analysis should succeed");
         assert_eq!(result.global_magnitude, 0.0);
         assert_eq!(result.changed_pixel_ratio, 0.0);
         assert!(!result.motion_detected);
@@ -321,8 +327,12 @@ mod tests {
         let frame_a = vec![0u8; 16];
         let frame_b = vec![255u8; 16];
 
-        detector.analyze(&frame_a, 4, 4).unwrap();
-        let result = detector.analyze(&frame_b, 4, 4).unwrap();
+        detector
+            .analyze(&frame_a, 4, 4)
+            .expect("motion analysis should succeed");
+        let result = detector
+            .analyze(&frame_b, 4, 4)
+            .expect("motion analysis should succeed");
 
         assert!(result.motion_detected);
         assert!(result.global_magnitude > 0.0);
@@ -342,11 +352,15 @@ mod tests {
         let frame_a = vec![0u8; 16];
         let frame_b = vec![255u8; 16];
 
-        detector.analyze(&frame_a, 4, 4).unwrap();
+        detector
+            .analyze(&frame_a, 4, 4)
+            .expect("motion analysis should succeed");
         detector.reset();
 
         // After reset, the next call should behave as the first call.
-        let result = detector.analyze(&frame_b, 4, 4).unwrap();
+        let result = detector
+            .analyze(&frame_b, 4, 4)
+            .expect("motion analysis should succeed");
         assert!(!result.motion_detected);
     }
 
@@ -357,8 +371,12 @@ mod tests {
         let frame_a = vec![100u8; 16];
         let frame_b = vec![110u8; 16]; // diff = 10, below 30
 
-        detector.analyze(&frame_a, 4, 4).unwrap();
-        let result = detector.analyze(&frame_b, 4, 4).unwrap();
+        detector
+            .analyze(&frame_a, 4, 4)
+            .expect("motion analysis should succeed");
+        let result = detector
+            .analyze(&frame_b, 4, 4)
+            .expect("motion analysis should succeed");
 
         assert!(!result.motion_detected);
     }

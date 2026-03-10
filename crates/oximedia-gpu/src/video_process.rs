@@ -327,7 +327,9 @@ mod tests {
         // 4x4 single-channel frame, all pixels = 128
         let proc = make_processor(4, 4, 1);
         let frame = vec![128u8; 16];
-        let hist = proc.compute_histogram(&frame).unwrap();
+        let hist = proc
+            .compute_histogram(&frame)
+            .expect("histogram computation should succeed");
 
         assert_eq!(hist.len(), 256);
         assert_eq!(hist[128], 16, "All 16 pixels should be at bin 128");
@@ -343,7 +345,9 @@ mod tests {
         // 2x2 RGB frame: all red=255, green=0, blue=128
         let proc = make_processor(2, 2, 3);
         let frame: Vec<u8> = (0..4).flat_map(|_| vec![255u8, 0u8, 128u8]).collect();
-        let hist = proc.compute_histogram(&frame).unwrap();
+        let hist = proc
+            .compute_histogram(&frame)
+            .expect("histogram computation should succeed");
 
         assert_eq!(hist.len(), 768); // 3 * 256
                                      // Channel 0 (red): all 4 pixels at 255
@@ -358,7 +362,9 @@ mod tests {
     fn test_adjust_brightness_clamp_up() {
         let proc = make_processor(2, 2, 1);
         let frame = vec![200u8, 100u8, 50u8, 10u8];
-        let result = proc.adjust_brightness(&frame, 100).unwrap();
+        let result = proc
+            .adjust_brightness(&frame, 100)
+            .expect("brightness adjustment should succeed");
         assert_eq!(result, vec![255, 200, 150, 110]);
     }
 
@@ -366,7 +372,9 @@ mod tests {
     fn test_adjust_brightness_clamp_down() {
         let proc = make_processor(2, 2, 1);
         let frame = vec![200u8, 100u8, 50u8, 10u8];
-        let result = proc.adjust_brightness(&frame, -100).unwrap();
+        let result = proc
+            .adjust_brightness(&frame, -100)
+            .expect("brightness adjustment should succeed");
         assert_eq!(result, vec![100, 0, 0, 0]);
     }
 
@@ -375,7 +383,9 @@ mod tests {
         let proc = make_processor(1, 1, 1);
         // pixel=128, factor=1.0 → should stay at 128
         let frame = vec![128u8];
-        let result = proc.adjust_contrast(&frame, 1.0).unwrap();
+        let result = proc
+            .adjust_contrast(&frame, 1.0)
+            .expect("contrast adjustment should succeed");
         assert_eq!(result[0], 128);
     }
 
@@ -384,7 +394,9 @@ mod tests {
         let proc = make_processor(1, 1, 1);
         // pixel=200, factor=2.0 → (200-128)*2+128 = 272 → clamped to 255
         let frame = vec![200u8];
-        let result = proc.adjust_contrast(&frame, 2.0).unwrap();
+        let result = proc
+            .adjust_contrast(&frame, 2.0)
+            .expect("contrast adjustment should succeed");
         assert_eq!(result[0], 255);
     }
 
@@ -392,7 +404,9 @@ mod tests {
     fn test_adjust_saturation_no_change_at_one() {
         let proc = make_processor(1, 1, 3);
         let frame = vec![255u8, 0u8, 0u8]; // pure red
-        let result = proc.adjust_saturation(&frame, 1.0).unwrap();
+        let result = proc
+            .adjust_saturation(&frame, 1.0)
+            .expect("saturation adjustment should succeed");
         // With factor=1.0, saturation should be unchanged, red should stay red
         assert_eq!(result[0], 255);
         assert_eq!(result[1], 0);
@@ -403,7 +417,9 @@ mod tests {
     fn test_adjust_saturation_zero_desaturates() {
         let proc = make_processor(1, 1, 3);
         let frame = vec![255u8, 0u8, 0u8]; // pure red
-        let result = proc.adjust_saturation(&frame, 0.0).unwrap();
+        let result = proc
+            .adjust_saturation(&frame, 0.0)
+            .expect("saturation adjustment should succeed");
         // With factor=0.0, becomes grayscale: all channels equal
         assert_eq!(result[0], result[1]);
         assert_eq!(result[1], result[2]);
@@ -414,7 +430,9 @@ mod tests {
         let proc = make_processor(2, 2, 1);
         let a = vec![100u8, 200u8, 50u8, 0u8];
         let b = vec![80u8, 210u8, 50u8, 255u8];
-        let diff = proc.frame_difference(&a, &b).unwrap();
+        let diff = proc
+            .frame_difference(&a, &b)
+            .expect("frame difference should succeed");
         assert_eq!(diff, vec![20, 10, 0, 255]);
     }
 
@@ -424,7 +442,9 @@ mod tests {
         let a = vec![100u8, 100u8, 100u8, 100u8];
         let b = vec![110u8, 90u8, 100u8, 120u8];
         // diffs: 10, 10, 0, 20 → mean = 10.0
-        let mae = proc.mean_absolute_error(&a, &b).unwrap();
+        let mae = proc
+            .mean_absolute_error(&a, &b)
+            .expect("MAE computation should succeed");
         assert!((mae - 10.0).abs() < 1e-9);
     }
 

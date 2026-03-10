@@ -379,7 +379,7 @@ mod tests {
         let result = OggPage::parse(&page_data);
         assert!(result.is_ok());
 
-        let (page, consumed) = result.unwrap();
+        let (page, consumed) = result.expect("operation should succeed");
         assert_eq!(consumed, page_data.len());
         assert!(page.is_bos());
         assert!(!page.is_eos());

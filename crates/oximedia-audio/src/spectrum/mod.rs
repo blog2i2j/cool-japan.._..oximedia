@@ -22,7 +22,7 @@
 //!
 //! // Create analyzer
 //! let config = SpectrumConfig::new(2048);
-//! let mut analyzer = SpectrumAnalyzer::new(config).unwrap();
+//! let mut analyzer = SpectrumAnalyzer::new(config)?;
 //!
 //! // Analyze audio frame
 //! # let frame = AudioFrame::new(
@@ -30,7 +30,7 @@
 //! #     44100,
 //! #     oximedia_audio::ChannelLayout::Stereo
 //! # );
-//! let spectrum = analyzer.analyze(&frame).unwrap();
+//! let spectrum = analyzer.analyze(&frame)?;
 //!
 //! // Access spectrum data
 //! println!("Peak frequency: {:?} Hz", spectrum.max_frequency());
@@ -48,15 +48,15 @@
 //!     ..SpectrogramConfig::default()
 //! };
 //!
-//! let mut generator = SpectrogramGenerator::new(config).unwrap();
+//! let mut generator = SpectrogramGenerator::new(config)?;
 //!
 //! // Process audio frames
 //! # let frames: Vec<oximedia_audio::AudioFrame> = vec![];
-//! generator.process_frames(&frames).unwrap();
+//! generator.process_frames(&frames)?;
 //!
 //! // Generate image
 //! let spectrogram = generator.generate();
-//! spectrogram.save_ppm("spectrogram.ppm").unwrap();
+//! spectrogram.save_ppm("spectrogram.ppm")?;
 //! ```
 //!
 //! ## Extract Spectral Features
@@ -65,7 +65,7 @@
 //! use oximedia_audio::spectrum::{SpectrumAnalyzer, SpectrumConfig, FeatureExtractor};
 //!
 //! let config = SpectrumConfig::default();
-//! let mut analyzer = SpectrumAnalyzer::new(config).unwrap();
+//! let mut analyzer = SpectrumAnalyzer::new(config)?;
 //! let mut feature_extractor = FeatureExtractor::new();
 //!
 //! # let frame = oximedia_audio::AudioFrame::new(
@@ -73,7 +73,7 @@
 //! #     44100,
 //! #     oximedia_audio::ChannelLayout::Stereo
 //! # );
-//! let spectrum = analyzer.analyze(&frame).unwrap();
+//! let spectrum = analyzer.analyze(&frame)?;
 //! let features = feature_extractor.extract(&spectrum);
 //!
 //! println!("Spectral centroid: {} Hz", features.centroid);
@@ -100,8 +100,8 @@
 //! #     44100,
 //! #     oximedia_audio::ChannelLayout::Stereo
 //! # );
-//! let waveform = renderer.render(&frame).unwrap();
-//! waveform.save_ppm("waveform.ppm").unwrap();
+//! let waveform = renderer.render(&frame)?;
+//! waveform.save_ppm("waveform.ppm")?;
 //! ```
 
 pub mod analyzer;

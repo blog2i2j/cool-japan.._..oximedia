@@ -503,7 +503,7 @@ mod tests {
         state.push(DataPoint::now(10.0));
         state.push(DataPoint::now(20.0));
         state.push(DataPoint::now(30.0));
-        let mean = state.mean().unwrap();
+        let mean = state.mean().expect("mean should succeed");
         assert!((mean - 20.0).abs() < 1e-9);
     }
 
@@ -519,7 +519,7 @@ mod tests {
         state.push(DataPoint::now(5.0));
         state.push(DataPoint::now(15.0));
         state.push(DataPoint::now(10.0));
-        let (mn, mx) = state.min_max().unwrap();
+        let (mn, mx) = state.min_max().expect("min_max should succeed");
         assert!((mn - 5.0).abs() < 1e-9);
         assert!((mx - 15.0).abs() < 1e-9);
     }
@@ -581,7 +581,12 @@ mod tests {
         dash.add_widget(cfg);
         assert!(dash.push_data("cpu", DataPoint::now(42.0)));
         assert!(!dash.push_data("missing", DataPoint::now(0.0)));
-        assert_eq!(dash.widget("cpu").unwrap().latest_value(), Some(42.0));
+        assert_eq!(
+            dash.widget("cpu")
+                .expect("widget should succeed")
+                .latest_value(),
+            Some(42.0)
+        );
     }
 
     #[test]

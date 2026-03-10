@@ -394,7 +394,9 @@ mod tests {
         };
         let encoded = parser.encode_frame(&tc);
         assert_eq!(encoded.len(), 80);
-        let decoded = parser.decode_frame(&encoded, 0).unwrap();
+        let decoded = parser
+            .decode_frame(&encoded, 0)
+            .expect("decode should succeed");
         assert_eq!(decoded.timecode.hours, 1);
         assert_eq!(decoded.timecode.minutes, 2);
         assert_eq!(decoded.timecode.seconds, 3);
@@ -416,7 +418,9 @@ mod tests {
             user_bits: 0,
         };
         let encoded = parser.encode_frame(&tc);
-        let decoded = parser.decode_frame(&encoded, 0).unwrap();
+        let decoded = parser
+            .decode_frame(&encoded, 0)
+            .expect("decode should succeed");
         assert_eq!(decoded.timecode.hours, 0);
         assert_eq!(decoded.timecode.seconds, 0);
     }
@@ -473,7 +477,9 @@ mod tests {
             user_bits: 0,
         };
         let encoded = parser.encode_frame(&tc);
-        let decoded = parser.decode_frame(&encoded, 0).unwrap();
+        let decoded = parser
+            .decode_frame(&encoded, 0)
+            .expect("decode should succeed");
         assert!(decoded.drop_frame);
     }
 
@@ -498,7 +504,9 @@ mod tests {
             user_bits: 0,
         };
         let bits = parser.encode_frame(&tc);
-        let decoded = parser.decode_frame(&bits, 0).unwrap();
+        let decoded = parser
+            .decode_frame(&bits, 0)
+            .expect("decode should succeed");
         assert_eq!(decoded.bit_offset, 0);
     }
 
@@ -517,7 +525,9 @@ mod tests {
             user_bits: 0,
         };
         let encoded = parser.encode_frame(&tc);
-        let decoded = parser.decode_frame(&encoded, 0).unwrap();
+        let decoded = parser
+            .decode_frame(&encoded, 0)
+            .expect("decode should succeed");
         assert!(!decoded.color_frame);
     }
 }

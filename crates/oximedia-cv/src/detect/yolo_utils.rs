@@ -334,7 +334,11 @@ fn apply_nms(detections: &[Detection], iou_threshold: f32) -> Vec<Detection> {
     }
 
     let mut sorted: Vec<_> = detections.iter().enumerate().collect();
-    sorted.sort_by(|a, b| b.1.confidence.partial_cmp(&a.1.confidence).unwrap());
+    sorted.sort_by(|a, b| {
+        b.1.confidence
+            .partial_cmp(&a.1.confidence)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     let mut keep = vec![true; detections.len()];
     let mut result = Vec::new();
@@ -389,7 +393,11 @@ fn apply_per_class_nms(detections: &[Detection], iou_threshold: f32) -> Vec<Dete
     }
 
     // Sort by confidence
-    result.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap());
+    result.sort_by(|a, b| {
+        b.confidence
+            .partial_cmp(&a.confidence)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     result
 }
@@ -530,7 +538,7 @@ mod tests {
         let result = letterbox_resize(&image, 800, 600, 640, 640);
         assert!(result.is_ok());
 
-        let (resized, params) = result.unwrap();
+        let (resized, params) = result.expect("operation should succeed");
         assert_eq!(resized.len(), 640 * 640 * 3);
         assert!(params.scale > 0.0);
     }
@@ -541,7 +549,7 @@ mod tests {
         let result = resize_bilinear(&image, 100, 100, 50, 50);
         assert!(result.is_ok());
 
-        let resized = result.unwrap();
+        let resized = result.expect("resized should be valid");
         assert_eq!(resized.len(), 50 * 50 * 3);
     }
 
@@ -597,7 +605,7 @@ mod tests {
         let result = draw_detections(&image, 640, 640, &detections);
         assert!(result.is_ok());
 
-        let annotated = result.unwrap();
+        let annotated = result.expect("annotated should be valid");
         assert_eq!(annotated.len(), image.len());
     }
 
@@ -646,7 +654,7 @@ mod tests {
         let output = ArrayD::<f32>::zeros(vec![1, 100, 85]);
         let result = decode_yolov5_output(&output, 0.25, 0.45, 80, false, 300);
         assert!(result.is_ok());
-        let detections = result.unwrap();
+        let detections = result.expect("detections should be valid");
         assert!(detections.is_empty());
     }
 
@@ -656,7 +664,7 @@ mod tests {
         let output = ArrayD::<f32>::zeros(vec![1, 84, 100]);
         let result = decode_yolov8_output(&output, 0.25, 0.45, 80, false, 300);
         assert!(result.is_ok());
-        let detections = result.unwrap();
+        let detections = result.expect("detections should be valid");
         assert!(detections.is_empty());
     }
 
@@ -679,10 +687,11 @@ mod tests {
         data[base + 5] = 0.95; // class 0 score
         data[base + 6] = 0.1; // class 1 score
 
-        let output = ArrayD::from_shape_vec(vec![1, num_predictions, num_values], data).unwrap();
+        let output = ArrayD::from_shape_vec(vec![1, num_predictions, num_values], data)
+            .expect("from_shape_vec should succeed");
         let result = decode_yolov5_output(&output, 0.5, 0.45, num_classes, false, 300);
         assert!(result.is_ok());
-        let detections = result.unwrap();
+        let detections = result.expect("detections should be valid");
         assert!(!detections.is_empty(), "Should find at least one detection");
         assert_eq!(detections[0].class_id, 0);
     }
@@ -721,7 +730,8 @@ mod tests {
     fn test_letterbox_preserves_aspect_ratio() {
         // A 1600x900 image letterboxed to 640x640
         let image = vec![0u8; 1600 * 900 * 3];
-        let (_, params) = letterbox_resize(&image, 1600, 900, 640, 640).unwrap();
+        let (_, params) =
+            letterbox_resize(&image, 1600, 900, 640, 640).expect("letterbox_resize should succeed");
         // Width should be the constraining dimension
         // scale = min(640/1600, 640/900) = min(0.4, 0.711) = 0.4
         assert!((params.scale - 0.4).abs() < 0.001);
@@ -735,7 +745,8 @@ mod tests {
     fn test_letterbox_resize_square_input() {
         // Square input to square target: scale = 1.0 (well, 640/640=1.0)
         let image = vec![100u8; 640 * 640 * 3];
-        let (resized, params) = letterbox_resize(&image, 640, 640, 640, 640).unwrap();
+        let (resized, params) =
+            letterbox_resize(&image, 640, 640, 640, 640).expect("letterbox_resize should succeed");
         assert_eq!(resized.len(), 640 * 640 * 3);
         assert!((params.scale - 1.0).abs() < 0.001);
         assert_eq!(params.pad_left, 0);
@@ -752,7 +763,7 @@ mod tests {
         ];
         let result = draw_detections(&image, 320, 240, &detections);
         assert!(result.is_ok());
-        let annotated = result.unwrap();
+        let annotated = result.expect("annotated should be valid");
         assert_eq!(annotated.len(), 320 * 240 * 3);
     }
 }

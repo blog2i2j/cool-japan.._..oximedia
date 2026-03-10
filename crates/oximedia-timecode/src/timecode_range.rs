@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn test_new_valid() {
-        let r = TimecodeRange::new(10, 20).unwrap();
+        let r = TimecodeRange::new(10, 20).expect("valid timecode range");
         assert_eq!(r.start, 10);
         assert_eq!(r.end, 20);
     }
@@ -126,19 +126,19 @@ mod tests {
 
     #[test]
     fn test_new_same_start_end() {
-        let r = TimecodeRange::new(5, 5).unwrap();
+        let r = TimecodeRange::new(5, 5).expect("valid timecode range");
         assert_eq!(r.duration_frames(), 1);
     }
 
     #[test]
     fn test_duration_frames() {
-        let r = TimecodeRange::new(0, 24).unwrap();
+        let r = TimecodeRange::new(0, 24).expect("valid timecode range");
         assert_eq!(r.duration_frames(), 25);
     }
 
     #[test]
     fn test_contains_frame_inside() {
-        let r = TimecodeRange::new(10, 20).unwrap();
+        let r = TimecodeRange::new(10, 20).expect("valid timecode range");
         assert!(r.contains_frame(10));
         assert!(r.contains_frame(15));
         assert!(r.contains_frame(20));
@@ -146,39 +146,39 @@ mod tests {
 
     #[test]
     fn test_contains_frame_outside() {
-        let r = TimecodeRange::new(10, 20).unwrap();
+        let r = TimecodeRange::new(10, 20).expect("valid timecode range");
         assert!(!r.contains_frame(9));
         assert!(!r.contains_frame(21));
     }
 
     #[test]
     fn test_overlaps_true() {
-        let a = TimecodeRange::new(0, 10).unwrap();
-        let b = TimecodeRange::new(5, 15).unwrap();
+        let a = TimecodeRange::new(0, 10).expect("valid timecode range");
+        let b = TimecodeRange::new(5, 15).expect("valid timecode range");
         assert!(a.overlaps(&b));
         assert!(b.overlaps(&a));
     }
 
     #[test]
     fn test_overlaps_adjacent_no_overlap() {
-        let a = TimecodeRange::new(0, 9).unwrap();
-        let b = TimecodeRange::new(10, 20).unwrap();
+        let a = TimecodeRange::new(0, 9).expect("valid timecode range");
+        let b = TimecodeRange::new(10, 20).expect("valid timecode range");
         // Adjacent but not overlapping (end of a == start of b - 1)
         assert!(!a.overlaps(&b));
     }
 
     #[test]
     fn test_overlaps_touching() {
-        let a = TimecodeRange::new(0, 10).unwrap();
-        let b = TimecodeRange::new(10, 20).unwrap();
+        let a = TimecodeRange::new(0, 10).expect("valid timecode range");
+        let b = TimecodeRange::new(10, 20).expect("valid timecode range");
         // They share frame 10 → overlapping
         assert!(a.overlaps(&b));
     }
 
     #[test]
     fn test_split_at_valid() {
-        let r = TimecodeRange::new(0, 9).unwrap();
-        let (left, right) = r.split_at(4).unwrap();
+        let r = TimecodeRange::new(0, 9).expect("valid timecode range");
+        let (left, right) = r.split_at(4).expect("split should succeed");
         assert_eq!(left.start, 0);
         assert_eq!(left.end, 4);
         assert_eq!(right.start, 5);
@@ -187,7 +187,7 @@ mod tests {
 
     #[test]
     fn test_split_at_boundary_invalid() {
-        let r = TimecodeRange::new(0, 9).unwrap();
+        let r = TimecodeRange::new(0, 9).expect("valid timecode range");
         // Cannot split at the last frame (end = 9)
         assert!(r.split_at(9).is_none());
         // Cannot split before start
@@ -197,17 +197,17 @@ mod tests {
     #[test]
     fn test_list_total_frames() {
         let mut list = TimecodeRangeList::new();
-        list.add(TimecodeRange::new(0, 9).unwrap()); // 10 frames
-        list.add(TimecodeRange::new(20, 24).unwrap()); // 5 frames
+        list.add(TimecodeRange::new(0, 9).expect("valid timecode range")); // 10 frames
+        list.add(TimecodeRange::new(20, 24).expect("valid timecode range")); // 5 frames
         assert_eq!(list.total_frames(), 15);
     }
 
     #[test]
     fn test_list_merge_adjacent() {
         let mut list = TimecodeRangeList::new();
-        list.add(TimecodeRange::new(10, 20).unwrap());
-        list.add(TimecodeRange::new(21, 30).unwrap()); // adjacent → merge
-        list.add(TimecodeRange::new(50, 60).unwrap()); // gap → separate
+        list.add(TimecodeRange::new(10, 20).expect("valid timecode range"));
+        list.add(TimecodeRange::new(21, 30).expect("valid timecode range")); // adjacent → merge
+        list.add(TimecodeRange::new(50, 60).expect("valid timecode range")); // gap → separate
         let merged = list.merge_adjacent();
         let ranges: Vec<_> = merged.iter().cloned().collect();
         assert_eq!(ranges.len(), 2);
@@ -220,8 +220,8 @@ mod tests {
     #[test]
     fn test_list_merge_overlapping() {
         let mut list = TimecodeRangeList::new();
-        list.add(TimecodeRange::new(0, 15).unwrap());
-        list.add(TimecodeRange::new(10, 25).unwrap()); // overlapping → merge
+        list.add(TimecodeRange::new(0, 15).expect("valid timecode range"));
+        list.add(TimecodeRange::new(10, 25).expect("valid timecode range")); // overlapping → merge
         let merged = list.merge_adjacent();
         let ranges: Vec<_> = merged.iter().cloned().collect();
         assert_eq!(ranges.len(), 1);

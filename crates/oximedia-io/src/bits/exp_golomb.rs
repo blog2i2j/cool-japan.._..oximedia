@@ -52,17 +52,17 @@ impl BitReader<'_> {
     /// // ue(0) = 1 (single bit)
     /// let data = [0b10000000];
     /// let mut reader = BitReader::new(&data);
-    /// assert_eq!(reader.read_exp_golomb().unwrap(), 0);
+    /// assert_eq!(reader.read_exp_golomb()?, 0);
     ///
     /// // ue(1) = 010
     /// let data = [0b01000000];
     /// let mut reader = BitReader::new(&data);
-    /// assert_eq!(reader.read_exp_golomb().unwrap(), 1);
+    /// assert_eq!(reader.read_exp_golomb()?, 1);
     ///
     /// // ue(2) = 011
     /// let data = [0b01100000];
     /// let mut reader = BitReader::new(&data);
-    /// assert_eq!(reader.read_exp_golomb().unwrap(), 2);
+    /// assert_eq!(reader.read_exp_golomb()?, 2);
     /// ```
     pub fn read_exp_golomb(&mut self) -> OxiResult<u64> {
         // Count leading zeros
@@ -110,17 +110,17 @@ impl BitReader<'_> {
     /// // se(0) = 1 -> value 0
     /// let data = [0b10000000];
     /// let mut reader = BitReader::new(&data);
-    /// assert_eq!(reader.read_signed_exp_golomb().unwrap(), 0);
+    /// assert_eq!(reader.read_signed_exp_golomb()?, 0);
     ///
     /// // se(+1) = 010 -> value 1
     /// let data = [0b01000000];
     /// let mut reader = BitReader::new(&data);
-    /// assert_eq!(reader.read_signed_exp_golomb().unwrap(), 1);
+    /// assert_eq!(reader.read_signed_exp_golomb()?, 1);
     ///
     /// // se(-1) = 011 -> value 2
     /// let data = [0b01100000];
     /// let mut reader = BitReader::new(&data);
-    /// assert_eq!(reader.read_signed_exp_golomb().unwrap(), -1);
+    /// assert_eq!(reader.read_signed_exp_golomb()?, -1);
     /// ```
     #[allow(clippy::cast_possible_wrap)]
     pub fn read_signed_exp_golomb(&mut self) -> OxiResult<i64> {
@@ -173,7 +173,12 @@ mod tests {
         // ue(0) = 1
         let data = [0b10000000];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_exp_golomb().unwrap(), 0);
+        assert_eq!(
+            reader
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            0
+        );
         assert_eq!(reader.bits_read(), 1);
     }
 
@@ -182,7 +187,12 @@ mod tests {
         // ue(1) = 010
         let data = [0b01000000];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_exp_golomb().unwrap(), 1);
+        assert_eq!(
+            reader
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            1
+        );
         assert_eq!(reader.bits_read(), 3);
     }
 
@@ -191,7 +201,12 @@ mod tests {
         // ue(2) = 011
         let data = [0b01100000];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_exp_golomb().unwrap(), 2);
+        assert_eq!(
+            reader
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            2
+        );
         assert_eq!(reader.bits_read(), 3);
     }
 
@@ -200,7 +215,12 @@ mod tests {
         // ue(3) = 00100
         let data = [0b00100000];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_exp_golomb().unwrap(), 3);
+        assert_eq!(
+            reader
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            3
+        );
         assert_eq!(reader.bits_read(), 5);
     }
 
@@ -209,7 +229,12 @@ mod tests {
         // ue(4) = 00101
         let data = [0b00101000];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_exp_golomb().unwrap(), 4);
+        assert_eq!(
+            reader
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            4
+        );
         assert_eq!(reader.bits_read(), 5);
     }
 
@@ -218,7 +243,12 @@ mod tests {
         // ue(5) = 00110
         let data = [0b00110000];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_exp_golomb().unwrap(), 5);
+        assert_eq!(
+            reader
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            5
+        );
         assert_eq!(reader.bits_read(), 5);
     }
 
@@ -227,7 +257,12 @@ mod tests {
         // ue(6) = 00111
         let data = [0b00111000];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_exp_golomb().unwrap(), 6);
+        assert_eq!(
+            reader
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            6
+        );
         assert_eq!(reader.bits_read(), 5);
     }
 
@@ -236,7 +271,12 @@ mod tests {
         // ue(7) = 0001000
         let data = [0b00010000];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_exp_golomb().unwrap(), 7);
+        assert_eq!(
+            reader
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            7
+        );
         assert_eq!(reader.bits_read(), 7);
     }
 
@@ -245,7 +285,12 @@ mod tests {
         // ue(14) = 0001111
         let data = [0b00011110];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_exp_golomb().unwrap(), 14);
+        assert_eq!(
+            reader
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            14
+        );
     }
 
     #[test]
@@ -253,7 +298,12 @@ mod tests {
         // se(0) = ue(0) = 1
         let data = [0b10000000];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_signed_exp_golomb().unwrap(), 0);
+        assert_eq!(
+            reader
+                .read_signed_exp_golomb()
+                .expect("read_signed_exp_golomb should succeed"),
+            0
+        );
     }
 
     #[test]
@@ -261,7 +311,12 @@ mod tests {
         // se(+1) = ue(1) = 010
         let data = [0b01000000];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_signed_exp_golomb().unwrap(), 1);
+        assert_eq!(
+            reader
+                .read_signed_exp_golomb()
+                .expect("read_signed_exp_golomb should succeed"),
+            1
+        );
     }
 
     #[test]
@@ -269,7 +324,12 @@ mod tests {
         // se(-1) = ue(2) = 011
         let data = [0b01100000];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_signed_exp_golomb().unwrap(), -1);
+        assert_eq!(
+            reader
+                .read_signed_exp_golomb()
+                .expect("read_signed_exp_golomb should succeed"),
+            -1
+        );
     }
 
     #[test]
@@ -277,7 +337,12 @@ mod tests {
         // se(+2) = ue(3) = 00100
         let data = [0b00100000];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_signed_exp_golomb().unwrap(), 2);
+        assert_eq!(
+            reader
+                .read_signed_exp_golomb()
+                .expect("read_signed_exp_golomb should succeed"),
+            2
+        );
     }
 
     #[test]
@@ -285,7 +350,12 @@ mod tests {
         // se(-2) = ue(4) = 00101
         let data = [0b00101000];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_signed_exp_golomb().unwrap(), -2);
+        assert_eq!(
+            reader
+                .read_signed_exp_golomb()
+                .expect("read_signed_exp_golomb should succeed"),
+            -2
+        );
     }
 
     #[test]
@@ -313,22 +383,32 @@ mod tests {
         // Two values: ue(0)=1 and ue(1)=010 packed together
         let data = [0b10100000];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_exp_golomb().unwrap(), 0);
-        assert_eq!(reader.read_exp_golomb().unwrap(), 1);
+        assert_eq!(
+            reader
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            0
+        );
+        assert_eq!(
+            reader
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            1
+        );
     }
 
     #[test]
     fn test_read_ue_alias() {
         let data = [0b01000000];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_ue().unwrap(), 1);
+        assert_eq!(reader.read_ue().expect("read_ue should succeed"), 1);
     }
 
     #[test]
     fn test_read_se_alias() {
         let data = [0b01100000];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_se().unwrap(), -1);
+        assert_eq!(reader.read_se().expect("read_se should succeed"), -1);
     }
 
     #[test]
@@ -348,12 +428,22 @@ mod tests {
         // ue(14) = 0001111 (3 leading zeros, suffix=111)
         let data = [0b00011110];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_exp_golomb().unwrap(), 14);
+        assert_eq!(
+            reader
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            14
+        );
 
         // ue(30) = 00011111 (3 leading zeros, suffix = 111)
         let data = [0b00011111];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_exp_golomb().unwrap(), 14);
+        assert_eq!(
+            reader
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            14
+        );
     }
 
     #[test]
@@ -361,10 +451,30 @@ mod tests {
         // Multiple ue(0) values in a row
         let data = [0b11110000]; // Four ue(0) values
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_exp_golomb().unwrap(), 0);
-        assert_eq!(reader.read_exp_golomb().unwrap(), 0);
-        assert_eq!(reader.read_exp_golomb().unwrap(), 0);
-        assert_eq!(reader.read_exp_golomb().unwrap(), 0);
+        assert_eq!(
+            reader
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            0
+        );
+        assert_eq!(
+            reader
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            0
+        );
+        assert_eq!(
+            reader
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            0
+        );
+        assert_eq!(
+            reader
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            0
+        );
     }
 
     #[test]
@@ -383,7 +493,12 @@ mod tests {
         for (data_byte, expected) in test_cases {
             let data = [data_byte];
             let mut reader = BitReader::new(&data);
-            assert_eq!(reader.read_signed_exp_golomb().unwrap(), expected);
+            assert_eq!(
+                reader
+                    .read_signed_exp_golomb()
+                    .expect("read_signed_exp_golomb should succeed"),
+                expected
+            );
         }
     }
 
@@ -394,13 +509,23 @@ mod tests {
         // Binary: 0001010
         let data = [0b00010100];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_signed_exp_golomb().unwrap(), 5);
+        assert_eq!(
+            reader
+                .read_signed_exp_golomb()
+                .expect("read_signed_exp_golomb should succeed"),
+            5
+        );
 
         // se(-5) = ue(10) = 0001011 (3 leading zeros, suffix=011)
         // Binary: 0001011
         let data = [0b00010110];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_signed_exp_golomb().unwrap(), -5);
+        assert_eq!(
+            reader
+                .read_signed_exp_golomb()
+                .expect("read_signed_exp_golomb should succeed"),
+            -5
+        );
     }
 
     #[test]
@@ -409,9 +534,14 @@ mod tests {
         let data = [0b11100000]; // flag(1), flag(1), ue(0)=1, ...
         let mut reader = BitReader::new(&data);
 
-        assert!(reader.read_flag().unwrap());
-        assert!(reader.read_flag().unwrap());
-        assert_eq!(reader.read_exp_golomb().unwrap(), 0);
+        assert!(reader.read_flag().expect("read_flag should succeed"));
+        assert!(reader.read_flag().expect("read_flag should succeed"));
+        assert_eq!(
+            reader
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            0
+        );
     }
 
     #[test]
@@ -439,7 +569,12 @@ mod tests {
         // Binary: 0001011
         let data = [0b00010110];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_exp_golomb().unwrap(), 10);
+        assert_eq!(
+            reader
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            10
+        );
     }
 
     #[test]
@@ -447,7 +582,7 @@ mod tests {
         // Ensure se(0) maps correctly from ue(0)
         let data = [0b10000000];
         let mut reader = BitReader::new(&data);
-        let value = reader.read_se().unwrap();
+        let value = reader.read_se().expect("read_se should succeed");
         assert_eq!(value, 0);
     }
 
@@ -461,9 +596,9 @@ mod tests {
         ];
         let mut reader = BitReader::new(&data);
 
-        assert_eq!(reader.read_se().unwrap(), 1);
-        assert_eq!(reader.read_se().unwrap(), -1);
-        assert_eq!(reader.read_se().unwrap(), 2);
+        assert_eq!(reader.read_se().expect("read_se should succeed"), 1);
+        assert_eq!(reader.read_se().expect("read_se should succeed"), -1);
+        assert_eq!(reader.read_se().expect("read_se should succeed"), 2);
     }
 
     #[test]
@@ -472,11 +607,21 @@ mod tests {
         let data = [0b01000000, 0b01100000];
         let mut reader = BitReader::new(&data);
 
-        let ue_val = reader.read_ue().unwrap();
-        let se_val = reader.read_se().unwrap();
+        let ue_val = reader.read_ue().expect("read_ue should succeed");
+        let se_val = reader.read_se().expect("read_se should succeed");
 
         let mut reader2 = BitReader::new(&data);
-        assert_eq!(reader2.read_exp_golomb().unwrap(), ue_val);
-        assert_eq!(reader2.read_signed_exp_golomb().unwrap(), se_val);
+        assert_eq!(
+            reader2
+                .read_exp_golomb()
+                .expect("read_exp_golomb should succeed"),
+            ue_val
+        );
+        assert_eq!(
+            reader2
+                .read_signed_exp_golomb()
+                .expect("read_signed_exp_golomb should succeed"),
+            se_val
+        );
     }
 }

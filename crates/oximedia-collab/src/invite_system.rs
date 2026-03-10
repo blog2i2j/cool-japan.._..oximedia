@@ -379,17 +379,31 @@ mod tests {
     fn test_issue_and_send() {
         let mut sys = InviteSystem::new();
         let tok = sys.issue("sess1", "alice", InviteRole::Editor, 0, None);
-        assert_eq!(sys.get(&tok).unwrap().status, InviteStatus::Pending);
-        sys.send(&tok).unwrap();
-        assert_eq!(sys.get(&tok).unwrap().status, InviteStatus::Sent);
+        assert_eq!(
+            sys.get(&tok)
+                .expect("collab test operation should succeed")
+                .status,
+            InviteStatus::Pending
+        );
+        sys.send(&tok)
+            .expect("collab test operation should succeed");
+        assert_eq!(
+            sys.get(&tok)
+                .expect("collab test operation should succeed")
+                .status,
+            InviteStatus::Sent
+        );
     }
 
     #[test]
     fn test_accept_returns_role() {
         let mut sys = InviteSystem::new();
         let tok = sys.issue("sess2", "bob", InviteRole::Viewer, 0, None);
-        sys.send(&tok).unwrap();
-        let role = sys.accept(&tok, 1).unwrap();
+        sys.send(&tok)
+            .expect("collab test operation should succeed");
+        let role = sys
+            .accept(&tok, 1)
+            .expect("collab test operation should succeed");
         assert_eq!(role, InviteRole::Viewer);
         assert_eq!(sys.accepted_count(), 1);
     }
@@ -398,7 +412,8 @@ mod tests {
     fn test_accept_expired_invite() {
         let mut sys = InviteSystem::new();
         let tok = sys.issue("sess3", "charlie", InviteRole::Editor, 0, Some(100));
-        sys.send(&tok).unwrap();
+        sys.send(&tok)
+            .expect("collab test operation should succeed");
         let err = sys.accept(&tok, 200).unwrap_err();
         assert_eq!(err, InviteError::Expired);
     }
@@ -407,25 +422,40 @@ mod tests {
     fn test_decline() {
         let mut sys = InviteSystem::new();
         let tok = sys.issue("sess4", "dave", InviteRole::Commenter, 0, None);
-        sys.send(&tok).unwrap();
-        sys.decline(&tok, 0).unwrap();
-        assert_eq!(sys.get(&tok).unwrap().status, InviteStatus::Declined);
+        sys.send(&tok)
+            .expect("collab test operation should succeed");
+        sys.decline(&tok, 0)
+            .expect("collab test operation should succeed");
+        assert_eq!(
+            sys.get(&tok)
+                .expect("collab test operation should succeed")
+                .status,
+            InviteStatus::Declined
+        );
     }
 
     #[test]
     fn test_revoke() {
         let mut sys = InviteSystem::new();
         let tok = sys.issue("sess5", "eve", InviteRole::Editor, 0, None);
-        sys.revoke(&tok).unwrap();
-        assert_eq!(sys.get(&tok).unwrap().status, InviteStatus::Revoked);
+        sys.revoke(&tok)
+            .expect("collab test operation should succeed");
+        assert_eq!(
+            sys.get(&tok)
+                .expect("collab test operation should succeed")
+                .status,
+            InviteStatus::Revoked
+        );
     }
 
     #[test]
     fn test_revoke_terminal_state_fails() {
         let mut sys = InviteSystem::new();
         let tok = sys.issue("sess6", "frank", InviteRole::Viewer, 0, None);
-        sys.send(&tok).unwrap();
-        sys.accept(&tok, 0).unwrap();
+        sys.send(&tok)
+            .expect("collab test operation should succeed");
+        sys.accept(&tok, 0)
+            .expect("collab test operation should succeed");
         let err = sys.revoke(&tok).unwrap_err();
         assert!(matches!(err, InviteError::InvalidState(_)));
     }
@@ -435,12 +465,24 @@ mod tests {
         let mut sys = InviteSystem::new();
         let tok1 = sys.issue("s", "u1", InviteRole::Editor, 0, Some(50));
         let tok2 = sys.issue("s", "u2", InviteRole::Editor, 0, Some(200));
-        sys.send(&tok1).unwrap();
-        sys.send(&tok2).unwrap();
+        sys.send(&tok1)
+            .expect("collab test operation should succeed");
+        sys.send(&tok2)
+            .expect("collab test operation should succeed");
         let expired = sys.expire_stale(100);
         assert_eq!(expired, 1);
-        assert_eq!(sys.get(&tok1).unwrap().status, InviteStatus::Expired);
-        assert_eq!(sys.get(&tok2).unwrap().status, InviteStatus::Sent);
+        assert_eq!(
+            sys.get(&tok1)
+                .expect("collab test operation should succeed")
+                .status,
+            InviteStatus::Expired
+        );
+        assert_eq!(
+            sys.get(&tok2)
+                .expect("collab test operation should succeed")
+                .status,
+            InviteStatus::Sent
+        );
     }
 
     #[test]
@@ -448,9 +490,11 @@ mod tests {
         let mut sys = InviteSystem::new();
         let tok = sys.issue("s", "u", InviteRole::Viewer, 0, None);
         assert_eq!(sys.pending_count(), 1); // Pending is actionable
-        sys.send(&tok).unwrap();
+        sys.send(&tok)
+            .expect("collab test operation should succeed");
         assert_eq!(sys.pending_count(), 1); // Sent is also actionable
-        sys.accept(&tok, 0).unwrap();
+        sys.accept(&tok, 0)
+            .expect("collab test operation should succeed");
         assert_eq!(sys.pending_count(), 0);
     }
 

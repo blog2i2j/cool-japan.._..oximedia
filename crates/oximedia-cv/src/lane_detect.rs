@@ -381,7 +381,7 @@ mod tests {
         // x = (rho - y*sin) / cos = (50 - 0) / 1 = 50
         let val = line.x_at_y(100.0);
         assert!(val.is_some());
-        assert!((val.unwrap() - 50.0).abs() < 1e-9);
+        assert!((val.expect("value should be valid") - 50.0).abs() < 1e-9);
     }
 
     #[test]

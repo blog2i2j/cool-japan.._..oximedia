@@ -547,7 +547,7 @@ mod tests {
         let mut claims = TokenClaims::new("bob", "show-1", 0, 9999);
         claims.allowed_ips = vec!["127.0.0.1".to_string()];
         let jwt = JwtLike::encode(&claims);
-        let decoded = JwtLike::decode(&jwt).unwrap();
+        let decoded = JwtLike::decode(&jwt).expect("operation should succeed");
         assert!(decoded.allowed_ips.contains(&"127.0.0.1".to_string()));
     }
 
@@ -556,7 +556,7 @@ mod tests {
         let mut claims = TokenClaims::new("carol", "vid-5", 100, 200);
         claims.max_plays = Some(3);
         let jwt = JwtLike::encode(&claims);
-        let decoded = JwtLike::decode(&jwt).unwrap();
+        let decoded = JwtLike::decode(&jwt).expect("operation should succeed");
         assert_eq!(decoded.max_plays, Some(3));
     }
 
@@ -564,7 +564,7 @@ mod tests {
     fn test_jwt_like_encode_decode_no_max_plays() {
         let claims = TokenClaims::new("dan", "doc-7", 0, 1000);
         let jwt = JwtLike::encode(&claims);
-        let decoded = JwtLike::decode(&jwt).unwrap();
+        let decoded = JwtLike::decode(&jwt).expect("operation should succeed");
         assert_eq!(decoded.max_plays, None);
     }
 

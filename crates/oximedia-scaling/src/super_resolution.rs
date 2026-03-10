@@ -42,16 +42,26 @@ impl Default for SrConfig {
     }
 }
 
-/// Edge-preserving upscaler using Sobel-based blending.
+/// Edge-preserving upscaler using edge-directed interpolation (EDI) with
+/// Sobel guidance and unsharp masking.
 pub struct EdgePreservingUpscaler;
 
 impl EdgePreservingUpscaler {
-    /// Upscale a single-channel image by an integer `scale` factor.
+    /// Upscale a single-channel image by an integer `scale` factor using a
+    /// classical edge-guided super-resolution pipeline:
     ///
-    /// Uses a 2-pass approach:
-    /// 1. Bicubic upscale for smooth regions.
-    /// 2. Sobel edge detection on the source to guide sharpening.
-    /// 3. Blend between bicubic and edge-interpolated output.
+    /// 1. **Bicubic upscale** to target size.
+    /// 2. **Edge-directed interpolation (EDI)**: at each pixel compute the
+    ///    horizontal gradient magnitude |Gx| and vertical magnitude |Gy| from
+    ///    Sobel kernels on the upscaled image.  Where |Gx| > |Gy| (strong
+    ///    horizontal gradient → vertical edge) prefer horizontal-neighbour
+    ///    averaging to preserve the edge.  At low-gradient pixels the bicubic
+    ///    value is kept unchanged.
+    /// 3. **Unsharp mask** (radius 1, strength 0.5) to recover edge sharpness
+    ///    lost during upscaling.
+    ///
+    /// The `NeuralStub` variant in `SrAlgorithm` falls through to this
+    /// implementation since no inference engine is available at compile time.
     #[must_use]
     #[allow(dead_code)]
     pub fn upscale(src: &[f32], src_w: u32, src_h: u32, scale: u32) -> Vec<f32> {
@@ -64,33 +74,94 @@ impl EdgePreservingUpscaler {
         let sh = src_h as usize;
         let dw = dst_w as usize;
         let dh = dst_h as usize;
-        let s = scale as usize;
 
-        // Step 1: bilinear upscale as base
-        let mut bicubic = bicubic_upscale(src, sw, sh, dw, dh);
+        // ------------------------------------------------------------------ //
+        // Pass 1: bicubic upscale as base.
+        // ------------------------------------------------------------------ //
+        let bicubic = bicubic_upscale(src, sw, sh, dw, dh);
 
-        // Step 2: compute edge map on source
-        let edge_map = compute_sobel_edges(src, sw, sh);
+        // ------------------------------------------------------------------ //
+        // Pass 2: edge-directed interpolation on the bicubic output.
+        // ------------------------------------------------------------------ //
+        let edi = edge_directed_interpolation(&bicubic, dw, dh);
 
-        // Step 3: blend - in high-edge regions, use crisper interpolation
-        for dy in 0..dh {
-            for dx in 0..dw {
-                let sy = (dy / s).min(sh - 1);
-                let sx = (dx / s).min(sw - 1);
-                let edge_strength = edge_map[sy * sw + sx].min(1.0);
-
-                if edge_strength > 0.1 {
-                    // Compute edge-guided interpolation (nearest neighbor for crispness)
-                    let nearest = src[sy * sw + sx];
-                    let blended = bicubic[dy * dw + dx] * (1.0 - edge_strength * 0.5)
-                        + nearest * edge_strength * 0.5;
-                    bicubic[dy * dw + dx] = blended;
-                }
-            }
-        }
-
-        bicubic
+        // ------------------------------------------------------------------ //
+        // Pass 3: unsharp mask to recover sharpness.
+        // ------------------------------------------------------------------ //
+        unsharp_mask(&edi, dw, dh, 0.5)
     }
+}
+
+/// Edge-directed interpolation (EDI) on an already-upscaled image.
+///
+/// For each pixel computes the horizontal (|Gx|) and vertical (|Gy|) Sobel
+/// gradient magnitudes.
+///
+/// * **Strong vertical edge** (|Gx| > |Gy|): replace the pixel with the
+///   average of its left and right horizontal neighbours.  This smooths along
+///   the edge direction while preserving the edge itself.
+/// * **Otherwise**: keep the bicubic value as-is.
+///
+/// Interior pixels only — border pixels are copied unchanged.
+#[allow(dead_code)]
+fn edge_directed_interpolation(src: &[f32], w: usize, h: usize) -> Vec<f32> {
+    let mut out = src.to_vec();
+
+    for y in 1..h.saturating_sub(1) {
+        for x in 1..w.saturating_sub(1) {
+            // 3×3 neighbourhood.
+            let tl = src[(y - 1) * w + (x - 1)];
+            let tc = src[(y - 1) * w + x];
+            let tr = src[(y - 1) * w + (x + 1)];
+            let ml = src[y * w + (x - 1)];
+            let mr = src[y * w + (x + 1)];
+            let bl = src[(y + 1) * w + (x - 1)];
+            let bc = src[(y + 1) * w + x];
+            let br = src[(y + 1) * w + (x + 1)];
+
+            // Sobel Gx and Gy magnitudes.
+            let gx = (-tl - 2.0 * ml - bl + tr + 2.0 * mr + br).abs();
+            let gy = (-tl - 2.0 * tc - tr + bl + 2.0 * bc + br).abs();
+
+            if gx > gy {
+                // Vertical edge: smooth horizontally (preserve the edge).
+                out[y * w + x] = (ml + mr) * 0.5;
+            }
+            // else: keep bicubic value
+        }
+    }
+
+    out
+}
+
+/// Apply a simple unsharp mask with a 3×3 box blur and the given `strength`.
+///
+/// `output = clamp(src + strength × (src − blur))` where blur is a 3×3 box
+/// average.  `strength` = 0.5 recovers moderate sharpness without ringing.
+#[allow(dead_code)]
+fn unsharp_mask(src: &[f32], w: usize, h: usize, strength: f32) -> Vec<f32> {
+    // 3×3 box blur.
+    let mut blur = src.to_vec();
+    for y in 1..h.saturating_sub(1) {
+        for x in 1..w.saturating_sub(1) {
+            let sum = src[(y - 1) * w + (x - 1)]
+                + src[(y - 1) * w + x]
+                + src[(y - 1) * w + (x + 1)]
+                + src[y * w + (x - 1)]
+                + src[y * w + x]
+                + src[y * w + (x + 1)]
+                + src[(y + 1) * w + (x - 1)]
+                + src[(y + 1) * w + x]
+                + src[(y + 1) * w + (x + 1)];
+            blur[y * w + x] = sum / 9.0;
+        }
+    }
+
+    // Unsharp mask: original + strength × (original − blurred).
+    src.iter()
+        .zip(blur.iter())
+        .map(|(&s, &b)| (s + strength * (s - b)).clamp(0.0, 1.0))
+        .collect()
 }
 
 /// Bicubic upscale using cubic Hermite spline.

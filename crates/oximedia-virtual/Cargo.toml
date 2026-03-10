@@ -13,7 +13,6 @@ workspace = true
 
 [dependencies]
 thiserror = { workspace = true }
-nalgebra = { version = "0.33", features = ["serde-serialize"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 

@@ -31,9 +31,11 @@ fn system_metrics_no_disk_config(dir: &tempfile::TempDir) -> MonitorConfig {
 
 #[tokio::test]
 async fn test_monitor_lifecycle() {
-    let dir = tempdir().unwrap();
-    let monitor = OximediaMonitor::new(fast_config(&dir)).await.unwrap();
-    monitor.start().await.unwrap();
+    let dir = tempdir().expect("dir should be valid");
+    let monitor = OximediaMonitor::new(fast_config(&dir))
+        .await
+        .expect("monitor should be valid");
+    monitor.start().await.expect("test expectation failed");
     assert!(monitor.metrics_collector().is_running().await);
 
     monitor.stop().await;
@@ -48,22 +50,27 @@ async fn test_system_metrics_collection() {
     // many app-wrapper mounts the CoreFoundation disk-property queries take
     // 15-20 s per call, which would make the entire test suite impractically
     // slow.  Disk-specific behaviour is covered by the collector unit tests.
-    let dir = tempdir().unwrap();
+    let dir = tempdir().expect("dir should be valid");
     let monitor = OximediaMonitor::new(system_metrics_no_disk_config(&dir))
         .await
-        .unwrap();
-    let metrics = monitor.system_metrics().await.unwrap();
+        .expect("test expectation failed");
+    let metrics = monitor
+        .system_metrics()
+        .await
+        .expect("metrics should be valid");
     assert!(metrics.is_some());
 
-    let m = metrics.unwrap();
+    let m = metrics.expect("m should be valid");
     assert!(m.cpu.cpu_count > 0);
     assert!(m.memory.total > 0);
 }
 
 #[tokio::test]
 async fn test_application_metrics_initial_state() {
-    let dir = tempdir().unwrap();
-    let monitor = OximediaMonitor::new(fast_config(&dir)).await.unwrap();
+    let dir = tempdir().expect("dir should be valid");
+    let monitor = OximediaMonitor::new(fast_config(&dir))
+        .await
+        .expect("monitor should be valid");
     let metrics = monitor.application_metrics();
     assert_eq!(metrics.encoding.total_frames, 0);
     assert_eq!(metrics.jobs.completed, 0);
@@ -71,8 +78,10 @@ async fn test_application_metrics_initial_state() {
 
 #[tokio::test]
 async fn test_quality_metrics_initial_state() {
-    let dir = tempdir().unwrap();
-    let monitor = OximediaMonitor::new(fast_config(&dir)).await.unwrap();
+    let dir = tempdir().expect("dir should be valid");
+    let monitor = OximediaMonitor::new(fast_config(&dir))
+        .await
+        .expect("monitor should be valid");
     let metrics = monitor.quality_metrics();
     assert_eq!(metrics.bitrate.video_bitrate_bps, 0);
     assert!(metrics.scores.psnr.is_none());
@@ -80,8 +89,10 @@ async fn test_quality_metrics_initial_state() {
 
 #[tokio::test]
 async fn test_encoding_metrics_tracking() {
-    let dir = tempdir().unwrap();
-    let monitor = OximediaMonitor::new(fast_config(&dir)).await.unwrap();
+    let dir = tempdir().expect("dir should be valid");
+    let monitor = OximediaMonitor::new(fast_config(&dir))
+        .await
+        .expect("monitor should be valid");
     let tracker = monitor.metrics_collector().application_tracker();
     tracker.record_frame_encoded(16.67);
     tracker.record_frame_encoded(16.67);
@@ -94,8 +105,10 @@ async fn test_encoding_metrics_tracking() {
 
 #[tokio::test]
 async fn test_quality_metrics_tracking() {
-    let dir = tempdir().unwrap();
-    let monitor = OximediaMonitor::new(fast_config(&dir)).await.unwrap();
+    let dir = tempdir().expect("dir should be valid");
+    let monitor = OximediaMonitor::new(fast_config(&dir))
+        .await
+        .expect("monitor should be valid");
     let tracker = monitor.metrics_collector().quality_tracker();
     tracker.update_bitrate(5_000_000, 128_000);
     tracker.update_scores(Some(40.0), Some(0.99), Some(92.0));
@@ -109,8 +122,10 @@ async fn test_quality_metrics_tracking() {
 
 #[tokio::test]
 async fn test_alert_manager_present() {
-    let dir = tempdir().unwrap();
-    let monitor = OximediaMonitor::new(fast_config(&dir)).await.unwrap();
+    let dir = tempdir().expect("dir should be valid");
+    let monitor = OximediaMonitor::new(fast_config(&dir))
+        .await
+        .expect("monitor should be valid");
     // Alert manager is created when alerts.enabled == true (the default).
     assert!(monitor.alert_manager().is_some());
 }

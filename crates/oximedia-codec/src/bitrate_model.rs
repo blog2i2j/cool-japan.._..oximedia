@@ -237,7 +237,7 @@ mod tests {
     #[test]
     fn test_estimator_preset_720p30() {
         let est = BitrateModelEstimator::new();
-        let kbps = est.estimate_for_preset("720p30").unwrap();
+        let kbps = est.estimate_for_preset("720p30").expect("should succeed");
         let manual = est.estimate_for_resolution(1280, 720, 30.0);
         assert_eq!(kbps, manual);
     }

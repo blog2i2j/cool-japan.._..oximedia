@@ -220,7 +220,7 @@ impl S3Storage {
                 StorageError::MultipartError(format!("Failed to complete multipart upload: {e}"))
             })?;
 
-        let etag = complete_output.e_tag().unwrap_or("unknown").to_string();
+        let etag = complete_output.e_tag().unwrap_or("unknown").to_string(); // S3 SDK returns None only for non-S3 backends
 
         info!("Multipart upload completed for key: {}", key);
         Ok(etag)
@@ -539,7 +539,7 @@ impl CloudStorage for S3Storage {
         debug!("Uploading stream to key: {}", key);
 
         // Use multipart upload for large files or unknown sizes
-        if size.is_none() || size.unwrap() > MULTIPART_THRESHOLD {
+        if size.map_or(true, |s| s > MULTIPART_THRESHOLD) {
             return self
                 .multipart_upload(key, stream, size.unwrap_or(0), &options)
                 .await;
@@ -766,10 +766,14 @@ impl CloudStorage for S3Storage {
     async fn delete_objects(&self, keys: &[String]) -> Result<Vec<Result<()>>> {
         debug!("Deleting {} objects", keys.len());
 
-        let objects: Vec<ObjectIdentifier> = keys
-            .iter()
-            .map(|k| ObjectIdentifier::builder().key(k).build().unwrap())
-            .collect();
+        let objects: Vec<ObjectIdentifier> =
+            keys.iter()
+                .map(|k| {
+                    ObjectIdentifier::builder().key(k).build().map_err(|e| {
+                        StorageError::InvalidConfig(format!("Invalid object key: {e}"))
+                    })
+                })
+                .collect::<Result<Vec<_>>>()?;
 
         let delete = Delete::builder()
             .set_objects(Some(objects))

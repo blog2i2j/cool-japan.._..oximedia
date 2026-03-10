@@ -255,7 +255,7 @@ mod tests {
     fn test_changeset_apply_insert_only() {
         let mut cs = Changeset::new(author(), 0);
         cs.insert("hello");
-        let result = cs.apply("").unwrap();
+        let result = cs.apply("").expect("collab test operation should succeed");
         assert_eq!(result, "hello");
     }
 
@@ -264,7 +264,7 @@ mod tests {
         let doc = "hello";
         let mut cs = Changeset::new(author(), doc.len());
         cs.retain(doc.len());
-        let result = cs.apply(doc).unwrap();
+        let result = cs.apply(doc).expect("collab test operation should succeed");
         assert_eq!(result, "hello");
     }
 
@@ -273,7 +273,7 @@ mod tests {
         let doc = "hello";
         let mut cs = Changeset::new(author(), doc.len());
         cs.delete(doc.len());
-        let result = cs.apply(doc).unwrap();
+        let result = cs.apply(doc).expect("collab test operation should succeed");
         assert_eq!(result, "");
     }
 
@@ -284,7 +284,7 @@ mod tests {
         cs.retain(5); // keep "hello"
         cs.insert("!"); // insert "!"
         cs.delete(6); // delete " world"
-        let result = cs.apply(doc).unwrap();
+        let result = cs.apply(doc).expect("collab test operation should succeed");
         assert_eq!(result, "hello!");
     }
 
@@ -363,7 +363,9 @@ mod tests {
         cs2.insert("?");
         history.push(cs2);
 
-        let result = history.replay(initial).unwrap();
+        let result = history
+            .replay(initial)
+            .expect("collab test operation should succeed");
         assert_eq!(result, "abc?");
     }
 
@@ -387,6 +389,12 @@ mod tests {
         let cs = Changeset::new(u, 5);
         let id = cs.id;
         history.push(cs);
-        assert_eq!(history.latest().unwrap().id, id);
+        assert_eq!(
+            history
+                .latest()
+                .expect("collab test operation should succeed")
+                .id,
+            id
+        );
     }
 }

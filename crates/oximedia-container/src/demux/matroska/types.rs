@@ -699,7 +699,7 @@ mod tests {
         info.duration = Some(60000.0); // 60000 ms in default scale
 
         // Duration should be 60 seconds
-        let secs = info.duration_seconds().unwrap();
+        let secs = info.duration_seconds().expect("operation should succeed");
         assert!((secs - 60.0).abs() < 0.001);
     }
 

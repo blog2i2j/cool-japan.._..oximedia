@@ -265,7 +265,7 @@ mod tests {
     #[test]
     fn test_speed_adaptation_nearest() {
         let adapt = SpeedAdaptation::standard();
-        let nearest = adapt.nearest(1.3).unwrap();
+        let nearest = adapt.nearest(1.3).expect("nearest should be valid");
         assert_eq!(nearest.to_percent(), 125);
     }
 

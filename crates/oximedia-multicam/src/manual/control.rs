@@ -343,7 +343,9 @@ mod tests {
     #[test]
     fn test_transition_preview() {
         let mut controller = ManualController::new(ControlMode::PreviewProgram, 0);
-        controller.select_preview(1, 100).unwrap();
+        controller
+            .select_preview(1, 100)
+            .expect("multicam test operation should succeed");
 
         let result = controller.transition_preview(105, 10);
         assert!(result.is_ok());
@@ -353,8 +355,12 @@ mod tests {
     #[test]
     fn test_events_by_type() {
         let mut controller = ManualController::new(ControlMode::Direct, 0);
-        controller.switch_to(1, 100).unwrap();
-        controller.switch_to(2, 200).unwrap();
+        controller
+            .switch_to(1, 100)
+            .expect("multicam test operation should succeed");
+        controller
+            .switch_to(2, 200)
+            .expect("multicam test operation should succeed");
 
         let direct_switches = controller.events_by_type(ControlEventType::DirectSwitch);
         assert_eq!(direct_switches.len(), 2);

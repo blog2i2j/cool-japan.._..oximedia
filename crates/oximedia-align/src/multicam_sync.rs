@@ -348,7 +348,7 @@ mod tests {
         let sig: Vec<f32> = (0..4800).map(|i| (i as f32 * 0.01).sin()).collect();
         syncer.add_stream(SyncStream::audio("ref", sig.clone(), 48_000));
         syncer.add_stream(SyncStream::audio("b", sig, 48_000));
-        let result = syncer.sync_all().unwrap();
+        let result = syncer.sync_all().expect("result should be valid");
         assert!((result.streams[0].offset_ms).abs() < f64::EPSILON);
         assert_eq!(result.streams[0].stream_id, "ref");
     }
@@ -359,7 +359,7 @@ mod tests {
         let sig: Vec<f32> = (0..4800).map(|i| (i as f32 * 0.01).sin()).collect();
         syncer.add_stream(SyncStream::audio("ref", sig.clone(), 48_000));
         syncer.add_stream(SyncStream::audio("b", sig, 48_000));
-        let result = syncer.sync_all().unwrap();
+        let result = syncer.sync_all().expect("result should be valid");
         // Identical signals → offset should be 0
         assert!((result.streams[1].offset_ms).abs() < 1.0);
     }
@@ -442,7 +442,7 @@ mod tests {
         let mut syncer = MulticamSyncer::new(SyncMethod::Timecode);
         syncer.add_stream(SyncStream::with_timecode("ref", "01:00:00:00"));
         syncer.add_stream(SyncStream::with_timecode("b", "01:00:01:00")); // 1 s later
-        let result = syncer.sync_all().unwrap();
+        let result = syncer.sync_all().expect("result should be valid");
         // ref_ms - other_ms = 3_600_000 - 3_601_000 = -1000 ms
         assert!((result.streams[1].offset_ms - (-1000.0)).abs() < 1.0);
     }
@@ -452,7 +452,7 @@ mod tests {
         let mut syncer = MulticamSyncer::new(SyncMethod::AudioCorrelate);
         syncer.add_stream(SyncStream::audio("a", vec![], 48_000));
         syncer.add_stream(SyncStream::audio("b", vec![], 48_000));
-        let result = syncer.sync_all().unwrap();
+        let result = syncer.sync_all().expect("result should be valid");
         assert!((result.streams[1].offset_ms).abs() < f64::EPSILON);
     }
 }

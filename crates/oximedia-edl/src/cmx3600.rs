@@ -206,25 +206,25 @@ mod tests {
 
     #[test]
     fn test_parse_timecode_basic() {
-        let result = parse_cmx_timecode("01:02:03:04").unwrap();
+        let result = parse_cmx_timecode("01:02:03:04").expect("operation should succeed");
         assert_eq!(result, (1, 2, 3, 4));
     }
 
     #[test]
     fn test_parse_timecode_drop_frame_semicolon() {
-        let result = parse_cmx_timecode("01:00:00;00").unwrap();
+        let result = parse_cmx_timecode("01:00:00;00").expect("operation should succeed");
         assert_eq!(result, (1, 0, 0, 0));
     }
 
     #[test]
     fn test_parse_timecode_zero() {
-        let result = parse_cmx_timecode("00:00:00:00").unwrap();
+        let result = parse_cmx_timecode("00:00:00:00").expect("operation should succeed");
         assert_eq!(result, (0, 0, 0, 0));
     }
 
     #[test]
     fn test_parse_timecode_max_values() {
-        let result = parse_cmx_timecode("23:59:59:29").unwrap();
+        let result = parse_cmx_timecode("23:59:59:29").expect("operation should succeed");
         assert_eq!(result, (23, 59, 59, 29));
     }
 
@@ -371,11 +371,11 @@ mod tests {
         let input = "TITLE: RoundTrip\nFCM: NON-DROP FRAME\n\n\
             001  A001     V     C        01:00:00:00 01:00:05:00 01:00:00:00 01:00:05:00\n\
             002  A002     V     C        01:00:05:00 01:00:10:00 01:00:05:00 01:00:10:00\n";
-        let edl = parse_cmx(input).unwrap();
+        let edl = parse_cmx(input).expect("operation should succeed");
         assert_eq!(edl.title.as_deref(), Some("RoundTrip"));
         assert_eq!(edl.event_count(), 2);
         let back = serialize_cmx(&edl);
-        let edl2 = parse_cmx(&back).unwrap();
+        let edl2 = parse_cmx(&back).expect("operation should succeed");
         assert_eq!(edl2.event_count(), 2);
     }
 
@@ -384,7 +384,7 @@ mod tests {
         let input =
             "001  AX       V     C        00:00:00:00 00:00:01:00 00:00:00:00 00:00:01:00\n\
             * FROM CLIP NAME: shot.mov\n";
-        let edl = parse_cmx(input).unwrap();
+        let edl = parse_cmx(input).expect("operation should succeed");
         assert_eq!(edl.event_count(), 1);
     }
 

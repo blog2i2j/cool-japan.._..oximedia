@@ -242,7 +242,7 @@ mod tests {
         let mut reg = CodecCapsRegistry::new();
         reg.register(CodecCaps::new("av1").with_max_resolution(1920, 1080));
         reg.register(CodecCaps::new("av1").with_max_resolution(3840, 2160));
-        let caps = reg.find("av1").unwrap();
+        let caps = reg.find("av1").expect("should succeed");
         assert_eq!(caps.max_width, 3840);
     }
 

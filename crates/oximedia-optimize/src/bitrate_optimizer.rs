@@ -102,9 +102,15 @@ impl RateCurve {
         if self.points.len() == 1 {
             return self.points[0].1;
         }
-        // Find surrounding points
-        let first = self.points.first().unwrap();
-        let last = self.points.last().unwrap();
+        // Find surrounding points (guaranteed non-empty: early-return for len() < 2 above)
+        let first = self
+            .points
+            .first()
+            .expect("points non-empty after length checks");
+        let last = self
+            .points
+            .last()
+            .expect("points non-empty after length checks");
         if qp <= first.0 {
             return first.1;
         }

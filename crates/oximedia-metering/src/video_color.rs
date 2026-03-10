@@ -433,27 +433,28 @@ mod tests {
 
     #[test]
     fn test_gamut_meter() {
-        let mut meter = GamutMeter::new(100, 100, ColorGamut::Rec709).unwrap();
+        let mut meter =
+            GamutMeter::new(100, 100, ColorGamut::Rec709).expect("test expectation failed");
 
         let r = Array2::from_elem((100, 100), 0.5);
         let g = Array2::from_elem((100, 100), 0.5);
         let b = Array2::from_elem((100, 100), 0.5);
 
-        meter.process(&r, &g, &b).unwrap();
+        meter.process(&r, &g, &b).expect("process should succeed");
 
         assert_eq!(meter.gamut_coverage_percentage(), 100.0);
     }
 
     #[test]
     fn test_saturation_meter() {
-        let mut meter = SaturationMeter::new(100, 100, 256).unwrap();
+        let mut meter = SaturationMeter::new(100, 100, 256).expect("test expectation failed");
 
         // Create highly saturated frame (pure red)
         let r = Array2::from_elem((100, 100), 1.0);
         let g = Array2::from_elem((100, 100), 0.0);
         let b = Array2::from_elem((100, 100), 0.0);
 
-        meter.process(&r, &g, &b).unwrap();
+        meter.process(&r, &g, &b).expect("process should succeed");
 
         assert!(meter.is_highly_saturated());
         assert_eq!(meter.max_saturation(), 1.0);
@@ -461,28 +462,28 @@ mod tests {
 
     #[test]
     fn test_desaturated_frame() {
-        let mut meter = SaturationMeter::new(100, 100, 256).unwrap();
+        let mut meter = SaturationMeter::new(100, 100, 256).expect("test expectation failed");
 
         // Create grayscale frame
         let r = Array2::from_elem((100, 100), 0.5);
         let g = Array2::from_elem((100, 100), 0.5);
         let b = Array2::from_elem((100, 100), 0.5);
 
-        meter.process(&r, &g, &b).unwrap();
+        meter.process(&r, &g, &b).expect("process should succeed");
 
         assert!(meter.is_desaturated());
     }
 
     #[test]
     fn test_color_temperature() {
-        let mut meter = ColorTemperatureMeter::new(100, 100).unwrap();
+        let mut meter = ColorTemperatureMeter::new(100, 100).expect("test expectation failed");
 
         // Warm frame (much more red than blue)
         let r = Array2::from_elem((100, 100), 0.9);
         let g = Array2::from_elem((100, 100), 0.5);
         let b = Array2::from_elem((100, 100), 0.2);
 
-        meter.process(&r, &g, &b).unwrap();
+        meter.process(&r, &g, &b).expect("process should succeed");
 
         // The simplified algorithm should detect warmth
         // If this still fails, the temperature is logged for debugging

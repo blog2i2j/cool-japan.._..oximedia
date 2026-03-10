@@ -353,7 +353,8 @@ mod tests {
     #[test]
     fn test_pipeline_cache_creation() {
         let temp_dir = std::env::temp_dir().join("oximedia_cache_test");
-        let cache = PipelineCache::new(&temp_dir, 1024 * 1024).unwrap();
+        let cache = PipelineCache::new(&temp_dir, 1024 * 1024)
+            .expect("pipeline cache creation should succeed");
 
         assert!(cache.is_enabled());
         assert_eq!(cache.entry_count(), 0);
@@ -366,13 +367,14 @@ mod tests {
     #[test]
     fn test_pipeline_cache_put_get() {
         let temp_dir = std::env::temp_dir().join("oximedia_cache_test_2");
-        let cache = PipelineCache::new(&temp_dir, 1024 * 1024).unwrap();
+        let cache = PipelineCache::new(&temp_dir, 1024 * 1024)
+            .expect("pipeline cache creation should succeed");
 
         let key = "test_shader";
         let data = vec![1, 2, 3, 4, 5];
 
-        cache.put(key, &data).unwrap();
-        let retrieved = cache.get(key).unwrap();
+        cache.put(key, &data).expect("cache put should succeed");
+        let retrieved = cache.get(key).expect("cache get should return stored data");
 
         assert_eq!(data, retrieved);
         assert_eq!(cache.entry_count(), 1);
@@ -399,10 +401,15 @@ mod tests {
     #[test]
     fn test_cache_stats() {
         let temp_dir = std::env::temp_dir().join("oximedia_cache_test_3");
-        let cache = PipelineCache::new(&temp_dir, 1024).unwrap();
+        let cache =
+            PipelineCache::new(&temp_dir, 1024).expect("pipeline cache creation should succeed");
 
-        cache.put("key1", &[0u8; 100]).unwrap();
-        cache.put("key2", &[0u8; 200]).unwrap();
+        cache
+            .put("key1", &[0u8; 100])
+            .expect("cache put should succeed");
+        cache
+            .put("key2", &[0u8; 200])
+            .expect("cache put should succeed");
 
         let stats = cache.stats();
         assert_eq!(stats.entry_count, 2);

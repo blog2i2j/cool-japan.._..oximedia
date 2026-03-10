@@ -161,6 +161,7 @@ pub mod switch_list;
 pub mod switcher;
 pub mod sync;
 pub mod sync_report;
+pub mod sync_verify;
 pub mod tally_system;
 pub mod timecode_sync;
 

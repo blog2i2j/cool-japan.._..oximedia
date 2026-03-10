@@ -455,7 +455,9 @@ fn build_pyramid(img: &[u8], width: u32, height: u32, levels: u32) -> Vec<(Vec<u
     pyramid.push((img.to_vec(), width, height));
 
     for _ in 1..levels {
-        let (prev_img, prev_w, prev_h) = pyramid.last().unwrap();
+        let (prev_img, prev_w, prev_h) = pyramid
+            .last()
+            .expect("pyramid is non-empty by construction");
         let new_w = prev_w / 2;
         let new_h = prev_h / 2;
 

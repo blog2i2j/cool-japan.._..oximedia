@@ -139,10 +139,10 @@ mod tests {
                 Timestamp::from_secs(3),
                 "Test".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
-        let data = Exporter::export(&track, CaptionFormat::Srt).unwrap();
-        let text = String::from_utf8(data).unwrap();
+        let data = Exporter::export(&track, CaptionFormat::Srt).expect("export should succeed");
+        let text = String::from_utf8(data).expect("output should be valid UTF-8");
         assert!(text.contains("Test"));
         assert!(text.contains("-->"));
     }
@@ -167,10 +167,11 @@ mod tests {
                 Timestamp::from_secs(3),
                 "Test".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
         let formats = vec![CaptionFormat::Srt, CaptionFormat::WebVtt];
-        let results = Exporter::batch_export(&track, &formats).unwrap();
+        let results =
+            Exporter::batch_export(&track, &formats).expect("batch export should succeed");
         assert_eq!(results.len(), 2);
     }
 }

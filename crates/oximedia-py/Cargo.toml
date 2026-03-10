@@ -11,7 +11,7 @@ publish = false
 
 [lib]
 name = "oximedia"
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 doc = false
 
 [lints]
@@ -21,15 +21,71 @@ workspace = true
 pyo3 = { version = "0.27", features = ["extension-module"] }
 oximedia-core.workspace = true
 oximedia-io.workspace = true
-oximedia-codec = { workspace = true, features = ["av1", "vp9", "vp8", "opus"] }
+oximedia-codec = { workspace = true, default-features = true, features = ["av1", "vp9", "vp8", "opus"] }
 oximedia-audio = { workspace = true, features = ["opus", "vorbis", "flac"] }
 oximedia-container.workspace = true
+oximedia-quality.workspace = true
+oximedia-audio-analysis.workspace = true
+oximedia-metering.workspace = true
+oximedia-scene.workspace = true
+oximedia-shots.workspace = true
+oximedia-graph.workspace = true
+oximedia-effects.workspace = true
+oximedia-normalize.workspace = true
+oximedia-lut.workspace = true
+oximedia-cv.workspace = true
+oximedia-mir.workspace = true
+oximedia-plugin.workspace = true
+oximedia-metadata.workspace = true
+oximedia-edl.workspace = true
+oximedia-packager.workspace = true
+oximedia-stabilize.workspace = true
+oximedia-graphics.workspace = true
+oximedia-multicam.workspace = true
+oximedia-forensics.workspace = true
+oximedia-monitor.workspace = true
+oximedia-restore.workspace = true
+oximedia-captions.workspace = true
+oximedia-timecode.workspace = true
+oximedia-convert.workspace = true
+oximedia-transcode.workspace = true
+oximedia-colormgmt.workspace = true
+oximedia-image.workspace = true
+oximedia-watermark.workspace = true
+oximedia-scopes.workspace = true
+oximedia-denoise.workspace = true
+oximedia-mixer.workspace = true
+oximedia-audiopost.workspace = true
+oximedia-gaming.workspace = true
+oximedia-virtual.workspace = true
+oximedia-profiler.workspace = true
+oximedia-recommend.workspace = true
+oximedia-scaling.workspace = true
+oximedia-qc.workspace = true
+oximedia-imf.workspace = true
+oximedia-aaf.workspace = true
+oximedia-gpu.workspace = true
+oximedia-ndi.workspace = true
+oximedia-videoip.workspace = true
+oximedia-drm.workspace = true
+oximedia-dedup.workspace = true
+oximedia-archive-pro.workspace = true
+oximedia-dolbyvision.workspace = true
+oximedia-auto.workspace = true
+chrono = "0.4"
 bytes.workspace = true
+flate2.workspace = true
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "sync"] }
+serde.workspace = true
+serde_json.workspace = true
+ndarray.workspace = true
+numpy = { workspace = true }
+image = { workspace = true }
 
 [features]
-default = ["av1", "vp9", "vp8", "opus"]
+default = ["av1", "vp9", "vp8", "opus", "cv2"]
 av1 = []
 vp9 = []
 vp8 = []
 opus = []
+cv2 = []

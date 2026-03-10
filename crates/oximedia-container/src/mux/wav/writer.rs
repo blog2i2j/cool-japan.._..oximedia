@@ -569,7 +569,7 @@ mod tests {
         let mut muxer = WavMuxer::new(sink, config);
 
         let pcm = create_pcm_stream();
-        let idx = muxer.add_stream(pcm).unwrap();
+        let idx = muxer.add_stream(pcm).expect("operation should succeed");
 
         assert_eq!(idx, 0);
         assert_eq!(muxer.streams.len(), 1);
@@ -584,7 +584,7 @@ mod tests {
         let pcm1 = create_pcm_stream();
         let pcm2 = create_pcm_stream();
 
-        muxer.add_stream(pcm1).unwrap();
+        muxer.add_stream(pcm1).expect("operation should succeed");
         let result = muxer.add_stream(pcm2);
 
         assert!(result.is_err());
@@ -609,7 +609,7 @@ mod tests {
         let mut muxer = WavMuxer::new(sink, config);
 
         let pcm = create_pcm_stream();
-        muxer.add_stream(pcm).unwrap();
+        muxer.add_stream(pcm).expect("operation should succeed");
 
         let result = muxer.write_header().await;
         assert!(result.is_ok());
@@ -623,8 +623,11 @@ mod tests {
         let mut muxer = WavMuxer::new(sink, config);
 
         let pcm = create_pcm_stream();
-        muxer.add_stream(pcm).unwrap();
-        muxer.write_header().await.unwrap();
+        muxer.add_stream(pcm).expect("operation should succeed");
+        muxer
+            .write_header()
+            .await
+            .expect("operation should succeed");
 
         let packet = Packet::new(
             0,
@@ -645,8 +648,11 @@ mod tests {
         let mut muxer = WavMuxer::new(sink, config);
 
         let pcm = create_pcm_stream();
-        muxer.add_stream(pcm).unwrap();
-        muxer.write_header().await.unwrap();
+        muxer.add_stream(pcm).expect("operation should succeed");
+        muxer
+            .write_header()
+            .await
+            .expect("operation should succeed");
 
         let packet = Packet::new(
             0,
@@ -654,7 +660,10 @@ mod tests {
             Timestamp::new(0, Rational::new(1, 44100)),
             crate::PacketFlags::KEYFRAME,
         );
-        muxer.write_packet(&packet).await.unwrap();
+        muxer
+            .write_packet(&packet)
+            .await
+            .expect("operation should succeed");
 
         let result = muxer.write_trailer().await;
         assert!(result.is_ok());
@@ -668,7 +677,7 @@ mod tests {
         let muxer = WavMuxer::with_format(sink, config, wav_config);
 
         assert!(muxer.wav_config.is_some());
-        let wav_cfg = muxer.wav_config.as_ref().unwrap();
+        let wav_cfg = muxer.wav_config.as_ref().expect("operation should succeed");
         assert_eq!(wav_cfg.sample_rate, 96000);
         assert_eq!(wav_cfg.format, WavFormat::Float);
     }

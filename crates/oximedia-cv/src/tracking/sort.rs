@@ -77,7 +77,9 @@ impl Track {
         let s = (bbox.width * bbox.height) as f64;
         let r = (bbox.width / bbox.height) as f64;
 
-        kalman.set_state(vec![cx, cy, s, r, 0.0, 0.0, 0.0]).unwrap();
+        kalman
+            .set_state(vec![cx, cy, s, r, 0.0, 0.0, 0.0])
+            .expect("state vector length matches Kalman filter dimensions");
 
         Self {
             id,

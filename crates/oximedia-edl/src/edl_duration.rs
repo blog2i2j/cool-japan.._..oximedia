@@ -207,7 +207,7 @@ mod tests {
     use crate::event::{EditType, TrackType};
 
     fn make_tc(h: u8, m: u8, s: u8, f: u8) -> EdlTimecode {
-        EdlTimecode::new(h, m, s, f, EdlFrameRate::Fps25).unwrap()
+        EdlTimecode::new(h, m, s, f, EdlFrameRate::Fps25).expect("failed to create")
     }
 
     fn make_event(num: u32, ri_s: u8, ro_s: u8) -> EdlEvent {
@@ -242,58 +242,58 @@ mod tests {
 
     #[test]
     fn test_time_range_duration_frames() {
-        let r = TimeRange::new(make_tc(0, 0, 0, 0), make_tc(0, 0, 2, 0)).unwrap();
+        let r = TimeRange::new(make_tc(0, 0, 0, 0), make_tc(0, 0, 2, 0)).expect("failed to create");
         assert_eq!(r.duration_frames(), 50); // 2 sec * 25 fps
     }
 
     #[test]
     fn test_time_range_duration_seconds() {
-        let r = TimeRange::new(make_tc(0, 0, 0, 0), make_tc(0, 0, 4, 0)).unwrap();
+        let r = TimeRange::new(make_tc(0, 0, 0, 0), make_tc(0, 0, 4, 0)).expect("failed to create");
         let secs = r.duration_seconds(EdlFrameRate::Fps25);
         assert!((secs - 4.0).abs() < 0.01);
     }
 
     #[test]
     fn test_time_range_contains() {
-        let r = TimeRange::new(make_tc(0, 0, 0, 0), make_tc(0, 0, 10, 0)).unwrap();
+        let r = TimeRange::new(make_tc(0, 0, 0, 0), make_tc(0, 0, 10, 0)).expect("failed to create");
         assert!(r.contains(&make_tc(0, 0, 5, 0)));
         assert!(!r.contains(&make_tc(0, 0, 10, 0)));
     }
 
     #[test]
     fn test_time_range_overlaps() {
-        let a = TimeRange::new(make_tc(0, 0, 0, 0), make_tc(0, 0, 10, 0)).unwrap();
-        let b = TimeRange::new(make_tc(0, 0, 5, 0), make_tc(0, 0, 15, 0)).unwrap();
+        let a = TimeRange::new(make_tc(0, 0, 0, 0), make_tc(0, 0, 10, 0)).expect("failed to create");
+        let b = TimeRange::new(make_tc(0, 0, 5, 0), make_tc(0, 0, 15, 0)).expect("failed to create");
         assert!(a.overlaps(&b));
     }
 
     #[test]
     fn test_time_range_no_overlap() {
-        let a = TimeRange::new(make_tc(0, 0, 0, 0), make_tc(0, 0, 5, 0)).unwrap();
-        let b = TimeRange::new(make_tc(0, 0, 10, 0), make_tc(0, 0, 15, 0)).unwrap();
+        let a = TimeRange::new(make_tc(0, 0, 0, 0), make_tc(0, 0, 5, 0)).expect("failed to create");
+        let b = TimeRange::new(make_tc(0, 0, 10, 0), make_tc(0, 0, 15, 0)).expect("failed to create");
         assert!(!a.overlaps(&b));
     }
 
     #[test]
     fn test_time_range_intersection() {
-        let a = TimeRange::new(make_tc(0, 0, 0, 0), make_tc(0, 0, 10, 0)).unwrap();
-        let b = TimeRange::new(make_tc(0, 0, 5, 0), make_tc(0, 0, 15, 0)).unwrap();
-        let i = a.intersection(&b).unwrap();
+        let a = TimeRange::new(make_tc(0, 0, 0, 0), make_tc(0, 0, 10, 0)).expect("failed to create");
+        let b = TimeRange::new(make_tc(0, 0, 5, 0), make_tc(0, 0, 15, 0)).expect("failed to create");
+        let i = a.intersection(&b).expect("intersection should succeed");
         assert_eq!(i.tc_in, make_tc(0, 0, 5, 0));
         assert_eq!(i.tc_out, make_tc(0, 0, 10, 0));
     }
 
     #[test]
     fn test_time_range_gap_frames() {
-        let a = TimeRange::new(make_tc(0, 0, 0, 0), make_tc(0, 0, 5, 0)).unwrap();
-        let b = TimeRange::new(make_tc(0, 0, 10, 0), make_tc(0, 0, 15, 0)).unwrap();
+        let a = TimeRange::new(make_tc(0, 0, 0, 0), make_tc(0, 0, 5, 0)).expect("failed to create");
+        let b = TimeRange::new(make_tc(0, 0, 10, 0), make_tc(0, 0, 15, 0)).expect("failed to create");
         assert_eq!(a.gap_frames(&b), 125); // 5 sec * 25
     }
 
     #[test]
     fn test_duration_summary() {
         let events = vec![make_event(1, 0, 5), make_event(2, 5, 15)];
-        let s = compute_duration_summary(&events).unwrap();
+        let s = compute_duration_summary(&events).expect("operation should succeed");
         assert_eq!(s.event_count, 2);
         assert_eq!(s.min_frames, 125);
         assert_eq!(s.max_frames, 250);
@@ -309,7 +309,7 @@ mod tests {
     #[test]
     fn test_offset_events() {
         let events = vec![make_event(1, 0, 5)];
-        let shifted = offset_events(&events, 25, EdlFrameRate::Fps25).unwrap();
+        let shifted = offset_events(&events, 25, EdlFrameRate::Fps25).expect("operation should succeed");
         assert_eq!(shifted[0].record_in.to_frames(), events[0].record_in.to_frames() + 25);
     }
 
@@ -323,7 +323,7 @@ mod tests {
     #[test]
     fn test_programme_duration_frames() {
         let events = vec![make_event(1, 0, 5), make_event(2, 10, 20)];
-        let d = programme_duration_frames(&events).unwrap();
+        let d = programme_duration_frames(&events).expect("operation should succeed");
         assert_eq!(d, 500); // from 0s to 20s = 20*25
     }
 

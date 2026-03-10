@@ -58,6 +58,9 @@ mod tests {
     #[tokio::test]
     async fn test_save_replay() {
         let saver = ReplaySaver::default();
-        saver.save("/tmp/replay.webm").await.unwrap();
+        saver
+            .save("/tmp/replay.webm")
+            .await
+            .expect("save should succeed");
     }
 }

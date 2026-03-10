@@ -384,7 +384,10 @@ mod tests {
         assert_eq!(job.label, "encode b");
         assert_eq!(job.priority, BatchPriority::High);
         assert_eq!(job.tags, vec!["encode"]);
-        assert_eq!(job.metadata.get("codec").unwrap(), "av1");
+        assert_eq!(
+            job.metadata.get("codec").expect("get should succeed"),
+            "av1"
+        );
     }
 
     #[test]

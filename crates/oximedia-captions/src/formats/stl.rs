@@ -150,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_spruce_timecode() {
-        let ts = parse_spruce_timecode("01:30:45:12").unwrap();
+        let ts = parse_spruce_timecode("01:30:45:12").expect("timestamp parsing should succeed");
         let (h, m, s, _) = ts.as_hmsm();
         assert_eq!((h, m, s), (1, 30, 45));
     }

@@ -313,7 +313,7 @@ mod tests {
                 "video/x-matroska",
                 PathBuf::from("/dst/a.mkv"),
             )
-            .unwrap();
+            .expect("operation should succeed");
         assert_eq!(id, 1);
     }
 
@@ -327,7 +327,7 @@ mod tests {
                 "mkv",
                 PathBuf::from("/d1.mkv"),
             )
-            .unwrap();
+            .expect("operation should succeed");
         let id2 = m
             .plan(
                 PathBuf::from("/s2.avi"),
@@ -335,7 +335,7 @@ mod tests {
                 "mkv",
                 PathBuf::from("/d2.mkv"),
             )
-            .unwrap();
+            .expect("operation should succeed");
         assert_eq!(id2, id1 + 1);
     }
 
@@ -344,7 +344,7 @@ mod tests {
         let mut m = FormatMigrator::new();
         let src = PathBuf::from("/same.avi");
         m.plan(src.clone(), "avi", "mkv", PathBuf::from("/d.mkv"))
-            .unwrap();
+            .expect("operation should succeed");
         let result = m.plan(src, "avi", "mkv", PathBuf::from("/d2.mkv"));
         assert!(result.is_err());
     }
@@ -359,7 +359,7 @@ mod tests {
                 "mkv",
                 PathBuf::from("/a.mkv"),
             )
-            .unwrap();
+            .expect("operation should succeed");
         assert!(m.job(id).is_some());
         assert!(m.job(999).is_none());
     }
@@ -373,14 +373,14 @@ mod tests {
             "mkv",
             PathBuf::from("/b1.mkv"),
         )
-        .unwrap();
+        .expect("operation should succeed");
         m.plan(
             PathBuf::from("/b2.avi"),
             "avi",
             "mkv",
             PathBuf::from("/b2.mkv"),
         )
-        .unwrap();
+        .expect("operation should succeed");
         let counts = m.status_counts();
         assert_eq!(counts.get("Pending").copied().unwrap_or(0), 2);
     }
@@ -395,10 +395,11 @@ mod tests {
                 "mkv",
                 PathBuf::from("/c.mkv"),
             )
-            .unwrap();
+            .expect("operation should succeed");
         {
-            let j = m.job_mut(id).unwrap();
-            j.transition(MigrationStatus::Assessed).unwrap();
+            let j = m.job_mut(id).expect("operation should succeed");
+            j.transition(MigrationStatus::Assessed)
+                .expect("operation should succeed");
         }
         let assessed = m.jobs_by_status(MigrationStatus::Assessed);
         assert_eq!(assessed.len(), 1);
@@ -416,7 +417,7 @@ mod tests {
             "mkv",
             PathBuf::from("/x.mkv"),
         )
-        .unwrap();
+        .expect("operation should succeed");
         assert_eq!(m.job_count(), 1);
     }
 
@@ -426,17 +427,21 @@ mod tests {
         let src = PathBuf::from("/rep.avi");
         let id = m
             .plan(src.clone(), "avi", "mkv", PathBuf::from("/rep1.mkv"))
-            .unwrap();
+            .expect("operation should succeed");
         // Advance to Completed via valid transitions
-        let j = m.job_mut(id).unwrap();
-        j.transition(MigrationStatus::Assessed).unwrap();
-        j.transition(MigrationStatus::Approved).unwrap();
-        j.transition(MigrationStatus::Running).unwrap();
-        j.transition(MigrationStatus::Completed).unwrap();
+        let j = m.job_mut(id).expect("operation should succeed");
+        j.transition(MigrationStatus::Assessed)
+            .expect("operation should succeed");
+        j.transition(MigrationStatus::Approved)
+            .expect("operation should succeed");
+        j.transition(MigrationStatus::Running)
+            .expect("operation should succeed");
+        j.transition(MigrationStatus::Completed)
+            .expect("operation should succeed");
         // Now re-planning the same source should succeed
         let id2 = m
             .plan(src, "avi", "mkv", PathBuf::from("/rep2.mkv"))
-            .unwrap();
+            .expect("operation should succeed");
         assert_ne!(id, id2);
     }
 }

@@ -304,7 +304,7 @@ mod tests {
     #[test]
     fn test_mark_done_increments_done_count() {
         let mut run = BatchRun::new(BatchConfig::new(), make_items(3));
-        let (idx, _) = run.start_next().unwrap();
+        let (idx, _) = run.start_next().expect("start_next should succeed");
         run.mark_done(idx);
         assert_eq!(run.done_count(), 1);
     }
@@ -312,7 +312,7 @@ mod tests {
     #[test]
     fn test_mark_failed_increments_failed_count() {
         let mut run = BatchRun::new(BatchConfig::new(), make_items(3));
-        let (idx, _) = run.start_next().unwrap();
+        let (idx, _) = run.start_next().expect("start_next should succeed");
         run.mark_failed(idx);
         assert_eq!(run.failed_count(), 1);
         assert_eq!(run.items[idx].retries, 1);
@@ -322,7 +322,7 @@ mod tests {
     fn test_success_rate_all_done() {
         let mut run = BatchRun::new(BatchConfig::new(), make_items(2));
         for _ in 0..2 {
-            let (idx, _) = run.start_next().unwrap();
+            let (idx, _) = run.start_next().expect("start_next should succeed");
             run.mark_done(idx);
         }
         assert!((run.success_rate() - 1.0).abs() < f64::EPSILON);
@@ -333,11 +333,11 @@ mod tests {
         let mut run = BatchRun::new(BatchConfig::new(), make_items(4));
         // done: 2, failed: 2
         for _ in 0..2 {
-            let (idx, _) = run.start_next().unwrap();
+            let (idx, _) = run.start_next().expect("start_next should succeed");
             run.mark_done(idx);
         }
         for _ in 0..2 {
-            let (idx, _) = run.start_next().unwrap();
+            let (idx, _) = run.start_next().expect("start_next should succeed");
             run.mark_failed(idx);
         }
         let rate = run.success_rate();

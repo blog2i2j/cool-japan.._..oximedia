@@ -767,7 +767,7 @@ mod tests {
         residual.y_plane_mut().set(10, 10, 50);
 
         // Add residual
-        residual.add_to_frame(&mut frame).unwrap();
+        residual.add_to_frame(&mut frame).expect("should succeed");
 
         // Check result
         assert_eq!(frame.y_plane().get(10, 10), 150);
@@ -785,7 +785,7 @@ mod tests {
         residual.y_plane_mut().set(10, 10, 100);
 
         // Add residual (should clamp to 255)
-        residual.add_to_frame(&mut frame).unwrap();
+        residual.add_to_frame(&mut frame).expect("should succeed");
 
         assert_eq!(frame.y_plane().get(10, 10), 255);
     }

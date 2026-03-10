@@ -259,7 +259,7 @@ mod tests {
 
     #[test]
     fn test_dynamic_range_meter() {
-        let mut meter = DynamicRangeMeter::new(48000.0, 2, 0.1).unwrap();
+        let mut meter = DynamicRangeMeter::new(48000.0, 2, 0.1).expect("test expectation failed");
 
         // Generate test signal with known dynamics
         let mut samples = Vec::new();
@@ -279,7 +279,7 @@ mod tests {
 
     #[test]
     fn test_crest_factor() {
-        let mut meter = DynamicRangeMeter::new(48000.0, 1, 0.1).unwrap();
+        let mut meter = DynamicRangeMeter::new(48000.0, 1, 0.1).expect("test expectation failed");
 
         // Generate sine wave
         let mut samples = Vec::new();
@@ -308,7 +308,7 @@ mod tests {
 
     #[test]
     fn test_dynamic_range_reset() {
-        let mut meter = DynamicRangeMeter::new(48000.0, 2, 0.1).unwrap();
+        let mut meter = DynamicRangeMeter::new(48000.0, 2, 0.1).expect("test expectation failed");
 
         meter.process_interleaved(&[0.5, 0.5, 0.5, 0.5]);
         meter.reset();

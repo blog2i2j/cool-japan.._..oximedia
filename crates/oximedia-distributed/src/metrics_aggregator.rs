@@ -116,8 +116,12 @@ impl MetricAggregator {
         let result = match agg {
             AggregationFn::Sum => values.iter().sum(),
             AggregationFn::Mean => values.iter().sum::<f64>() / values.len() as f64,
-            AggregationFn::Min => *values.first().unwrap(),
-            AggregationFn::Max => *values.last().unwrap(),
+            AggregationFn::Min => *values
+                .first()
+                .expect("values non-empty: is_empty check returned above"),
+            AggregationFn::Max => *values
+                .last()
+                .expect("values non-empty: is_empty check returned above"),
             AggregationFn::P50 => percentile(&values, 50.0),
             AggregationFn::P95 => percentile(&values, 95.0),
             AggregationFn::P99 => percentile(&values, 99.0),
@@ -317,7 +321,7 @@ mod tests {
         let mut agg = MetricAggregator::new();
         record_values(&mut agg, "bytes", &[(100.0, 1), (200.0, 2), (300.0, 3)]);
         let sum = agg.aggregate("bytes", 100, AggregationFn::Sum);
-        assert!((sum.unwrap() - 600.0).abs() < 1e-9);
+        assert!((sum.expect("metric computation should succeed") - 600.0).abs() < 1e-9);
     }
 
     #[test]
@@ -325,15 +329,27 @@ mod tests {
         let mut agg = MetricAggregator::new();
         record_values(&mut agg, "lat", &[(10.0, 1), (20.0, 2), (30.0, 3)]);
         let mean = agg.aggregate("lat", 100, AggregationFn::Mean);
-        assert!((mean.unwrap() - 20.0).abs() < 1e-9);
+        assert!((mean.expect("metric computation should succeed") - 20.0).abs() < 1e-9);
     }
 
     #[test]
     fn test_aggregate_min_max() {
         let mut agg = MetricAggregator::new();
         record_values(&mut agg, "val", &[(5.0, 1), (1.0, 2), (9.0, 3)]);
-        assert!((agg.aggregate("val", 100, AggregationFn::Min).unwrap() - 1.0).abs() < 1e-9);
-        assert!((agg.aggregate("val", 100, AggregationFn::Max).unwrap() - 9.0).abs() < 1e-9);
+        assert!(
+            (agg.aggregate("val", 100, AggregationFn::Min)
+                .expect("aggregation should succeed")
+                - 1.0)
+                .abs()
+                < 1e-9
+        );
+        assert!(
+            (agg.aggregate("val", 100, AggregationFn::Max)
+                .expect("aggregation should succeed")
+                - 9.0)
+                .abs()
+                < 1e-9
+        );
     }
 
     #[test]
@@ -346,7 +362,7 @@ mod tests {
             &[(3.0, 1), (1.0, 2), (5.0, 3), (2.0, 4), (4.0, 5)],
         );
         let p50 = agg.aggregate("m", 100, AggregationFn::P50);
-        assert!((p50.unwrap() - 3.0).abs() < 1e-9);
+        assert!((p50.expect("metric computation should succeed") - 3.0).abs() < 1e-9);
     }
 
     #[test]

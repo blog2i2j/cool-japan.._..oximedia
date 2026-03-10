@@ -244,7 +244,7 @@ mod tests {
     fn test_push_pop_single() {
         let mut q = FarmPriorityQueue::new();
         q.push(make_entry("j1", 1));
-        let e = q.pop().unwrap();
+        let e = q.pop().expect("failed to pop");
         assert_eq!(e.job_id, "j1");
         assert!(q.is_empty());
     }
@@ -255,9 +255,9 @@ mod tests {
         q.push(make_entry("low", 1));
         q.push(make_entry("high", 3));
         q.push(make_entry("mid", 2));
-        assert_eq!(q.pop().unwrap().job_id, "high");
-        assert_eq!(q.pop().unwrap().job_id, "mid");
-        assert_eq!(q.pop().unwrap().job_id, "low");
+        assert_eq!(q.pop().expect("failed to pop").job_id, "high");
+        assert_eq!(q.pop().expect("failed to pop").job_id, "mid");
+        assert_eq!(q.pop().expect("failed to pop").job_id, "low");
     }
 
     #[test]
@@ -268,8 +268,8 @@ mod tests {
         let e2 = make_entry("second", 5);
         q.push(e1);
         q.push(e2);
-        assert_eq!(q.pop().unwrap().job_id, "first");
-        assert_eq!(q.pop().unwrap().job_id, "second");
+        assert_eq!(q.pop().expect("failed to pop").job_id, "first");
+        assert_eq!(q.pop().expect("failed to pop").job_id, "second");
     }
 
     #[test]
@@ -286,7 +286,7 @@ mod tests {
         let mut q = FarmPriorityQueue::new();
         assert!(q.peek().is_none());
         q.push(make_entry("j1", 10));
-        assert_eq!(q.peek().unwrap().job_id, "j1");
+        assert_eq!(q.peek().expect("peek should succeed").job_id, "j1");
         assert_eq!(q.len(), 1); // peek didn't remove
     }
 

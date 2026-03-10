@@ -149,9 +149,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_rights_manager_creation() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("rights test operation should succeed");
         let db_path = temp_dir.path().join("rights.db");
-        let manager = RightsManager::new(db_path.to_str().unwrap()).await;
+        let manager = RightsManager::new(
+            db_path
+                .to_str()
+                .expect("rights test operation should succeed"),
+        )
+        .await;
         assert!(manager.is_ok());
     }
 }

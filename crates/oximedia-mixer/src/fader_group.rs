@@ -392,8 +392,8 @@ mod tests {
         let mut mgr = FaderGroupManager::new();
         let id1 = mgr.create_group("G1".into(), LinkMode::Absolute);
         let id2 = mgr.create_group("G2".into(), LinkMode::Relative);
-        mgr.group_mut(id1).unwrap().add_member(5);
-        mgr.group_mut(id2).unwrap().add_member(5);
+        mgr.group_mut(id1).expect("group_mut should succeed").add_member(5);
+        mgr.group_mut(id2).expect("group_mut should succeed").add_member(5);
         let groups = mgr.groups_for_channel(5);
         assert_eq!(groups.len(), 2);
     }
@@ -411,7 +411,7 @@ mod tests {
         let mut group = FaderGroup::new(FaderGroupId(1), "G".into(), LinkMode::Absolute);
         group.add_member(0);
         group.master_value = 0.7;
-        assert!((group.gain_for_member(0).unwrap() - 0.7).abs() < f32::EPSILON);
+        assert!((group.gain_for_member(0).expect("gain_for_member should succeed") - 0.7).abs() < f32::EPSILON);
         assert!(group.gain_for_member(99).is_none());
     }
 }

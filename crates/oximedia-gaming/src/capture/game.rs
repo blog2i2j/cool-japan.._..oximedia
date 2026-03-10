@@ -220,7 +220,7 @@ mod tests {
     fn test_attach_detach() {
         let mut capture = GameCapture::new(GameProfile::Generic);
 
-        capture.attach(12345).unwrap();
+        capture.attach(12345).expect("attach should succeed");
         assert!(capture.is_active());
 
         capture.detach();
@@ -229,7 +229,7 @@ mod tests {
 
     #[test]
     fn test_auto_detect() {
-        let games = GameCapture::auto_detect().unwrap();
+        let games = GameCapture::auto_detect().expect("auto detect should succeed");
         // Should return empty list if no games are running
         assert_eq!(games.len(), 0);
     }

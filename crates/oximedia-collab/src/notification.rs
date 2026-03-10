@@ -180,7 +180,11 @@ mod tests {
     fn test_mark_read_sets_flag() {
         let mut inbox = NotificationInbox::new();
         let id = deliver_one(&mut inbox, "alice");
-        let n = inbox.notifications.iter_mut().find(|n| n.id == id).unwrap();
+        let n = inbox
+            .notifications
+            .iter_mut()
+            .find(|n| n.id == id)
+            .expect("collab test operation should succeed");
         assert!(!n.read);
         n.mark_read();
         assert!(n.read);

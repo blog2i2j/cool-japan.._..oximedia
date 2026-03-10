@@ -298,7 +298,7 @@ mod tests {
     fn test_field_get_set() {
         let mut field = MotionVectorField::zeros(4, 3, 16);
         field.set(2, 1, MotionVector::new(5.0, 0.0, 1.0));
-        let v = field.get(2, 1).unwrap();
+        let v = field.get(2, 1).expect("get should succeed");
         assert!((v.dx - 5.0).abs() < f64::EPSILON);
     }
 
@@ -356,7 +356,9 @@ mod tests {
     fn test_estimate_identical_frames() {
         let frame = vec![50u8; 16 * 16];
         let analyzer = MotionAnalyzer::new(8, 2);
-        let field = analyzer.estimate(&frame, &frame, 16, 16).unwrap();
+        let field = analyzer
+            .estimate(&frame, &frame, 16, 16)
+            .expect("estimate should succeed");
         assert_eq!(field.cols, 2);
         assert_eq!(field.rows, 2);
         for v in &field.vectors {

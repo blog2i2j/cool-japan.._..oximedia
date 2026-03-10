@@ -642,7 +642,7 @@ impl serde::Serialize for CacheEntry {
             &self
                 .created_at
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .unwrap_or_default()
                 .as_secs(),
         )?;
         state.serialize_field(
@@ -650,7 +650,7 @@ impl serde::Serialize for CacheEntry {
             &self
                 .last_accessed
                 .duration_since(std::time::UNIX_EPOCH)
-                .unwrap()
+                .unwrap_or_default()
                 .as_secs(),
         )?;
         state.serialize_field("etag", &self.etag)?;

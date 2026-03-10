@@ -385,7 +385,7 @@ mod tests {
     #[test]
     fn test_room_simulator_rt60() {
         // 100 m³ room, 10 sabins → RT60 = 0.161 * 100 / 10 = 1.61 s
-        let rt = RoomSimulator::estimate_rt60(100.0, 10.0).unwrap();
+        let rt = RoomSimulator::estimate_rt60(100.0, 10.0).expect("rt should be valid");
         assert!((rt - 1.61).abs() < 0.01);
     }
 

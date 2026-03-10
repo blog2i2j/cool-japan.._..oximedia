@@ -92,8 +92,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 zoom = 0.5;
                 Some(PtzMessage::new(1, PtzCommand::Home).with_position(pan, tilt, zoom))
             }
-            preset if preset.len() == 1 && preset.chars().next().unwrap().is_ascii_digit() => {
-                let preset_num = preset.parse::<u8>().unwrap();
+            preset
+                if preset.len() == 1
+                    && preset
+                        .chars()
+                        .next()
+                        .expect("next should succeed")
+                        .is_ascii_digit() =>
+            {
+                let preset_num = preset.parse::<u8>().expect("preset_num should be valid");
                 Some(PtzMessage::new(1, PtzCommand::GotoPreset).with_preset(preset_num))
             }
             "q" => break,

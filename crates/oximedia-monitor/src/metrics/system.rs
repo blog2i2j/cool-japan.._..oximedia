@@ -52,7 +52,7 @@ impl CpuMetrics {
     pub fn max_core_usage(&self) -> f64 {
         self.per_core
             .iter()
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .copied()
             .unwrap_or(0.0)
     }
@@ -545,8 +545,9 @@ mod tests {
     #[test]
     fn test_system_metrics_collector() {
         // Disable disk I/O to keep the test fast on macOS with many mounts.
-        let mut collector = SystemMetricsCollector::new_with_options(false).unwrap();
-        let metrics = collector.collect().unwrap();
+        let mut collector =
+            SystemMetricsCollector::new_with_options(false).expect("operation should succeed");
+        let metrics = collector.collect().expect("failed to collect");
 
         assert!(metrics.cpu.cpu_count > 0);
         assert!(metrics.memory.total > 0);

@@ -98,7 +98,7 @@ fn estimate_noise_mad(frame: &VideoFrame) -> DenoiseResult<f32> {
     }
 
     // Compute median
-    diffs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    diffs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let median = diffs[diffs.len() / 2];
 
     // MAD estimator: sigma = median / 0.6745
@@ -140,7 +140,7 @@ fn estimate_noise_block_variance(frame: &VideoFrame) -> DenoiseResult<f32> {
     }
 
     // Use minimum variance blocks (assumed to be smooth regions with mostly noise)
-    variances.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    variances.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let percentile_10 = variances[variances.len() / 10];
 
     Ok(percentile_10.sqrt())
@@ -240,7 +240,7 @@ mod tests {
         let result = estimate_noise_mad(&frame);
         assert!(result.is_ok());
 
-        let noise = result.unwrap();
+        let noise = result.expect("noise should be valid");
         assert!(noise >= 0.0);
     }
 

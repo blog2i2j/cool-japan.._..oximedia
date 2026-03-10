@@ -285,7 +285,7 @@ mod tests {
     #[test]
     fn test_router_bus_lookup() {
         let router = make_router();
-        let bus = router.bus(BusId(1)).unwrap();
+        let bus = router.bus(BusId(1)).expect("operation should succeed");
         assert_eq!(bus.name, "Aux 1");
         assert_eq!(bus.bus_type, BusType::Aux);
     }

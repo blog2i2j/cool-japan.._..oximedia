@@ -42,14 +42,20 @@ name = "io_bench"
 path = "io_bench.rs"
 harness = false
 
+[[bench]]
+name = "compat_ffmpeg_bench"
+path = "compat_ffmpeg_bench.rs"
+harness = false
+
 [dependencies]
 oximedia-core = { workspace = true }
 oximedia-io = { workspace = true }
 oximedia-container = { workspace = true }
-oximedia-codec = { workspace = true, features = ["av1", "vp8", "vp9"], optional = true }
+oximedia-codec = { workspace = true, default-features = true, features = ["av1", "vp8", "vp9"], optional = true }
 oximedia-audio = { workspace = true }
 oximedia-graph = { workspace = true }
 oximedia-cv = { workspace = true, optional = true }
+oximedia-compat-ffmpeg = { workspace = true }
 criterion = { version = "0.5", features = ["html_reports"] }
 tokio = { workspace = true, features = ["rt", "macros"] }
 bytes = { workspace = true }

@@ -421,6 +421,280 @@ impl NmosConnectionManager {
     }
 }
 
+// ============================================================================
+// IS-07 Event & Tally Protocol
+// ============================================================================
+
+/// IS-07 event type classification.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Is07EventType {
+    /// Boolean state (on/off, true/false).
+    Boolean,
+    /// Numeric value (integer or floating point).
+    Number,
+    /// String/text value.
+    String,
+    /// Enumeration (one of a fixed set of named values).
+    Enum,
+}
+
+/// IS-07 tally lamp state (standard broadcast tally).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TallyState {
+    /// Tally off (lamp dark).
+    Off,
+    /// Program tally (red lamp - source is on-air).
+    Program,
+    /// Preview tally (green lamp - source is cued next).
+    Preview,
+    /// Both program and preview active simultaneously.
+    ProgramAndPreview,
+}
+
+impl TallyState {
+    /// Whether this state indicates the source is currently on-air.
+    #[must_use]
+    pub const fn is_on_air(&self) -> bool {
+        matches!(self, Self::Program | Self::ProgramAndPreview)
+    }
+
+    /// Whether this state indicates the source is cued for preview.
+    #[must_use]
+    pub const fn is_preview(&self) -> bool {
+        matches!(self, Self::Preview | Self::ProgramAndPreview)
+    }
+}
+
+/// An IS-07 event source that can emit state changes.
+#[derive(Debug, Clone)]
+pub struct Is07Source {
+    /// Unique identifier (UUID format).
+    pub id: String,
+    /// Human-readable label.
+    pub label: String,
+    /// Event type emitted by this source.
+    pub event_type: Is07EventType,
+    /// Current boolean state (for Boolean event type).
+    pub bool_state: Option<bool>,
+    /// Current numeric state (for Number event type).
+    pub number_state: Option<f64>,
+    /// Current string state (for String/Enum event type).
+    pub string_state: Option<String>,
+}
+
+impl Is07Source {
+    /// Create a new IS-07 boolean event source.
+    pub fn new_boolean(id: impl Into<String>, label: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            label: label.into(),
+            event_type: Is07EventType::Boolean,
+            bool_state: Some(false),
+            number_state: None,
+            string_state: None,
+        }
+    }
+
+    /// Create a new IS-07 numeric event source.
+    pub fn new_number(id: impl Into<String>, label: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            label: label.into(),
+            event_type: Is07EventType::Number,
+            bool_state: None,
+            number_state: Some(0.0),
+            string_state: None,
+        }
+    }
+
+    /// Create a new IS-07 string event source.
+    pub fn new_string(id: impl Into<String>, label: impl Into<String>) -> Self {
+        Self {
+            id: id.into(),
+            label: label.into(),
+            event_type: Is07EventType::String,
+            bool_state: None,
+            number_state: None,
+            string_state: Some(String::new()),
+        }
+    }
+}
+
+/// A tally controller managing tally states for multiple sources.
+#[derive(Debug, Default)]
+pub struct TallyController {
+    /// Source ID -> tally state mapping.
+    tallies: HashMap<String, TallyState>,
+}
+
+impl TallyController {
+    /// Create a new empty tally controller.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the tally state for a source.
+    pub fn set_tally(&mut self, source_id: impl Into<String>, state: TallyState) {
+        self.tallies.insert(source_id.into(), state);
+    }
+
+    /// Get the tally state for a source.
+    pub fn get_tally(&self, source_id: &str) -> TallyState {
+        self.tallies
+            .get(source_id)
+            .copied()
+            .unwrap_or(TallyState::Off)
+    }
+
+    /// Switch a source to program (on-air).
+    /// If other sources are on program, they move to preview.
+    pub fn take_to_program(&mut self, source_id: impl Into<String>) {
+        let sid = source_id.into();
+
+        // Demote current program sources to preview
+        for (id, state) in self.tallies.iter_mut() {
+            if *id != sid {
+                match state {
+                    TallyState::Program => *state = TallyState::Preview,
+                    TallyState::ProgramAndPreview => *state = TallyState::Preview,
+                    _ => {}
+                }
+            }
+        }
+
+        // Set the target source to program
+        self.tallies.insert(sid, TallyState::Program);
+    }
+
+    /// Set a source to preview (cued next).
+    pub fn set_preview(&mut self, source_id: impl Into<String>) {
+        let sid = source_id.into();
+        let current = self.get_tally(&sid);
+        match current {
+            TallyState::Program => {
+                self.tallies.insert(sid, TallyState::ProgramAndPreview);
+            }
+            _ => {
+                self.tallies.insert(sid, TallyState::Preview);
+            }
+        }
+    }
+
+    /// Clear all tally states.
+    pub fn clear_all(&mut self) {
+        self.tallies.clear();
+    }
+
+    /// Get all sources currently on-air (Program or ProgramAndPreview).
+    pub fn on_air_sources(&self) -> Vec<&str> {
+        self.tallies
+            .iter()
+            .filter(|(_, state)| state.is_on_air())
+            .map(|(id, _)| id.as_str())
+            .collect()
+    }
+
+    /// Get all sources in preview.
+    pub fn preview_sources(&self) -> Vec<&str> {
+        self.tallies
+            .iter()
+            .filter(|(_, state)| state.is_preview())
+            .map(|(id, _)| id.as_str())
+            .collect()
+    }
+
+    /// Return the total number of tracked sources.
+    pub fn source_count(&self) -> usize {
+        self.tallies.len()
+    }
+}
+
+/// IS-07 event emitted when a source state changes.
+#[derive(Debug, Clone)]
+pub struct Is07Event {
+    /// Source that emitted the event.
+    pub source_id: String,
+    /// Monotonic sequence number for ordering.
+    pub sequence: u64,
+    /// Event payload describing the new state.
+    pub payload: Is07Payload,
+}
+
+/// Payload of an IS-07 event.
+#[derive(Debug, Clone)]
+pub enum Is07Payload {
+    /// Boolean state change.
+    Boolean(bool),
+    /// Numeric value change.
+    Number(f64),
+    /// String/enum value change.
+    String(String),
+}
+
+/// IS-07 event bus that accumulates events from multiple sources.
+#[derive(Debug, Default)]
+pub struct Is07EventBus {
+    /// Queued events awaiting delivery.
+    events: Vec<Is07Event>,
+    /// Next sequence number.
+    next_sequence: u64,
+}
+
+impl Is07EventBus {
+    /// Create a new empty event bus.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Emit a boolean event.
+    pub fn emit_boolean(&mut self, source_id: impl Into<String>, value: bool) {
+        let seq = self.next_sequence;
+        self.next_sequence += 1;
+        self.events.push(Is07Event {
+            source_id: source_id.into(),
+            sequence: seq,
+            payload: Is07Payload::Boolean(value),
+        });
+    }
+
+    /// Emit a numeric event.
+    pub fn emit_number(&mut self, source_id: impl Into<String>, value: f64) {
+        let seq = self.next_sequence;
+        self.next_sequence += 1;
+        self.events.push(Is07Event {
+            source_id: source_id.into(),
+            sequence: seq,
+            payload: Is07Payload::Number(value),
+        });
+    }
+
+    /// Emit a string event.
+    pub fn emit_string(&mut self, source_id: impl Into<String>, value: impl Into<String>) {
+        let seq = self.next_sequence;
+        self.next_sequence += 1;
+        self.events.push(Is07Event {
+            source_id: source_id.into(),
+            sequence: seq,
+            payload: Is07Payload::String(value.into()),
+        });
+    }
+
+    /// Drain all pending events.
+    pub fn drain(&mut self) -> Vec<Is07Event> {
+        std::mem::take(&mut self.events)
+    }
+
+    /// Number of pending events.
+    pub fn pending_count(&self) -> usize {
+        self.events.len()
+    }
+
+    /// Current sequence counter value.
+    pub fn current_sequence(&self) -> u64 {
+        self.next_sequence
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -586,5 +860,123 @@ mod tests {
     fn test_receiver_subscription_default_none() {
         let rx = NmosReceiver::new("r-1", "d-1", "Rec", NmosFormat::Audio);
         assert!(rx.subscription.is_none());
+    }
+
+    // IS-07 Event & Tally tests
+
+    #[test]
+    fn test_tally_state_on_air() {
+        assert!(TallyState::Program.is_on_air());
+        assert!(TallyState::ProgramAndPreview.is_on_air());
+        assert!(!TallyState::Preview.is_on_air());
+        assert!(!TallyState::Off.is_on_air());
+    }
+
+    #[test]
+    fn test_tally_state_preview() {
+        assert!(TallyState::Preview.is_preview());
+        assert!(TallyState::ProgramAndPreview.is_preview());
+        assert!(!TallyState::Program.is_preview());
+        assert!(!TallyState::Off.is_preview());
+    }
+
+    #[test]
+    fn test_tally_controller_set_get() {
+        let mut tc = TallyController::new();
+        tc.set_tally("cam-1", TallyState::Program);
+        assert_eq!(tc.get_tally("cam-1"), TallyState::Program);
+        assert_eq!(tc.get_tally("cam-2"), TallyState::Off);
+    }
+
+    #[test]
+    fn test_tally_take_to_program() {
+        let mut tc = TallyController::new();
+        tc.set_tally("cam-1", TallyState::Program);
+        tc.set_tally("cam-2", TallyState::Preview);
+
+        tc.take_to_program("cam-2");
+
+        // cam-2 should now be program
+        assert_eq!(tc.get_tally("cam-2"), TallyState::Program);
+        // cam-1 should be demoted to preview
+        assert_eq!(tc.get_tally("cam-1"), TallyState::Preview);
+    }
+
+    #[test]
+    fn test_tally_set_preview_while_on_program() {
+        let mut tc = TallyController::new();
+        tc.set_tally("cam-1", TallyState::Program);
+        tc.set_preview("cam-1");
+        assert_eq!(tc.get_tally("cam-1"), TallyState::ProgramAndPreview);
+    }
+
+    #[test]
+    fn test_tally_on_air_sources() {
+        let mut tc = TallyController::new();
+        tc.set_tally("cam-1", TallyState::Program);
+        tc.set_tally("cam-2", TallyState::Preview);
+        tc.set_tally("cam-3", TallyState::Off);
+
+        let on_air = tc.on_air_sources();
+        assert_eq!(on_air.len(), 1);
+        assert!(on_air.contains(&"cam-1"));
+    }
+
+    #[test]
+    fn test_tally_clear_all() {
+        let mut tc = TallyController::new();
+        tc.set_tally("cam-1", TallyState::Program);
+        tc.set_tally("cam-2", TallyState::Preview);
+        tc.clear_all();
+        assert_eq!(tc.source_count(), 0);
+    }
+
+    #[test]
+    fn test_is07_source_boolean() {
+        let src = Is07Source::new_boolean("src-1", "Button");
+        assert_eq!(src.event_type, Is07EventType::Boolean);
+        assert_eq!(src.bool_state, Some(false));
+    }
+
+    #[test]
+    fn test_is07_source_number() {
+        let src = Is07Source::new_number("src-2", "Fader");
+        assert_eq!(src.event_type, Is07EventType::Number);
+        assert_eq!(src.number_state, Some(0.0));
+    }
+
+    #[test]
+    fn test_is07_event_bus_emit_boolean() {
+        let mut bus = Is07EventBus::new();
+        bus.emit_boolean("src-1", true);
+        assert_eq!(bus.pending_count(), 1);
+
+        let events = bus.drain();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].source_id, "src-1");
+        assert_eq!(events[0].sequence, 0);
+        assert!(matches!(events[0].payload, Is07Payload::Boolean(true)));
+    }
+
+    #[test]
+    fn test_is07_event_bus_sequence_increments() {
+        let mut bus = Is07EventBus::new();
+        bus.emit_boolean("a", true);
+        bus.emit_number("b", 42.0);
+        bus.emit_string("c", "hello");
+
+        let events = bus.drain();
+        assert_eq!(events[0].sequence, 0);
+        assert_eq!(events[1].sequence, 1);
+        assert_eq!(events[2].sequence, 2);
+        assert_eq!(bus.current_sequence(), 3);
+    }
+
+    #[test]
+    fn test_is07_event_bus_drain_clears() {
+        let mut bus = Is07EventBus::new();
+        bus.emit_boolean("a", true);
+        let _ = bus.drain();
+        assert_eq!(bus.pending_count(), 0);
     }
 }

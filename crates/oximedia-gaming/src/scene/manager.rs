@@ -98,7 +98,9 @@ mod tests {
             name: "Gameplay".to_string(),
             description: "Main gameplay scene".to_string(),
         });
-        manager.switch_to("Gameplay").unwrap();
+        manager
+            .switch_to("Gameplay")
+            .expect("switch should succeed");
         assert_eq!(manager.active_scene(), Some("Gameplay"));
     }
 }

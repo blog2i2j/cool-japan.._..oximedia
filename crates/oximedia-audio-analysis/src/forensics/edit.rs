@@ -95,7 +95,7 @@ impl EditDetector {
             }
         }
 
-        edits.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        edits.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         Ok(edits)
     }

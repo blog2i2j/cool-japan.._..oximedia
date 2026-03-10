@@ -371,18 +371,28 @@ mod tests {
     fn test_huffman_coding() {
         let lengths = [3u8, 3, 3, 3, 4, 4, 4, 4];
         let encoder = HuffmanEncoder::new(&lengths);
-        let decoder = HuffmanDecoder::new(&lengths).unwrap();
+        let decoder = HuffmanDecoder::new(&lengths).expect("should succeed");
 
         let mut writer = BitstreamWriter::new();
-        encoder.encode(&mut writer, 0).unwrap();
-        encoder.encode(&mut writer, 5).unwrap();
+        encoder
+            .encode(&mut writer, 0)
+            .expect("encode should succeed");
+        encoder
+            .encode(&mut writer, 5)
+            .expect("encode should succeed");
         writer.byte_align();
 
         let data = writer.into_vec();
         let mut reader = BitstreamReader::new(&data);
 
-        assert_eq!(decoder.decode(&mut reader).unwrap(), 0);
-        assert_eq!(decoder.decode(&mut reader).unwrap(), 5);
+        assert_eq!(
+            decoder.decode(&mut reader).expect("decode should succeed"),
+            0
+        );
+        assert_eq!(
+            decoder.decode(&mut reader).expect("decode should succeed"),
+            5
+        );
     }
 
     #[test]
@@ -398,7 +408,7 @@ mod tests {
 
     #[test]
     fn test_theora_token_decoder() {
-        let decoder = TheoraTokenDecoder::new().unwrap();
+        let decoder = TheoraTokenDecoder::new().expect("should succeed");
         assert_eq!(decoder.dc_decoders.len(), 16);
         assert_eq!(decoder.ac_decoders.len(), 80);
     }

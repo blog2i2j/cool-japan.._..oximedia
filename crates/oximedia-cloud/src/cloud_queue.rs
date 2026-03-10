@@ -184,32 +184,34 @@ mod tests {
     #[test]
     fn test_enqueue_returns_id() {
         let mut q = make_queue(10);
-        let id = q.enqueue(b"hello".to_vec()).unwrap();
+        let id = q.enqueue(b"hello".to_vec()).expect("id should be valid");
         assert_eq!(id, 1);
     }
 
     #[test]
     fn test_enqueue_increments_id() {
         let mut q = make_queue(10);
-        let id1 = q.enqueue(b"a".to_vec()).unwrap();
-        let id2 = q.enqueue(b"b".to_vec()).unwrap();
+        let id1 = q.enqueue(b"a".to_vec()).expect("id1 should be valid");
+        let id2 = q.enqueue(b"b".to_vec()).expect("id2 should be valid");
         assert_eq!(id2, id1 + 1);
     }
 
     #[test]
     fn test_depth_after_enqueue() {
         let mut q = make_queue(10);
-        q.enqueue(b"x".to_vec()).unwrap();
-        q.enqueue(b"y".to_vec()).unwrap();
+        q.enqueue(b"x".to_vec()).expect("test expectation failed");
+        q.enqueue(b"y".to_vec()).expect("test expectation failed");
         assert_eq!(q.depth(), 2);
     }
 
     #[test]
     fn test_dequeue_fifo_order() {
         let mut q = make_queue(10);
-        q.enqueue(b"first".to_vec()).unwrap();
-        q.enqueue(b"second".to_vec()).unwrap();
-        let msg = q.dequeue().unwrap();
+        q.enqueue(b"first".to_vec())
+            .expect("test expectation failed");
+        q.enqueue(b"second".to_vec())
+            .expect("test expectation failed");
+        let msg = q.dequeue().expect("msg should be valid");
         assert_eq!(msg.payload, b"first");
     }
 
@@ -222,8 +224,8 @@ mod tests {
     #[test]
     fn test_queue_full_error() {
         let mut q = make_queue(2);
-        q.enqueue(b"a".to_vec()).unwrap();
-        q.enqueue(b"b".to_vec()).unwrap();
+        q.enqueue(b"a".to_vec()).expect("test expectation failed");
+        q.enqueue(b"b".to_vec()).expect("test expectation failed");
         assert_eq!(q.enqueue(b"c".to_vec()), Err(QueueError::QueueFull));
     }
 
@@ -250,7 +252,8 @@ mod tests {
     #[test]
     fn test_is_empty_after_enqueue() {
         let mut q = make_queue(10);
-        q.enqueue(b"data".to_vec()).unwrap();
+        q.enqueue(b"data".to_vec())
+            .expect("test expectation failed");
         assert!(!q.is_empty());
     }
 
@@ -269,9 +272,9 @@ mod tests {
     #[test]
     fn test_depth_decreases_after_dequeue() {
         let mut q = make_queue(10);
-        q.enqueue(b"a".to_vec()).unwrap();
-        q.enqueue(b"b".to_vec()).unwrap();
-        q.dequeue().unwrap();
+        q.enqueue(b"a".to_vec()).expect("test expectation failed");
+        q.enqueue(b"b".to_vec()).expect("test expectation failed");
+        q.dequeue().expect("dequeue should succeed");
         assert_eq!(q.depth(), 1);
     }
 

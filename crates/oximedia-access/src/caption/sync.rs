@@ -127,7 +127,9 @@ mod tests {
             CaptionType::Closed,
         )];
 
-        synchronizer.sync_to_frames(&mut captions).unwrap();
+        synchronizer
+            .sync_to_frames(&mut captions)
+            .expect("sync_to_frames should succeed");
 
         // Should snap to 24fps frame boundaries (41.67ms per frame)
         assert_eq!(captions[0].subtitle.start_time, 1000);
@@ -163,7 +165,9 @@ mod tests {
             ),
         ];
 
-        let fixed = synchronizer.fix_overlaps(&mut captions).unwrap();
+        let fixed = synchronizer
+            .fix_overlaps(&mut captions)
+            .expect("fixed should be valid");
         assert_eq!(fixed, 1);
         assert_eq!(captions[0].subtitle.end_time, 2000);
     }

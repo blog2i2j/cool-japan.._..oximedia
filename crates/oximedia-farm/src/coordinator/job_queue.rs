@@ -204,7 +204,10 @@ impl JobQueue {
             .update_task_state(task_id, TaskState::Assigned, Some(worker_id.clone()))?;
 
         // Track the assignment in-memory for fast worker-based lookup
-        let mut assignments = self.worker_assignments.lock().unwrap();
+        let mut assignments = self
+            .worker_assignments
+            .lock()
+            .map_err(|_| FarmError::Coordinator("worker_assignments mutex poisoned".to_string()))?;
         assignments
             .entry(worker_id.clone())
             .or_default()
@@ -276,7 +279,9 @@ impl JobQueue {
 
         // Drain the worker's task list from the in-memory assignment map
         let task_ids: Vec<TaskId> = {
-            let mut assignments = self.worker_assignments.lock().unwrap();
+            let mut assignments = self.worker_assignments.lock().map_err(|_| {
+                FarmError::Coordinator("worker_assignments mutex poisoned".to_string())
+            })?;
             assignments.remove(worker_id).unwrap_or_default()
         };
 
@@ -473,7 +478,7 @@ mod tests {
     use super::*;
 
     async fn create_test_queue() -> JobQueue {
-        let db = Arc::new(Database::in_memory().unwrap());
+        let db = Arc::new(Database::in_memory().expect("failed to create"));
         JobQueue::new(db, 100, 100)
     }
 
@@ -488,8 +493,8 @@ mod tests {
             Priority::Normal,
         );
 
-        let job_id = queue.submit_job(job).await.unwrap();
-        let retrieved = queue.get_job(job_id).await.unwrap();
+        let job_id = queue.submit_job(job).await.expect("failed to submit job");
+        let retrieved = queue.get_job(job_id).await.expect("failed to get job");
         assert_eq!(retrieved.id, job_id);
         assert_eq!(retrieved.state, JobState::Queued);
     }
@@ -505,17 +510,17 @@ mod tests {
             Priority::Normal,
         );
 
-        let job_id = queue.submit_job(job).await.unwrap();
-        let job = queue.get_job(job_id).await.unwrap();
+        let job_id = queue.submit_job(job).await.expect("failed to submit job");
+        let job = queue.get_job(job_id).await.expect("failed to get job");
         let task_id = job.tasks[0].task_id;
 
         queue
             .assign_task(task_id, WorkerId::new("worker-1"))
             .await
-            .unwrap();
+            .expect("operation should succeed");
 
         // Verify task was assigned
-        let updated_job = queue.get_job(job_id).await.unwrap();
+        let updated_job = queue.get_job(job_id).await.expect("failed to get job");
         assert_eq!(updated_job.tasks[0].state, TaskState::Assigned);
     }
 
@@ -530,13 +535,16 @@ mod tests {
             Priority::Normal,
         );
 
-        let job_id = queue.submit_job(job).await.unwrap();
-        let job = queue.get_job(job_id).await.unwrap();
+        let job_id = queue.submit_job(job).await.expect("failed to submit job");
+        let job = queue.get_job(job_id).await.expect("failed to get job");
         let task_id = job.tasks[0].task_id;
 
-        queue.update_task_progress(task_id, 0.5).await.unwrap();
+        queue
+            .update_task_progress(task_id, 0.5)
+            .await
+            .expect("await should be valid");
 
-        let updated_job = queue.get_job(job_id).await.unwrap();
+        let updated_job = queue.get_job(job_id).await.expect("failed to get job");
         assert!((updated_job.tasks[0].progress - 0.5).abs() < 0.01);
     }
 
@@ -551,10 +559,13 @@ mod tests {
             Priority::Normal,
         );
 
-        let job_id = queue.submit_job(job).await.unwrap();
-        queue.cancel_job(job_id).await.unwrap();
+        let job_id = queue.submit_job(job).await.expect("failed to submit job");
+        queue
+            .cancel_job(job_id)
+            .await
+            .expect("await should be valid");
 
-        let job = queue.get_job(job_id).await.unwrap();
+        let job = queue.get_job(job_id).await.expect("failed to get job");
         assert_eq!(job.state, JobState::Cancelled);
     }
 
@@ -632,22 +643,28 @@ mod tests {
             "/output/test.mp4".to_string(),
             Priority::Normal,
         );
-        let job_id = queue.submit_job(job).await.unwrap();
-        let job = queue.get_job(job_id).await.unwrap();
+        let job_id = queue.submit_job(job).await.expect("failed to submit job");
+        let job = queue.get_job(job_id).await.expect("failed to get job");
         let task_id = job.tasks[0].task_id;
 
         // Assign the task to a worker
-        queue.assign_task(task_id, worker_id.clone()).await.unwrap();
+        queue
+            .assign_task(task_id, worker_id.clone())
+            .await
+            .expect("await should be valid");
 
         // Verify the task is assigned
-        let updated_job = queue.get_job(job_id).await.unwrap();
+        let updated_job = queue.get_job(job_id).await.expect("failed to get job");
         assert_eq!(updated_job.tasks[0].state, TaskState::Assigned);
 
         // Reassign (simulating worker going offline)
-        queue.reassign_worker_tasks(&worker_id).await.unwrap();
+        queue
+            .reassign_worker_tasks(&worker_id)
+            .await
+            .expect("await should be valid");
 
         // The task should be reset to Pending
-        let reset_job = queue.get_job(job_id).await.unwrap();
+        let reset_job = queue.get_job(job_id).await.expect("failed to get job");
         assert_eq!(reset_job.tasks[0].state, TaskState::Pending);
     }
 
@@ -664,25 +681,28 @@ mod tests {
                 "/output/test.mp4".to_string(),
                 Priority::Normal,
             );
-            let job_id = queue.submit_job(job).await.unwrap();
-            let job = queue.get_job(job_id).await.unwrap();
+            let job_id = queue.submit_job(job).await.expect("failed to submit job");
+            let job = queue.get_job(job_id).await.expect("failed to get job");
             queue
                 .assign_task(job.tasks[0].task_id, worker_id.clone())
                 .await
-                .unwrap();
+                .expect("operation should succeed");
         }
 
         // Verify in-memory tracking has 2 task IDs for this worker
         {
-            let assignments = queue.worker_assignments.lock().unwrap();
-            let tasks = assignments.get(&worker_id).unwrap();
+            let assignments = queue.worker_assignments.lock().expect("lock poisoned");
+            let tasks = assignments.get(&worker_id).expect("failed to get value");
             assert_eq!(tasks.len(), 2);
         }
 
         // Reassign clears the worker entry
-        queue.reassign_worker_tasks(&worker_id).await.unwrap();
+        queue
+            .reassign_worker_tasks(&worker_id)
+            .await
+            .expect("await should be valid");
         {
-            let assignments = queue.worker_assignments.lock().unwrap();
+            let assignments = queue.worker_assignments.lock().expect("lock poisoned");
             assert!(!assignments.contains_key(&worker_id));
         }
     }

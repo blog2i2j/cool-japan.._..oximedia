@@ -587,22 +587,22 @@ mod tests {
     #[test]
     fn test_decoder_codec_id() {
         let config = DecoderConfig::default();
-        let decoder = Av1Decoder::new(config).unwrap();
+        let decoder = Av1Decoder::new(config).expect("should succeed");
         assert_eq!(decoder.codec(), CodecId::Av1);
     }
 
     #[test]
     fn test_decoder_flush() {
         let config = DecoderConfig::default();
-        let mut decoder = Av1Decoder::new(config).unwrap();
+        let mut decoder = Av1Decoder::new(config).expect("should succeed");
         assert!(decoder.flush().is_ok());
     }
 
     #[test]
     fn test_send_while_flushing() {
         let config = DecoderConfig::default();
-        let mut decoder = Av1Decoder::new(config).unwrap();
-        decoder.flush().unwrap();
+        let mut decoder = Av1Decoder::new(config).expect("should succeed");
+        decoder.flush().expect("should succeed");
         let result = decoder.send_packet(&[], 0);
         assert!(result.is_err());
     }
@@ -610,8 +610,8 @@ mod tests {
     #[test]
     fn test_decoder_reset() {
         let config = DecoderConfig::default();
-        let mut decoder = Av1Decoder::new(config).unwrap();
-        decoder.flush().unwrap();
+        let mut decoder = Av1Decoder::new(config).expect("should succeed");
+        decoder.flush().expect("should succeed");
         decoder.reset();
         assert_eq!(decoder.frame_count(), 0);
         assert!(decoder.send_packet(&[], 0).is_ok());
@@ -620,7 +620,7 @@ mod tests {
     #[test]
     fn test_initial_state() {
         let config = DecoderConfig::default();
-        let decoder = Av1Decoder::new(config).unwrap();
+        let decoder = Av1Decoder::new(config).expect("should succeed");
         assert!(decoder.current_frame_header().is_none());
         assert!(decoder.current_sequence_header().is_none());
         assert!(decoder.tile_info().is_none());
@@ -629,7 +629,7 @@ mod tests {
     #[test]
     fn test_loop_filter_params() {
         let config = DecoderConfig::default();
-        let decoder = Av1Decoder::new(config).unwrap();
+        let decoder = Av1Decoder::new(config).expect("should succeed");
         let lf = decoder.loop_filter_params();
         assert!(!lf.is_enabled());
     }
@@ -637,7 +637,7 @@ mod tests {
     #[test]
     fn test_cdef_params() {
         let config = DecoderConfig::default();
-        let decoder = Av1Decoder::new(config).unwrap();
+        let decoder = Av1Decoder::new(config).expect("should succeed");
         let cdef = decoder.cdef_params();
         assert!(!cdef.is_enabled());
     }
@@ -645,7 +645,7 @@ mod tests {
     #[test]
     fn test_quantization_params() {
         let config = DecoderConfig::default();
-        let decoder = Av1Decoder::new(config).unwrap();
+        let decoder = Av1Decoder::new(config).expect("should succeed");
         let qp = decoder.quantization_params();
         assert_eq!(qp.base_q_idx, 0);
     }

@@ -157,7 +157,8 @@ fn yolo_nms_benchmark(c: &mut Criterion) {
                 // Simple NMS simulation
                 let mut keep = Vec::new();
                 let mut sorted_boxes = boxes.clone();
-                sorted_boxes.sort_by(|a, b| b.4.partial_cmp(&a.4).unwrap());
+                sorted_boxes
+                    .sort_by(|a, b| b.4.partial_cmp(&a.4).unwrap_or(std::cmp::Ordering::Equal));
 
                 for i in 0..sorted_boxes.len() {
                     let mut should_keep = true;

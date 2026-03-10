@@ -56,6 +56,13 @@ pub enum ContainerFormat {
     ///
     /// Simple text-based subtitle format widely supported.
     Srt,
+
+    /// YUV4MPEG2 container (.y4m).
+    ///
+    /// Simple uncompressed video sequence format widely used for testing
+    /// and piping raw YUV video between tools. Supports various chroma
+    /// subsampling modes (420, 422, 444, mono).
+    Y4m,
 }
 
 impl ContainerFormat {
@@ -82,6 +89,7 @@ impl ContainerFormat {
             Self::MpegTs => &["ts", "m2ts", "mts"],
             Self::WebVtt => &["vtt", "webvtt"],
             Self::Srt => &["srt"],
+            Self::Y4m => &["y4m", "yuv4mpeg"],
         }
     }
 
@@ -107,6 +115,7 @@ impl ContainerFormat {
             Self::MpegTs => "video/mp2t",
             Self::WebVtt => "text/vtt",
             Self::Srt => "application/x-subrip",
+            Self::Y4m => "video/x-raw-yuv4mpeg2",
         }
     }
 
@@ -132,6 +141,7 @@ impl ContainerFormat {
             Self::MpegTs => "MPEG-TS",
             Self::WebVtt => "WebVTT",
             Self::Srt => "SubRip",
+            Self::Y4m => "YUV4MPEG2",
         }
     }
 
@@ -148,7 +158,7 @@ impl ContainerFormat {
     #[must_use]
     pub const fn supports_video(self) -> bool {
         match self {
-            Self::Matroska | Self::WebM | Self::Mp4 | Self::Ogg | Self::MpegTs => true,
+            Self::Matroska | Self::WebM | Self::Mp4 | Self::Ogg | Self::MpegTs | Self::Y4m => true,
             Self::Wav | Self::Flac | Self::WebVtt | Self::Srt => false,
         }
     }
@@ -164,7 +174,7 @@ impl ContainerFormat {
             | Self::Wav
             | Self::Flac
             | Self::MpegTs => true,
-            Self::WebVtt | Self::Srt => false,
+            Self::WebVtt | Self::Srt | Self::Y4m => false,
         }
     }
 
@@ -175,7 +185,7 @@ impl ContainerFormat {
             Self::Matroska | Self::WebM | Self::Mp4 | Self::MpegTs | Self::WebVtt | Self::Srt => {
                 true
             }
-            Self::Ogg | Self::Wav | Self::Flac => false,
+            Self::Ogg | Self::Wav | Self::Flac | Self::Y4m => false,
         }
     }
 }

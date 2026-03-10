@@ -138,7 +138,7 @@ impl MultitrackAligner {
                 if let Some((peak_lag, peak_val)) = corr
                     .iter()
                     .enumerate()
-                    .max_by(|a, b| a.1.partial_cmp(b.1).unwrap())
+                    .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
                 {
                     // Convert cross-correlation lag to frame offset.
                     let n = ref_anchor.feature_vector.len();
@@ -313,9 +313,9 @@ mod tests {
         let peak_idx = corr
             .iter()
             .enumerate()
-            .max_by(|x, y| x.1.partial_cmp(y.1).unwrap())
+            .max_by(|x, y| x.1.partial_cmp(y.1).expect("max_by should succeed"))
             .map(|(i, _)| i)
-            .unwrap();
+            .expect("test expectation failed");
         let zero_lag = a.len() - 1; // centre lag index
         assert_eq!(peak_idx, zero_lag, "peak should be at zero lag");
     }

@@ -378,7 +378,9 @@ mod tests {
         r.add(p);
         assert_eq!(r.len(), 1);
         assert_eq!(
-            r.find_by_name("web-720p").unwrap().video_bitrate_kbps,
+            r.find_by_name("web-720p")
+                .expect("web-720p profile should exist")
+                .video_bitrate_kbps,
             9_999
         );
     }

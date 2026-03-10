@@ -1,6 +1,6 @@
 # oximedia-repair
 
-**Status: [Alpha]** | Version: 0.1.0 | Updated: 2026-03-06
+**Status: [Alpha]** | Version: 0.1.1 | Updated: 2026-03-10
 
 Media file repair and recovery tools for OxiMedia. Provides comprehensive tools for detecting and repairing corrupted media files, with support for multiple container formats and recovery modes.
 
@@ -49,7 +49,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-repair = "0.1.0"
+oximedia-repair = "0.1.1"
 ```
 
 ```rust

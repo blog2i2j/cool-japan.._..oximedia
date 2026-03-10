@@ -389,8 +389,8 @@ mod tests {
     #[test]
     fn test_color_transform_util_same_space() {
         let pixels = vec![[0.5, 0.3, 0.7]];
-        let result =
-            ColorTransformUtil::convert(&pixels, ColorSpaceId::SRGB, ColorSpaceId::SRGB).unwrap();
+        let result = ColorTransformUtil::convert(&pixels, ColorSpaceId::SRGB, ColorSpaceId::SRGB)
+            .expect("color conversion should succeed");
         assert_eq!(result.len(), 1);
         assert!((result[0][0] - 0.5).abs() < 1e-10);
     }
@@ -400,7 +400,7 @@ mod tests {
         let pixels = vec![[0.5_f64, 0.5, 0.5]];
         let result =
             ColorTransformUtil::convert(&pixels, ColorSpaceId::SRGB, ColorSpaceId::Rec2020)
-                .unwrap();
+                .expect("operation should succeed in test");
         assert_eq!(result.len(), 1);
         // Values should be in a valid range
         for &v in &result[0] {
@@ -412,7 +412,7 @@ mod tests {
     fn test_color_transform_util_in_place_identity() {
         let mut pixels = vec![[0.5_f64, 0.3, 0.7]];
         ColorTransformUtil::convert_in_place(&mut pixels, ColorSpaceId::SRGB, ColorSpaceId::SRGB)
-            .unwrap();
+            .expect("operation should succeed in test");
         assert!((pixels[0][0] - 0.5).abs() < 1e-10);
     }
 

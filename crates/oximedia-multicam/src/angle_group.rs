@@ -365,7 +365,9 @@ mod tests {
             gid,
             vec![CoverageScore::new(0, 0.8), CoverageScore::new(1, 0.4)],
         );
-        let avg = map.average_coverage(gid).unwrap();
+        let avg = map
+            .average_coverage(gid)
+            .expect("multicam test operation should succeed");
         assert!((avg - 0.6).abs() < 1e-5);
     }
 
@@ -407,8 +409,18 @@ mod tests {
         history.record(GroupSwitchEvent::new(1, 2, 20, true));
         history.record(GroupSwitchEvent::new(2, 1, 30, false));
         let counts = history.switch_counts();
-        assert_eq!(*counts.get(&AngleGroupId::new(1)).unwrap(), 2);
-        assert_eq!(*counts.get(&AngleGroupId::new(2)).unwrap(), 1);
+        assert_eq!(
+            *counts
+                .get(&AngleGroupId::new(1))
+                .expect("multicam test operation should succeed"),
+            2
+        );
+        assert_eq!(
+            *counts
+                .get(&AngleGroupId::new(2))
+                .expect("multicam test operation should succeed"),
+            1
+        );
     }
 
     #[test]
@@ -424,8 +436,11 @@ mod tests {
     fn test_angle_group_registry_register_and_get() {
         let mut reg = AngleGroupRegistry::new();
         let group = AngleGroup::new(1, "CloseUp", AngleGroupKind::CloseUp);
-        reg.register(group).unwrap();
-        let found = reg.get(AngleGroupId::new(1)).unwrap();
+        reg.register(group)
+            .expect("multicam test operation should succeed");
+        let found = reg
+            .get(AngleGroupId::new(1))
+            .expect("multicam test operation should succeed");
         assert_eq!(found.name, "CloseUp");
     }
 
@@ -433,7 +448,7 @@ mod tests {
     fn test_angle_group_registry_duplicate_rejected() {
         let mut reg = AngleGroupRegistry::new();
         reg.register(AngleGroup::new(1, "A", AngleGroupKind::Wide))
-            .unwrap();
+            .expect("multicam test operation should succeed");
         let result = reg.register(AngleGroup::new(1, "B", AngleGroupKind::Mid));
         assert!(result.is_err());
     }
@@ -445,8 +460,10 @@ mod tests {
         g1.priority = 50;
         let mut g2 = AngleGroup::new(2, "High", AngleGroupKind::CloseUp);
         g2.priority = 200;
-        reg.register(g1).unwrap();
-        reg.register(g2).unwrap();
+        reg.register(g1)
+            .expect("multicam test operation should succeed");
+        reg.register(g2)
+            .expect("multicam test operation should succeed");
         let sorted = reg.by_priority();
         assert_eq!(sorted[0].name, "High");
         assert_eq!(sorted[1].name, "Low");

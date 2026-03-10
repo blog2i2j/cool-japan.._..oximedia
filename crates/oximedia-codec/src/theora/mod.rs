@@ -41,9 +41,9 @@
 //! use oximedia_core::{CodecId, PixelFormat};
 //!
 //! // Decoding
-//! let mut decoder = TheoraDecoder::new(1920, 1080, PixelFormat::Yuv420p).unwrap();
-//! // decoder.send_packet(&packet_data, pts).unwrap();
-//! // if let Some(frame) = decoder.receive_frame().unwrap() {
+//! let mut decoder = TheoraDecoder::new(1920, 1080, PixelFormat::Yuv420p)?;
+//! // decoder.send_packet(&packet_data, pts)?;
+//! // if let Some(frame) = decoder.receive_frame()? {
 //! //     // Process frame
 //! // }
 //!
@@ -51,7 +51,7 @@
 //! let config = TheoraConfig::new(1920, 1080)
 //!     .with_quality(48)
 //!     .with_target_bitrate(2_000_000);
-//! let mut encoder = TheoraEncoder::new(config).unwrap();
+//! let mut encoder = TheoraEncoder::new(config)?;
 //! ```
 
 pub mod bitstream;

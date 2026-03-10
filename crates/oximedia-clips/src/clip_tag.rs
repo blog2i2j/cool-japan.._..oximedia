@@ -418,7 +418,7 @@ mod tests {
         let mut reg = TagRegistry::new();
         let id = reg.register_tag("project", "location", "studio-a");
         assert_eq!(reg.tag_count(), 1);
-        let tag = reg.get_tag(id).unwrap();
+        let tag = reg.get_tag(id).expect("get_tag should succeed");
         assert_eq!(tag.value, "studio-a");
     }
 
@@ -426,7 +426,7 @@ mod tests {
     fn test_registry_register_colored_tag() {
         let mut reg = TagRegistry::new();
         let id = reg.register_colored_tag("project", "status", "approved", TagColor::Green);
-        let tag = reg.get_tag(id).unwrap();
+        let tag = reg.get_tag(id).expect("get_tag should succeed");
         assert_eq!(tag.color, TagColor::Green);
     }
 

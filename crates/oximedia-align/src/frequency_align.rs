@@ -282,7 +282,7 @@ mod tests {
         let signal: Vec<f32> = (0..4800).map(|i| (i as f32 * 0.01).sin()).collect();
         let result = aligner.compute_shift(&signal, &signal);
         assert!(result.is_some());
-        let r = result.unwrap();
+        let r = result.expect("r should be valid");
         assert_eq!(r.shift_samples, 0);
         assert!(r.confidence > 0.9);
     }

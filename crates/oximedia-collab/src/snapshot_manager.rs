@@ -314,7 +314,7 @@ mod tests {
         let mut mgr = SnapshotManager::new(SnapshotConfig::default());
         let id = mgr.take_snapshot(SnapshotKind::Manual, sample_state(1), "alice", Some("v1"));
         assert_eq!(mgr.count(), 1);
-        let snap = mgr.get(id).unwrap();
+        let snap = mgr.get(id).expect("collab test operation should succeed");
         assert_eq!(snap.label.as_deref(), Some("v1"));
         assert_eq!(snap.created_by, "alice");
     }
@@ -324,7 +324,12 @@ mod tests {
         let mut mgr = SnapshotManager::new(SnapshotConfig::default());
         let _id1 = mgr.take_snapshot(SnapshotKind::Manual, sample_state(1), "a", None);
         let id2 = mgr.take_snapshot(SnapshotKind::Manual, sample_state(2), "b", None);
-        assert_eq!(mgr.latest().unwrap().id, id2);
+        assert_eq!(
+            mgr.latest()
+                .expect("collab test operation should succeed")
+                .id,
+            id2
+        );
     }
 
     #[test]
@@ -354,7 +359,9 @@ mod tests {
         let mut mgr = SnapshotManager::new(SnapshotConfig::default());
         let id1 = mgr.take_snapshot(SnapshotKind::Manual, sample_state(1), "a", None);
         let id2 = mgr.take_snapshot(SnapshotKind::Manual, sample_state(1), "a", None);
-        let diff = mgr.diff(id1, id2).unwrap();
+        let diff = mgr
+            .diff(id1, id2)
+            .expect("collab test operation should succeed");
         assert!(diff.is_identical());
     }
 
@@ -369,7 +376,9 @@ mod tests {
         s2.insert("gamma", vec![3]);
         let id1 = mgr.take_snapshot(SnapshotKind::Manual, s1, "a", None);
         let id2 = mgr.take_snapshot(SnapshotKind::Manual, s2, "a", None);
-        let diff = mgr.diff(id1, id2).unwrap();
+        let diff = mgr
+            .diff(id1, id2)
+            .expect("collab test operation should succeed");
         assert!(diff.removed_keys.contains(&"alpha".to_string()));
         assert!(diff.added_keys.contains(&"gamma".to_string()));
         assert!(diff.unchanged_keys.contains(&"beta".to_string()));
@@ -384,7 +393,9 @@ mod tests {
         s2.insert("key", vec![2]);
         let id1 = mgr.take_snapshot(SnapshotKind::Manual, s1, "a", None);
         let id2 = mgr.take_snapshot(SnapshotKind::Manual, s2, "a", None);
-        let diff = mgr.diff(id1, id2).unwrap();
+        let diff = mgr
+            .diff(id1, id2)
+            .expect("collab test operation should succeed");
         assert!(diff.changed_keys.contains(&"key".to_string()));
         assert_eq!(diff.diff_count(), 1);
     }
@@ -394,7 +405,9 @@ mod tests {
         let mut mgr = SnapshotManager::new(SnapshotConfig::default());
         let state = sample_state(42);
         let id = mgr.take_snapshot(SnapshotKind::Checkpoint, state.clone(), "sys", None);
-        let restored = mgr.restore(id).unwrap();
+        let restored = mgr
+            .restore(id)
+            .expect("collab test operation should succeed");
         assert_eq!(restored.version, 42);
         assert_eq!(restored.entries.len(), 2);
     }

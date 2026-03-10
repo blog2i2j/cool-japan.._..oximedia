@@ -13,6 +13,7 @@ use crc32fast::Hasher as Crc32Hasher;
 use md5::{Digest, Md5};
 use rayon::prelude::*;
 use serde::{Deserialize, Serialize};
+use sha1::Sha1;
 use sha2::Sha256;
 use sqlx::Row;
 use std::fs::File;
@@ -338,8 +339,9 @@ impl ChecksumRecord {
 
     /// Update last verified timestamp
     pub async fn update_verified(&mut self, pool: &sqlx::SqlitePool) -> ArchiveResult<()> {
-        self.last_verified_at = Some(Utc::now());
-        let last_verified_str = self.last_verified_at.as_ref().unwrap().to_rfc3339();
+        let now = Utc::now();
+        self.last_verified_at = Some(now);
+        let last_verified_str = now.to_rfc3339();
 
         sqlx::query(
             r"
@@ -776,18 +778,33 @@ impl ChecksumManifest {
 
 /// Verify a checksum record against a byte slice.
 ///
-/// Uses a simple XOR-fold mock (not cryptographically meaningful).
+/// Dispatches on [`ChecksumAlgo`] to compute the real cryptographic digest and
+/// compares it (case-insensitively) against `record.hex_digest`.
 #[allow(dead_code)]
 #[must_use]
 pub fn verify_checksum(record: &ChecksumEntry, data: &[u8]) -> bool {
-    // Compute a mock digest: XOR-fold the data into digest_len_bytes bytes.
-    let digest_len = record.algo.digest_len_bytes();
-    let mut mock: Vec<u8> = vec![0u8; digest_len];
-    for (i, &b) in data.iter().enumerate() {
-        mock[i % digest_len] ^= b;
-    }
-    let mock_hex: String = mock.iter().map(|b| format!("{b:02x}")).collect();
-    mock_hex == record.hex_digest
+    let computed_hex: String = match record.algo {
+        ChecksumAlgo::Md5 => {
+            let mut h = Md5::new();
+            h.update(data);
+            format!("{:x}", h.finalize())
+        }
+        ChecksumAlgo::Sha1 => {
+            let mut h = Sha1::new();
+            h.update(data);
+            format!("{:x}", h.finalize())
+        }
+        ChecksumAlgo::Sha256 => {
+            let mut h = Sha256::new();
+            h.update(data);
+            format!("{:x}", h.finalize())
+        }
+        ChecksumAlgo::Xxhash => {
+            let hash_value = xxhash_rust::xxh64::xxh64(data, 0);
+            format!("{hash_value:016x}")
+        }
+    };
+    computed_hex.eq_ignore_ascii_case(&record.hex_digest)
 }
 
 #[cfg(test)]
@@ -887,23 +904,51 @@ mod checksum_algo_tests {
     }
 
     #[test]
-    fn test_verify_checksum_roundtrip() {
+    fn test_verify_checksum_roundtrip_md5() {
+        use md5::{Digest, Md5};
         let data = b"hello world";
-        // Compute mock hex manually
-        let digest_len = ChecksumAlgo::Md5.digest_len_bytes();
-        let mut mock = vec![0u8; digest_len];
-        for (i, &b) in data.iter().enumerate() {
-            mock[i % digest_len] ^= b;
-        }
-        let hex: String = mock.iter().map(|b| format!("{b:02x}")).collect();
+        let mut h = Md5::new();
+        h.update(data);
+        let hex = format!("{:x}", h.finalize());
         let r = make_record("test.bin", ChecksumAlgo::Md5, &hex);
         assert!(verify_checksum(&r, data));
     }
 
     #[test]
+    fn test_verify_checksum_roundtrip_sha256() {
+        use sha2::{Digest, Sha256};
+        let data = b"hello world";
+        let mut h = Sha256::new();
+        h.update(data);
+        let hex = format!("{:x}", h.finalize());
+        let r = make_record("test.bin", ChecksumAlgo::Sha256, &hex);
+        assert!(verify_checksum(&r, data));
+    }
+
+    #[test]
+    fn test_verify_checksum_roundtrip_sha1() {
+        use sha1::{Digest, Sha1};
+        let data = b"hello world";
+        let mut h = Sha1::new();
+        h.update(data);
+        let hex = format!("{:x}", h.finalize());
+        let r = make_record("test.bin", ChecksumAlgo::Sha1, &hex);
+        assert!(verify_checksum(&r, data));
+    }
+
+    #[test]
+    fn test_verify_checksum_roundtrip_xxhash() {
+        let data = b"hello world";
+        let hash_value = xxhash_rust::xxh64::xxh64(data, 0);
+        let hex = format!("{hash_value:016x}");
+        let r = make_record("test.bin", ChecksumAlgo::Xxhash, &hex);
+        assert!(verify_checksum(&r, data));
+    }
+
+    #[test]
     fn test_verify_checksum_mismatch() {
+        // All-zero MD5 digest will not match real MD5 of non-empty data.
         let r = make_record("x.bin", ChecksumAlgo::Md5, &"00".repeat(16));
-        // Non-zero data will likely differ
         assert!(!verify_checksum(&r, b"some data that is not all zeros"));
     }
 }

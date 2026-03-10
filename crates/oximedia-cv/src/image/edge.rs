@@ -640,7 +640,7 @@ mod tests {
         }
 
         let sobel = SobelEdge::new();
-        let result = sobel.detect(&src, 5, 5).unwrap();
+        let result = sobel.detect(&src, 5, 5).expect("detect should succeed");
         assert_eq!(result.len(), 25);
 
         // Edge should be detected around x=2
@@ -652,8 +652,12 @@ mod tests {
         let src = vec![100u8; 25];
         let sobel = SobelEdge::new();
 
-        let gx = sobel.gradient_x(&src, 5, 5).unwrap();
-        let gy = sobel.gradient_y(&src, 5, 5).unwrap();
+        let gx = sobel
+            .gradient_x(&src, 5, 5)
+            .expect("gradient_x should succeed");
+        let gy = sobel
+            .gradient_y(&src, 5, 5)
+            .expect("gradient_y should succeed");
 
         assert_eq!(gx.len(), 25);
         assert_eq!(gy.len(), 25);
@@ -668,7 +672,7 @@ mod tests {
     fn test_canny_edge() {
         let src = vec![100u8; 100];
         let canny = CannyEdge::new(50.0, 150.0, 1.4);
-        let result = canny.detect(&src, 10, 10).unwrap();
+        let result = canny.detect(&src, 10, 10).expect("detect should succeed");
         assert_eq!(result.len(), 100);
     }
 
@@ -683,7 +687,7 @@ mod tests {
     fn test_laplacian_edge() {
         let src = vec![100u8; 25];
         let laplacian = LaplacianEdge::new();
-        let result = laplacian.detect(&src, 5, 5).unwrap();
+        let result = laplacian.detect(&src, 5, 5).expect("detect should succeed");
         assert_eq!(result.len(), 25);
     }
 
@@ -691,14 +695,14 @@ mod tests {
     fn test_laplacian_eight_connected() {
         let src = vec![100u8; 25];
         let laplacian = LaplacianEdge::new().eight_connected();
-        let result = laplacian.detect(&src, 5, 5).unwrap();
+        let result = laplacian.detect(&src, 5, 5).expect("detect should succeed");
         assert_eq!(result.len(), 25);
     }
 
     #[test]
     fn test_gradient_direction() {
         let src = vec![100u8; 25];
-        let dir = gradient_direction(&src, 5, 5).unwrap();
+        let dir = gradient_direction(&src, 5, 5).expect("gradient_direction should succeed");
         assert_eq!(dir.len(), 25);
     }
 

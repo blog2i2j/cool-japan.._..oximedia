@@ -270,18 +270,18 @@ mod tests {
         let mut source = MemorySource::from_vec(vec![1, 2, 3, 4, 5]);
 
         let mut buffer = [0u8; 3];
-        let n = source.read(&mut buffer).await.unwrap();
+        let n = source.read(&mut buffer).await.expect("failed to read");
         assert_eq!(n, 3);
         assert_eq!(&buffer, &[1, 2, 3]);
         assert_eq!(source.position(), 3);
 
-        let n = source.read(&mut buffer).await.unwrap();
+        let n = source.read(&mut buffer).await.expect("failed to read");
         assert_eq!(n, 2);
         assert_eq!(&buffer[..2], &[4, 5]);
         assert_eq!(source.position(), 5);
 
         // EOF
-        let n = source.read(&mut buffer).await.unwrap();
+        let n = source.read(&mut buffer).await.expect("failed to read");
         assert_eq!(n, 0);
     }
 
@@ -290,25 +290,34 @@ mod tests {
         let mut source = MemorySource::from_slice(&[0, 1, 2, 3, 4, 5, 6, 7, 8, 9]);
 
         // Seek from start
-        let pos = source.seek(SeekFrom::Start(5)).await.unwrap();
+        let pos = source
+            .seek(SeekFrom::Start(5))
+            .await
+            .expect("seek should succeed");
         assert_eq!(pos, 5);
         assert_eq!(source.position(), 5);
 
         // Read after seek
         let mut buffer = [0u8; 3];
-        let n = source.read(&mut buffer).await.unwrap();
+        let n = source.read(&mut buffer).await.expect("failed to read");
         assert_eq!(n, 3);
         assert_eq!(&buffer, &[5, 6, 7]);
 
         // Seek from current
-        let pos = source.seek(SeekFrom::Current(-3)).await.unwrap();
+        let pos = source
+            .seek(SeekFrom::Current(-3))
+            .await
+            .expect("seek should succeed");
         assert_eq!(pos, 5);
 
         // Seek from end
-        let pos = source.seek(SeekFrom::End(-2)).await.unwrap();
+        let pos = source
+            .seek(SeekFrom::End(-2))
+            .await
+            .expect("seek should succeed");
         assert_eq!(pos, 8);
 
-        let n = source.read(&mut buffer).await.unwrap();
+        let n = source.read(&mut buffer).await.expect("failed to read");
         assert_eq!(n, 2);
         assert_eq!(&buffer[..2], &[8, 9]);
     }

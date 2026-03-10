@@ -50,6 +50,8 @@ mod tests {
             description: "Test Description".to_string(),
         };
         let mut integration = FacebookIntegration::new(config);
-        integration.update_title("New Title".to_string()).unwrap();
+        integration
+            .update_title("New Title".to_string())
+            .expect("update title should succeed");
     }
 }

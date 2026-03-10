@@ -378,7 +378,7 @@ mod tests {
 
     #[test]
     fn test_fingerprint_from_hex() {
-        let fp = Fingerprint::from_hex(FingerprintAlgorithm::AverageHash, "ff00ab").unwrap();
+        let fp = Fingerprint::from_hex(FingerprintAlgorithm::AverageHash, "ff00ab").expect("fp should be valid");
         assert_eq!(fp.hash_bytes, vec![0xff, 0x00, 0xab]);
         assert_eq!(fp.bit_length, 24);
     }
@@ -418,7 +418,7 @@ mod tests {
     fn test_similarity_identical() {
         let fp1 = Fingerprint::new(FingerprintAlgorithm::AverageHash, vec![0xab, 0xcd], 16);
         let fp2 = fp1.clone();
-        let sim = fp1.similarity(&fp2).unwrap();
+        let sim = fp1.similarity(&fp2).expect("sim should be valid");
         assert!((sim - 1.0).abs() < f64::EPSILON);
     }
 
@@ -426,7 +426,7 @@ mod tests {
     fn test_similarity_opposite() {
         let fp1 = Fingerprint::new(FingerprintAlgorithm::AverageHash, vec![0xff], 8);
         let fp2 = Fingerprint::new(FingerprintAlgorithm::AverageHash, vec![0x00], 8);
-        let sim = fp1.similarity(&fp2).unwrap();
+        let sim = fp1.similarity(&fp2).expect("sim should be valid");
         assert!(sim.abs() < f64::EPSILON);
     }
 

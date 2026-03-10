@@ -431,7 +431,12 @@ mod tests {
         assert!(result.horizontal_density.is_some());
         // Vertical edges should be dominant for vertical stripes
         assert!(
-            result.vertical_density.unwrap() > result.horizontal_density.unwrap(),
+            result
+                .vertical_density
+                .expect("expected vertical_density to be Some/Ok")
+                > result
+                    .horizontal_density
+                    .expect("expected vertical_density to be Some/Ok"),
             "vertical stripes should produce more vertical edges"
         );
     }

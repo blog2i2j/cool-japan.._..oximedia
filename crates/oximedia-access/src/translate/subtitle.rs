@@ -83,7 +83,9 @@ mod tests {
         let translator = SubtitleTranslator::default();
         let subtitle = Subtitle::new(1000, 3000, "Hello".to_string());
 
-        let translated = translator.translate(&subtitle).unwrap();
+        let translated = translator
+            .translate(&subtitle)
+            .expect("translated should be valid");
         assert_eq!(translated.start_time, 1000);
         assert_eq!(translated.end_time, 3000);
     }

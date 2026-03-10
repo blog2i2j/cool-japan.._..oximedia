@@ -27,9 +27,9 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-codec = "0.1.0"
+oximedia-codec = "0.1.1"
 # or with additional codecs:
-oximedia-codec = { version = "0.1.0", features = ["av1", "vp9", "vp8", "opus"] }
+oximedia-codec = { version = "0.1.1", features = ["av1", "vp9", "vp8", "opus"] }
 ```
 
 ### AV1 Decoding

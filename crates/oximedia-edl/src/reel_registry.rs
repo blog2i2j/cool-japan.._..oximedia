@@ -245,7 +245,7 @@ mod tests {
         reg.register_by_name("X001", ReelFormat::FileBased);
         let r = reg.lookup("X001");
         assert!(r.is_some());
-        assert_eq!(r.unwrap().name, "X001");
+        assert_eq!(r.expect("r should be valid").name, "X001");
     }
 
     #[test]
@@ -260,7 +260,10 @@ mod tests {
         reg.register_by_name("A001", ReelFormat::DigitalTape);
         reg.register_by_name("A001", ReelFormat::Film35mm);
         assert_eq!(reg.reel_count(), 1);
-        assert_eq!(reg.lookup("A001").unwrap().format, ReelFormat::Film35mm);
+        assert_eq!(
+            reg.lookup("A001").expect("lookup should succeed").format,
+            ReelFormat::Film35mm
+        );
     }
 
     #[test]

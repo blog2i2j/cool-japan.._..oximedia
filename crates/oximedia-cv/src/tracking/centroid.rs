@@ -218,7 +218,7 @@ impl CentroidTracker {
             }
         }
 
-        pairs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        pairs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
 
         // Assign greedily
         for (_, track_idx, det_idx) in pairs {

@@ -391,7 +391,7 @@ mod tests {
     fn test_mtc_full_frame_decode() {
         let tc = MtcTimecode::new(2, 10, 30, 15, MtcFrameRate::Fps30);
         let encoded = MtcFullFrame::encode(&tc);
-        let decoded = MtcFullFrame::decode(&encoded).unwrap();
+        let decoded = MtcFullFrame::decode(&encoded).expect("should succeed");
         assert_eq!(decoded.hours, 2);
         assert_eq!(decoded.minutes, 10);
         assert_eq!(decoded.seconds, 30);
@@ -417,7 +417,7 @@ mod tests {
             result = receiver.process_message(byte);
         }
 
-        let decoded = result.unwrap();
+        let decoded = result.expect("result should be ok");
         assert_eq!(decoded.hours, tc.hours);
         assert_eq!(decoded.minutes, tc.minutes);
         assert_eq!(decoded.seconds, tc.seconds);

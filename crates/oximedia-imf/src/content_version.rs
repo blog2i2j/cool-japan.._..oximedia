@@ -146,14 +146,16 @@ mod tests {
 
     #[test]
     fn test_to_urn_format() {
-        let id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let id =
+            Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").expect("id should be valid");
         let v = ContentVersion::with_id(id, "test");
         assert_eq!(v.to_urn(), "urn:uuid:550e8400-e29b-41d4-a716-446655440000");
     }
 
     #[test]
     fn test_display_format() {
-        let id = Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").unwrap();
+        let id =
+            Uuid::parse_str("550e8400-e29b-41d4-a716-446655440000").expect("id should be valid");
         let v = ContentVersion::with_id(id, "v2");
         let s = v.to_string();
         assert!(s.contains("urn:uuid:"));
@@ -165,7 +167,7 @@ mod tests {
         let result =
             ContentVersion::from_xml("urn:uuid:550e8400-e29b-41d4-a716-446655440000", "version-1");
         assert!(result.is_ok());
-        let v = result.unwrap();
+        let v = result.expect("v should be valid");
         assert_eq!(v.label, "version-1");
     }
 
@@ -195,7 +197,7 @@ mod tests {
         list.push(ContentVersion::new("v1"));
         list.push(ContentVersion::new("v2"));
         assert_eq!(list.len(), 2);
-        assert_eq!(list.latest().unwrap().label, "v2");
+        assert_eq!(list.latest().expect("latest should succeed").label, "v2");
     }
 
     #[test]
@@ -205,7 +207,7 @@ mod tests {
         let id = v.id;
         list.push(v);
         list.push(ContentVersion::new("other"));
-        let found = list.find_by_id(&id).unwrap();
+        let found = list.find_by_id(&id).expect("found should be valid");
         assert_eq!(found.label, "findme");
     }
 

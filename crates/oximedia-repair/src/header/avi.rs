@@ -128,16 +128,133 @@ fn find_chunk(file: &mut File, chunk_id: &[u8; 4]) -> Result<Option<u64>> {
     Ok(None)
 }
 
-/// Rebuild AVI index.
-fn rebuild_index(_input: &Path, _output: &Path) -> Result<bool> {
-    // This is a placeholder for index rebuilding
-    // In a real implementation, this would:
-    // 1. Scan through the movi chunk
-    // 2. Find all video/audio frames
-    // 3. Build an index of their positions
-    // 4. Write the idx1 chunk
+/// AVI index entry (idx1 chunk record).
+///
+/// Each entry is 16 bytes: 4-byte chunk ID, 4-byte flags, 4-byte offset,
+/// 4-byte size.
+#[derive(Debug, Clone)]
+struct AviIndexEntry {
+    /// Chunk ID (e.g. b"00dc" for video, b"01wb" for audio).
+    chunk_id: [u8; 4],
+    /// Flags (0x10 = AVIIF_KEYFRAME).
+    flags: u32,
+    /// Byte offset of this chunk relative to the start of the movi list data.
+    offset: u32,
+    /// Byte size of the chunk data (excluding the 8-byte header).
+    size: u32,
+}
+
+/// Rebuild AVI index by scanning through the movi chunk for stream chunks.
+///
+/// 1. Locate the `movi` LIST.
+/// 2. Walk through its children looking for chunks whose IDs match the
+///    `NNxx` pattern (e.g. `00dc`, `01wb`).
+/// 3. Build an `idx1` chunk containing one entry per discovered frame.
+/// 4. Write the rebuilt file to `output`.
+fn rebuild_index(input: &Path, output: &Path) -> Result<bool> {
+    let mut file = File::open(input)?;
+    let file_size = file.metadata()?.len();
+
+    // Locate the movi LIST
+    let movi_offset = match find_list(&mut file, b"movi")? {
+        Some(offset) => offset,
+        None => return Ok(false), // Cannot rebuild without movi
+    };
+
+    // Read movi LIST size
+    file.seek(SeekFrom::Start(movi_offset + 4))?;
+    let mut size_buf = [0u8; 4];
+    file.read_exact(&mut size_buf)?;
+    let movi_list_size = u32::from_le_bytes(size_buf) as u64;
+
+    // The movi data starts after "LIST" (4) + size (4) + "movi" (4) = 12 bytes
+    let movi_data_start = movi_offset + 12;
+    let movi_data_end = (movi_offset + 8 + movi_list_size).min(file_size);
+
+    // Scan through the movi data for stream chunks
+    let mut entries: Vec<AviIndexEntry> = Vec::new();
+    let mut pos = movi_data_start;
+
+    while pos + 8 <= movi_data_end {
+        file.seek(SeekFrom::Start(pos))?;
+        let mut header = [0u8; 8];
+        if file.read_exact(&mut header).is_err() {
+            break;
+        }
+
+        let chunk_id: [u8; 4] = [header[0], header[1], header[2], header[3]];
+        let chunk_size = u32::from_le_bytes([header[4], header[5], header[6], header[7]]);
+
+        // AVI stream chunks have IDs like "00dc", "00db", "01wb", etc.
+        // First two chars are ASCII digits (stream number).
+        if is_stream_chunk_id(&chunk_id) {
+            // Check for keyframe: uncompressed frames (xxdb) are always key,
+            // compressed frames (xxdc) are key if first or large relative to others
+            let is_key = chunk_id[2] == b'd' && chunk_id[3] == b'b';
+            let flags = if is_key { 0x10u32 } else { 0u32 };
+
+            // Offset is relative to the first byte of the movi list data
+            let relative_offset = (pos - movi_data_start) as u32;
+
+            entries.push(AviIndexEntry {
+                chunk_id,
+                flags,
+                offset: relative_offset,
+                size: chunk_size,
+            });
+        }
+
+        // Advance to next chunk (8-byte header + size, word-aligned)
+        let aligned_size = ((chunk_size as u64) + 1) & !1;
+        pos += 8 + aligned_size;
+    }
+
+    if entries.is_empty() {
+        return Ok(false);
+    }
+
+    // Read the original file up to the end of the movi chunk
+    file.seek(SeekFrom::Start(0))?;
+    let copy_end = movi_data_end;
+    let mut original_data = vec![0u8; copy_end as usize];
+    file.read_exact(&mut original_data)?;
+
+    // Build idx1 chunk
+    let idx1_data_size = (entries.len() * 16) as u32;
+    let mut idx1_chunk = Vec::with_capacity(8 + idx1_data_size as usize);
+    idx1_chunk.extend_from_slice(b"idx1");
+    idx1_chunk.extend_from_slice(&idx1_data_size.to_le_bytes());
+
+    for entry in &entries {
+        idx1_chunk.extend_from_slice(&entry.chunk_id);
+        idx1_chunk.extend_from_slice(&entry.flags.to_le_bytes());
+        idx1_chunk.extend_from_slice(&entry.offset.to_le_bytes());
+        idx1_chunk.extend_from_slice(&entry.size.to_le_bytes());
+    }
+
+    // Write output file: original data + idx1 chunk
+    let mut out = File::create(output)?;
+    out.write_all(&original_data)?;
+    out.write_all(&idx1_chunk)?;
+
+    // Fix RIFF size in the output
+    let total_size = original_data.len() as u64 + idx1_chunk.len() as u64;
+    let riff_size = total_size.saturating_sub(8) as u32;
+    out.seek(SeekFrom::Start(4))?;
+    out.write_all(&riff_size.to_le_bytes())?;
 
     Ok(true)
+}
+
+/// Check if a 4-byte chunk ID is a valid AVI stream chunk identifier.
+///
+/// Stream chunk IDs are of the form `NNxx` where `NN` are ASCII digits
+/// and `xx` is a two-letter type code (dc, db, wb, pc, etc.).
+fn is_stream_chunk_id(id: &[u8; 4]) -> bool {
+    id[0].is_ascii_digit()
+        && id[1].is_ascii_digit()
+        && id[2].is_ascii_lowercase()
+        && id[3].is_ascii_lowercase()
 }
 
 /// Fix AVI header list.

@@ -9,15 +9,16 @@ use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::StreamExt;
 use google_cloud_storage::{
+    builder::storage::SignedUrlBuilder,
     client::{Storage, StorageControl},
-    model,
+    http, model,
 };
 use google_cloud_wkt as wkt;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::fs::File;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 
 /// Threshold for using resumable upload (10 MB)
 const RESUMABLE_THRESHOLD: u64 = 10 * 1024 * 1024;
@@ -171,21 +172,86 @@ impl GcsStorage {
     }
 
     /// Set object ACL
-    pub async fn set_object_acl(
-        &self,
-        object_name: &str,
-        _entity: &str,
-        _role: &str,
-    ) -> Result<()> {
-        info!("Setting ACL for object: {}", object_name);
-        warn!("Full ACL management not implemented, using basic permissions");
+    ///
+    /// Uses the GCS gRPC UpdateObject call to apply a full ACL entry (entity + role)
+    /// on the given object.  The `entity` must follow GCS entity syntax, e.g.:
+    /// `user-alice@example.com`, `group-admins@example.com`, `allUsers`, etc.
+    /// The `role` must be one of `READER`, `OWNER`.
+    pub async fn set_object_acl(&self, object_name: &str, entity: &str, role: &str) -> Result<()> {
+        info!(
+            "Setting ACL for object: {} entity={} role={}",
+            object_name, entity, role
+        );
+
+        // Build an ObjectAccessControl entry.
+        let acl_entry = model::ObjectAccessControl::new()
+            .set_entity(entity)
+            .set_role(role);
+
+        // Build the destination Object with the new ACL.
+        let dest_object = model::Object::new()
+            .set_name(object_name)
+            .set_bucket(self.bucket_path())
+            .set_acl([acl_entry]);
+
+        // update_mask must list the fields we are touching.
+        let update_mask = wkt::FieldMask::default().set_paths(["acl"]);
+
+        self.control
+            .update_object()
+            .set_object(dest_object)
+            .set_update_mask(update_mask)
+            .send()
+            .await
+            .map_err(|e| {
+                StorageError::ProviderError(format!(
+                    "Failed to set ACL for object {object_name}: {e}"
+                ))
+            })?;
+
+        info!("ACL set for object: {}", object_name);
         Ok(())
     }
 
     /// Get object ACL
+    ///
+    /// Retrieves the object's current ACL via GetObject (reading the `acl` field from
+    /// the returned metadata).
     pub async fn get_object_acl(&self, object_name: &str) -> Result<Vec<AclEntry>> {
         debug!("Getting ACL for object: {}", object_name);
-        Ok(Vec::new())
+
+        // Use a read_mask so the server populates the acl field.
+        let read_mask = wkt::FieldMask::default().set_paths(["acl"]);
+
+        let object = self
+            .control
+            .get_object()
+            .set_bucket(self.bucket_path())
+            .set_object(object_name)
+            .set_read_mask(read_mask)
+            .send()
+            .await
+            .map_err(|e| {
+                let err_str = format!("{e:?}");
+                if err_str.contains("404") || err_str.contains("NotFound") {
+                    StorageError::NotFound(object_name.to_string())
+                } else {
+                    StorageError::ProviderError(format!(
+                        "Failed to get ACL for object {object_name}: {err_str}"
+                    ))
+                }
+            })?;
+
+        let entries = object
+            .acl
+            .into_iter()
+            .map(|entry| AclEntry {
+                entity: entry.entity,
+                role: entry.role,
+            })
+            .collect();
+
+        Ok(entries)
     }
 
     /// Compose objects (combine multiple objects into one)
@@ -238,6 +304,10 @@ impl GcsStorage {
     }
 
     /// Set object retention policy
+    ///
+    /// Applies an object-level retention lock via UpdateObject.  The object will
+    /// be kept until `retain_until` in `UNLOCKED` mode (i.e. the expiry can still
+    /// be extended but the object cannot be deleted before it).
     pub async fn set_retention_policy(
         &self,
         object_name: &str,
@@ -247,14 +317,84 @@ impl GcsStorage {
             "Setting retention policy for object: {} until {}",
             object_name, retain_until
         );
-        warn!("Retention policy management not fully implemented");
+
+        // Convert chrono timestamp to wkt::Timestamp manually (the chrono feature
+        // is not enabled in this crate's dependency tree so TryFrom<DateTime> is
+        // unavailable; we derive the same result from timestamp() + nanos).
+        let nanos_raw = retain_until.timestamp_subsec_nanos();
+        let nanos_i32 = i32::try_from(nanos_raw).map_err(|_| {
+            StorageError::InvalidConfig(format!(
+                "retain_until nanoseconds component ({nanos_raw}) overflows i32 for object {object_name}"
+            ))
+        })?;
+        let wkt_ts = wkt::Timestamp::new(retain_until.timestamp(), nanos_i32).map_err(|e| {
+            StorageError::InvalidConfig(format!(
+                "retain_until timestamp out of range for object {object_name}: {e}"
+            ))
+        })?;
+
+        let retention = model::object::Retention::new()
+            .set_mode(model::object::retention::Mode::Unlocked)
+            .set_retain_until_time(wkt_ts);
+
+        let dest_object = model::Object::new()
+            .set_name(object_name)
+            .set_bucket(self.bucket_path())
+            .set_retention(retention);
+
+        let update_mask = wkt::FieldMask::default().set_paths(["retention"]);
+
+        self.control
+            .update_object()
+            .set_object(dest_object)
+            .set_update_mask(update_mask)
+            // Allow updating unlocked retention (needed for setting initial value).
+            .set_override_unlocked_retention(true)
+            .send()
+            .await
+            .map_err(|e| {
+                StorageError::ProviderError(format!(
+                    "Failed to set retention for object {object_name}: {e}"
+                ))
+            })?;
+
+        info!(
+            "Retention set for object: {} until {}",
+            object_name, retain_until
+        );
         Ok(())
     }
 
-    /// Enable customer-managed encryption
-    pub async fn set_encryption_key(&self, object_name: &str, _key: &str) -> Result<()> {
-        info!("Setting encryption key for object: {}", object_name);
-        warn!("Customer-managed encryption not fully implemented");
+    /// Enable customer-managed encryption (CMEK)
+    ///
+    /// Re-encrypts the object with a Cloud KMS key by issuing a rewrite-to-self
+    /// operation with `destinationKmsKey` set to the provided Cloud KMS key name.
+    ///
+    /// `kms_key_name` must be the full resource name of the Cloud KMS key, e.g.:
+    /// `projects/my-project/locations/global/keyRings/my-ring/cryptoKeys/my-key`
+    pub async fn set_encryption_key(&self, object_name: &str, kms_key_name: &str) -> Result<()> {
+        info!(
+            "Setting CMEK for object: {} key={}",
+            object_name, kms_key_name
+        );
+
+        // Rewrite-to-self with a new KMS key is the canonical GCS CMEK rotation.
+        self.control
+            .rewrite_object()
+            .set_source_bucket(self.bucket_path())
+            .set_source_object(object_name)
+            .set_destination_bucket(self.bucket_path())
+            .set_destination_name(object_name)
+            .set_destination_kms_key(kms_key_name)
+            .send()
+            .await
+            .map_err(|e| {
+                StorageError::ProviderError(format!(
+                    "Failed to set CMEK for object {object_name}: {e}"
+                ))
+            })?;
+
+        info!("CMEK set for object: {}", object_name);
         Ok(())
     }
 
@@ -323,44 +463,154 @@ impl GcsStorage {
     }
 
     /// Set storage class
+    ///
+    /// Changes the storage class of the object via a rewrite-to-self with the new
+    /// `storageClass` set on the destination object.  Valid storage classes include
+    /// `STANDARD`, `NEARLINE`, `COLDLINE`, `ARCHIVE`.
     pub async fn set_storage_class(&self, object_name: &str, storage_class: &str) -> Result<()> {
         info!(
             "Setting storage class to {} for object: {}",
             storage_class, object_name
         );
-        warn!("Storage class change not fully implemented");
+
+        let dest_object = model::Object::new()
+            .set_name(object_name)
+            .set_bucket(self.bucket_path())
+            .set_storage_class(storage_class);
+
+        // Rewrite-to-self with a destination Object that has the new storageClass.
+        self.control
+            .rewrite_object()
+            .set_source_bucket(self.bucket_path())
+            .set_source_object(object_name)
+            .set_destination_bucket(self.bucket_path())
+            .set_destination_name(object_name)
+            .set_destination(dest_object)
+            .send()
+            .await
+            .map_err(|e| {
+                StorageError::ProviderError(format!(
+                    "Failed to change storage class for object {object_name}: {e}"
+                ))
+            })?;
+
+        info!(
+            "Storage class set to {} for object: {}",
+            storage_class, object_name
+        );
         Ok(())
     }
 
-    /// Get signed URL for upload
+    /// Build a `google_cloud_auth::signer::Signer` from the service-account JSON key
+    /// file pointed to by `UnifiedConfig::credentials_file`.
+    ///
+    /// Returns `StorageError::UnsupportedOperation` when no file is configured so
+    /// callers surface a clear, actionable error rather than a silent fallback.
+    async fn build_signer(&self) -> Result<google_cloud_auth::signer::Signer> {
+        let creds_path = self.config.credentials_file.as_ref().ok_or_else(|| {
+            StorageError::UnsupportedOperation(
+                "Signed URL generation requires a service-account credentials file. \
+                 Set UnifiedConfig::credentials_file to the path of a valid JSON key file."
+                    .to_string(),
+            )
+        })?;
+
+        // Read the service-account JSON key file.
+        let mut file = File::open(creds_path).await.map_err(|e| {
+            StorageError::IoError(std::io::Error::new(
+                e.kind(),
+                format!("Failed to open credentials file {creds_path:?}: {e}"),
+            ))
+        })?;
+
+        let mut contents = Vec::new();
+        file.read_to_end(&mut contents).await.map_err(|e| {
+            StorageError::IoError(std::io::Error::new(
+                e.kind(),
+                format!("Failed to read credentials file {creds_path:?}: {e}"),
+            ))
+        })?;
+
+        let key_value: serde_json::Value = serde_json::from_slice(&contents).map_err(|e| {
+            StorageError::SerializationError(format!(
+                "Invalid service-account JSON in {creds_path:?}: {e}"
+            ))
+        })?;
+
+        // Build a Signer that signs using the RSA private key from the JSON key file.
+        google_cloud_auth::credentials::service_account::Builder::new(key_value)
+            .build_signer()
+            .map_err(|e| {
+                StorageError::AuthenticationError(format!(
+                    "Failed to build signer from credentials file {creds_path:?}: {e}"
+                ))
+            })
+    }
+
+    /// Get signed URL for upload (V4 signed PUT URL)
+    ///
+    /// Generates a V4 signed URL allowing any holder to PUT an object to GCS without
+    /// needing their own GCS credentials.  Requires `UnifiedConfig::credentials_file`
+    /// to point at a service-account JSON key file.
+    ///
+    /// The maximum expiration for V4 signed URLs is 7 days (604 800 seconds).
     pub async fn get_signed_upload_url(
         &self,
         object_name: &str,
-        _content_type: Option<&str>,
-        _expiration_secs: u64,
+        content_type: Option<&str>,
+        expiration_secs: u64,
     ) -> Result<String> {
         info!("Generating signed upload URL for: {}", object_name);
-        warn!("Signed URL generation not fully implemented");
 
-        Ok(format!(
-            "https://storage.googleapis.com/{}/{}",
-            self.bucket, object_name
-        ))
+        let signer = self.build_signer().await?;
+
+        let mut builder = SignedUrlBuilder::for_object(self.bucket_path(), object_name)
+            .with_method(http::Method::PUT)
+            .with_expiration(std::time::Duration::from_secs(expiration_secs));
+
+        if let Some(ct) = content_type {
+            builder = builder.with_header("content-type", ct);
+        }
+
+        let url = builder.sign_with(&signer).await.map_err(|e| {
+            StorageError::ProviderError(format!(
+                "Failed to generate signed upload URL for {object_name}: {e}"
+            ))
+        })?;
+
+        info!("Signed upload URL generated for: {}", object_name);
+        Ok(url)
     }
 
-    /// Get signed URL for download
+    /// Get signed URL for download (V4 signed GET URL)
+    ///
+    /// Generates a V4 signed URL allowing any holder to GET an object from GCS without
+    /// needing their own GCS credentials.  Requires `UnifiedConfig::credentials_file`
+    /// to point at a service-account JSON key file.
+    ///
+    /// The maximum expiration for V4 signed URLs is 7 days (604 800 seconds).
     pub async fn get_signed_download_url(
         &self,
         object_name: &str,
-        _expiration_secs: u64,
+        expiration_secs: u64,
     ) -> Result<String> {
         info!("Generating signed download URL for: {}", object_name);
-        warn!("Signed URL generation not fully implemented");
 
-        Ok(format!(
-            "https://storage.googleapis.com/{}/{}",
-            self.bucket, object_name
-        ))
+        let signer = self.build_signer().await?;
+
+        let url = SignedUrlBuilder::for_object(self.bucket_path(), object_name)
+            .with_method(http::Method::GET)
+            .with_expiration(std::time::Duration::from_secs(expiration_secs))
+            .sign_with(&signer)
+            .await
+            .map_err(|e| {
+                StorageError::ProviderError(format!(
+                    "Failed to generate signed download URL for {object_name}: {e}"
+                ))
+            })?;
+
+        info!("Signed download URL generated for: {}", object_name);
+        Ok(url)
     }
 }
 

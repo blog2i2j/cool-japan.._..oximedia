@@ -409,7 +409,7 @@ mod tests {
         assert!(mgr.get_camera(c1).is_some());
         let removed = mgr.remove_camera(c2);
         assert!(removed.is_some());
-        assert_eq!(removed.unwrap().label, "Overhead");
+        assert_eq!(removed.expect("should succeed").label, "Overhead");
         assert_eq!(mgr.camera_count(), 1);
     }
 

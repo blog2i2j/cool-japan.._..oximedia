@@ -241,7 +241,7 @@ mod tests {
         repo.ingest(make_sip("sip-001"));
         let found = repo.find("sip-001");
         assert!(found.is_some());
-        assert_eq!(found.unwrap().id, "sip-001");
+        assert_eq!(found.expect("operation should succeed").id, "sip-001");
     }
 
     #[test]

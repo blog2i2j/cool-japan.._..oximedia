@@ -554,13 +554,13 @@ mod tests {
         let header =
             PlayReadyHeader::new(key_id).with_la_url("https://license.example.com".to_string());
 
-        let xml = header.to_xml().unwrap();
+        let xml = header.to_xml().expect("operation should succeed");
         assert!(xml.contains("WRMHEADER"));
         assert!(xml.contains("KID"));
         assert!(xml.contains("LA_URL"));
         assert!(xml.contains("https://license.example.com"));
 
-        let parsed = PlayReadyHeader::from_xml(&xml).unwrap();
+        let parsed = PlayReadyHeader::from_xml(&xml).expect("operation should succeed");
         assert_eq!(parsed.key_id, key_id);
         assert_eq!(parsed.la_url, header.la_url);
     }
@@ -580,7 +580,7 @@ mod tests {
 
         assert_eq!(pssh_data.records.len(), 1);
 
-        let bytes = pssh_data.to_bytes().unwrap();
+        let bytes = pssh_data.to_bytes().expect("operation should succeed");
         assert!(!bytes.is_empty());
     }
 
@@ -589,7 +589,7 @@ mod tests {
         let challenge_data = vec![1, 2, 3, 4, 5];
         let challenge = PlayReadyLicenseChallenge::new(challenge_data.clone());
 
-        let decoded = challenge.get_challenge().unwrap();
+        let decoded = challenge.get_challenge().expect("operation should succeed");
         assert_eq!(decoded, challenge_data);
     }
 
@@ -603,7 +603,9 @@ mod tests {
         assert_eq!(server.key_count(), 1);
 
         let challenge = PlayReadyLicenseChallenge::new(vec![1, 2, 3]);
-        let license = server.process_challenge(&challenge, key_id).unwrap();
+        let license = server
+            .process_challenge(&challenge, key_id)
+            .expect("operation should succeed");
 
         assert_eq!(license.data, key);
     }

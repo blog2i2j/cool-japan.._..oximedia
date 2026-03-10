@@ -9,10 +9,10 @@
 //! use oximedia_core::work_queue::{WorkItem, WorkQueue};
 //!
 //! let mut q: WorkQueue<u32> = WorkQueue::new(8);
-//! q.push(WorkItem::new(42_u32, 10)).unwrap();
-//! q.push(WorkItem::new(99_u32, 20)).unwrap();
+//! q.push(WorkItem::new(42_u32, 10))?;
+//! q.push(WorkItem::new(99_u32, 20))?;
 //! // Highest-priority item comes out first.
-//! let item = q.pop().unwrap();
+//! let item = q.pop()?;
 //! assert_eq!(item.payload, 99_u32);
 //! ```
 
@@ -75,7 +75,7 @@ impl std::error::Error for QueueError {}
 /// use oximedia_core::work_queue::{WorkItem, WorkQueue};
 ///
 /// let mut q: WorkQueue<()> = WorkQueue::new(16);
-/// q.push(WorkItem::new((), 1)).unwrap();
+/// q.push(WorkItem::new((), 1))?;
 /// let _ = q.pop();
 /// let stats = q.stats();
 /// assert_eq!(stats.total_pushed, 1);
@@ -116,10 +116,10 @@ impl QueueStats {
 /// use oximedia_core::work_queue::{WorkItem, WorkQueue};
 ///
 /// let mut q: WorkQueue<i32> = WorkQueue::new(4);
-/// q.push(WorkItem::new(1, 5)).unwrap();
-/// q.push(WorkItem::new(2, 1)).unwrap();
-/// q.push(WorkItem::new(3, 9)).unwrap();
-/// assert_eq!(q.pop().unwrap().payload, 3); // priority 9 first
+/// q.push(WorkItem::new(1, 5))?;
+/// q.push(WorkItem::new(2, 1))?;
+/// q.push(WorkItem::new(3, 9))?;
+/// assert_eq!(q.pop()?.payload, 3); // priority 9 first
 /// assert_eq!(q.len(), 2);
 /// ```
 #[derive(Debug)]
@@ -257,8 +257,9 @@ mod tests {
     #[test]
     fn push_and_pop_single_item() {
         let mut q: WorkQueue<u32> = WorkQueue::new(4);
-        q.push(WorkItem::new(7_u32, 1)).unwrap();
-        let item = q.pop().unwrap();
+        q.push(WorkItem::new(7_u32, 1))
+            .expect("push should succeed");
+        let item = q.pop().expect("pop should return item");
         assert_eq!(item.payload, 7);
         assert!(q.is_empty());
     }
@@ -266,12 +267,15 @@ mod tests {
     #[test]
     fn pop_respects_priority_order() {
         let mut q: WorkQueue<u32> = WorkQueue::new(8);
-        q.push(WorkItem::new(1_u32, 5)).unwrap();
-        q.push(WorkItem::new(2_u32, 1)).unwrap();
-        q.push(WorkItem::new(3_u32, 9)).unwrap();
-        assert_eq!(q.pop().unwrap().payload, 3); // priority 9
-        assert_eq!(q.pop().unwrap().payload, 1); // priority 5
-        assert_eq!(q.pop().unwrap().payload, 2); // priority 1
+        q.push(WorkItem::new(1_u32, 5))
+            .expect("push should succeed");
+        q.push(WorkItem::new(2_u32, 1))
+            .expect("push should succeed");
+        q.push(WorkItem::new(3_u32, 9))
+            .expect("push should succeed");
+        assert_eq!(q.pop().expect("pop should return item").payload, 3); // priority 9
+        assert_eq!(q.pop().expect("pop should return item").payload, 1); // priority 5
+        assert_eq!(q.pop().expect("pop should return item").payload, 2); // priority 1
     }
 
     #[test]
@@ -283,8 +287,10 @@ mod tests {
     #[test]
     fn push_at_capacity_returns_error() {
         let mut q: WorkQueue<u32> = WorkQueue::new(2);
-        q.push(WorkItem::new(1_u32, 1)).unwrap();
-        q.push(WorkItem::new(2_u32, 2)).unwrap();
+        q.push(WorkItem::new(1_u32, 1))
+            .expect("push should succeed");
+        q.push(WorkItem::new(2_u32, 2))
+            .expect("push should succeed");
         let err = q.push(WorkItem::new(3_u32, 3));
         assert_eq!(err, Err(QueueError::Full));
     }
@@ -293,7 +299,8 @@ mod tests {
     fn is_full_and_capacity() {
         let mut q: WorkQueue<u32> = WorkQueue::new(1);
         assert!(!q.is_full());
-        q.push(WorkItem::new(0_u32, 1)).unwrap();
+        q.push(WorkItem::new(0_u32, 1))
+            .expect("push should succeed");
         assert!(q.is_full());
         assert_eq!(q.capacity(), 1);
     }
@@ -301,16 +308,19 @@ mod tests {
     #[test]
     fn peek_does_not_remove() {
         let mut q: WorkQueue<u32> = WorkQueue::new(4);
-        q.push(WorkItem::new(42_u32, 10)).unwrap();
-        assert_eq!(q.peek().unwrap().payload, 42);
+        q.push(WorkItem::new(42_u32, 10))
+            .expect("push should succeed");
+        assert_eq!(q.peek().expect("peek should return item").payload, 42);
         assert_eq!(q.len(), 1); // still there
     }
 
     #[test]
     fn clear_empties_queue() {
         let mut q: WorkQueue<u32> = WorkQueue::new(8);
-        q.push(WorkItem::new(1_u32, 1)).unwrap();
-        q.push(WorkItem::new(2_u32, 2)).unwrap();
+        q.push(WorkItem::new(1_u32, 1))
+            .expect("push should succeed");
+        q.push(WorkItem::new(2_u32, 2))
+            .expect("push should succeed");
         q.clear();
         assert!(q.is_empty());
     }
@@ -319,9 +329,9 @@ mod tests {
     fn pop_batch_returns_highest_first() {
         let mut q: WorkQueue<u32> = WorkQueue::new(8);
         for i in 0_u32..5 {
-            q.push(WorkItem::new(i, i)).unwrap();
+            q.push(WorkItem::new(i, i)).expect("push should succeed");
         }
-        let batch = q.pop_batch(3).unwrap();
+        let batch = q.pop_batch(3).expect("pop_batch should succeed");
         assert_eq!(batch.len(), 3);
         assert_eq!(batch[0].priority, 4); // highest
         assert_eq!(batch[1].priority, 3);
@@ -338,8 +348,10 @@ mod tests {
     #[test]
     fn stats_track_push_and_pop() {
         let mut q: WorkQueue<u32> = WorkQueue::new(8);
-        q.push(WorkItem::new(1_u32, 1)).unwrap();
-        q.push(WorkItem::new(2_u32, 2)).unwrap();
+        q.push(WorkItem::new(1_u32, 1))
+            .expect("push should succeed");
+        q.push(WorkItem::new(2_u32, 2))
+            .expect("push should succeed");
         let _ = q.pop();
         let s = q.stats();
         assert_eq!(s.total_pushed, 2);
@@ -350,7 +362,8 @@ mod tests {
     #[test]
     fn stats_count_rejected_pushes() {
         let mut q: WorkQueue<u32> = WorkQueue::new(1);
-        q.push(WorkItem::new(1_u32, 1)).unwrap();
+        q.push(WorkItem::new(1_u32, 1))
+            .expect("push should succeed");
         let _ = q.push(WorkItem::new(2_u32, 2)); // rejected
         assert_eq!(q.stats().total_rejected, 1);
     }
@@ -365,7 +378,7 @@ mod tests {
     fn iter_yields_all_items() {
         let mut q: WorkQueue<u32> = WorkQueue::new(8);
         for i in 0_u32..4 {
-            q.push(WorkItem::new(i, i)).unwrap();
+            q.push(WorkItem::new(i, i)).expect("push should succeed");
         }
         assert_eq!(q.iter().count(), 4);
     }

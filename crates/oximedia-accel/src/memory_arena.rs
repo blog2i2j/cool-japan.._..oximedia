@@ -256,7 +256,7 @@ mod tests {
     #[test]
     fn test_simple_allocation() {
         let mut arena = MemoryArena::new(256);
-        let rec = arena.allocate(64, 1).unwrap();
+        let rec = arena.allocate(64, 1).expect("rec should be valid");
         assert_eq!(rec.offset, 0);
         assert_eq!(rec.size, 64);
         assert_eq!(arena.used(), 64);
@@ -266,8 +266,8 @@ mod tests {
     #[test]
     fn test_aligned_allocation() {
         let mut arena = MemoryArena::new(256);
-        arena.allocate(10, 1).unwrap(); // cursor at 10
-        let rec = arena.allocate(32, 16).unwrap(); // should align to 16
+        arena.allocate(10, 1).expect("allocate should succeed"); // cursor at 10
+        let rec = arena.allocate(32, 16).expect("rec should be valid"); // should align to 16
         assert_eq!(rec.offset, 16);
         assert_eq!(rec.size, 32);
     }
@@ -283,7 +283,7 @@ mod tests {
     fn test_multiple_allocations() {
         let mut arena = MemoryArena::new(1024);
         for i in 0..10 {
-            let rec = arena.allocate(32, 1).unwrap();
+            let rec = arena.allocate(32, 1).expect("rec should be valid");
             assert_eq!(rec.offset, i * 32);
         }
         assert_eq!(arena.live_alloc_count(), 10);
@@ -293,8 +293,8 @@ mod tests {
     #[test]
     fn test_reset() {
         let mut arena = MemoryArena::new(256);
-        arena.allocate(100, 1).unwrap();
-        arena.allocate(50, 1).unwrap();
+        arena.allocate(100, 1).expect("allocate should succeed");
+        arena.allocate(50, 1).expect("allocate should succeed");
         arena.reset();
         assert_eq!(arena.used(), 0);
         assert_eq!(arena.live_alloc_count(), 0);
@@ -304,11 +304,11 @@ mod tests {
     #[test]
     fn test_peak_tracking() {
         let mut arena = MemoryArena::new(512);
-        arena.allocate(200, 1).unwrap();
-        arena.allocate(100, 1).unwrap();
+        arena.allocate(200, 1).expect("allocate should succeed");
+        arena.allocate(100, 1).expect("allocate should succeed");
         assert_eq!(arena.stats().peak_used, 300);
         arena.reset();
-        arena.allocate(50, 1).unwrap();
+        arena.allocate(50, 1).expect("allocate should succeed");
         // peak should still be 300
         assert_eq!(arena.stats().peak_used, 300);
     }
@@ -316,8 +316,8 @@ mod tests {
     #[test]
     fn test_get_record() {
         let mut arena = MemoryArena::new(256);
-        let rec = arena.allocate(16, 1).unwrap();
-        let found = arena.get_record(rec.id).unwrap();
+        let rec = arena.allocate(16, 1).expect("rec should be valid");
+        let found = arena.get_record(rec.id).expect("found should be valid");
         assert_eq!(found.offset, 0);
         assert_eq!(found.size, 16);
     }
@@ -325,7 +325,7 @@ mod tests {
     #[test]
     fn test_stats_utilization() {
         let mut arena = MemoryArena::new(100);
-        arena.allocate(50, 1).unwrap();
+        arena.allocate(50, 1).expect("allocate should succeed");
         let s = arena.stats();
         assert!((s.utilization() - 0.5).abs() < 1e-9);
         assert_eq!(s.free_bytes(), 50);
@@ -340,7 +340,7 @@ mod tests {
     #[test]
     fn test_resize_larger() {
         let mut arena = MemoryArena::new(100);
-        arena.allocate(80, 1).unwrap();
+        arena.allocate(80, 1).expect("allocate should succeed");
         arena.resize(200);
         assert_eq!(arena.capacity(), 200);
         assert_eq!(arena.remaining(), 120);
@@ -349,7 +349,7 @@ mod tests {
     #[test]
     fn test_resize_smaller_than_cursor() {
         let mut arena = MemoryArena::new(200);
-        arena.allocate(150, 1).unwrap();
+        arena.allocate(150, 1).expect("allocate should succeed");
         arena.resize(100);
         assert_eq!(arena.capacity(), 100);
         // cursor clamped to capacity
@@ -359,7 +359,7 @@ mod tests {
     #[test]
     fn test_allocate_unaligned() {
         let mut arena = MemoryArena::new(64);
-        let rec = arena.allocate_unaligned(10).unwrap();
+        let rec = arena.allocate_unaligned(10).expect("rec should be valid");
         assert_eq!(rec.alignment, 1);
         assert_eq!(rec.offset, 0);
     }

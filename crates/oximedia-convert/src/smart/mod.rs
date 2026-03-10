@@ -328,7 +328,7 @@ mod tests {
         let result = optimizer.optimize(&analysis, ConversionTarget::WebStreaming);
         assert!(result.is_ok());
 
-        let settings = result.unwrap();
+        let settings = result.expect("optimization should succeed");
         assert_eq!(settings.container, ContainerFormat::Webm);
         assert!(settings.video.is_some());
         assert!(settings.audio.is_some());

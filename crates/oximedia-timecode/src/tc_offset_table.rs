@@ -168,9 +168,9 @@ mod tests {
     #[test]
     fn test_roundtrip_ndf() {
         let table = OffsetTable::build(FrameRate::Fps25);
-        let tc = Timecode::new(1, 30, 15, 12, FrameRate::Fps25).unwrap();
-        let frame = table.timecode_to_frame(&tc).unwrap();
-        let tc2 = table.frame_to_timecode(frame).unwrap();
+        let tc = Timecode::new(1, 30, 15, 12, FrameRate::Fps25).expect("valid timecode");
+        let frame = table.timecode_to_frame(&tc).expect("timecode should exist");
+        let tc2 = table.frame_to_timecode(frame).expect("frame to timecode should succeed");
         assert_eq!(tc.hours, tc2.hours);
         assert_eq!(tc.minutes, tc2.minutes);
         assert_eq!(tc.seconds, tc2.seconds);
@@ -180,9 +180,9 @@ mod tests {
     #[test]
     fn test_roundtrip_30fps() {
         let table = OffsetTable::build(FrameRate::Fps30);
-        let tc = Timecode::new(10, 45, 22, 18, FrameRate::Fps30).unwrap();
-        let frame = table.timecode_to_frame(&tc).unwrap();
-        let tc2 = table.frame_to_timecode(frame).unwrap();
+        let tc = Timecode::new(10, 45, 22, 18, FrameRate::Fps30).expect("valid timecode");
+        let frame = table.timecode_to_frame(&tc).expect("timecode should exist");
+        let tc2 = table.frame_to_timecode(frame).expect("frame to timecode should succeed");
         assert_eq!(tc.hours, tc2.hours);
         assert_eq!(tc.minutes, tc2.minutes);
         assert_eq!(tc.seconds, tc2.seconds);
@@ -192,8 +192,8 @@ mod tests {
     #[test]
     fn test_zero_timecode() {
         let table = OffsetTable::build(FrameRate::Fps25);
-        let tc = Timecode::new(0, 0, 0, 0, FrameRate::Fps25).unwrap();
-        assert_eq!(table.timecode_to_frame(&tc).unwrap(), 0);
+        let tc = Timecode::new(0, 0, 0, 0, FrameRate::Fps25).expect("valid timecode");
+        assert_eq!(table.timecode_to_frame(&tc).expect("timecode should exist"), 0);
     }
 
     #[test]
@@ -213,18 +213,18 @@ mod tests {
     #[test]
     fn test_signed_distance_positive() {
         let table = OffsetTable::build(FrameRate::Fps25);
-        let a = Timecode::new(0, 0, 0, 0, FrameRate::Fps25).unwrap();
-        let b = Timecode::new(0, 0, 1, 0, FrameRate::Fps25).unwrap();
-        let dist = signed_frame_distance(&table, &a, &b).unwrap();
+        let a = Timecode::new(0, 0, 0, 0, FrameRate::Fps25).expect("valid timecode");
+        let b = Timecode::new(0, 0, 1, 0, FrameRate::Fps25).expect("valid timecode");
+        let dist = signed_frame_distance(&table, &a, &b).expect("signed distance should succeed");
         assert_eq!(dist, 25);
     }
 
     #[test]
     fn test_signed_distance_negative() {
         let table = OffsetTable::build(FrameRate::Fps25);
-        let a = Timecode::new(0, 0, 1, 0, FrameRate::Fps25).unwrap();
-        let b = Timecode::new(0, 0, 0, 0, FrameRate::Fps25).unwrap();
-        let dist = signed_frame_distance(&table, &a, &b).unwrap();
+        let a = Timecode::new(0, 0, 1, 0, FrameRate::Fps25).expect("valid timecode");
+        let b = Timecode::new(0, 0, 0, 0, FrameRate::Fps25).expect("valid timecode");
+        let dist = signed_frame_distance(&table, &a, &b).expect("signed distance should succeed");
         assert_eq!(dist, -25);
     }
 
@@ -244,7 +244,7 @@ mod tests {
     fn test_frame_to_timecode_minute_boundary() {
         let table = OffsetTable::build(FrameRate::Fps25);
         // Frame 1500 = minute 1 = 00:01:00:00
-        let tc = table.frame_to_timecode(1500).unwrap();
+        let tc = table.frame_to_timecode(1500).expect("frame to timecode should succeed");
         assert_eq!(tc.hours, 0);
         assert_eq!(tc.minutes, 1);
         assert_eq!(tc.seconds, 0);

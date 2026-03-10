@@ -112,7 +112,9 @@ mod tests {
             samples.push(amp * (2.0 * std::f32::consts::PI * 440.0 * i as f32 / 44100.0).sin());
         }
 
-        let result = analyzer.analyze(&samples, 44100.0).unwrap();
+        let result = analyzer
+            .analyze(&samples, 44100.0)
+            .expect("analysis should succeed");
 
         assert!(result.peak > 0.0);
         assert!(result.rms > 0.0);

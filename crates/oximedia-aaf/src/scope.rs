@@ -408,7 +408,7 @@ mod tests {
         chain.push(NestedScope::new("Innermost"));
         assert_eq!(chain.depth(), 2);
 
-        let popped = chain.pop().unwrap();
+        let popped = chain.pop().expect("popped should be valid");
         assert_eq!(popped.name, "Innermost");
         assert_eq!(chain.depth(), 1);
     }
@@ -437,12 +437,12 @@ mod tests {
 
         // Resolve innermost slot 0
         let r0 = ScopeRef::new(0, 0);
-        let slot = chain.resolve(&r0).unwrap();
+        let slot = chain.resolve(&r0).expect("slot should be valid");
         assert_eq!(slot.label, "InnerFG");
 
         // Resolve outer slot 0
         let r1 = ScopeRef::new(1, 0);
-        let slot = chain.resolve(&r1).unwrap();
+        let slot = chain.resolve(&r1).expect("slot should be valid");
         assert_eq!(slot.label, "OuterBG");
     }
 
@@ -521,8 +521,14 @@ mod tests {
         let mut chain = ScopeChain::new();
         chain.push(NestedScope::new("Outer"));
         chain.push(NestedScope::new("Inner"));
-        assert_eq!(chain.scope_at(0).unwrap().name, "Inner");
-        assert_eq!(chain.scope_at(1).unwrap().name, "Outer");
+        assert_eq!(
+            chain.scope_at(0).expect("scope_at should succeed").name,
+            "Inner"
+        );
+        assert_eq!(
+            chain.scope_at(1).expect("scope_at should succeed").name,
+            "Outer"
+        );
         assert!(chain.scope_at(2).is_none());
     }
 }

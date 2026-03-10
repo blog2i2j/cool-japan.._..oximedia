@@ -4,8 +4,8 @@
 //! using optical markers, IMU sensors, and sensor fusion.
 
 use super::{imu::ImuSensor, markers::MarkerDetector, CameraPose};
+use crate::math::{Point3, UnitQuaternion, Vector3};
 use crate::{Result, VirtualProductionError};
-use nalgebra::{Point3, UnitQuaternion, Vector3};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::time::Instant;
@@ -148,7 +148,7 @@ impl CameraTracker {
             (Some(opt), Some(imu_pose)) => {
                 // Weighted fusion
                 let weight = f64::from(self.config.fusion_weight);
-                let position = opt.position * weight + imu_pose.position.coords * (1.0 - weight);
+                let position = opt.position * weight + imu_pose.position.coords() * (1.0 - weight);
                 let orientation = opt.orientation.slerp(&imu_pose.orientation, 1.0 - weight);
                 let confidence = opt.confidence * self.config.fusion_weight
                     + imu_pose.confidence * (1.0 - self.config.fusion_weight);
@@ -184,7 +184,7 @@ impl CameraTracker {
         let mut avg_confidence = 0.0;
 
         for pose in &self.pose_history {
-            avg_position += pose.position.coords / n;
+            avg_position += pose.position.coords() / n;
             avg_confidence += pose.confidence / n as f32;
         }
 

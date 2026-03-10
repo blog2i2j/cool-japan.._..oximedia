@@ -190,7 +190,7 @@ mod tests {
 
         assert_eq!(info.media_type, MediaType::Video);
         assert_eq!(info.codec_id, CodecId::Av1);
-        let video = info.video.as_ref().unwrap();
+        let video = info.video.as_ref().expect("should have value");
         assert_eq!(video.width, 1920);
         assert_eq!(video.height, 1080);
     }

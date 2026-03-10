@@ -276,10 +276,10 @@ mod tests {
             reel.to_string(),
             TrackType::Video,
             EditType::Cut,
-            EdlTimecode::new(1, 0, sec_in, 0, fr).unwrap(),
-            EdlTimecode::new(1, 0, sec_out, 0, fr).unwrap(),
-            EdlTimecode::new(1, 0, sec_in, 0, fr).unwrap(),
-            EdlTimecode::new(1, 0, sec_out, 0, fr).unwrap(),
+            EdlTimecode::new(1, 0, sec_in, 0, fr).expect("failed to create"),
+            EdlTimecode::new(1, 0, sec_out, 0, fr).expect("failed to create"),
+            EdlTimecode::new(1, 0, sec_in, 0, fr).expect("failed to create"),
+            EdlTimecode::new(1, 0, sec_out, 0, fr).expect("failed to create"),
         )
     }
 

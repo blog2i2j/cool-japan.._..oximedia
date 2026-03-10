@@ -621,7 +621,7 @@ mod tests {
         });
 
         assert!(result.is_ok());
-        let result = result.unwrap();
+        let result = result.expect("result should be valid");
         assert_eq!(result.frames, 100);
     }
 

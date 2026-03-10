@@ -273,7 +273,9 @@ mod tests {
         let mut mon = CloudMonitor::new();
         mon.record(CloudMetricSample::new(CloudMetric::ErrorRate, 0.5, 1000));
         mon.record(CloudMetricSample::new(CloudMetric::ErrorRate, 0.8, 2000));
-        let latest = mon.latest(&CloudMetric::ErrorRate).unwrap();
+        let latest = mon
+            .latest(&CloudMetric::ErrorRate)
+            .expect("latest should be valid");
         assert!((latest.value - 0.8).abs() < f64::EPSILON);
     }
 
@@ -282,7 +284,9 @@ mod tests {
         let mut mon = CloudMonitor::new();
         mon.record(CloudMetricSample::new(CloudMetric::Latency, 100.0, 1000));
         mon.record(CloudMetricSample::new(CloudMetric::Latency, 200.0, 2000));
-        let avg = mon.average(&CloudMetric::Latency).unwrap();
+        let avg = mon
+            .average(&CloudMetric::Latency)
+            .expect("avg should be valid");
         assert!((avg - 150.0).abs() < f64::EPSILON);
     }
 

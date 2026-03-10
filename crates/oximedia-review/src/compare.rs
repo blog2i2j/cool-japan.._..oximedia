@@ -433,6 +433,131 @@ fn compose_difference(a: &CompareVersion, b: &CompareVersion, width: u32, height
 }
 
 // ---------------------------------------------------------------------------
+// Comparison filters
+// ---------------------------------------------------------------------------
+
+/// Filter mode for comparison output.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CompareFilter {
+    /// No filtering (identity).
+    None,
+    /// Amplify differences by a gain factor.
+    DifferenceAmplify {
+        /// Gain applied to each channel difference (1.0 = normal).
+        gain: f32,
+    },
+    /// Threshold: pixels whose absolute difference exceeds the threshold
+    /// are white, otherwise black.
+    Threshold {
+        /// Per-channel threshold (0-255).
+        threshold: u8,
+    },
+    /// Heatmap: maps the per-pixel mean absolute error to a colour gradient
+    /// (blue = no change, red = large change).
+    Heatmap,
+    /// Channel isolate: show difference in a single colour channel only.
+    ChannelIsolate {
+        /// 0=R, 1=G, 2=B.
+        channel: u8,
+    },
+}
+
+/// Apply a comparison filter to two RGBA images of the same dimensions.
+///
+/// Returns a new RGBA buffer of size `width * height * 4`.
+#[must_use]
+#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_sign_loss)]
+pub fn apply_compare_filter(
+    a: &CompareVersion,
+    b: &CompareVersion,
+    filter: CompareFilter,
+    width: u32,
+    height: u32,
+) -> Vec<u8> {
+    let n = (width * height * 4) as usize;
+    let mut out = vec![0u8; n];
+
+    match filter {
+        CompareFilter::None => {
+            // Just copy version A
+            for y in 0..height {
+                for x in 0..width {
+                    let pa = sample_pixel(a, x, y);
+                    let idx = ((y * width + x) as usize) * 4;
+                    out[idx..idx + 4].copy_from_slice(&pa);
+                }
+            }
+        }
+        CompareFilter::DifferenceAmplify { gain } => {
+            let g = gain.clamp(0.0, 255.0);
+            for y in 0..height {
+                for x in 0..width {
+                    let pa = sample_pixel(a, x, y);
+                    let pb = sample_pixel(b, x, y);
+                    let idx = ((y * width + x) as usize) * 4;
+                    for i in 0..3 {
+                        let diff = pa[i].abs_diff(pb[i]) as f32 * g;
+                        out[idx + i] = (diff.round() as u32).min(255) as u8;
+                    }
+                    out[idx + 3] = 255;
+                }
+            }
+        }
+        CompareFilter::Threshold { threshold } => {
+            for y in 0..height {
+                for x in 0..width {
+                    let pa = sample_pixel(a, x, y);
+                    let pb = sample_pixel(b, x, y);
+                    let idx = ((y * width + x) as usize) * 4;
+                    let changed = (0..3).any(|i| pa[i].abs_diff(pb[i]) > threshold);
+                    let val = if changed { 255u8 } else { 0u8 };
+                    out[idx] = val;
+                    out[idx + 1] = val;
+                    out[idx + 2] = val;
+                    out[idx + 3] = 255;
+                }
+            }
+        }
+        CompareFilter::Heatmap => {
+            for y in 0..height {
+                for x in 0..width {
+                    let pa = sample_pixel(a, x, y);
+                    let pb = sample_pixel(b, x, y);
+                    let idx = ((y * width + x) as usize) * 4;
+                    // Mean absolute error across RGB
+                    let mae: f32 = (0..3).map(|i| pa[i].abs_diff(pb[i]) as f32).sum::<f32>() / 3.0;
+                    let t = (mae / 255.0).clamp(0.0, 1.0);
+                    // Blue (cold) -> Red (hot) gradient
+                    out[idx] = (t * 255.0).round() as u8; // R
+                    out[idx + 1] = 0; // G
+                    out[idx + 2] = ((1.0 - t) * 255.0).round() as u8; // B
+                    out[idx + 3] = 255;
+                }
+            }
+        }
+        CompareFilter::ChannelIsolate { channel } => {
+            let ch = (channel as usize).min(2);
+            for y in 0..height {
+                for x in 0..width {
+                    let pa = sample_pixel(a, x, y);
+                    let pb = sample_pixel(b, x, y);
+                    let idx = ((y * width + x) as usize) * 4;
+                    let diff = pa[ch].abs_diff(pb[ch]);
+                    out[idx] = 0;
+                    out[idx + 1] = 0;
+                    out[idx + 2] = 0;
+                    out[idx + ch] = diff;
+                    out[idx + 3] = 255;
+                }
+            }
+        }
+    }
+
+    out
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -555,6 +680,51 @@ mod tests {
         assert_eq!(result.width, w);
         assert_eq!(result.height, h);
         assert_eq!(result.output_data.len(), (w * h * 4) as usize);
+    }
+
+    #[test]
+    fn test_compare_filter_threshold() {
+        let w = 4u32;
+        let h = 4u32;
+        let a =
+            CompareVersion::new("a", "A", w, h).with_frame_data(solid_rgba(w, h, 100, 0, 0, 255));
+        let b =
+            CompareVersion::new("b", "B", w, h).with_frame_data(solid_rgba(w, h, 200, 0, 0, 255));
+        let out = apply_compare_filter(&a, &b, CompareFilter::Threshold { threshold: 50 }, w, h);
+        // Difference is 100 which exceeds threshold of 50, so all pixels white
+        assert_eq!(out[0], 255);
+        assert_eq!(out[1], 255);
+    }
+
+    #[test]
+    fn test_compare_filter_heatmap() {
+        let w = 4u32;
+        let h = 4u32;
+        let a = CompareVersion::new("a", "A", w, h).with_frame_data(solid_rgba(w, h, 0, 0, 0, 255));
+        let b = CompareVersion::new("b", "B", w, h).with_frame_data(solid_rgba(w, h, 0, 0, 0, 255));
+        let out = apply_compare_filter(&a, &b, CompareFilter::Heatmap, w, h);
+        // Identical: R=0 (cold), B=255
+        assert_eq!(out[0], 0); // R
+        assert_eq!(out[2], 255); // B
+    }
+
+    #[test]
+    fn test_compare_filter_amplify() {
+        let w = 4u32;
+        let h = 4u32;
+        let a =
+            CompareVersion::new("a", "A", w, h).with_frame_data(solid_rgba(w, h, 100, 0, 0, 255));
+        let b =
+            CompareVersion::new("b", "B", w, h).with_frame_data(solid_rgba(w, h, 110, 0, 0, 255));
+        let out = apply_compare_filter(
+            &a,
+            &b,
+            CompareFilter::DifferenceAmplify { gain: 10.0 },
+            w,
+            h,
+        );
+        // Difference is 10 * gain 10 = 100
+        assert_eq!(out[0], 100);
     }
 
     #[test]

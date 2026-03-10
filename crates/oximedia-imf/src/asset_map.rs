@@ -216,7 +216,7 @@ mod tests {
         map.add(make_asset("uuid-abc", "video.mxf", 999));
         let found = map.find_by_uuid("uuid-abc");
         assert!(found.is_some());
-        assert_eq!(found.unwrap().path, "video.mxf");
+        assert_eq!(found.expect("test expectation failed").path, "video.mxf");
     }
 
     #[test]

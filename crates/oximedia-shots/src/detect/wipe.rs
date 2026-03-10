@@ -1,7 +1,7 @@
 //! Wipe transition detection.
 
 use crate::error::{ShotError, ShotResult};
-use ndarray::Array3;
+use crate::frame_buffer::FrameBuffer;
 
 /// Wipe direction.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -39,7 +39,10 @@ impl WipeDetector {
     /// # Errors
     ///
     /// Returns error if frames are invalid or dimensions don't match.
-    pub fn detect_wipe(&self, frames: &[Array3<u8>]) -> ShotResult<Option<(WipeDirection, usize)>> {
+    pub fn detect_wipe(
+        &self,
+        frames: &[FrameBuffer],
+    ) -> ShotResult<Option<(WipeDirection, usize)>> {
         if frames.len() < 2 {
             return Ok(None);
         }
@@ -67,7 +70,7 @@ impl WipeDetector {
     /// Detect horizontal wipe (left or right).
     fn detect_horizontal_wipe(
         &self,
-        frames: &[Array3<u8>],
+        frames: &[FrameBuffer],
         left_to_right: bool,
     ) -> ShotResult<Option<usize>> {
         for i in 1..frames.len() {
@@ -116,7 +119,7 @@ impl WipeDetector {
     /// Detect vertical wipe (up or down).
     fn detect_vertical_wipe(
         &self,
-        frames: &[Array3<u8>],
+        frames: &[FrameBuffer],
         top_to_bottom: bool,
     ) -> ShotResult<Option<usize>> {
         for i in 1..frames.len() {
@@ -163,8 +166,8 @@ impl WipeDetector {
     /// Calculate difference in a vertical strip.
     fn calculate_strip_difference_vertical(
         &self,
-        frame1: &Array3<u8>,
-        frame2: &Array3<u8>,
+        frame1: &FrameBuffer,
+        frame2: &FrameBuffer,
         x: usize,
     ) -> ShotResult<f32> {
         let shape = frame1.dim();
@@ -175,8 +178,8 @@ impl WipeDetector {
 
         for y in 0..height {
             for c in 0..3 {
-                let val1 = f32::from(frame1[[y, x, c]]);
-                let val2 = f32::from(frame2[[y, x, c]]);
+                let val1 = f32::from(frame1.get(y, x, c));
+                let val2 = f32::from(frame2.get(y, x, c));
                 diff_sum += (val1 - val2).abs();
                 count += 1;
             }
@@ -188,8 +191,8 @@ impl WipeDetector {
     /// Calculate difference in a horizontal strip.
     fn calculate_strip_difference_horizontal(
         &self,
-        frame1: &Array3<u8>,
-        frame2: &Array3<u8>,
+        frame1: &FrameBuffer,
+        frame2: &FrameBuffer,
         y: usize,
     ) -> ShotResult<f32> {
         let shape = frame1.dim();
@@ -200,8 +203,8 @@ impl WipeDetector {
 
         for x in 0..width {
             for c in 0..3 {
-                let val1 = f32::from(frame1[[y, x, c]]);
-                let val2 = f32::from(frame2[[y, x, c]]);
+                let val1 = f32::from(frame1.get(y, x, c));
+                let val2 = f32::from(frame2.get(y, x, c));
                 diff_sum += (val1 - val2).abs();
                 count += 1;
             }
@@ -230,18 +233,22 @@ mod tests {
     #[test]
     fn test_no_wipe_in_single_frame() {
         let detector = WipeDetector::new();
-        let frames = vec![Array3::zeros((100, 100, 3))];
+        let frames = vec![FrameBuffer::zeros(100, 100, 3)];
         let result = detector.detect_wipe(&frames);
         assert!(result.is_ok());
-        assert!(result.expect("should succeed in test").is_none());
+        if let Ok(wipe) = result {
+            assert!(wipe.is_none());
+        }
     }
 
     #[test]
     fn test_no_wipe_in_identical_frames() {
         let detector = WipeDetector::new();
-        let frames = vec![Array3::zeros((100, 100, 3)); 5];
+        let frames = vec![FrameBuffer::zeros(100, 100, 3); 10];
         let result = detector.detect_wipe(&frames);
         assert!(result.is_ok());
-        assert!(result.expect("should succeed in test").is_none());
+        if let Ok(wipe) = result {
+            assert!(wipe.is_none());
+        }
     }
 }

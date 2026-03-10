@@ -327,7 +327,9 @@ mod tests {
             incoming: incoming.clone(),
             resolution: ResolutionStrategy::LastWriteWins,
         };
-        let winner = conflict.winner().unwrap();
+        let winner = conflict
+            .winner()
+            .expect("collab test operation should succeed");
         assert_eq!(winner.clock, 5);
     }
 
@@ -340,7 +342,9 @@ mod tests {
             incoming: incoming.clone(),
             resolution: ResolutionStrategy::FirstWriteWins,
         };
-        let winner = conflict.winner().unwrap();
+        let winner = conflict
+            .winner()
+            .expect("collab test operation should succeed");
         assert_eq!(winner.clock, 1);
     }
 
@@ -365,7 +369,9 @@ mod tests {
             incoming,
             resolution: ResolutionStrategy::RejectIncoming,
         };
-        let winner = conflict.winner().unwrap();
+        let winner = conflict
+            .winner()
+            .expect("collab test operation should succeed");
         assert_eq!(winner.clock, 1);
     }
 

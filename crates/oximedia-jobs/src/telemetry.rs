@@ -302,13 +302,13 @@ mod tests {
     fn test_span_event_with_message() {
         let evt = SpanEvent::new(SpanEventKind::Failed, Duration::from_millis(100))
             .with_message("timeout");
-        assert_eq!(evt.message.unwrap(), "timeout");
+        assert_eq!(evt.message.expect("test expectation failed"), "timeout");
     }
 
     #[test]
     fn test_span_event_with_attr() {
         let evt = SpanEvent::new(SpanEventKind::Progress, Duration::ZERO).with_attr("pct", "50");
-        assert_eq!(evt.attributes.get("pct").unwrap(), "50");
+        assert_eq!(evt.attributes.get("pct").expect("get should succeed"), "50");
     }
 
     #[test]
@@ -343,7 +343,13 @@ mod tests {
         span.record_progress(50);
         let prog = span.events_of_kind(&SpanEventKind::Progress);
         assert_eq!(prog.len(), 1);
-        assert_eq!(prog[0].attributes.get("percent").unwrap(), "50");
+        assert_eq!(
+            prog[0]
+                .attributes
+                .get("percent")
+                .expect("get should succeed"),
+            "50"
+        );
     }
 
     #[test]
@@ -357,7 +363,7 @@ mod tests {
     fn test_job_span_set_worker() {
         let mut span = JobSpan::start("job-1");
         span.set_worker("worker-A");
-        assert_eq!(span.worker_id.unwrap(), "worker-A");
+        assert_eq!(span.worker_id.expect("test expectation failed"), "worker-A");
     }
 
     #[test]
@@ -379,7 +385,7 @@ mod tests {
         let mut m = TelemetryMetrics::new();
         m.record_sample("lat", 1.0);
         m.record_sample("lat", 3.0);
-        assert!((m.mean("lat").unwrap() - 2.0).abs() < 1e-9);
+        assert!((m.mean("lat").expect("mean should succeed") - 2.0).abs() < 1e-9);
     }
 
     #[test]
@@ -388,7 +394,7 @@ mod tests {
         for i in 1..=100 {
             m.record_sample("dur", i as f64);
         }
-        let p95 = m.p95("dur").unwrap();
+        let p95 = m.p95("dur").expect("p95 should be valid");
         assert!(p95 >= 95.0);
     }
 

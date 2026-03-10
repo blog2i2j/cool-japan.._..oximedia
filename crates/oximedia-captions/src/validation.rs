@@ -911,8 +911,12 @@ mod enhanced_validation_tests {
             Timestamp::from_secs(7),
             "Second".to_string(),
         );
-        track.add_caption(cap1.clone()).unwrap();
-        track.add_caption(cap2).unwrap();
+        track
+            .add_caption(cap1.clone())
+            .expect("adding caption should succeed");
+        track
+            .add_caption(cap2)
+            .expect("adding caption should succeed");
         assert!(detector.validate(&cap1, &track).is_err());
     }
 
@@ -930,8 +934,12 @@ mod enhanced_validation_tests {
             Timestamp::from_secs(7),
             "Second".to_string(),
         );
-        track.add_caption(cap1.clone()).unwrap();
-        track.add_caption(cap2).unwrap();
+        track
+            .add_caption(cap1.clone())
+            .expect("adding caption should succeed");
+        track
+            .add_caption(cap2)
+            .expect("adding caption should succeed");
         assert!(detector.validate(&cap1, &track).is_ok());
     }
 }
@@ -991,8 +999,12 @@ mod tests {
             "Second".to_string(),
         );
 
-        track.add_caption(cap1.clone()).unwrap();
-        track.add_caption(cap2).unwrap();
+        track
+            .add_caption(cap1.clone())
+            .expect("adding caption should succeed");
+        track
+            .add_caption(cap2)
+            .expect("adding caption should succeed");
 
         let detector = OverlapDetector;
         let result = detector.validate(&cap1, &track);
@@ -1166,8 +1178,12 @@ mod extended_validation_tests {
             "Second".to_string(),
         );
 
-        track.add_caption(cap1.clone()).unwrap();
-        track.add_caption(cap2).unwrap();
+        track
+            .add_caption(cap1.clone())
+            .expect("adding caption should succeed");
+        track
+            .add_caption(cap2)
+            .expect("adding caption should succeed");
 
         let result = detector.validate(&cap1, &track);
         assert!(result.is_err()); // Should detect overlap
@@ -1190,8 +1206,12 @@ mod extended_validation_tests {
             "Second".to_string(),
         );
 
-        track.add_caption(cap1.clone()).unwrap();
-        track.add_caption(cap2).unwrap();
+        track
+            .add_caption(cap1.clone())
+            .expect("adding caption should succeed");
+        track
+            .add_caption(cap2)
+            .expect("adding caption should succeed");
 
         let result = detector.validate(&cap1, &track);
         assert!(result.is_err()); // Gap too small
@@ -1211,9 +1231,11 @@ mod extended_validation_tests {
                 Timestamp::from_secs(5),
                 "Good caption".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
-        let report = validator.validate(&track).unwrap();
+        let report = validator
+            .validate(&track)
+            .expect("validation should succeed");
         // This caption should pass most checks
         assert!(report.statistics.error_count == 0 || report.statistics.error_count < 3);
     }
@@ -1229,11 +1251,13 @@ mod extended_validation_tests {
                     Timestamp::from_secs(i * 5 + 3),
                     format!("Caption number {}", i + 1),
                 ))
-                .unwrap();
+                .expect("operation should succeed in test");
         }
 
         let validator = Validator::new();
-        let report = validator.validate(&track).unwrap();
+        let report = validator
+            .validate(&track)
+            .expect("validation should succeed");
 
         assert_eq!(report.statistics.total_captions, 10);
         assert!(report.statistics.avg_reading_speed > 0.0);

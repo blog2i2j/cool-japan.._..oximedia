@@ -409,7 +409,7 @@ mod tests {
         assert!(!history.can_redo());
         assert_eq!(history.undo_depth(), 1);
 
-        let undone = history.undo().unwrap();
+        let undone = history.undo().expect("undo should succeed");
         assert_eq!(undone.clip_id, 1);
         assert!(!history.can_undo());
         assert!(history.can_redo());
@@ -427,7 +427,7 @@ mod tests {
         history.undo();
         assert!(history.can_redo());
 
-        let redone = history.redo().unwrap();
+        let redone = history.redo().expect("redo should succeed");
         assert_eq!(redone.clip_id, 1);
         assert!(history.can_undo());
         assert!(!history.can_redo());
@@ -609,7 +609,7 @@ mod tests {
             },
             1,
         ));
-        let peeked = history.peek_undo().unwrap();
+        let peeked = history.peek_undo().expect("peek_undo should succeed");
         assert_eq!(peeked.clip_id, 1);
         // peek should not consume
         assert_eq!(history.undo_depth(), 1);

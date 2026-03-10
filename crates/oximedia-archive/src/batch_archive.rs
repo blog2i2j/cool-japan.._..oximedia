@@ -482,7 +482,10 @@ mod tests {
         job.process(|_| Err("err".to_string()));
         let retried = job.retry_failed();
         assert_eq!(retried, 1);
-        assert_eq!(job.get(0).unwrap().status, ItemStatus::Pending);
+        assert_eq!(
+            job.get(0).expect("get should succeed").status,
+            ItemStatus::Pending
+        );
     }
 
     #[test]

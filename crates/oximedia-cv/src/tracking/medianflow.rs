@@ -183,8 +183,8 @@ impl MedianFlowTracker {
         }
 
         // Compute median displacement
-        valid_displacements_x.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        valid_displacements_y.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        valid_displacements_x.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        valid_displacements_y.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         let median_dx = valid_displacements_x[valid_displacements_x.len() / 2];
         let median_dy = valid_displacements_y[valid_displacements_y.len() / 2];
@@ -286,7 +286,7 @@ impl MedianFlowTracker {
         }
 
         // Return median scale ratio
-        scale_ratios.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        scale_ratios.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         Ok(scale_ratios[scale_ratios.len() / 2])
     }
 }

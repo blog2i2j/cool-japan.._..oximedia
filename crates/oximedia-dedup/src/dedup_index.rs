@@ -289,7 +289,9 @@ mod tests {
         let id2 = idx.add_or_increment(hash("file_a"), 100, 2000);
         assert_eq!(id1, id2, "Same hash should return same ID");
         assert_eq!(idx.unique_count(), 1, "Should still be one unique entry");
-        let entry = idx.find_by_hash(&hash("file_a")).unwrap();
+        let entry = idx
+            .find_by_hash(&hash("file_a"))
+            .expect("operation should succeed");
         assert_eq!(entry.occurrence_count, 2);
     }
 
@@ -299,7 +301,7 @@ mod tests {
         idx.add_or_increment(hash("alpha"), 200, 0);
         let entry = idx.find_by_hash(&hash("alpha"));
         assert!(entry.is_some());
-        assert_eq!(entry.unwrap().size_bytes, 200);
+        assert_eq!(entry.expect("operation should succeed").size_bytes, 200);
     }
 
     #[test]
@@ -314,7 +316,10 @@ mod tests {
         let id = idx.add_or_increment(hash("entry_1"), 512, 100);
         let entry = idx.find_by_id(id);
         assert!(entry.is_some());
-        assert_eq!(entry.unwrap().content_hash, hash("entry_1"));
+        assert_eq!(
+            entry.expect("operation should succeed").content_hash,
+            hash("entry_1")
+        );
     }
 
     #[test]

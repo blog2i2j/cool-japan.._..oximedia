@@ -250,7 +250,8 @@ mod tests {
             ..Default::default()
         };
         let lf = LensFlare::new(cfg);
-        lf.apply(&mut buf, 128, 128, PixelFormat::Rgb).unwrap();
+        lf.apply(&mut buf, 128, 128, PixelFormat::Rgb)
+            .expect("apply should succeed");
 
         // Center pixel should be bright
         let cx = 64usize;
@@ -292,7 +293,8 @@ mod tests {
             ..Default::default()
         };
         let lf = LensFlare::new(cfg);
-        lf.apply(&mut buf, 32, 32, PixelFormat::Rgb).unwrap();
+        lf.apply(&mut buf, 32, 32, PixelFormat::Rgb)
+            .expect("apply should succeed");
         assert_eq!(buf, buf_orig, "Zero intensity should not change pixels");
     }
 }

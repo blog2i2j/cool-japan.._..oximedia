@@ -218,10 +218,19 @@ mod tests {
         let cmd = BatchRatingCommand::set_rating(vec![2, 3], ClipRating::Good);
         let count = cmd.apply(&mut db);
         assert_eq!(count, 2);
-        assert_eq!(db.get(2).unwrap().rating, ClipRating::Good);
-        assert_eq!(db.get(3).unwrap().rating, ClipRating::Good);
+        assert_eq!(
+            db.get(2).expect("get should succeed").rating,
+            ClipRating::Good
+        );
+        assert_eq!(
+            db.get(3).expect("get should succeed").rating,
+            ClipRating::Good
+        );
         // Clip 1 unchanged
-        assert_eq!(db.get(1).unwrap().rating, ClipRating::Excellent);
+        assert_eq!(
+            db.get(1).expect("get should succeed").rating,
+            ClipRating::Excellent
+        );
     }
 
     #[test]
@@ -229,8 +238,8 @@ mod tests {
         let mut db = populated_db();
         let cmd = BatchRatingCommand::set_flag(vec![1, 2], ClipFlag::Blue);
         cmd.apply(&mut db);
-        assert_eq!(db.get(1).unwrap().flag, ClipFlag::Blue);
-        assert_eq!(db.get(2).unwrap().flag, ClipFlag::Blue);
+        assert_eq!(db.get(1).expect("get should succeed").flag, ClipFlag::Blue);
+        assert_eq!(db.get(2).expect("get should succeed").flag, ClipFlag::Blue);
     }
 
     #[test]
@@ -243,8 +252,11 @@ mod tests {
         );
         let count = cmd.apply(&mut db);
         assert_eq!(count, 2);
-        assert_eq!(db.get(3).unwrap().rating, ClipRating::Excellent);
-        assert_eq!(db.get(4).unwrap().flag, ClipFlag::Green);
+        assert_eq!(
+            db.get(3).expect("get should succeed").rating,
+            ClipRating::Excellent
+        );
+        assert_eq!(db.get(4).expect("get should succeed").flag, ClipFlag::Green);
     }
 
     #[test]
@@ -254,7 +266,11 @@ mod tests {
         let cmd = BatchRatingCommand::set_rating(vec![10], ClipRating::Good)
             .with_note("approved by director");
         cmd.apply(&mut db);
-        assert!(db.get(10).unwrap().notes.contains("approved by director"));
+        assert!(db
+            .get(10)
+            .expect("get should succeed")
+            .notes
+            .contains("approved by director"));
     }
 
     #[test]
@@ -264,7 +280,7 @@ mod tests {
         db.set_notes(5, "first note");
         let cmd = BatchRatingCommand::set_rating(vec![5], ClipRating::Ok).with_note("second note");
         cmd.apply(&mut db);
-        let notes = &db.get(5).unwrap().notes;
+        let notes = &db.get(5).expect("get should succeed").notes;
         assert!(notes.contains("first note"));
         assert!(notes.contains("second note"));
     }
@@ -312,11 +328,23 @@ mod tests {
         // Pickup (3) and Unrated (4) should be rejected
         assert!(rejected.contains(&3));
         assert!(rejected.contains(&4));
-        assert_eq!(db.get(3).unwrap().rating, ClipRating::Reject);
-        assert_eq!(db.get(4).unwrap().rating, ClipRating::Reject);
+        assert_eq!(
+            db.get(3).expect("get should succeed").rating,
+            ClipRating::Reject
+        );
+        assert_eq!(
+            db.get(4).expect("get should succeed").rating,
+            ClipRating::Reject
+        );
         // Excellent and Ok remain
-        assert_eq!(db.get(1).unwrap().rating, ClipRating::Excellent);
-        assert_eq!(db.get(2).unwrap().rating, ClipRating::Ok);
+        assert_eq!(
+            db.get(1).expect("get should succeed").rating,
+            ClipRating::Excellent
+        );
+        assert_eq!(
+            db.get(2).expect("get should succeed").rating,
+            ClipRating::Ok
+        );
     }
 
     #[test]

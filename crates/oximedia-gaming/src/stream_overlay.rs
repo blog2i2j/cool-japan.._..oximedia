@@ -329,7 +329,7 @@ mod tests {
         top.z_order = 10;
         scene.add_element(bottom);
         scene.add_element(top);
-        let hit = scene.element_at(75.0, 75.0).unwrap();
+        let hit = scene.element_at(75.0, 75.0).expect("element should exist");
         assert_eq!(hit.id, 2);
     }
 

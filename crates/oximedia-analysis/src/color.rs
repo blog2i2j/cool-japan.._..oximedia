@@ -400,7 +400,7 @@ mod tests {
 
         analyzer
             .process_frame(&y_plane, &u_plane, &v_plane, 64, 64, 0)
-            .unwrap();
+            .expect("unexpected None/Err");
 
         let analysis = analyzer.finalize();
         assert!(!analysis.dominant_colors.is_empty());

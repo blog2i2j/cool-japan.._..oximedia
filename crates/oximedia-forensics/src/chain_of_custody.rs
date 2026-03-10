@@ -539,7 +539,13 @@ mod tests {
         registry.register(chain);
         let ok = registry.add_event("a1", make_event("e1", 1000, CustodyEventType::Creation));
         assert!(ok);
-        assert_eq!(registry.get("a1").unwrap().event_count(), 1);
+        assert_eq!(
+            registry
+                .get("a1")
+                .expect("get should succeed")
+                .event_count(),
+            1
+        );
 
         let not_ok =
             registry.add_event("missing", make_event("e2", 2000, CustodyEventType::Access));

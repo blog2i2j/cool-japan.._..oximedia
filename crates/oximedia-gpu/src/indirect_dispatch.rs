@@ -237,7 +237,7 @@ mod tests {
     fn test_to_from_bytes_roundtrip() {
         let original = IndirectDispatchArgs::new(123, 456, 789);
         let bytes = original.to_bytes();
-        let restored = IndirectDispatchArgs::from_bytes(&bytes).unwrap();
+        let restored = IndirectDispatchArgs::from_bytes(&bytes).expect("deserialization from bytes should succeed");
         assert_eq!(original, restored);
     }
 

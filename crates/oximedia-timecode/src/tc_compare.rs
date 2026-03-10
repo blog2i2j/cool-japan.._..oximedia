@@ -160,7 +160,7 @@ mod tests {
     use super::*;
 
     fn tc(h: u8, m: u8, s: u8, f: u8) -> Timecode {
-        Timecode::new(h, m, s, f, FrameRate::Fps25).unwrap()
+        Timecode::new(h, m, s, f, FrameRate::Fps25).expect("valid timecode")
     }
 
     #[test]
@@ -221,13 +221,13 @@ mod tests {
     fn test_midpoint() {
         let a = tc(0, 0, 0, 0);
         let b = tc(0, 0, 2, 0); // 50 frames
-        let mid = midpoint(&a, &b, FrameRate::Fps25).unwrap();
+        let mid = midpoint(&a, &b, FrameRate::Fps25).expect("midpoint should succeed");
         assert_eq!(mid.to_frames(), 25); // 1 second
     }
 
     #[test]
     fn test_tc_span_creation() {
-        let span = TcSpan::new(tc(0, 0, 0, 0), tc(0, 0, 1, 0)).unwrap();
+        let span = TcSpan::new(tc(0, 0, 0, 0), tc(0, 0, 1, 0)).expect("valid timecode span");
         assert_eq!(span.duration_frames(), 25);
     }
 
@@ -239,25 +239,28 @@ mod tests {
 
     #[test]
     fn test_tc_span_contains() {
-        let span = TcSpan::new(tc(0, 0, 0, 0), tc(0, 0, 2, 0)).unwrap();
+        let span = TcSpan::new(tc(0, 0, 0, 0), tc(0, 0, 2, 0)).expect("valid timecode span");
         assert!(span.contains(&tc(0, 0, 1, 0)));
         assert!(!span.contains(&tc(0, 0, 3, 0)));
     }
 
     #[test]
     fn test_tc_span_overlaps() {
-        let a = TcSpan::new(tc(0, 0, 0, 0), tc(0, 0, 2, 0)).unwrap();
-        let b = TcSpan::new(tc(0, 0, 1, 0), tc(0, 0, 3, 0)).unwrap();
+        let a = TcSpan::new(tc(0, 0, 0, 0), tc(0, 0, 2, 0)).expect("valid timecode span");
+        let b = TcSpan::new(tc(0, 0, 1, 0), tc(0, 0, 3, 0)).expect("valid timecode span");
         assert!(a.overlaps(&b));
-        let c = TcSpan::new(tc(0, 0, 5, 0), tc(0, 0, 6, 0)).unwrap();
+        let c = TcSpan::new(tc(0, 0, 5, 0), tc(0, 0, 6, 0)).expect("valid timecode span");
         assert!(!a.overlaps(&c));
     }
 
     #[test]
     fn test_tc_span_intersection() {
-        let a = TcSpan::new(tc(0, 0, 0, 0), tc(0, 0, 2, 0)).unwrap();
-        let b = TcSpan::new(tc(0, 0, 1, 0), tc(0, 0, 3, 0)).unwrap();
-        let inter = a.intersection(&b, FrameRate::Fps25).unwrap().unwrap();
+        let a = TcSpan::new(tc(0, 0, 0, 0), tc(0, 0, 2, 0)).expect("valid timecode span");
+        let b = TcSpan::new(tc(0, 0, 1, 0), tc(0, 0, 3, 0)).expect("valid timecode span");
+        let inter = a
+            .intersection(&b, FrameRate::Fps25)
+            .expect("intersection should succeed")
+            .expect("intersection should succeed");
         assert_eq!(inter.tc_in.to_frames(), tc(0, 0, 1, 0).to_frames());
         assert_eq!(inter.tc_out.to_frames(), tc(0, 0, 2, 0).to_frames());
     }
@@ -275,11 +278,11 @@ mod tests {
     fn test_earliest_latest() {
         let tcs = vec![tc(0, 0, 2, 0), tc(0, 0, 0, 0), tc(0, 0, 1, 0)];
         assert_eq!(
-            earliest(&tcs).unwrap().to_frames(),
+            earliest(&tcs).expect("should succeed").to_frames(),
             tc(0, 0, 0, 0).to_frames()
         );
         assert_eq!(
-            latest(&tcs).unwrap().to_frames(),
+            latest(&tcs).expect("should succeed").to_frames(),
             tc(0, 0, 2, 0).to_frames()
         );
     }

@@ -435,8 +435,8 @@ mod tests {
         map.push(NoiseLevel::new(3.0, 70.0));
         map.push(NoiseLevel::new(4.0, 80.0));
 
-        assert!((map.get(0, 0).unwrap().sigma - 1.0).abs() < f64::EPSILON);
-        assert!((map.get(1, 1).unwrap().sigma - 4.0).abs() < f64::EPSILON);
+        assert!((map.get(0, 0).expect("get should succeed").sigma - 1.0).abs() < f64::EPSILON);
+        assert!((map.get(1, 1).expect("get should succeed").sigma - 4.0).abs() < f64::EPSILON);
         assert!(map.get(2, 0).is_none());
     }
 

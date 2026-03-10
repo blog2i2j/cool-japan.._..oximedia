@@ -25,7 +25,7 @@ use oximedia_core::{CodecId, PixelFormat, Rational, Timestamp};
 /// use oximedia_codec::traits::{DecoderConfig, VideoDecoder};
 ///
 /// let config = DecoderConfig::default();
-/// let mut decoder = Vp8Decoder::new(config).unwrap();
+/// let mut decoder = Vp8Decoder::new(config)?;
 ///
 /// // Decoder is ready to receive packets
 /// assert!(decoder.dimensions().is_none());
@@ -72,7 +72,7 @@ impl Vp8Decoder {
     /// use oximedia_codec::traits::DecoderConfig;
     ///
     /// let config = DecoderConfig::default();
-    /// let decoder = Vp8Decoder::new(config).unwrap();
+    /// let decoder = Vp8Decoder::new(config)?;
     /// ```
     pub fn new(config: DecoderConfig) -> CodecResult<Self> {
         Ok(Self {
@@ -236,7 +236,7 @@ mod tests {
     #[test]
     fn test_vp8_decoder_new() {
         let config = DecoderConfig::default();
-        let decoder = Vp8Decoder::new(config).unwrap();
+        let decoder = Vp8Decoder::new(config).expect("should succeed");
         assert_eq!(decoder.codec(), CodecId::Vp8);
         assert!(decoder.output_format().is_none());
         assert!(decoder.dimensions().is_none());
@@ -245,7 +245,7 @@ mod tests {
     #[test]
     fn test_decode_keyframe() {
         let config = DecoderConfig::default();
-        let mut decoder = Vp8Decoder::new(config).unwrap();
+        let mut decoder = Vp8Decoder::new(config).expect("should succeed");
 
         // Valid VP8 keyframe header
         let keyframe = [
@@ -256,14 +256,14 @@ mod tests {
             0xF0, 0x00, // height=240
         ];
 
-        decoder.send_packet(&keyframe, 0).unwrap();
+        decoder.send_packet(&keyframe, 0).expect("should succeed");
         assert_eq!(decoder.dimensions(), Some((320, 240)));
         assert_eq!(decoder.output_format(), Some(PixelFormat::Yuv420p));
 
-        let frame = decoder.receive_frame().unwrap();
+        let frame = decoder.receive_frame().expect("should succeed");
         assert!(frame.is_some());
 
-        let frame = frame.unwrap();
+        let frame = frame.expect("should succeed");
         assert!(frame.is_keyframe());
         assert_eq!(frame.width, 320);
         assert_eq!(frame.height, 240);
@@ -273,7 +273,7 @@ mod tests {
     #[test]
     fn test_inter_frame_without_keyframe() {
         let config = DecoderConfig::default();
-        let mut decoder = Vp8Decoder::new(config).unwrap();
+        let mut decoder = Vp8Decoder::new(config).expect("should succeed");
 
         // Inter frame (without prior keyframe)
         let inter = [
@@ -288,15 +288,15 @@ mod tests {
     #[test]
     fn test_flush() {
         let config = DecoderConfig::default();
-        let mut decoder = Vp8Decoder::new(config).unwrap();
+        let mut decoder = Vp8Decoder::new(config).expect("should succeed");
 
         // Send a keyframe
         let keyframe = [0x10, 0x00, 0x00, 0x9D, 0x01, 0x2A, 0x40, 0x01, 0xF0, 0x00];
-        decoder.send_packet(&keyframe, 0).unwrap();
+        decoder.send_packet(&keyframe, 0).expect("should succeed");
         let _ = decoder.receive_frame();
 
         // Flush
-        decoder.flush().unwrap();
+        decoder.flush().expect("should succeed");
 
         // Should return EOF when no more frames
         assert!(matches!(decoder.receive_frame(), Err(CodecError::Eof)));
@@ -308,36 +308,36 @@ mod tests {
     #[test]
     fn test_reset() {
         let config = DecoderConfig::default();
-        let mut decoder = Vp8Decoder::new(config).unwrap();
+        let mut decoder = Vp8Decoder::new(config).expect("should succeed");
 
         // Send a keyframe
         let keyframe = [0x10, 0x00, 0x00, 0x9D, 0x01, 0x2A, 0x40, 0x01, 0xF0, 0x00];
-        decoder.send_packet(&keyframe, 0).unwrap();
+        decoder.send_packet(&keyframe, 0).expect("should succeed");
 
         // Flush and reset
-        decoder.flush().unwrap();
+        decoder.flush().expect("should succeed");
         decoder.reset();
 
         // Should be able to send packets again
-        decoder.send_packet(&keyframe, 0).unwrap();
-        let frame = decoder.receive_frame().unwrap();
+        decoder.send_packet(&keyframe, 0).expect("should succeed");
+        let frame = decoder.receive_frame().expect("should succeed");
         assert!(frame.is_some());
     }
 
     #[test]
     fn test_no_frame_available() {
         let config = DecoderConfig::default();
-        let mut decoder = Vp8Decoder::new(config).unwrap();
+        let mut decoder = Vp8Decoder::new(config).expect("should succeed");
 
         // No packets sent, no frames available
-        let result = decoder.receive_frame().unwrap();
+        let result = decoder.receive_frame().expect("should succeed");
         assert!(result.is_none());
     }
 
     #[test]
     fn test_hidden_frame() {
         let config = DecoderConfig::default();
-        let mut decoder = Vp8Decoder::new(config).unwrap();
+        let mut decoder = Vp8Decoder::new(config).expect("should succeed");
 
         // Keyframe with show_frame=0 (hidden)
         let hidden_keyframe = [
@@ -345,13 +345,15 @@ mod tests {
             0x00, 0x00, 0x9D, 0x01, 0x2A, 0x40, 0x01, 0xF0, 0x00,
         ];
 
-        decoder.send_packet(&hidden_keyframe, 0).unwrap();
+        decoder
+            .send_packet(&hidden_keyframe, 0)
+            .expect("should succeed");
 
         // Dimensions should be updated
         assert_eq!(decoder.dimensions(), Some((320, 240)));
 
         // But no frame should be output (hidden)
-        let frame = decoder.receive_frame().unwrap();
+        let frame = decoder.receive_frame().expect("should succeed");
         assert!(frame.is_none());
     }
 }

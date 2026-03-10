@@ -619,7 +619,7 @@ pub fn fuzzy_search(query: &str, candidates: &[String], threshold: f64) -> Vec<(
     }
 
     // Sort by similarity (highest first)
-    results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+    results.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
     results
 }
@@ -706,7 +706,7 @@ mod tests {
         meta.width = Some(1920);
         meta.height = Some(1080);
 
-        let ar = meta.aspect_ratio().unwrap();
+        let ar = meta.aspect_ratio().expect("operation should succeed");
         assert!((ar - 16.0 / 9.0).abs() < 0.01);
     }
 

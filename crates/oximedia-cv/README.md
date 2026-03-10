@@ -1,7 +1,7 @@
 # oximedia-cv
 
 ![Status: Stable](https://img.shields.io/badge/status-stable-green)
-![Version: 0.1.0](https://img.shields.io/badge/version-0.1.0-blue)
+![Version: 0.1.1](https://img.shields.io/badge/version-0.1.1-blue)
 
 Computer vision module for the OxiMedia multimedia framework.
 
@@ -130,7 +130,7 @@ src/
 
 ```toml
 [dependencies]
-oximedia-cv = { version = "0.1.0", features = ["onnx"] }
+oximedia-cv = { version = "0.1.1", features = ["onnx"] }
 ```
 
 ## License

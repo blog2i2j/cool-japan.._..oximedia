@@ -750,7 +750,7 @@ mod tests {
 
         // Should merge and increase weight
         assert_eq!(stack.len(), 1);
-        assert_eq!(stack.get(0).unwrap().weight, 3);
+        assert_eq!(stack.get(0).expect("get should return value").weight, 3);
     }
 
     #[test]
@@ -775,9 +775,9 @@ mod tests {
 
         stack.sort_by_weight();
 
-        assert_eq!(stack.get(0).unwrap().weight, 3);
-        assert_eq!(stack.get(1).unwrap().weight, 2);
-        assert_eq!(stack.get(2).unwrap().weight, 1);
+        assert_eq!(stack.get(0).expect("get should return value").weight, 3);
+        assert_eq!(stack.get(1).expect("get should return value").weight, 2);
+        assert_eq!(stack.get(2).expect("get should return value").weight, 1);
     }
 
     #[test]
@@ -860,7 +860,7 @@ mod tests {
         );
 
         grid.set(0, 0, info);
-        let retrieved = grid.get(0, 0).unwrap();
+        let retrieved = grid.get(0, 0).expect("get should return value");
         assert!(retrieved.is_inter);
     }
 
@@ -878,10 +878,10 @@ mod tests {
         grid.fill_block(0, 0, BlockSize::Block8x8, info);
 
         // Should fill 2x2 area of 4x4 blocks
-        assert!(grid.get(0, 0).unwrap().is_inter);
-        assert!(grid.get(0, 1).unwrap().is_inter);
-        assert!(grid.get(1, 0).unwrap().is_inter);
-        assert!(grid.get(1, 1).unwrap().is_inter);
+        assert!(grid.get(0, 0).expect("get should return value").is_inter);
+        assert!(grid.get(0, 1).expect("get should return value").is_inter);
+        assert!(grid.get(1, 0).expect("get should return value").is_inter);
+        assert!(grid.get(1, 1).expect("get should return value").is_inter);
     }
 
     #[test]

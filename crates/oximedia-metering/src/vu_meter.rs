@@ -286,7 +286,7 @@ mod tests {
         let mut meter = VuMeter::new(48_000.0, 1, None);
         let samples: Vec<f32> = vec![1.0_f32; 48_000];
         meter.process_interleaved(&samples);
-        assert!(meter.channel_vu(0).unwrap() > -100.0);
+        assert!(meter.channel_vu(0).expect("channel_vu should succeed") > -100.0);
         meter.reset();
         assert_eq!(meter.readings()[0].level_linear, 0.0);
     }

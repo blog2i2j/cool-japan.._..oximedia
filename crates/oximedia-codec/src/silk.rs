@@ -285,7 +285,7 @@ mod tests {
         // Byte 0: VAD=1, LBRR=0, signal=01 (voiced), q_offset=0
         // 1 0 01 0 000 = 0b10010000 = 0x90
         let data = [0x90u8];
-        let hdr = SilkFrameHeader::parse(&data).unwrap();
+        let hdr = SilkFrameHeader::parse(&data).expect("should succeed");
         assert!(hdr.vad_flag);
         assert!(!hdr.lbrr_flag);
         assert_eq!(hdr.signal_type, 1);
@@ -310,7 +310,7 @@ mod tests {
     fn test_silk_decoder_decode_frame() {
         let mut dec = SilkDecoder::new(SilkBandwidth::NarrowBand);
         let data = [0x00u8; 10];
-        let frame = dec.decode_frame(&data).unwrap();
+        let frame = dec.decode_frame(&data).expect("should succeed");
         // 8000 Hz * 20ms = 160 samples
         assert_eq!(frame.sample_count(), 160);
         assert_eq!(frame.samples.len(), 160);

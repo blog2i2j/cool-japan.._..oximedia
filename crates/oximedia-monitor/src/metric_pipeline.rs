@@ -452,7 +452,9 @@ mod tests {
         assert!(registry.find("missing").is_none());
 
         let points = vec![MetricPoint::new("t", 0.0, 7.0)];
-        let result = registry.process("double", points).unwrap();
+        let result = registry
+            .process("double", points)
+            .expect("process should succeed");
         assert!((result[0].value - 14.0).abs() < f64::EPSILON);
     }
 

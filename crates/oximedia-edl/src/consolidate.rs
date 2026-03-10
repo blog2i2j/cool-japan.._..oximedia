@@ -195,7 +195,7 @@ mod tests {
     use crate::timecode::{EdlFrameRate, EdlTimecode};
 
     fn tc(h: u8, m: u8, s: u8, f: u8) -> EdlTimecode {
-        EdlTimecode::new(h, m, s, f, EdlFrameRate::Fps25).unwrap()
+        EdlTimecode::new(h, m, s, f, EdlFrameRate::Fps25).expect("failed to create")
     }
 
     fn cut(

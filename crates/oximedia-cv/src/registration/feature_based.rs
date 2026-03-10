@@ -264,7 +264,7 @@ impl FeatureDetector {
         }
 
         // Sort by response and limit
-        keypoints.sort_by(|a, b| b.response.partial_cmp(&a.response).unwrap());
+        keypoints.sort_by(|a, b| b.response.partial_cmp(&a.response).unwrap_or(std::cmp::Ordering::Equal));
         keypoints.truncate(self.max_features);
 
         Ok(keypoints)
@@ -312,7 +312,7 @@ impl FeatureDetector {
         keypoints = non_maximum_suppression(&keypoints, 10.0);
 
         // Sort and limit
-        keypoints.sort_by(|a, b| b.response.partial_cmp(&a.response).unwrap());
+        keypoints.sort_by(|a, b| b.response.partial_cmp(&a.response).unwrap_or(std::cmp::Ordering::Equal));
         keypoints.truncate(self.max_features);
 
         Ok(keypoints)
@@ -343,7 +343,7 @@ impl FeatureDetector {
         }
 
         // Sort and limit
-        keypoints.sort_by(|a, b| b.response.partial_cmp(&a.response).unwrap());
+        keypoints.sort_by(|a, b| b.response.partial_cmp(&a.response).unwrap_or(std::cmp::Ordering::Equal));
         keypoints.truncate(self.max_features);
 
         // Compute orientations
@@ -403,7 +403,7 @@ impl FeatureDetector {
         keypoints = non_maximum_suppression(&keypoints, 5.0);
 
         // Sort and limit
-        keypoints.sort_by(|a, b| b.response.partial_cmp(&a.response).unwrap());
+        keypoints.sort_by(|a, b| b.response.partial_cmp(&a.response).unwrap_or(std::cmp::Ordering::Equal));
         keypoints.truncate(self.max_features);
 
         Ok(keypoints)
@@ -932,7 +932,8 @@ fn build_gaussian_pyramid(
     pyramid.push((image.to_vec(), width, height));
 
     for _ in 1..octaves * scales {
-        let (prev_img, prev_w, prev_h) = pyramid.last().unwrap();
+        let (prev_img, prev_w, prev_h) =
+            pyramid.last().expect("pyramid always has at least one element");
         let blurred = gaussian_blur(prev_img, *prev_w, *prev_h, 1.6);
         pyramid.push((blurred, *prev_w, *prev_h));
     }
@@ -945,7 +946,8 @@ fn build_pyramid(image: &[u8], width: u32, height: u32, levels: usize) -> Vec<(V
     pyramid.push((image.to_vec(), width, height));
 
     for _ in 1..levels {
-        let (prev_img, prev_w, prev_h) = pyramid.last().unwrap();
+        let (prev_img, prev_w, prev_h) =
+            pyramid.last().expect("pyramid always has at least one element");
         if *prev_w < 8 || *prev_h < 8 {
             break;
         }

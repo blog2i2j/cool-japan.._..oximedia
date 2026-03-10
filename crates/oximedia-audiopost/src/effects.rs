@@ -591,7 +591,7 @@ mod tests {
 
     #[test]
     fn test_multiband_compressor() {
-        let comp = MultibandCompressor::new(48000, 4).unwrap();
+        let comp = MultibandCompressor::new(48000, 4).expect("failed to create");
         assert_eq!(comp.band_count(), 4);
     }
 
@@ -603,14 +603,14 @@ mod tests {
 
     #[test]
     fn test_de_esser() {
-        let mut de_esser = DeEsser::new(48000).unwrap();
+        let mut de_esser = DeEsser::new(48000).expect("failed to create");
         assert!(de_esser.set_threshold(-15.0).is_ok());
         assert!(de_esser.set_frequency(7000.0).is_ok());
     }
 
     #[test]
     fn test_transient_designer() {
-        let mut td = TransientDesigner::new(48000).unwrap();
+        let mut td = TransientDesigner::new(48000).expect("failed to create");
         td.set_attack_gain(1.5);
         td.set_sustain_gain(0.8);
         assert_eq!(td.attack_gain, 1.5);
@@ -619,7 +619,7 @@ mod tests {
 
     #[test]
     fn test_convolution_reverb() {
-        let mut reverb = ConvolutionReverb::new(48000).unwrap();
+        let mut reverb = ConvolutionReverb::new(48000).expect("failed to create");
         reverb.load_impulse_response(vec![1.0, 0.5, 0.25]);
         reverb.set_mix(0.4);
         assert_eq!(reverb.wet_dry_mix, 0.4);
@@ -627,7 +627,7 @@ mod tests {
 
     #[test]
     fn test_algorithmic_reverb() {
-        let mut reverb = AlgorithmicReverb::new(48000, ReverbType::Hall).unwrap();
+        let mut reverb = AlgorithmicReverb::new(48000, ReverbType::Hall).expect("failed to create");
         reverb.set_size(0.7);
         reverb.set_damping(0.6);
         assert_eq!(reverb.size, 0.7);
@@ -635,7 +635,7 @@ mod tests {
 
     #[test]
     fn test_delay() {
-        let mut delay = Delay::new(48000, 1000.0).unwrap();
+        let mut delay = Delay::new(48000, 1000.0).expect("failed to create");
         delay.set_delay_time(500.0);
         delay.set_feedback(0.6);
         assert_eq!(delay.delay_time_ms, 500.0);
@@ -644,7 +644,7 @@ mod tests {
 
     #[test]
     fn test_delay_process() {
-        let mut delay = Delay::new(48000, 100.0).unwrap();
+        let mut delay = Delay::new(48000, 100.0).expect("failed to create");
         delay.set_delay_time(10.0);
         let output = delay.process(1.0);
         assert!(output.is_finite());
@@ -652,7 +652,7 @@ mod tests {
 
     #[test]
     fn test_chorus() {
-        let mut chorus = Chorus::new(48000).unwrap();
+        let mut chorus = Chorus::new(48000).expect("failed to create");
         chorus.set_rate(0.8);
         chorus.set_depth(0.6);
         assert_eq!(chorus.rate_hz, 0.8);
@@ -661,7 +661,7 @@ mod tests {
 
     #[test]
     fn test_flanger() {
-        let mut flanger = Flanger::new(48000).unwrap();
+        let mut flanger = Flanger::new(48000).expect("failed to create");
         flanger.set_rate(0.5);
         flanger.set_depth(0.7);
         flanger.set_feedback(0.6);
@@ -670,7 +670,7 @@ mod tests {
 
     #[test]
     fn test_phaser() {
-        let mut phaser = Phaser::new(48000, 4).unwrap();
+        let mut phaser = Phaser::new(48000, 4).expect("failed to create");
         phaser.set_rate(0.5);
         phaser.set_depth(0.7);
         assert_eq!(phaser.num_stages, 4);
@@ -684,7 +684,7 @@ mod tests {
 
     #[test]
     fn test_tremolo() {
-        let mut tremolo = Tremolo::new(48000).unwrap();
+        let mut tremolo = Tremolo::new(48000).expect("failed to create");
         tremolo.set_rate(6.0);
         tremolo.set_depth(0.8);
         let output = tremolo.process(1.0);
@@ -693,7 +693,7 @@ mod tests {
 
     #[test]
     fn test_vocoder() {
-        let vocoder = Vocoder::new(48000, 16).unwrap();
+        let vocoder = Vocoder::new(48000, 16).expect("failed to create");
         assert_eq!(vocoder.band_count(), 16);
     }
 

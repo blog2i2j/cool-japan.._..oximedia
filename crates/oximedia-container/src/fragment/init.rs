@@ -426,7 +426,7 @@ mod tests {
         let result = builder.build();
         assert!(result.is_ok());
 
-        let data = result.unwrap();
+        let data = result.expect("operation should succeed");
         assert!(!data.is_empty());
 
         // Check for ftyp box

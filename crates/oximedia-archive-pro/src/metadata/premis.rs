@@ -370,12 +370,13 @@ mod tests {
 
     #[test]
     fn test_premis_object_creation() {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"Test content").unwrap();
-        file.flush().unwrap();
+        let mut file = NamedTempFile::new().expect("operation should succeed");
+        file.write_all(b"Test content")
+            .expect("operation should succeed");
+        file.flush().expect("operation should succeed");
 
         let object = PremisObject::from_file(file.path(), "obj-001".to_string())
-            .unwrap()
+            .expect("operation should succeed")
             .with_checksum("SHA-256", "abc123");
 
         assert_eq!(object.identifier, "obj-001");
@@ -407,7 +408,7 @@ mod tests {
             checksums: vec![("SHA-256".to_string(), "abc123".to_string())],
         });
 
-        let xml = metadata.to_xml().unwrap();
+        let xml = metadata.to_xml().expect("operation should succeed");
         assert!(xml.contains("<premis"));
         assert!(xml.contains("obj-001"));
         assert!(xml.contains("SHA-256"));
@@ -415,11 +416,12 @@ mod tests {
 
     #[test]
     fn test_for_file() {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"Preservation test").unwrap();
-        file.flush().unwrap();
+        let mut file = NamedTempFile::new().expect("operation should succeed");
+        file.write_all(b"Preservation test")
+            .expect("operation should succeed");
+        file.flush().expect("operation should succeed");
 
-        let metadata = PremisMetadata::for_file(file.path()).unwrap();
+        let metadata = PremisMetadata::for_file(file.path()).expect("operation should succeed");
         assert_eq!(metadata.objects.len(), 1);
         assert_eq!(metadata.events.len(), 1);
     }

@@ -202,6 +202,8 @@ mod tests {
         identifier.enroll_speaker("test_speaker".to_string(), speaker_chars.clone());
 
         // Should verify with same characteristics
-        assert!(identifier.verify("test_speaker", &speaker_chars).unwrap());
+        assert!(identifier
+            .verify("test_speaker", &speaker_chars)
+            .expect("verification should succeed"));
     }
 }

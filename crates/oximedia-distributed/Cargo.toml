@@ -20,7 +20,7 @@ async-trait.workspace = true
 
 # Internal dependencies
 oximedia-core.workspace = true
-oximedia-codec.workspace = true
+oximedia-codec = { workspace = true, default-features = true }
 oximedia-io.workspace = true
 
 # gRPC and serialization

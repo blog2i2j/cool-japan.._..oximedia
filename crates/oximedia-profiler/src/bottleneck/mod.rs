@@ -5,5 +5,5 @@ pub mod detect;
 pub mod report;
 
 pub use classify::{BottleneckClassifier, BottleneckType};
-pub use detect::{Bottleneck, BottleneckDetector};
+pub use detect::{Bottleneck, BottleneckDetector, BottleneckTuning};
 pub use report::BottleneckReport;

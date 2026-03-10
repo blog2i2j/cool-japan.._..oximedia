@@ -777,12 +777,12 @@ impl EbmlElement {
 /// use oximedia_container::demux::matroska::ebml::parse_vint;
 ///
 /// // Single byte: 0x81 = 1xxxxxxx, value = 1
-/// let (remaining, value) = parse_vint(&[0x81, 0x00]).unwrap();
+/// let (remaining, value) = parse_vint(&[0x81, 0x00])?;
 /// assert_eq!(value, 1);
 /// assert_eq!(remaining, &[0x00]);
 ///
 /// // Two bytes: 0x40 0x01 = 01xxxxxx xxxxxxxx, value = 1
-/// let (remaining, value) = parse_vint(&[0x40, 0x01]).unwrap();
+/// let (remaining, value) = parse_vint(&[0x40, 0x01])?;
 /// assert_eq!(value, 1);
 /// ```
 pub fn parse_vint(input: &[u8]) -> IResult<&[u8], u64> {
@@ -837,7 +837,7 @@ pub fn parse_vint(input: &[u8]) -> IResult<&[u8], u64> {
 /// use oximedia_container::demux::matroska::ebml::parse_element_id;
 ///
 /// // EBML Header ID: 0x1A 0x45 0xDF 0xA3 = 0x1A45DFA3
-/// let (remaining, id) = parse_element_id(&[0x1A, 0x45, 0xDF, 0xA3, 0x00]).unwrap();
+/// let (remaining, id) = parse_element_id(&[0x1A, 0x45, 0xDF, 0xA3, 0x00])?;
 /// assert_eq!(id, 0x1A45DFA3);
 /// ```
 pub fn parse_element_id(input: &[u8]) -> IResult<&[u8], u32> {
@@ -932,7 +932,7 @@ pub fn parse_element_size(input: &[u8]) -> IResult<&[u8], u64> {
 ///
 /// // EBML Header: ID=0x1A45DFA3, Size=0x1F (31 bytes)
 /// let data = [0x1A, 0x45, 0xDF, 0xA3, 0x9F, 0x00];
-/// let (remaining, element) = parse_element_header(&data).unwrap();
+/// let (remaining, element) = parse_element_header(&data)?;
 ///
 /// assert_eq!(element.id, EBML_HEADER);
 /// assert_eq!(element.size, 31);
@@ -1032,7 +1032,7 @@ pub fn read_int(data: &[u8]) -> IResult<&[u8], i64> {
 /// ```
 /// use oximedia_container::demux::matroska::ebml::read_string;
 ///
-/// let result = read_string(b"webm\0\0\0", 4).unwrap();
+/// let result = read_string(b"webm\0\0\0", 4)?;
 /// assert_eq!(result, "webm");
 /// ```
 pub fn read_string(data: &[u8], len: usize) -> OxiResult<String> {
@@ -1073,7 +1073,7 @@ pub fn read_string(data: &[u8], len: usize) -> OxiResult<String> {
 ///
 /// // 8-byte double representing 48000.0
 /// let bytes = 48000.0_f64.to_be_bytes();
-/// let result = read_float(&bytes, 8).unwrap();
+/// let result = read_float(&bytes, 8)?;
 /// assert!((result - 48000.0).abs() < f64::EPSILON);
 /// ```
 pub fn read_float(data: &[u8], len: usize) -> OxiResult<f64> {
@@ -1123,7 +1123,7 @@ pub fn read_float(data: &[u8], len: usize) -> OxiResult<f64> {
 /// use oximedia_container::demux::matroska::ebml::read_date;
 ///
 /// // Zero timestamp (2001-01-01)
-/// let result = read_date(&[0; 8], 8).unwrap();
+/// let result = read_date(&[0; 8], 8)?;
 /// assert_eq!(result, 0);
 /// ```
 pub fn read_date(data: &[u8], len: usize) -> OxiResult<i64> {
@@ -1284,38 +1284,40 @@ mod tests {
     #[test]
     fn test_parse_vint_1byte() {
         // 0x81 = 1xxxxxxx, value = 1
-        let (remaining, value) = parse_vint(&[0x81]).unwrap();
+        let (remaining, value) = parse_vint(&[0x81]).expect("operation should succeed");
         assert_eq!(value, 1);
         assert!(remaining.is_empty());
 
         // 0xFF = 1xxxxxxx, value = 127
-        let (_, value) = parse_vint(&[0xFF]).unwrap();
+        let (_, value) = parse_vint(&[0xFF]).expect("operation should succeed");
         assert_eq!(value, 127);
     }
 
     #[test]
     fn test_parse_vint_2bytes() {
         // 0x40 0x01 = 01xxxxxx xxxxxxxx, value = 1
-        let (_, value) = parse_vint(&[0x40, 0x01]).unwrap();
+        let (_, value) = parse_vint(&[0x40, 0x01]).expect("operation should succeed");
         assert_eq!(value, 1);
 
         // 0x7F 0xFF = 01xxxxxx xxxxxxxx, value = 16383
-        let (_, value) = parse_vint(&[0x7F, 0xFF]).unwrap();
+        let (_, value) = parse_vint(&[0x7F, 0xFF]).expect("operation should succeed");
         assert_eq!(value, 16383);
     }
 
     #[test]
     fn test_parse_element_id() {
         // Single byte ID: 0xA3 (SimpleBlock)
-        let (_, id) = parse_element_id(&[0xA3]).unwrap();
+        let (_, id) = parse_element_id(&[0xA3]).expect("operation should succeed");
         assert_eq!(id, 0xA3);
 
         // Four byte ID: EBML_HEADER
-        let (_, id) = parse_element_id(&[0x1A, 0x45, 0xDF, 0xA3]).unwrap();
+        let (_, id) =
+            parse_element_id(&[0x1A, 0x45, 0xDF, 0xA3]).expect("operation should succeed");
         assert_eq!(id, EBML_HEADER);
 
         // Four byte ID: SEGMENT
-        let (_, id) = parse_element_id(&[0x18, 0x53, 0x80, 0x67]).unwrap();
+        let (_, id) =
+            parse_element_id(&[0x18, 0x53, 0x80, 0x67]).expect("operation should succeed");
         assert_eq!(id, SEGMENT);
     }
 
@@ -1323,7 +1325,7 @@ mod tests {
     fn test_parse_element_header() {
         // EBML header with size 31
         let data = [0x1A, 0x45, 0xDF, 0xA3, 0x9F];
-        let (remaining, element) = parse_element_header(&data).unwrap();
+        let (remaining, element) = parse_element_header(&data).expect("operation should succeed");
 
         assert_eq!(element.id, EBML_HEADER);
         assert_eq!(element.size, 31);
@@ -1335,7 +1337,7 @@ mod tests {
     fn test_parse_element_unknown_size() {
         // ID followed by 0xFF (unknown size in 1 byte)
         let data = [0xA3, 0xFF];
-        let (_, element) = parse_element_header(&data).unwrap();
+        let (_, element) = parse_element_header(&data).expect("operation should succeed");
 
         assert!(element.is_unbounded());
         assert_eq!(element.size, u64::MAX);
@@ -1344,32 +1346,32 @@ mod tests {
 
     #[test]
     fn test_read_uint() {
-        let (_, value) = read_uint(&[0x01]).unwrap();
+        let (_, value) = read_uint(&[0x01]).expect("operation should succeed");
         assert_eq!(value, 1);
 
-        let (_, value) = read_uint(&[0x01, 0x00]).unwrap();
+        let (_, value) = read_uint(&[0x01, 0x00]).expect("operation should succeed");
         assert_eq!(value, 256);
 
-        let (_, value) = read_uint(&[0xFF, 0xFF]).unwrap();
+        let (_, value) = read_uint(&[0xFF, 0xFF]).expect("operation should succeed");
         assert_eq!(value, 65535);
 
         // Empty data returns 0
-        let (_, value) = read_uint(&[]).unwrap();
+        let (_, value) = read_uint(&[]).expect("operation should succeed");
         assert_eq!(value, 0);
     }
 
     #[test]
     fn test_read_int() {
         // Positive
-        let (_, value) = read_int(&[0x01]).unwrap();
+        let (_, value) = read_int(&[0x01]).expect("operation should succeed");
         assert_eq!(value, 1);
 
         // Negative (-1 in 1 byte)
-        let (_, value) = read_int(&[0xFF]).unwrap();
+        let (_, value) = read_int(&[0xFF]).expect("operation should succeed");
         assert_eq!(value, -1);
 
         // Negative (-128 in 1 byte)
-        let (_, value) = read_int(&[0x80]).unwrap();
+        let (_, value) = read_int(&[0x80]).expect("operation should succeed");
         assert_eq!(value, -128);
     }
 
@@ -1395,19 +1397,19 @@ mod tests {
     #[test]
     fn test_read_string() {
         // Normal string
-        let result = read_string(b"webm", 4).unwrap();
+        let result = read_string(b"webm", 4).expect("operation should succeed");
         assert_eq!(result, "webm");
 
         // String with null terminator
-        let result = read_string(b"webm\0\0\0\0", 8).unwrap();
+        let result = read_string(b"webm\0\0\0\0", 8).expect("operation should succeed");
         assert_eq!(result, "webm");
 
         // Empty string
-        let result = read_string(b"", 0).unwrap();
+        let result = read_string(b"", 0).expect("operation should succeed");
         assert_eq!(result, "");
 
         // Matroska string
-        let result = read_string(b"matroska", 8).unwrap();
+        let result = read_string(b"matroska", 8).expect("operation should succeed");
         assert_eq!(result, "matroska");
     }
 
@@ -1420,20 +1422,20 @@ mod tests {
     #[test]
     fn test_read_float_f64() {
         let bytes = 48000.0_f64.to_be_bytes();
-        let result = read_float(&bytes, 8).unwrap();
+        let result = read_float(&bytes, 8).expect("operation should succeed");
         assert!((result - 48000.0).abs() < f64::EPSILON);
     }
 
     #[test]
     fn test_read_float_f32() {
         let bytes = 44100.0_f32.to_be_bytes();
-        let result = read_float(&bytes, 4).unwrap();
+        let result = read_float(&bytes, 4).expect("operation should succeed");
         assert!((result - 44100.0).abs() < 1.0);
     }
 
     #[test]
     fn test_read_float_zero() {
-        let result = read_float(&[], 0).unwrap();
+        let result = read_float(&[], 0).expect("operation should succeed");
         assert!((result - 0.0).abs() < f64::EPSILON);
     }
 
@@ -1446,18 +1448,18 @@ mod tests {
     #[test]
     fn test_read_date() {
         // Zero timestamp
-        let result = read_date(&[0; 8], 8).unwrap();
+        let result = read_date(&[0; 8], 8).expect("operation should succeed");
         assert_eq!(result, 0);
 
         // Empty date
-        let result = read_date(&[], 0).unwrap();
+        let result = read_date(&[], 0).expect("operation should succeed");
         assert_eq!(result, 0);
     }
 
     #[test]
     fn test_read_binary() {
         let data = [1, 2, 3, 4, 5];
-        let result = read_binary(&data, 3).unwrap();
+        let result = read_binary(&data, 3).expect("operation should succeed");
         assert_eq!(result, vec![1, 2, 3]);
     }
 
@@ -1501,7 +1503,7 @@ mod tests {
         for value in 0..128 {
             let byte = 0x80 | value; // 1xxxxxxx format
             let data = [byte];
-            let (remaining, parsed) = parse_vint(&data).unwrap();
+            let (remaining, parsed) = parse_vint(&data).expect("operation should succeed");
             assert_eq!(parsed, u64::from(value));
             assert!(remaining.is_empty());
         }
@@ -1510,22 +1512,22 @@ mod tests {
     #[test]
     fn test_parse_vint_two_byte_values() {
         // Test two-byte VINT: 0x4001 = 01xxxxxx xxxxxxxx, value = 1
-        let (_, value) = parse_vint(&[0x40, 0x01]).unwrap();
+        let (_, value) = parse_vint(&[0x40, 0x01]).expect("operation should succeed");
         assert_eq!(value, 1);
 
         // Test maximum two-byte value: 0x7FFF
-        let (_, value) = parse_vint(&[0x7F, 0xFF]).unwrap();
+        let (_, value) = parse_vint(&[0x7F, 0xFF]).expect("operation should succeed");
         assert_eq!(value, 16383); // 2^14 - 1
     }
 
     #[test]
     fn test_parse_vint_three_byte_values() {
         // Test three-byte VINT: 0x200001 = 001xxxxx xxxxxxxx xxxxxxxx
-        let (_, value) = parse_vint(&[0x20, 0x00, 0x01]).unwrap();
+        let (_, value) = parse_vint(&[0x20, 0x00, 0x01]).expect("operation should succeed");
         assert_eq!(value, 1);
 
         // Test larger three-byte value
-        let (_, value) = parse_vint(&[0x3F, 0xFF, 0xFF]).unwrap();
+        let (_, value) = parse_vint(&[0x3F, 0xFF, 0xFF]).expect("operation should succeed");
         assert_eq!(value, 2_097_151); // 2^21 - 1
     }
 
@@ -1549,7 +1551,8 @@ mod tests {
     #[test]
     fn test_parse_element_id_ebml_header() {
         // EBML Header: 0x1A 0x45 0xDF 0xA3
-        let (remaining, id) = parse_element_id(&[0x1A, 0x45, 0xDF, 0xA3, 0xFF]).unwrap();
+        let (remaining, id) =
+            parse_element_id(&[0x1A, 0x45, 0xDF, 0xA3, 0xFF]).expect("operation should succeed");
         assert_eq!(id, element_id::EBML);
         assert_eq!(remaining, &[0xFF]);
     }
@@ -1557,14 +1560,15 @@ mod tests {
     #[test]
     fn test_parse_element_id_segment() {
         // Segment: 0x18 0x53 0x80 0x67
-        let (_, id) = parse_element_id(&[0x18, 0x53, 0x80, 0x67]).unwrap();
+        let (_, id) =
+            parse_element_id(&[0x18, 0x53, 0x80, 0x67]).expect("operation should succeed");
         assert_eq!(id, element_id::SEGMENT);
     }
 
     #[test]
     fn test_parse_element_id_single_byte() {
         // Single-byte IDs like TrackType: 0x83
-        let (remaining, id) = parse_element_id(&[0x83, 0x00]).unwrap();
+        let (remaining, id) = parse_element_id(&[0x83, 0x00]).expect("operation should succeed");
         assert_eq!(id, element_id::TRACK_TYPE);
         assert_eq!(remaining, &[0x00]);
     }
@@ -1573,26 +1577,26 @@ mod tests {
     fn test_parse_element_size_unknown() {
         // Unknown size indicator: all 1s after length marker
         // Single byte: 0xFF = 1xxxxxxx with all x=1
-        let (_, size) = parse_element_size(&[0xFF]).unwrap();
+        let (_, size) = parse_element_size(&[0xFF]).expect("operation should succeed");
         assert_eq!(size, u64::MAX);
 
         // Two bytes: 0x7FFF
-        let (_, size) = parse_element_size(&[0x7F, 0xFF]).unwrap();
+        let (_, size) = parse_element_size(&[0x7F, 0xFF]).expect("operation should succeed");
         assert_eq!(size, u64::MAX);
     }
 
     #[test]
     fn test_parse_element_size_normal_values() {
         // Size = 0: 0x80
-        let (_, size) = parse_element_size(&[0x80]).unwrap();
+        let (_, size) = parse_element_size(&[0x80]).expect("operation should succeed");
         assert_eq!(size, 0);
 
         // Size = 127: 0xFF (but not unknown)
-        let (_, size) = parse_element_size(&[0xFE]).unwrap();
+        let (_, size) = parse_element_size(&[0xFE]).expect("operation should succeed");
         assert_eq!(size, 126);
 
         // Two-byte size: 0x4000 = size 0
-        let (_, size) = parse_element_size(&[0x40, 0x00]).unwrap();
+        let (_, size) = parse_element_size(&[0x40, 0x00]).expect("operation should succeed");
         assert_eq!(size, 0);
     }
 
@@ -1601,7 +1605,7 @@ mod tests {
         // Parse a complete element header: Track Entry (0xAE) with size 100
         // ID: 0xAE (1 byte), Size: 0x64 + 0x80 = 0xE4 (1 byte)
         let data = [0xAE, 0xE4];
-        let (remaining, element) = parse_element_header(&data).unwrap();
+        let (remaining, element) = parse_element_header(&data).expect("operation should succeed");
         assert_eq!(element.id, element_id::TRACK_ENTRY);
         assert_eq!(element.size, 100);
         assert_eq!(element.header_size, 2);
@@ -1629,23 +1633,24 @@ mod tests {
     #[test]
     fn test_read_uint_various_sizes() {
         // 1 byte - reads all bytes provided
-        let (remaining, result) = read_uint(&[0x12]).unwrap();
+        let (remaining, result) = read_uint(&[0x12]).expect("operation should succeed");
         assert_eq!(result, 0x12);
         assert!(remaining.is_empty());
 
         // 2 bytes
-        let (remaining, result) = read_uint(&[0x12, 0x34]).unwrap();
+        let (remaining, result) = read_uint(&[0x12, 0x34]).expect("operation should succeed");
         assert_eq!(result, 0x1234);
         assert!(remaining.is_empty());
 
         // 4 bytes
-        let (remaining, result) = read_uint(&[0x12, 0x34, 0x56, 0x78]).unwrap();
+        let (remaining, result) =
+            read_uint(&[0x12, 0x34, 0x56, 0x78]).expect("operation should succeed");
         assert_eq!(result, 0x12345678);
         assert!(remaining.is_empty());
 
         // 8 bytes
-        let (remaining, result) =
-            read_uint(&[0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0]).unwrap();
+        let (remaining, result) = read_uint(&[0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0])
+            .expect("operation should succeed");
         assert_eq!(result, 0x123456789ABCDEF0);
         assert!(remaining.is_empty());
     }
@@ -1653,7 +1658,7 @@ mod tests {
     #[test]
     fn test_read_uint_empty() {
         // Empty data returns 0
-        let (remaining, result) = read_uint(&[]).unwrap();
+        let (remaining, result) = read_uint(&[]).expect("operation should succeed");
         assert_eq!(result, 0);
         assert!(remaining.is_empty());
     }
@@ -1661,29 +1666,29 @@ mod tests {
     #[test]
     fn test_read_int_positive_and_negative() {
         // Positive: 0x12
-        let (_, result) = read_int(&[0x12]).unwrap();
+        let (_, result) = read_int(&[0x12]).expect("operation should succeed");
         assert_eq!(result, 0x12);
 
         // Negative: 0xFF = -1 in two's complement
-        let (_, result) = read_int(&[0xFF]).unwrap();
+        let (_, result) = read_int(&[0xFF]).expect("operation should succeed");
         assert_eq!(result, -1);
 
         // Two-byte negative: 0xFF 0xFF = -1
-        let (_, result) = read_int(&[0xFF, 0xFF]).unwrap();
+        let (_, result) = read_int(&[0xFF, 0xFF]).expect("operation should succeed");
         assert_eq!(result, -1);
 
         // Two-byte positive: 0x7F 0xFF
-        let (_, result) = read_int(&[0x7F, 0xFF]).unwrap();
+        let (_, result) = read_int(&[0x7F, 0xFF]).expect("operation should succeed");
         assert_eq!(result, 32767);
     }
 
     #[test]
     fn test_read_string_utf8() {
-        let result = read_string("hello".as_bytes(), 5).unwrap();
+        let result = read_string("hello".as_bytes(), 5).expect("operation should succeed");
         assert_eq!(result, "hello");
 
         // String with spaces
-        let result = read_string("hello world".as_bytes(), 11).unwrap();
+        let result = read_string("hello world".as_bytes(), 11).expect("operation should succeed");
         assert_eq!(result, "hello world");
     }
 
@@ -1691,7 +1696,7 @@ mod tests {
     fn test_read_string_null_padding() {
         // String with null padding
         let data = b"test\0\0\0\0";
-        let result = read_string(data, 8).unwrap();
+        let result = read_string(data, 8).expect("operation should succeed");
         assert_eq!(result, "test");
     }
 
@@ -1743,13 +1748,13 @@ mod tests {
             0x83, // VINT: value = 3
         ];
 
-        let (rest, v1) = parse_vint(&data).unwrap();
+        let (rest, v1) = parse_vint(&data).expect("operation should succeed");
         assert_eq!(v1, 1);
 
-        let (rest, v2) = parse_vint(rest).unwrap();
+        let (rest, v2) = parse_vint(rest).expect("operation should succeed");
         assert_eq!(v2, 2);
 
-        let (rest, v3) = parse_vint(rest).unwrap();
+        let (rest, v3) = parse_vint(rest).expect("operation should succeed");
         assert_eq!(v3, 3);
         assert!(rest.is_empty());
     }

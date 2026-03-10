@@ -86,7 +86,7 @@ mod tests {
 
         let clips = vec![clip];
         let exporter = EdlExporter::new(Rational::new(24, 1));
-        let edl = exporter.to_edl(&clips).unwrap();
+        let edl = exporter.to_edl(&clips).expect("to_edl should succeed");
 
         assert!(edl.contains("TITLE: Clip Export"));
         assert!(edl.contains("001  001"));
@@ -96,7 +96,9 @@ mod tests {
     #[test]
     fn test_frames_to_timecode() {
         let exporter = EdlExporter::new(Rational::new(24, 1));
-        let tc = exporter.frames_to_timecode(100).unwrap();
+        let tc = exporter
+            .frames_to_timecode(100)
+            .expect("frames_to_timecode should succeed");
         assert_eq!(tc, "00:00:04:04");
     }
 }

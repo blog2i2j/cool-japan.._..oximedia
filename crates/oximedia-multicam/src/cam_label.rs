@@ -330,7 +330,10 @@ mod tests {
         reg.register(CamLabel::new(1, "B", "Cam B", CameraRole::Jib));
         let found = reg.find_by_role(CameraRole::Jib);
         assert!(found.is_some());
-        assert_eq!(found.unwrap().index, 1);
+        assert_eq!(
+            found.expect("multicam test operation should succeed").index,
+            1
+        );
     }
 
     #[test]
@@ -340,7 +343,12 @@ mod tests {
         label.set_tally(TallyColor::Red);
         reg.register(label);
         reg.clear_tallies();
-        assert_eq!(reg.get(0).unwrap().tally, TallyColor::Off);
+        assert_eq!(
+            reg.get(0)
+                .expect("multicam test operation should succeed")
+                .tally,
+            TallyColor::Off
+        );
     }
 
     #[test]
@@ -349,13 +357,33 @@ mod tests {
         reg.register(CamLabel::new(0, "A", "Cam A", CameraRole::Wide));
         reg.register(CamLabel::new(1, "B", "Cam B", CameraRole::CloseUp));
         reg.set_on_air(0);
-        assert_eq!(reg.get(0).unwrap().tally, TallyColor::Red);
-        assert_eq!(reg.get(1).unwrap().tally, TallyColor::Off);
+        assert_eq!(
+            reg.get(0)
+                .expect("multicam test operation should succeed")
+                .tally,
+            TallyColor::Red
+        );
+        assert_eq!(
+            reg.get(1)
+                .expect("multicam test operation should succeed")
+                .tally,
+            TallyColor::Off
+        );
 
         // Switch on-air to camera 1
         reg.set_on_air(1);
-        assert_eq!(reg.get(0).unwrap().tally, TallyColor::Off);
-        assert_eq!(reg.get(1).unwrap().tally, TallyColor::Red);
+        assert_eq!(
+            reg.get(0)
+                .expect("multicam test operation should succeed")
+                .tally,
+            TallyColor::Off
+        );
+        assert_eq!(
+            reg.get(1)
+                .expect("multicam test operation should succeed")
+                .tally,
+            TallyColor::Red
+        );
     }
 
     #[test]

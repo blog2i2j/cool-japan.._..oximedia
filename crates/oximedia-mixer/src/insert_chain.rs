@@ -296,9 +296,13 @@ mod tests {
     fn test_insert_effect_params() {
         let mut e = make_effect("EQ", InsertEffectKind::Eq);
         e.set_param("freq", 1000.0);
-        assert!((e.get_param("freq").unwrap() - 1000.0).abs() < f64::EPSILON);
+        assert!(
+            (e.get_param("freq").expect("get_param should succeed") - 1000.0).abs() < f64::EPSILON
+        );
         e.set_param("freq", 2000.0);
-        assert!((e.get_param("freq").unwrap() - 2000.0).abs() < f64::EPSILON);
+        assert!(
+            (e.get_param("freq").expect("get_param should succeed") - 2000.0).abs() < f64::EPSILON
+        );
         assert!(e.get_param("gain").is_none());
     }
 
@@ -415,7 +419,7 @@ mod tests {
         let mut chain = InsertChain::new("Ch1".into());
         chain.load_at(0, make_effect("Comp", InsertEffectKind::Dynamics));
         chain.bypass_slot(0, true);
-        assert!(chain.get_slot(0).unwrap().bypass);
+        assert!(chain.get_slot(0).expect("get_slot should succeed").bypass);
         assert_eq!(chain.active_count(), 0);
     }
 }

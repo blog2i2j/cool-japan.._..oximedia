@@ -107,7 +107,7 @@ fn generate_report_id() -> String {
 
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .expect("system clock is before UNIX_EPOCH")
         .as_millis();
 
     format!("FR-{:016X}", timestamp)
@@ -120,7 +120,7 @@ fn current_timestamp() -> String {
 
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .expect("system clock is before UNIX_EPOCH")
         .as_secs();
 
     // Simple ISO 8601 format (simplified)
@@ -141,95 +141,92 @@ pub fn export_report(report: &DetailedForensicReport, format: ReportFormat) -> S
 fn export_text(report: &DetailedForensicReport) -> String {
     let mut output = String::new();
 
-    writeln!(&mut output, "=== FORENSIC ANALYSIS REPORT ===").unwrap();
-    writeln!(&mut output).unwrap();
-    writeln!(&mut output, "Report ID: {}", report.report_id).unwrap();
-    writeln!(&mut output, "Created: {}", report.created_at).unwrap();
+    let _ = writeln!(&mut output, "=== FORENSIC ANALYSIS REPORT ===");
+    let _ = writeln!(&mut output);
+    let _ = writeln!(&mut output, "Report ID: {}", report.report_id);
+    let _ = writeln!(&mut output, "Created: {}", report.created_at);
 
     if let Some(ref examiner) = report.examiner {
-        writeln!(&mut output, "Examiner: {}", examiner).unwrap();
+        let _ = writeln!(&mut output, "Examiner: {}", examiner);
     }
 
     if let Some(ref case_num) = report.case_number {
-        writeln!(&mut output, "Case Number: {}", case_num).unwrap();
+        let _ = writeln!(&mut output, "Case Number: {}", case_num);
     }
 
-    writeln!(&mut output).unwrap();
-    writeln!(&mut output, "--- SUMMARY ---").unwrap();
-    writeln!(&mut output, "{}", report.report.summary).unwrap();
-    writeln!(&mut output).unwrap();
+    let _ = writeln!(&mut output);
+    let _ = writeln!(&mut output, "--- SUMMARY ---");
+    let _ = writeln!(&mut output, "{}", report.report.summary);
+    let _ = writeln!(&mut output);
 
-    writeln!(
+    let _ = writeln!(
         &mut output,
         "Overall Tampering Detected: {}",
         report.report.tampering_detected
-    )
-    .unwrap();
-    writeln!(
+    );
+    let _ = writeln!(
         &mut output,
         "Overall Confidence: {:.1}%",
         report.report.overall_confidence * 100.0
-    )
-    .unwrap();
-    writeln!(&mut output).unwrap();
+    );
+    let _ = writeln!(&mut output);
 
-    writeln!(&mut output, "--- TEST RESULTS ---").unwrap();
+    let _ = writeln!(&mut output, "--- TEST RESULTS ---");
     for (name, test) in &report.report.tests {
-        writeln!(&mut output).unwrap();
-        writeln!(&mut output, "Test: {}", name).unwrap();
-        writeln!(&mut output, "  Tampering: {}", test.tampering_detected).unwrap();
-        writeln!(
+        let _ = writeln!(&mut output);
+        let _ = writeln!(&mut output, "Test: {}", name);
+        let _ = writeln!(&mut output, "  Tampering: {}", test.tampering_detected);
+        let _ = writeln!(
             &mut output,
             "  Confidence: {:.1}% ({:?})",
             test.confidence * 100.0,
             test.confidence_level()
-        )
-        .unwrap();
+        );
 
         if !test.findings.is_empty() {
-            writeln!(&mut output, "  Findings:").unwrap();
+            let _ = writeln!(&mut output, "  Findings:");
             for finding in &test.findings {
-                writeln!(&mut output, "    - {}", finding).unwrap();
+                let _ = writeln!(&mut output, "    - {}", finding);
             }
         }
     }
 
     if !report.methodology.is_empty() {
-        writeln!(&mut output).unwrap();
-        writeln!(&mut output, "--- METHODOLOGY ---").unwrap();
+        let _ = writeln!(&mut output);
+        let _ = writeln!(&mut output, "--- METHODOLOGY ---");
         for (i, method) in report.methodology.iter().enumerate() {
-            writeln!(&mut output, "{}. {}", i + 1, method).unwrap();
+            let _ = writeln!(&mut output, "{}. {}", i + 1, method);
         }
     }
 
     if !report.conclusions.is_empty() {
-        writeln!(&mut output).unwrap();
-        writeln!(&mut output, "--- CONCLUSIONS ---").unwrap();
+        let _ = writeln!(&mut output);
+        let _ = writeln!(&mut output, "--- CONCLUSIONS ---");
         for (i, conclusion) in report.conclusions.iter().enumerate() {
-            writeln!(&mut output, "{}. {}", i + 1, conclusion).unwrap();
+            let _ = writeln!(&mut output, "{}. {}", i + 1, conclusion);
         }
     }
 
     if !report.report.recommendations.is_empty() {
-        writeln!(&mut output).unwrap();
-        writeln!(&mut output, "--- RECOMMENDATIONS ---").unwrap();
+        let _ = writeln!(&mut output);
+        let _ = writeln!(&mut output, "--- RECOMMENDATIONS ---");
         for (i, rec) in report.report.recommendations.iter().enumerate() {
-            writeln!(&mut output, "{}. {}", i + 1, rec).unwrap();
+            let _ = writeln!(&mut output, "{}. {}", i + 1, rec);
         }
     }
 
     if !report.chain_of_custody.is_empty() {
-        writeln!(&mut output).unwrap();
-        writeln!(&mut output, "--- CHAIN OF CUSTODY ---").unwrap();
+        let _ = writeln!(&mut output);
+        let _ = writeln!(&mut output, "--- CHAIN OF CUSTODY ---");
         for entry in &report.chain_of_custody {
-            writeln!(&mut output, "Timestamp: {}", entry.timestamp).unwrap();
-            writeln!(&mut output, "  Action: {}", entry.action).unwrap();
-            writeln!(&mut output, "  Person: {}", entry.person).unwrap();
-            writeln!(&mut output, "  Location: {}", entry.location).unwrap();
+            let _ = writeln!(&mut output, "Timestamp: {}", entry.timestamp);
+            let _ = writeln!(&mut output, "  Action: {}", entry.action);
+            let _ = writeln!(&mut output, "  Person: {}", entry.person);
+            let _ = writeln!(&mut output, "  Location: {}", entry.location);
             if !entry.notes.is_empty() {
-                writeln!(&mut output, "  Notes: {}", entry.notes).unwrap();
+                let _ = writeln!(&mut output, "  Notes: {}", entry.notes);
             }
-            writeln!(&mut output).unwrap();
+            let _ = writeln!(&mut output);
         }
     }
 
@@ -240,91 +237,80 @@ fn export_text(report: &DetailedForensicReport) -> String {
 fn export_html(report: &DetailedForensicReport) -> String {
     let mut output = String::new();
 
-    writeln!(&mut output, "<!DOCTYPE html>").unwrap();
-    writeln!(&mut output, "<html>").unwrap();
-    writeln!(&mut output, "<head>").unwrap();
-    writeln!(
+    let _ = writeln!(&mut output, "<!DOCTYPE html>");
+    let _ = writeln!(&mut output, "<html>");
+    let _ = writeln!(&mut output, "<head>");
+    let _ = writeln!(
         &mut output,
         "<title>Forensic Analysis Report - {}</title>",
         report.report_id
-    )
-    .unwrap();
-    writeln!(&mut output, "<style>").unwrap();
-    writeln!(
+    );
+    let _ = writeln!(&mut output, "<style>");
+    let _ = writeln!(
         &mut output,
         "body {{ font-family: Arial, sans-serif; margin: 40px; }}"
-    )
-    .unwrap();
-    writeln!(&mut output, "h1 {{ color: #333; }}").unwrap();
-    writeln!(
+    );
+    let _ = writeln!(&mut output, "h1 {{ color: #333; }}");
+    let _ = writeln!(
         &mut output,
         "h2 {{ color: #666; border-bottom: 2px solid #ddd; padding-bottom: 5px; }}"
-    )
-    .unwrap();
-    writeln!(
+    );
+    let _ = writeln!(
         &mut output,
         ".summary {{ background: #f5f5f5; padding: 15px; border-left: 4px solid #007bff; }}"
-    )
-    .unwrap();
-    writeln!(
+    );
+    let _ = writeln!(
         &mut output,
         ".test {{ margin: 20px 0; padding: 15px; border: 1px solid #ddd; }}"
-    )
-    .unwrap();
-    writeln!(
+    );
+    let _ = writeln!(
         &mut output,
         ".tampering-yes {{ background: #fff3cd; border-left: 4px solid #ffc107; }}"
-    )
-    .unwrap();
-    writeln!(
+    );
+    let _ = writeln!(
         &mut output,
         ".tampering-no {{ background: #d4edda; border-left: 4px solid #28a745; }}"
-    )
-    .unwrap();
-    writeln!(&mut output, ".confidence {{ font-weight: bold; }}").unwrap();
-    writeln!(&mut output, "</style>").unwrap();
-    writeln!(&mut output, "</head>").unwrap();
-    writeln!(&mut output, "<body>").unwrap();
+    );
+    let _ = writeln!(&mut output, ".confidence {{ font-weight: bold; }}");
+    let _ = writeln!(&mut output, "</style>");
+    let _ = writeln!(&mut output, "</head>");
+    let _ = writeln!(&mut output, "<body>");
 
-    writeln!(&mut output, "<h1>Forensic Analysis Report</h1>").unwrap();
+    let _ = writeln!(&mut output, "<h1>Forensic Analysis Report</h1>");
 
-    writeln!(&mut output, "<div class='metadata'>").unwrap();
-    writeln!(
+    let _ = writeln!(&mut output, "<div class='metadata'>");
+    let _ = writeln!(
         &mut output,
         "<p><strong>Report ID:</strong> {}</p>",
         report.report_id
-    )
-    .unwrap();
-    writeln!(
+    );
+    let _ = writeln!(
         &mut output,
         "<p><strong>Created:</strong> {}</p>",
         report.created_at
-    )
-    .unwrap();
+    );
 
     if let Some(ref examiner) = report.examiner {
-        writeln!(
+        let _ = writeln!(
             &mut output,
             "<p><strong>Examiner:</strong> {}</p>",
             examiner
-        )
-        .unwrap();
+        );
     }
 
     if let Some(ref case_num) = report.case_number {
-        writeln!(
+        let _ = writeln!(
             &mut output,
             "<p><strong>Case Number:</strong> {}</p>",
             case_num
-        )
-        .unwrap();
+        );
     }
-    writeln!(&mut output, "</div>").unwrap();
+    let _ = writeln!(&mut output, "</div>");
 
-    writeln!(&mut output, "<h2>Summary</h2>").unwrap();
-    writeln!(&mut output, "<div class='summary'>").unwrap();
-    writeln!(&mut output, "<p>{}</p>", report.report.summary).unwrap();
-    writeln!(
+    let _ = writeln!(&mut output, "<h2>Summary</h2>");
+    let _ = writeln!(&mut output, "<div class='summary'>");
+    let _ = writeln!(&mut output, "<p>{}</p>", report.report.summary);
+    let _ = writeln!(
         &mut output,
         "<p><strong>Tampering Detected:</strong> {}</p>",
         if report.report.tampering_detected {
@@ -332,61 +318,57 @@ fn export_html(report: &DetailedForensicReport) -> String {
         } else {
             "NO"
         }
-    )
-    .unwrap();
-    writeln!(
+    );
+    let _ = writeln!(
         &mut output,
         "<p><strong>Overall Confidence:</strong> <span class='confidence'>{:.1}%</span></p>",
         report.report.overall_confidence * 100.0
-    )
-    .unwrap();
-    writeln!(&mut output, "</div>").unwrap();
+    );
+    let _ = writeln!(&mut output, "</div>");
 
-    writeln!(&mut output, "<h2>Test Results</h2>").unwrap();
+    let _ = writeln!(&mut output, "<h2>Test Results</h2>");
     for (name, test) in &report.report.tests {
         let class = if test.tampering_detected {
             "test tampering-yes"
         } else {
             "test tampering-no"
         };
-        writeln!(&mut output, "<div class='{}'>", class).unwrap();
-        writeln!(&mut output, "<h3>{}</h3>", name).unwrap();
-        writeln!(
+        let _ = writeln!(&mut output, "<div class='{}'>", class);
+        let _ = writeln!(&mut output, "<h3>{}</h3>", name);
+        let _ = writeln!(
             &mut output,
             "<p><strong>Tampering:</strong> {}</p>",
             if test.tampering_detected { "YES" } else { "NO" }
-        )
-        .unwrap();
-        writeln!(
+        );
+        let _ = writeln!(
             &mut output,
             "<p><strong>Confidence:</strong> {:.1}% ({:?})</p>",
             test.confidence * 100.0,
             test.confidence_level()
-        )
-        .unwrap();
+        );
 
         if !test.findings.is_empty() {
-            writeln!(&mut output, "<p><strong>Findings:</strong></p>").unwrap();
-            writeln!(&mut output, "<ul>").unwrap();
+            let _ = writeln!(&mut output, "<p><strong>Findings:</strong></p>");
+            let _ = writeln!(&mut output, "<ul>");
             for finding in &test.findings {
-                writeln!(&mut output, "<li>{}</li>", finding).unwrap();
+                let _ = writeln!(&mut output, "<li>{}</li>", finding);
             }
-            writeln!(&mut output, "</ul>").unwrap();
+            let _ = writeln!(&mut output, "</ul>");
         }
-        writeln!(&mut output, "</div>").unwrap();
+        let _ = writeln!(&mut output, "</div>");
     }
 
     if !report.conclusions.is_empty() {
-        writeln!(&mut output, "<h2>Conclusions</h2>").unwrap();
-        writeln!(&mut output, "<ol>").unwrap();
+        let _ = writeln!(&mut output, "<h2>Conclusions</h2>");
+        let _ = writeln!(&mut output, "<ol>");
         for conclusion in &report.conclusions {
-            writeln!(&mut output, "<li>{}</li>", conclusion).unwrap();
+            let _ = writeln!(&mut output, "<li>{}</li>", conclusion);
         }
-        writeln!(&mut output, "</ol>").unwrap();
+        let _ = writeln!(&mut output, "</ol>");
     }
 
-    writeln!(&mut output, "</body>").unwrap();
-    writeln!(&mut output, "</html>").unwrap();
+    let _ = writeln!(&mut output, "</body>");
+    let _ = writeln!(&mut output, "</html>");
 
     output
 }
@@ -400,28 +382,28 @@ fn export_json(report: &DetailedForensicReport) -> String {
 fn export_markdown(report: &DetailedForensicReport) -> String {
     let mut output = String::new();
 
-    writeln!(&mut output, "# Forensic Analysis Report").unwrap();
-    writeln!(&mut output).unwrap();
+    let _ = writeln!(&mut output, "# Forensic Analysis Report");
+    let _ = writeln!(&mut output);
 
-    writeln!(&mut output, "## Metadata").unwrap();
-    writeln!(&mut output).unwrap();
-    writeln!(&mut output, "- **Report ID**: {}", report.report_id).unwrap();
-    writeln!(&mut output, "- **Created**: {}", report.created_at).unwrap();
+    let _ = writeln!(&mut output, "## Metadata");
+    let _ = writeln!(&mut output);
+    let _ = writeln!(&mut output, "- **Report ID**: {}", report.report_id);
+    let _ = writeln!(&mut output, "- **Created**: {}", report.created_at);
 
     if let Some(ref examiner) = report.examiner {
-        writeln!(&mut output, "- **Examiner**: {}", examiner).unwrap();
+        let _ = writeln!(&mut output, "- **Examiner**: {}", examiner);
     }
 
     if let Some(ref case_num) = report.case_number {
-        writeln!(&mut output, "- **Case Number**: {}", case_num).unwrap();
+        let _ = writeln!(&mut output, "- **Case Number**: {}", case_num);
     }
 
-    writeln!(&mut output).unwrap();
-    writeln!(&mut output, "## Summary").unwrap();
-    writeln!(&mut output).unwrap();
-    writeln!(&mut output, "{}", report.report.summary).unwrap();
-    writeln!(&mut output).unwrap();
-    writeln!(
+    let _ = writeln!(&mut output);
+    let _ = writeln!(&mut output, "## Summary");
+    let _ = writeln!(&mut output);
+    let _ = writeln!(&mut output, "{}", report.report.summary);
+    let _ = writeln!(&mut output);
+    let _ = writeln!(
         &mut output,
         "- **Tampering Detected**: {}",
         if report.report.tampering_detected {
@@ -429,23 +411,21 @@ fn export_markdown(report: &DetailedForensicReport) -> String {
         } else {
             "NO"
         }
-    )
-    .unwrap();
-    writeln!(
+    );
+    let _ = writeln!(
         &mut output,
         "- **Overall Confidence**: {:.1}%",
         report.report.overall_confidence * 100.0
-    )
-    .unwrap();
-    writeln!(&mut output).unwrap();
+    );
+    let _ = writeln!(&mut output);
 
-    writeln!(&mut output, "## Test Results").unwrap();
-    writeln!(&mut output).unwrap();
+    let _ = writeln!(&mut output, "## Test Results");
+    let _ = writeln!(&mut output);
 
     for (name, test) in &report.report.tests {
-        writeln!(&mut output, "### {}", name).unwrap();
-        writeln!(&mut output).unwrap();
-        writeln!(
+        let _ = writeln!(&mut output, "### {}", name);
+        let _ = writeln!(&mut output);
+        let _ = writeln!(
             &mut output,
             "- **Tampering**: {}",
             if test.tampering_detected {
@@ -453,34 +433,32 @@ fn export_markdown(report: &DetailedForensicReport) -> String {
             } else {
                 "NO"
             }
-        )
-        .unwrap();
-        writeln!(
+        );
+        let _ = writeln!(
             &mut output,
             "- **Confidence**: {:.1}% ({:?})",
             test.confidence * 100.0,
             test.confidence_level()
-        )
-        .unwrap();
+        );
 
         if !test.findings.is_empty() {
-            writeln!(&mut output).unwrap();
-            writeln!(&mut output, "**Findings**:").unwrap();
-            writeln!(&mut output).unwrap();
+            let _ = writeln!(&mut output);
+            let _ = writeln!(&mut output, "**Findings**:");
+            let _ = writeln!(&mut output);
             for finding in &test.findings {
-                writeln!(&mut output, "- {}", finding).unwrap();
+                let _ = writeln!(&mut output, "- {}", finding);
             }
         }
-        writeln!(&mut output).unwrap();
+        let _ = writeln!(&mut output);
     }
 
     if !report.conclusions.is_empty() {
-        writeln!(&mut output, "## Conclusions").unwrap();
-        writeln!(&mut output).unwrap();
+        let _ = writeln!(&mut output, "## Conclusions");
+        let _ = writeln!(&mut output);
         for (i, conclusion) in report.conclusions.iter().enumerate() {
-            writeln!(&mut output, "{}. {}", i + 1, conclusion).unwrap();
+            let _ = writeln!(&mut output, "{}. {}", i + 1, conclusion);
         }
-        writeln!(&mut output).unwrap();
+        let _ = writeln!(&mut output);
     }
 
     output
@@ -490,34 +468,32 @@ fn export_markdown(report: &DetailedForensicReport) -> String {
 pub fn visualize_confidence_scores(report: &TamperingReport) -> String {
     let mut output = String::new();
 
-    writeln!(&mut output, "Confidence Scores:").unwrap();
-    writeln!(&mut output).unwrap();
+    let _ = writeln!(&mut output, "Confidence Scores:");
+    let _ = writeln!(&mut output);
 
     for (name, test) in &report.tests {
         let bar_length = (test.confidence * 50.0) as usize;
         let bar = "█".repeat(bar_length);
         let empty = "░".repeat(50 - bar_length);
 
-        writeln!(
+        let _ = writeln!(
             &mut output,
             "{:30} [{}{}] {:.1}%",
             name,
             bar,
             empty,
             test.confidence * 100.0
-        )
-        .unwrap();
+        );
     }
 
-    writeln!(&mut output).unwrap();
-    writeln!(
+    let _ = writeln!(&mut output);
+    let _ = writeln!(
         &mut output,
         "{:30} [{}] {:.1}%",
         "OVERALL",
         "█".repeat((report.overall_confidence * 50.0) as usize),
         report.overall_confidence * 100.0
-    )
-    .unwrap();
+    );
 
     output
 }
@@ -527,15 +503,14 @@ pub fn generate_executive_summary(report: &TamperingReport) -> String {
     let mut summary = String::new();
 
     if report.tampering_detected {
-        writeln!(&mut summary, "ALERT: Potential image tampering detected.").unwrap();
-        writeln!(&mut summary).unwrap();
-        writeln!(
+        let _ = writeln!(&mut summary, "ALERT: Potential image tampering detected.");
+        let _ = writeln!(&mut summary);
+        let _ = writeln!(
             &mut summary,
             "Analysis indicates evidence of manipulation with {:.1}% confidence.",
             report.overall_confidence * 100.0
-        )
-        .unwrap();
-        writeln!(&mut summary).unwrap();
+        );
+        let _ = writeln!(&mut summary);
 
         let positive_tests: Vec<_> = report
             .tests
@@ -543,37 +518,33 @@ pub fn generate_executive_summary(report: &TamperingReport) -> String {
             .filter(|(_, test)| test.tampering_detected)
             .collect();
 
-        writeln!(
+        let _ = writeln!(
             &mut summary,
             "Tests indicating tampering ({}/{}):",
             positive_tests.len(),
             report.tests.len()
-        )
-        .unwrap();
+        );
 
         for (name, test) in positive_tests {
-            writeln!(
+            let _ = writeln!(
                 &mut summary,
                 "  - {}: {:.1}% confidence",
                 name,
                 test.confidence * 100.0
-            )
-            .unwrap();
+            );
         }
     } else {
-        writeln!(&mut summary, "No significant tampering detected.").unwrap();
-        writeln!(&mut summary).unwrap();
-        writeln!(
+        let _ = writeln!(&mut summary, "No significant tampering detected.");
+        let _ = writeln!(&mut summary);
+        let _ = writeln!(
             &mut summary,
             "Analysis found no strong evidence of manipulation."
-        )
-        .unwrap();
-        writeln!(
+        );
+        let _ = writeln!(
             &mut summary,
             "Overall confidence in authenticity: {:.1}%",
             (1.0 - report.overall_confidence) * 100.0
-        )
-        .unwrap();
+        );
     }
 
     summary

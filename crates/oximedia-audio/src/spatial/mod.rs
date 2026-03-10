@@ -27,14 +27,14 @@
 //! ```rust
 //! use oximedia_audio::spatial::{BinauralRenderer, SourcePosition};
 //!
-//! let mut renderer = BinauralRenderer::new(44100).unwrap();
+//! let mut renderer = BinauralRenderer::new(44100)?;
 //! let position = SourcePosition::from_spherical(0.0, 0.0, 2.0);
 //!
 //! let input = vec![0.0; 512];
 //! let mut output_left = vec![0.0; 512];
 //! let mut output_right = vec![0.0; 512];
 //!
-//! renderer.render(&input, &position, &mut output_left, &mut output_right).unwrap();
+//! renderer.render(&input, &position, &mut output_left, &mut output_right)?;
 //! ```
 //!
 //! # Panning
@@ -57,7 +57,7 @@
 //!
 //! let input = vec![0.0; 512];
 //! let mut output = vec![0.0; 512];
-//! reverb.process(&input, &mut output).unwrap();
+//! reverb.process(&input, &mut output)?;
 //! ```
 //!
 //! # ITU-R BS.2051 Compliance
@@ -399,7 +399,7 @@ mod tests {
         let processor = SpatialAudioProcessor::new(44100);
         assert!(processor.is_ok());
 
-        let processor = processor.unwrap();
+        let processor = processor.expect("should succeed");
         assert_eq!(processor.sample_rate(), 44100);
         assert!(!processor.is_ambisonics_enabled());
         assert!(!processor.is_binaural_enabled());
@@ -408,12 +408,12 @@ mod tests {
 
     #[test]
     fn test_enable_features() {
-        let mut processor = SpatialAudioProcessor::new(44100).unwrap();
+        let mut processor = SpatialAudioProcessor::new(44100).expect("should succeed");
 
         processor.enable_ambisonics(AmbisonicOrder::First, SpeakerConfig::stereo());
         assert!(processor.is_ambisonics_enabled());
 
-        processor.enable_binaural().unwrap();
+        processor.enable_binaural().expect("should succeed");
         assert!(processor.is_binaural_enabled());
 
         processor.enable_reverb();
@@ -422,7 +422,7 @@ mod tests {
 
     #[test]
     fn test_disable_features() {
-        let mut processor = SpatialAudioProcessor::new(44100).unwrap();
+        let mut processor = SpatialAudioProcessor::new(44100).expect("should succeed");
 
         processor.enable_ambisonics(AmbisonicOrder::First, SpeakerConfig::stereo());
         processor.disable_ambisonics();
@@ -431,7 +431,7 @@ mod tests {
 
     #[test]
     fn test_process_stereo() {
-        let mut processor = SpatialAudioProcessor::new(44100).unwrap();
+        let mut processor = SpatialAudioProcessor::new(44100).expect("should succeed");
 
         let input = vec![1.0; 100];
         let mut left = vec![0.0; 100];
@@ -446,8 +446,8 @@ mod tests {
 
     #[test]
     fn test_process_binaural() {
-        let mut processor = SpatialAudioProcessor::new(44100).unwrap();
-        processor.enable_binaural().unwrap();
+        let mut processor = SpatialAudioProcessor::new(44100).expect("should succeed");
+        processor.enable_binaural().expect("should succeed");
 
         let input = vec![1.0; 100];
         let mut left = vec![0.0; 100];

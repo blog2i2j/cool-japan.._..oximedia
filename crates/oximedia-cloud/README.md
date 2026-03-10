@@ -28,7 +28,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-cloud = "0.1.0"
+oximedia-cloud = "0.1.1"
 ```
 
 ```rust

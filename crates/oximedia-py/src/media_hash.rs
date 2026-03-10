@@ -296,7 +296,7 @@ mod tests {
     fn test_fingerprint_similarity() {
         let a = PerceptualFingerprint::new(vec![0xFF], 8);
         let b = PerceptualFingerprint::new(vec![0xFF], 8);
-        let sim = a.similarity(&b).unwrap();
+        let sim = a.similarity(&b).expect("sim should be valid");
         assert!((sim - 1.0).abs() < f64::EPSILON);
     }
 
@@ -304,7 +304,7 @@ mod tests {
     fn test_fingerprint_similarity_zero() {
         let a = PerceptualFingerprint::new(vec![0xFF], 8);
         let b = PerceptualFingerprint::new(vec![0x00], 8);
-        let sim = a.similarity(&b).unwrap();
+        let sim = a.similarity(&b).expect("sim should be valid");
         assert!(sim.abs() < f64::EPSILON);
     }
 }

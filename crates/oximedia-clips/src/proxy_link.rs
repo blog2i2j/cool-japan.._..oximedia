@@ -247,7 +247,9 @@ mod tests {
         let mut reg = ProxyLinkRegistry::new();
         reg.link(ProxyLink::new(1, path("/old.mov"), ProxyResolution::Half));
         reg.link(ProxyLink::new(1, path("/new.mov"), ProxyResolution::Half));
-        let found = reg.find_proxy(1, &ProxyResolution::Half).unwrap();
+        let found = reg
+            .find_proxy(1, &ProxyResolution::Half)
+            .expect("find_proxy should succeed");
         assert_eq!(found.proxy_path, path("/new.mov"));
     }
 

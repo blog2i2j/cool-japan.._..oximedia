@@ -152,7 +152,7 @@ mod tests {
     #[test]
     fn test_not_superframe() {
         let data = [0x00, 0x01, 0x02, 0x03];
-        let sf = Superframe::parse(&data).unwrap();
+        let sf = Superframe::parse(&data).expect("should succeed");
         assert!(!sf.is_superframe());
         assert_eq!(sf.frame_count(), 1);
     }
@@ -166,7 +166,9 @@ mod tests {
     #[test]
     fn test_superframe_marker() {
         let data = [0x00, 0x01, 0x00, 0x01, 0x02, 0xC1, 0x02, 0x03, 0xC1];
-        let index = SuperframeIndex::parse(&data).unwrap().unwrap();
+        let index = SuperframeIndex::parse(&data)
+            .expect("should succeed")
+            .expect("should succeed");
         assert_eq!(index.frame_count, 2);
         assert_eq!(index.frame_sizes, vec![2, 3]);
     }
@@ -174,7 +176,7 @@ mod tests {
     #[test]
     fn test_superframe_parse() {
         let data = [0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xC1, 0x02, 0x03, 0xC1];
-        let sf = Superframe::parse(&data).unwrap();
+        let sf = Superframe::parse(&data).expect("should succeed");
         assert!(sf.is_superframe());
         assert_eq!(sf.frame_count(), 2);
     }

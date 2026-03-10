@@ -67,7 +67,7 @@ fn predict_packet_data(packets: &[Packet], index: usize, window_size: usize) -> 
     }
 
     // Simple prediction: use last valid packet
-    Some(prev_packets.last().unwrap().data.clone())
+    prev_packets.last().map(|p| p.data.clone())
 }
 
 /// Interpolate audio data with fading.
@@ -129,6 +129,9 @@ mod tests {
 
         let predicted = predict_packet_data(&packets, 2, 2);
         assert!(predicted.is_some());
-        assert_eq!(predicted.unwrap(), vec![4, 5, 6]);
+        assert_eq!(
+            predicted.expect("expected predicted to be Some/Ok"),
+            vec![4, 5, 6]
+        );
     }
 }

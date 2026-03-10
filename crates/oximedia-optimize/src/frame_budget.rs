@@ -447,9 +447,23 @@ mod tests {
         let mut entry = FrameBudgetEntry::new(0, BudgetFrameType::Predicted, 5000);
         assert!(entry.usage_ratio().is_none());
         entry.record_actual(5000);
-        assert!((entry.usage_ratio().unwrap() - 1.0).abs() < f64::EPSILON);
+        assert!(
+            (entry
+                .usage_ratio()
+                .expect("usage ratio should be computable")
+                - 1.0)
+                .abs()
+                < f64::EPSILON
+        );
         entry.record_actual(2500);
-        assert!((entry.usage_ratio().unwrap() - 0.5).abs() < f64::EPSILON);
+        assert!(
+            (entry
+                .usage_ratio()
+                .expect("usage ratio should be computable")
+                - 0.5)
+                .abs()
+                < f64::EPSILON
+        );
     }
 
     #[test]

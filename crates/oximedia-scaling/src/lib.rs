@@ -11,8 +11,10 @@
 pub mod adaptive_scaling;
 pub mod aspect_preserve;
 pub mod aspect_ratio;
+pub mod batch_scale;
 pub mod bicubic;
 pub mod chroma_scale;
+pub mod content_aware_scale;
 pub mod crop;
 pub mod crop_scale;
 pub mod deinterlace;

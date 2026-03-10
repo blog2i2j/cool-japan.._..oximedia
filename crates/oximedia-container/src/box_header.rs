@@ -271,7 +271,9 @@ mod tests {
     fn test_parser_parse_header_normal() {
         let mut parser = BoxParser::new(0);
         let data = make_box_bytes(28, b"moov");
-        let hdr = parser.parse_header(&data).unwrap();
+        let hdr = parser
+            .parse_header(&data)
+            .expect("operation should succeed");
         assert_eq!(hdr.box_type, BoxType::Moov);
         assert_eq!(hdr.size, 28);
         assert!(!hdr.is_extended_size());
@@ -288,7 +290,9 @@ mod tests {
     fn test_parser_next_box_start_advances() {
         let mut parser = BoxParser::new(0);
         let data = make_box_bytes(16, b"ftyp");
-        parser.parse_header(&data).unwrap();
+        parser
+            .parse_header(&data)
+            .expect("operation should succeed");
         assert_eq!(parser.next_box_start(), 16);
     }
 
@@ -301,7 +305,9 @@ mod tests {
         data[4..8].copy_from_slice(b"mdat");
         // 64-bit size = 1000
         data[8..16].copy_from_slice(&1000u64.to_be_bytes());
-        let hdr = parser.parse_header(&data).unwrap();
+        let hdr = parser
+            .parse_header(&data)
+            .expect("operation should succeed");
         assert!(hdr.is_extended_size());
         assert_eq!(hdr.size, 1000);
         assert_eq!(hdr.data_size(), 984);

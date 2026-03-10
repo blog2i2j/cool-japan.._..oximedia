@@ -237,7 +237,10 @@ mod tests {
         ));
         let result = sel.select(DeliveryTarget::Broadcast, false);
         assert!(result.is_some());
-        assert_eq!(result.unwrap().target, DeliveryTarget::Broadcast);
+        assert_eq!(
+            result.expect("test expectation failed").target,
+            DeliveryTarget::Broadcast
+        );
     }
 
     #[test]
@@ -261,7 +264,9 @@ mod tests {
         hdr.hdr = true;
         sel.add(sdr);
         sel.add(hdr);
-        let result = sel.select(DeliveryTarget::Streaming, true).unwrap();
+        let result = sel
+            .select(DeliveryTarget::Streaming, true)
+            .expect("result should be valid");
         assert!(result.is_hdr());
     }
 

@@ -403,7 +403,7 @@ mod tests {
         let samples = vec![1.0_f32; 44100];
         let result = det.analyse_window(0, &samples, 44100, 10.0, 1.0, HighlightType::Clipworthy);
         assert!(result.is_some());
-        let ev = result.unwrap();
+        let ev = result.expect("result should be ok");
         assert!(ev.score >= 0.3);
         assert_eq!(ev.event_type, HighlightType::Clipworthy);
     }

@@ -198,7 +198,7 @@ mod tests {
         h.push_value(-20.0, 0);
         h.push_value(-22.0, 1);
         h.push_value(-24.0, 2);
-        let avg = h.window_average().unwrap();
+        let avg = h.window_average().expect("avg should be valid");
         assert!((avg - (-22.0)).abs() < 1e-9);
     }
 
@@ -214,7 +214,7 @@ mod tests {
         h.push_value(-23.0, 0);
         h.push_value(-10.0, 1);
         h.push_value(-30.0, 2);
-        assert!((h.peak().unwrap() - (-10.0)).abs() < 1e-9);
+        assert!((h.peak().expect("peak should succeed") - (-10.0)).abs() < 1e-9);
     }
 
     #[test]
@@ -223,7 +223,7 @@ mod tests {
         h.push_value(-23.0, 0);
         h.push_value(-10.0, 1);
         h.push_value(-40.0, 2);
-        assert!((h.trough().unwrap() - (-40.0)).abs() < 1e-9);
+        assert!((h.trough().expect("trough should succeed") - (-40.0)).abs() < 1e-9);
     }
 
     #[test]

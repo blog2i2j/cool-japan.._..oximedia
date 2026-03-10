@@ -167,8 +167,15 @@ impl VideoStreamStats {
             self.measured_fps = 0.0;
             return;
         }
-        let first = self.frame_times.front().unwrap();
-        let last = self.frame_times.back().unwrap();
+        // Safety: len() >= 2 was verified above, so front() and back() are always Some.
+        let first = match self.frame_times.front() {
+            Some(t) => t,
+            None => return,
+        };
+        let last = match self.frame_times.back() {
+            Some(t) => t,
+            None => return,
+        };
         let elapsed = last.duration_since(*first).as_secs_f64();
         if elapsed > 0.0 {
             self.measured_fps = (self.frame_times.len() - 1) as f64 / elapsed;
@@ -368,10 +375,10 @@ mod tests {
             w.push(v);
         }
         assert_eq!(w.count(), 5);
-        assert!((w.mean().unwrap() - 3.0).abs() < 1e-9);
-        assert!((w.min().unwrap() - 1.0).abs() < 1e-9);
-        assert!((w.max().unwrap() - 5.0).abs() < 1e-9);
-        assert!((w.last().unwrap() - 5.0).abs() < 1e-9);
+        assert!((w.mean().expect("expected mean to be available") - 3.0).abs() < 1e-9);
+        assert!((w.min().expect("expected min to be available") - 1.0).abs() < 1e-9);
+        assert!((w.max().expect("expected max to be available") - 5.0).abs() < 1e-9);
+        assert!((w.last().expect("expected last to be available") - 5.0).abs() < 1e-9);
     }
 
     #[test]
@@ -382,7 +389,7 @@ mod tests {
         w.push(30.0);
         w.push(40.0); // should evict 10.0
         assert_eq!(w.count(), 3);
-        assert!((w.min().unwrap() - 20.0).abs() < 1e-9);
+        assert!((w.min().expect("expected min to be available") - 20.0).abs() < 1e-9);
     }
 
     #[test]
@@ -393,7 +400,7 @@ mod tests {
         w.push(4.0);
         w.push(4.0);
         // mean = 3.5, variance = [(2-3.5)^2 + 3*(4-3.5)^2] / 3 = [2.25+0.75]/3 = 1.0
-        let sd = w.std_dev().unwrap();
+        let sd = w.std_dev().expect("expected std_dev to be available");
         assert!((sd - 1.0).abs() < 1e-9);
     }
 
@@ -468,7 +475,9 @@ mod tests {
         stats.record_frame(1024, -6.0);
         assert_eq!(stats.total_frames, 2);
         assert_eq!(stats.total_samples, 2048);
-        assert!((stats.peak_dbfs.max().unwrap() - (-6.0)).abs() < 1e-9);
+        assert!(
+            (stats.peak_dbfs.max().expect("expected max to be available") - (-6.0)).abs() < 1e-9
+        );
     }
 
     #[test]
@@ -485,8 +494,24 @@ mod tests {
         let mut stats = AudioStreamStats::new();
         stats.record_buffer_fill(1.5); // should clamp to 1.0
         stats.record_buffer_fill(-0.5); // should clamp to 0.0
-        assert!((stats.buffer_fill.max().unwrap() - 1.0).abs() < 1e-9);
-        assert!((stats.buffer_fill.min().unwrap() - 0.0).abs() < 1e-9);
+        assert!(
+            (stats
+                .buffer_fill
+                .max()
+                .expect("expected max to be available")
+                - 1.0)
+                .abs()
+                < 1e-9
+        );
+        assert!(
+            (stats
+                .buffer_fill
+                .min()
+                .expect("expected min to be available")
+                - 0.0)
+                .abs()
+                < 1e-9
+        );
     }
 
     #[test]

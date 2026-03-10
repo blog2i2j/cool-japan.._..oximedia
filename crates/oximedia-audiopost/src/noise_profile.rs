@@ -353,7 +353,7 @@ mod tests {
     #[test]
     fn test_noise_profile_frequency_range() {
         let p = sample_profile("test", 10);
-        let (lo, hi) = p.frequency_range().unwrap();
+        let (lo, hi) = p.frequency_range().expect("frequency_range should succeed");
         assert!(lo < hi);
         assert!((lo - 100.0).abs() < f64::EPSILON);
     }
@@ -379,15 +379,32 @@ mod tests {
         p.add_band(sample_band(1000.0, -40.0));
         p.add_band(sample_band(2000.0, -60.0));
         p.add_band(sample_band(3000.0, -30.0));
-        assert!((p.loudest_band().unwrap().center_hz - 3000.0).abs() < f64::EPSILON);
-        assert!((p.quietest_band().unwrap().center_hz - 2000.0).abs() < f64::EPSILON);
+        assert!(
+            (p.loudest_band()
+                .expect("loudest_band should succeed")
+                .center_hz
+                - 3000.0)
+                .abs()
+                < f64::EPSILON
+        );
+        assert!(
+            (p.quietest_band()
+                .expect("quietest_band should succeed")
+                .center_hz
+                - 2000.0)
+                .abs()
+                < f64::EPSILON
+        );
     }
 
     #[test]
     fn test_noise_profile_metadata() {
         let mut p = NoiseProfile::new("test", "Test", 48000, NoiseType::Stationary);
         p.set_metadata("location", "studio-a");
-        assert_eq!(p.metadata.get("location").unwrap(), "studio-a");
+        assert_eq!(
+            p.metadata.get("location").expect("failed to get value"),
+            "studio-a"
+        );
     }
 
     #[test]
@@ -410,7 +427,7 @@ mod tests {
     fn test_interpolate_profiles() {
         let a = sample_profile("a", 5);
         let b = sample_profile("b", 5);
-        let result = interpolate_profiles(&a, &b, 0.5).unwrap();
+        let result = interpolate_profiles(&a, &b, 0.5).expect("operation should succeed");
         assert_eq!(result.band_count(), 5);
     }
 
@@ -431,7 +448,7 @@ mod tests {
         b.add_band(sample_band(2000.0, -20.0));
         b.rms_level_db = -20.0;
 
-        let result = interpolate_profiles(&a, &b, 0.0).unwrap();
+        let result = interpolate_profiles(&a, &b, 0.0).expect("operation should succeed");
         assert!((result.bands[0].avg_power_db - (-40.0)).abs() < f64::EPSILON);
         assert!((result.rms_level_db - (-40.0)).abs() < f64::EPSILON);
     }

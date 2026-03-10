@@ -444,9 +444,18 @@ mod tests {
 
     #[test]
     fn test_log_level_from_str() {
-        assert_eq!(LogLevel::from_str("info").unwrap(), LogLevel::Info);
-        assert_eq!(LogLevel::from_str("WARN").unwrap(), LogLevel::Warn);
-        assert_eq!(LogLevel::from_str("warning").unwrap(), LogLevel::Warn);
+        assert_eq!(
+            LogLevel::from_str("info").expect("operation should succeed"),
+            LogLevel::Info
+        );
+        assert_eq!(
+            LogLevel::from_str("WARN").expect("operation should succeed"),
+            LogLevel::Warn
+        );
+        assert_eq!(
+            LogLevel::from_str("warning").expect("operation should succeed"),
+            LogLevel::Warn
+        );
         assert!(LogLevel::from_str("unknown").is_err());
     }
 
@@ -456,11 +465,11 @@ mod tests {
             .with_field("method", "GET")
             .with_field("status", 200i64);
         assert_eq!(
-            entry.fields.get("method").unwrap(),
+            entry.fields.get("method").expect("failed to get value"),
             &serde_json::json!("GET")
         );
         assert_eq!(
-            entry.fields.get("status").unwrap(),
+            entry.fields.get("status").expect("failed to get value"),
             &serde_json::json!(200i64)
         );
     }

@@ -24,7 +24,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("  Framerate: {} fps", config.framerate);
     println!(
         "  Replay Buffer: {} seconds\n",
-        config.replay_buffer_seconds.unwrap()
+        config
+            .replay_buffer_seconds
+            .expect("replay buffer seconds should be set")
     );
 
     // Create streamer

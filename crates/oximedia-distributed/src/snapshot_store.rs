@@ -258,7 +258,7 @@ mod tests {
         let mut store = SnapshotStore::new();
         let id = SnapshotId::new(1, 10);
         store.save(snap(1, 10, vec![7, 8, 9]));
-        let loaded = store.load(&id).unwrap();
+        let loaded = store.load(&id).expect("loading should succeed");
         assert_eq!(loaded.checksum, 7 + 8 + 9);
     }
 
@@ -295,7 +295,10 @@ mod tests {
         store.save(snap(2, 1, vec![2]));
         store.save(snap(1, 10, vec![3]));
         // Latest by BTreeMap ordering: highest SnapshotId = (2,1)
-        assert_eq!(store.latest().unwrap().id, SnapshotId::new(2, 1));
+        assert_eq!(
+            store.latest().expect("latest should exist").id,
+            SnapshotId::new(2, 1)
+        );
     }
 
     #[test]

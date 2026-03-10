@@ -255,9 +255,25 @@ mod tests {
 
     #[test]
     fn test_parameter_value_as_f64() {
-        assert!((ParameterValue::Int(42).as_f64().unwrap() - 42.0).abs() < 1e-9);
-        assert!((ParameterValue::Float(3.14).as_f64().unwrap() - 3.14).abs() < 1e-9);
-        let r = ParameterValue::Rational(1, 4).as_f64().unwrap();
+        assert!(
+            (ParameterValue::Int(42)
+                .as_f64()
+                .expect("as_f64 should succeed")
+                - 42.0)
+                .abs()
+                < 1e-9
+        );
+        assert!(
+            (ParameterValue::Float(3.14)
+                .as_f64()
+                .expect("as_f64 should succeed")
+                - 3.14)
+                .abs()
+                < 1e-9
+        );
+        let r = ParameterValue::Rational(1, 4)
+            .as_f64()
+            .expect("r should be valid");
         assert!((r - 0.25).abs() < 1e-9);
         assert!(ParameterValue::Str("x".into()).as_f64().is_none());
     }
@@ -299,7 +315,7 @@ mod tests {
     fn test_varying_value_single_point() {
         let mut vv = VaryingValue::new(Interpolation::Linear);
         vv.add_control_point(ControlPoint::new(0, ParameterValue::Float(1.0)));
-        assert!((vv.evaluate(100).unwrap() - 1.0).abs() < 1e-9);
+        assert!((vv.evaluate(100).expect("evaluate should succeed") - 1.0).abs() < 1e-9);
     }
 
     #[test]
@@ -307,7 +323,7 @@ mod tests {
         let mut vv = VaryingValue::new(Interpolation::Linear);
         vv.add_control_point(ControlPoint::new(0, ParameterValue::Float(0.0)));
         vv.add_control_point(ControlPoint::new(100, ParameterValue::Float(1.0)));
-        let mid = vv.evaluate(50).unwrap();
+        let mid = vv.evaluate(50).expect("mid should be valid");
         assert!((mid - 0.5).abs() < 1e-6);
     }
 
@@ -316,7 +332,7 @@ mod tests {
         let mut vv = VaryingValue::new(Interpolation::Constant);
         vv.add_control_point(ControlPoint::new(0, ParameterValue::Float(0.0)));
         vv.add_control_point(ControlPoint::new(100, ParameterValue::Float(1.0)));
-        let val = vv.evaluate(50).unwrap();
+        let val = vv.evaluate(50).expect("val should be valid");
         // Constant interpolation returns left value
         assert!((val - 0.0).abs() < 1e-9);
     }
@@ -327,7 +343,7 @@ mod tests {
         vv.add_control_point(ControlPoint::new(50, ParameterValue::Float(2.0)));
         vv.add_control_point(ControlPoint::new(100, ParameterValue::Float(4.0)));
         // time=10 is before first point -> return first value
-        let val = vv.evaluate(10).unwrap();
+        let val = vv.evaluate(10).expect("val should be valid");
         assert!((val - 2.0).abs() < 1e-9);
     }
 
@@ -336,7 +352,7 @@ mod tests {
         let mut vv = VaryingValue::new(Interpolation::Linear);
         vv.add_control_point(ControlPoint::new(0, ParameterValue::Float(0.0)));
         vv.add_control_point(ControlPoint::new(100, ParameterValue::Float(5.0)));
-        let val = vv.evaluate(200).unwrap();
+        let val = vv.evaluate(200).expect("val should be valid");
         assert!((val - 5.0).abs() < 1e-9);
     }
 

@@ -395,7 +395,7 @@ mod tests {
         let sk = make_full_skeleton(0.9);
         let center = sk.head_center();
         assert!(center.is_some());
-        let (cx, cy) = center.unwrap();
+        let (cx, cy) = center.expect("operation should succeed");
         // Nose(0,0), LeftEye(10,5), RightEye(20,10), LeftEar(30,15), RightEar(40,20)
         assert!((cx - 20.0).abs() < 1e-4);
         assert!((cy - 10.0).abs() < 1e-4);
@@ -413,7 +413,7 @@ mod tests {
         // LeftHip index 11 -> x=110, y=55; RightHip index 12 -> x=120, y=60
         let center = sk.hip_center();
         assert!(center.is_some());
-        let (cx, cy) = center.unwrap();
+        let (cx, cy) = center.expect("operation should succeed");
         assert!((cx - 115.0).abs() < 1e-4);
         assert!((cy - 57.5).abs() < 1e-4);
 

@@ -396,7 +396,11 @@ mod tests {
         assert!(clip.resolution_label().is_none());
         clip.width = Some(1920);
         clip.height = Some(1080);
-        assert_eq!(clip.resolution_label().unwrap(), "1920x1080");
+        assert_eq!(
+            clip.resolution_label()
+                .expect("resolution_label should succeed"),
+            "1920x1080"
+        );
     }
 
     #[test]
@@ -404,7 +408,11 @@ mod tests {
         let mut clip = make_clip(1, "Clip");
         assert!(clip.frame_rate_label().is_none());
         clip.frame_rate = Some(23.976);
-        assert_eq!(clip.frame_rate_label().unwrap(), "23.976");
+        assert_eq!(
+            clip.frame_rate_label()
+                .expect("frame_rate_label should succeed"),
+            "23.976"
+        );
     }
 
     #[test]

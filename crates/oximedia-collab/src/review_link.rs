@@ -206,8 +206,15 @@ mod tests {
     fn test_registry_get_mut_record_view() {
         let mut reg = ReviewLinkRegistry::new();
         reg.create(make_link("tok1", 0));
-        reg.get_mut("tok1").unwrap().record_view();
-        assert_eq!(reg.get("tok1").unwrap().view_count, 1);
+        reg.get_mut("tok1")
+            .expect("collab test operation should succeed")
+            .record_view();
+        assert_eq!(
+            reg.get("tok1")
+                .expect("collab test operation should succeed")
+                .view_count,
+            1
+        );
     }
 
     #[test]

@@ -416,8 +416,14 @@ mod tests {
 
         let keyframes = renderer.generate_keyframes(&caption, &params);
         assert!(!keyframes.is_empty());
-        assert!(keyframes.first().unwrap().opacity >= 0.0);
-        assert!(keyframes.last().unwrap().opacity <= 1.0);
+        assert!(
+            keyframes
+                .first()
+                .expect("first element should exist")
+                .opacity
+                >= 0.0
+        );
+        assert!(keyframes.last().expect("last element should exist").opacity <= 1.0);
     }
 
     #[test]
@@ -447,7 +453,7 @@ mod tests {
                 Timestamp::from_secs(2),
                 "Line 1".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
         track
             .add_caption(Caption::new(
@@ -455,7 +461,7 @@ mod tests {
                 Timestamp::from_secs(4),
                 "Line 2".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
         track
             .add_caption(Caption::new(
@@ -463,10 +469,17 @@ mod tests {
                 Timestamp::from_secs(6),
                 "Line 3".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
-        let captions = roll_up.generate(&track).unwrap();
+        let captions = roll_up.generate(&track).expect("generation should succeed");
         assert!(!captions.is_empty());
-        assert!(captions.last().unwrap().lines.len() <= 2);
+        assert!(
+            captions
+                .last()
+                .expect("last element should exist")
+                .lines
+                .len()
+                <= 2
+        );
     }
 }

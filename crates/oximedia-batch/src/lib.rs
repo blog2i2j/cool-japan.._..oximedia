@@ -184,17 +184,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_batch_engine_creation() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
         let engine = BatchEngine::new(db_path, 4);
         assert!(engine.is_ok());
     }
 
     #[tokio::test]
     async fn test_job_submission() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
-        let engine = BatchEngine::new(db_path, 4).unwrap();
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
+        let engine = BatchEngine::new(db_path, 4).expect("failed to create");
 
         let job = BatchJob::new(
             "test-job".to_string(),
@@ -209,9 +215,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_job_status() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
-        let engine = BatchEngine::new(db_path, 4).unwrap();
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
+        let engine = BatchEngine::new(db_path, 4).expect("failed to create");
 
         let job = BatchJob::new(
             "test-job".to_string(),
@@ -220,16 +229,19 @@ mod tests {
             },
         );
 
-        let job_id = engine.submit_job(job).await.unwrap();
+        let job_id = engine.submit_job(job).await.expect("failed to submit job");
         let status = engine.get_job_status(&job_id).await;
         assert!(status.is_ok());
     }
 
     #[tokio::test]
     async fn test_job_cancellation() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
-        let engine = BatchEngine::new(db_path, 4).unwrap();
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
+        let engine = BatchEngine::new(db_path, 4).expect("failed to create");
 
         let job = BatchJob::new(
             "test-job".to_string(),
@@ -238,16 +250,19 @@ mod tests {
             },
         );
 
-        let job_id = engine.submit_job(job).await.unwrap();
+        let job_id = engine.submit_job(job).await.expect("failed to submit job");
         let result = engine.cancel_job(&job_id).await;
         assert!(result.is_ok());
     }
 
     #[tokio::test]
     async fn test_list_jobs() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
-        let engine = BatchEngine::new(db_path, 4).unwrap();
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
+        let engine = BatchEngine::new(db_path, 4).expect("failed to create");
 
         let jobs = engine.list_jobs();
         assert!(jobs.is_ok());

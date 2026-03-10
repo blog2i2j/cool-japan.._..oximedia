@@ -387,11 +387,11 @@ mod tests {
         let registry = MetricRegistry::new();
         let counter = registry
             .register_counter(
-                MetricName::new("test_counter").unwrap(),
+                MetricName::new("test_counter").expect("failed to create"),
                 "Test counter",
                 MetricLabels::new(),
             )
-            .unwrap();
+            .expect("operation should succeed");
 
         counter.inc();
         counter.add(5);
@@ -401,7 +401,7 @@ mod tests {
         // Should fail to register duplicate
         assert!(registry
             .register_counter(
-                MetricName::new("test_counter").unwrap(),
+                MetricName::new("test_counter").expect("failed to create"),
                 "Test counter",
                 MetricLabels::new(),
             )
@@ -413,11 +413,11 @@ mod tests {
         let registry = MetricRegistry::new();
         let gauge = registry
             .register_gauge(
-                MetricName::new("test_gauge").unwrap(),
+                MetricName::new("test_gauge").expect("failed to create"),
                 "Test gauge",
                 MetricLabels::new(),
             )
-            .unwrap();
+            .expect("operation should succeed");
 
         gauge.set(42.5);
         assert_eq!(gauge.get(), 42.5);
@@ -428,12 +428,12 @@ mod tests {
         let registry = MetricRegistry::new();
         let hist = registry
             .register_histogram(
-                MetricName::new("test_histogram").unwrap(),
+                MetricName::new("test_histogram").expect("failed to create"),
                 "Test histogram",
                 MetricLabels::new(),
                 None,
             )
-            .unwrap();
+            .expect("operation should succeed");
 
         hist.observe(1.5);
         hist.observe(2.5);
@@ -454,19 +454,19 @@ mod tests {
 
         let counter1 = registry
             .register_counter(
-                MetricName::new("http_requests").unwrap(),
+                MetricName::new("http_requests").expect("failed to create"),
                 "HTTP requests",
                 labels1.clone(),
             )
-            .unwrap();
+            .expect("operation should succeed");
 
         let counter2 = registry
             .register_counter(
-                MetricName::new("http_requests").unwrap(),
+                MetricName::new("http_requests").expect("failed to create"),
                 "HTTP requests",
                 labels2.clone(),
             )
-            .unwrap();
+            .expect("operation should succeed");
 
         counter1.inc();
         counter2.add(2);
@@ -482,21 +482,21 @@ mod tests {
 
         let counter1 = registry
             .counter(
-                MetricName::new("test").unwrap(),
+                MetricName::new("test").expect("failed to create"),
                 "Test",
                 MetricLabels::new(),
             )
-            .unwrap();
+            .expect("operation should succeed");
 
         counter1.inc();
 
         let counter2 = registry
             .counter(
-                MetricName::new("test").unwrap(),
+                MetricName::new("test").expect("failed to create"),
                 "Test",
                 MetricLabels::new(),
             )
-            .unwrap();
+            .expect("operation should succeed");
 
         // Should be the same counter
         assert_eq!(counter2.get(), 1);
@@ -513,12 +513,20 @@ mod tests {
         labels2.insert("status".to_string(), "404".to_string());
 
         registry
-            .register_counter(MetricName::new("requests").unwrap(), "Requests", labels1)
-            .unwrap();
+            .register_counter(
+                MetricName::new("requests").expect("failed to create"),
+                "Requests",
+                labels1,
+            )
+            .expect("operation should succeed");
 
         registry
-            .register_counter(MetricName::new("requests").unwrap(), "Requests", labels2)
-            .unwrap();
+            .register_counter(
+                MetricName::new("requests").expect("failed to create"),
+                "Requests",
+                labels2,
+            )
+            .expect("operation should succeed");
 
         let metrics = registry.metrics_by_name("requests");
         assert_eq!(metrics.len(), 2);
@@ -530,11 +538,11 @@ mod tests {
 
         let counter = registry
             .register_counter(
-                MetricName::new("test_counter").unwrap(),
+                MetricName::new("test_counter").expect("failed to create"),
                 "Test",
                 MetricLabels::new(),
             )
-            .unwrap();
+            .expect("operation should succeed");
 
         counter.add(42);
 

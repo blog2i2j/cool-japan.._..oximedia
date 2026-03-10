@@ -460,7 +460,7 @@ mod tests {
     fn test_color_cast_estimate_neutral() {
         // Neutral grey — cast should be near zero for all channels.
         let pixels = vec![Rgb::new(0.5, 0.5, 0.5); 4];
-        let cast = ColorCast::estimate(&pixels).unwrap();
+        let cast = ColorCast::estimate(&pixels).expect("color cast estimation should succeed");
         assert!(cast.r_bias.abs() < 0.01);
         assert!(cast.g_bias.abs() < 0.01);
         assert!(cast.b_bias.abs() < 0.01);
@@ -546,7 +546,7 @@ mod tests {
     fn test_estimate_color_cast_neutral_grey() {
         // All pixels equal → shifts should all be zero.
         let pixels = vec![128u8, 128, 128, 128, 128, 128];
-        let cast = estimate_color_cast(&pixels).unwrap();
+        let cast = estimate_color_cast(&pixels).expect("color cast estimation should succeed");
         assert!(cast.red_shift.abs() < 0.01);
         assert!(cast.green_shift.abs() < 0.01);
         assert!(cast.blue_shift.abs() < 0.01);
@@ -556,7 +556,7 @@ mod tests {
     fn test_estimate_color_cast_red_dominant() {
         // Red channel much higher than green and blue.
         let pixels = vec![200u8, 50, 50]; // single pixel with strong red
-        let cast = estimate_color_cast(&pixels).unwrap();
+        let cast = estimate_color_cast(&pixels).expect("color cast estimation should succeed");
         assert!(cast.red_shift > 0.0);
         assert_eq!(cast.dominant_channel(), "red");
     }

@@ -247,8 +247,14 @@ impl FilterGraph {
 
         // Verify ports exist and formats are compatible
         {
-            let from_node = self.nodes.get(&connection.from_node).unwrap();
-            let to_node = self.nodes.get(&connection.to_node).unwrap();
+            let from_node = self
+                .nodes
+                .get(&connection.from_node)
+                .ok_or(GraphError::NodeNotFound(connection.from_node))?;
+            let to_node = self
+                .nodes
+                .get(&connection.to_node)
+                .ok_or(GraphError::NodeNotFound(connection.to_node))?;
 
             let from_port = from_node.node().output_port(connection.from_port).ok_or(
                 GraphError::PortNotFound {
@@ -302,9 +308,11 @@ impl FilterGraph {
         for conn in &self.connections {
             adjacency
                 .get_mut(&conn.from_node)
-                .unwrap()
+                .ok_or(GraphError::NodeNotFound(conn.from_node))?
                 .push(conn.to_node);
-            *in_degree.get_mut(&conn.to_node).unwrap() += 1;
+            *in_degree
+                .get_mut(&conn.to_node)
+                .ok_or(GraphError::NodeNotFound(conn.to_node))? += 1;
         }
 
         // Kahn's algorithm
@@ -319,8 +327,14 @@ impl FilterGraph {
         while let Some(id) = queue.pop_front() {
             order.push(id);
 
-            for &neighbor in adjacency.get(&id).unwrap() {
-                let deg = in_degree.get_mut(&neighbor).unwrap();
+            let neighbors: Vec<NodeId> = adjacency
+                .get(&id)
+                .ok_or(GraphError::NodeNotFound(id))?
+                .clone();
+            for neighbor in neighbors {
+                let deg = in_degree
+                    .get_mut(&neighbor)
+                    .ok_or(GraphError::NodeNotFound(neighbor))?;
                 *deg -= 1;
                 if *deg == 0 {
                     queue.push_back(neighbor);
@@ -545,9 +559,9 @@ mod tests {
 
         let graph = builder
             .connect(source_id, PortId(0), sink_id, PortId(0))
-            .unwrap()
+            .expect("operation should succeed")
             .build()
-            .unwrap();
+            .expect("operation should succeed");
 
         assert_eq!(graph.node_count(), 2);
         assert_eq!(graph.source_nodes().len(), 1);
@@ -566,19 +580,28 @@ mod tests {
 
         let graph = builder
             .connect(source_id, PortId(0), filter_id, PortId(0))
-            .unwrap()
+            .expect("operation should succeed")
             .connect(filter_id, PortId(0), sink_id, PortId(0))
-            .unwrap()
+            .expect("operation should succeed")
             .build()
-            .unwrap();
+            .expect("operation should succeed");
 
         let order = graph.execution_order();
         assert_eq!(order.len(), 3);
 
         // Source should come before filter, filter before sink
-        let source_pos = order.iter().position(|&id| id == source_id).unwrap();
-        let filter_pos = order.iter().position(|&id| id == filter_id).unwrap();
-        let sink_pos = order.iter().position(|&id| id == sink_id).unwrap();
+        let source_pos = order
+            .iter()
+            .position(|&id| id == source_id)
+            .expect("iter should succeed");
+        let filter_pos = order
+            .iter()
+            .position(|&id| id == filter_id)
+            .expect("iter should succeed");
+        let sink_pos = order
+            .iter()
+            .position(|&id| id == sink_id)
+            .expect("iter should succeed");
 
         assert!(source_pos < filter_pos);
         assert!(filter_pos < sink_pos);
@@ -602,17 +625,17 @@ mod tests {
 
         let mut graph = builder
             .connect(source_id, PortId(0), sink_id, PortId(0))
-            .unwrap()
+            .expect("operation should succeed")
             .build()
-            .unwrap();
+            .expect("operation should succeed");
 
         // Initialize and reset
-        graph.initialize().unwrap();
-        graph.reset().unwrap();
+        graph.initialize().expect("initialize should succeed");
+        graph.reset().expect("reset should succeed");
 
         // Nodes should be back to idle
         for id in graph.node_ids() {
-            let node = graph.node(id).unwrap();
+            let node = graph.node(id).expect("node should succeed");
             assert_eq!(node.state(), NodeState::Idle);
         }
     }

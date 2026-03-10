@@ -172,7 +172,9 @@ mod tests {
         let config = EasAudioConfig::default();
         let insertion = EasAudioInsertion::new(config);
 
-        let tone = insertion.generate_attention_tone().unwrap();
+        let tone = insertion
+            .generate_attention_tone()
+            .expect("generate_attention_tone should succeed");
         assert!(!tone.is_empty());
         assert_eq!(tone.len(), 48000 * 8); // 8 seconds at 48kHz
     }
@@ -182,7 +184,9 @@ mod tests {
         let config = EasAudioConfig::default();
         let insertion = EasAudioInsertion::new(config);
 
-        let tone = insertion.generate_eom_tone().unwrap();
+        let tone = insertion
+            .generate_eom_tone()
+            .expect("generate_eom_tone should succeed");
         assert!(!tone.is_empty());
         assert_eq!(tone.len(), 48000 * 3); // 3 seconds at 48kHz
     }
@@ -192,7 +196,9 @@ mod tests {
         let config = EasAudioConfig::default();
         let insertion = EasAudioInsertion::new(config);
 
-        let audio = insertion.compose_message("Test message").unwrap();
+        let audio = insertion
+            .compose_message("Test message")
+            .expect("compose_message should succeed");
         assert!(!audio.is_empty());
     }
 }

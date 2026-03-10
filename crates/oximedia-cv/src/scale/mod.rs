@@ -619,14 +619,17 @@ mod tests {
     fn test_resize_grayscale() {
         let image = vec![128u8; 100];
         let scaler = ContentAwareScaler::new();
-        let result = scaler.resize_grayscale(&image, 10, 10, 8, 8).unwrap();
+        let result = scaler
+            .resize_grayscale(&image, 10, 10, 8, 8)
+            .expect("resize_grayscale should succeed");
         assert_eq!(result.len(), 64);
     }
 
     #[test]
     fn test_split_rgb_channels() {
         let image = vec![100u8, 150u8, 200u8, 100u8, 150u8, 200u8];
-        let (r, g, b) = split_rgb_channels(&image, 2, 1).unwrap();
+        let (r, g, b) =
+            split_rgb_channels(&image, 2, 1).expect("split_rgb_channels should succeed");
         assert_eq!(r, vec![100, 100]);
         assert_eq!(g, vec![150, 150]);
         assert_eq!(b, vec![200, 200]);
@@ -645,7 +648,7 @@ mod tests {
     fn test_resize_quality_compute() {
         let img1 = vec![128u8; 100];
         let img2 = vec![128u8; 100];
-        let quality = ResizeQuality::compute(&img1, &img2, 10, 10).unwrap();
+        let quality = ResizeQuality::compute(&img1, &img2, 10, 10).expect("compute should succeed");
         assert_eq!(quality.mse, 0.0);
         assert_eq!(quality.psnr, f64::INFINITY);
     }
@@ -664,7 +667,7 @@ mod tests {
         frame.allocate();
 
         let scaler = ContentAwareScaler::new();
-        let resized = scaler.resize(&frame, 8, 8).unwrap();
+        let resized = scaler.resize(&frame, 8, 8).expect("resize should succeed");
         assert_eq!(resized.width, 8);
         assert_eq!(resized.height, 8);
     }

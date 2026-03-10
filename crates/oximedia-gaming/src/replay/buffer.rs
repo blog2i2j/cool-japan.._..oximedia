@@ -76,14 +76,14 @@ mod tests {
     #[test]
     fn test_replay_buffer_creation() {
         let config = ReplayConfig::default();
-        let buffer = ReplayBuffer::new(config).unwrap();
+        let buffer = ReplayBuffer::new(config).expect("valid replay buffer");
         assert!(!buffer.is_enabled());
     }
 
     #[test]
     fn test_enable_disable() {
-        let mut buffer = ReplayBuffer::new(ReplayConfig::default()).unwrap();
-        buffer.enable().unwrap();
+        let mut buffer = ReplayBuffer::new(ReplayConfig::default()).expect("valid replay buffer");
+        buffer.enable().expect("enable should succeed");
         assert!(buffer.is_enabled());
         buffer.disable();
         assert!(!buffer.is_enabled());

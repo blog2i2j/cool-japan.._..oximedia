@@ -254,7 +254,7 @@ mod tests {
         list.add(Marker::new("target", MarkerKind::Editorial, 50, "note"));
         let found = list.find_by_id("target");
         assert!(found.is_some());
-        assert_eq!(found.unwrap().annotation, "note");
+        assert_eq!(found.expect("test expectation failed").annotation, "note");
     }
 
     #[test]

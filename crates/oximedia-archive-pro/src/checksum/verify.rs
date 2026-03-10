@@ -259,15 +259,20 @@ mod tests {
 
     #[test]
     fn test_verify_success() {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"Test content").unwrap();
-        file.flush().unwrap();
+        let mut file = NamedTempFile::new().expect("operation should succeed");
+        file.write_all(b"Test content")
+            .expect("operation should succeed");
+        file.flush().expect("operation should succeed");
 
         let generator = ChecksumGenerator::new();
-        let expected = generator.generate_file(file.path()).unwrap();
+        let expected = generator
+            .generate_file(file.path())
+            .expect("operation should succeed");
 
         let verifier = ChecksumVerifier::new();
-        let report = verifier.verify_file(&expected).unwrap();
+        let report = verifier
+            .verify_file(&expected)
+            .expect("operation should succeed");
 
         assert!(report.is_success());
         assert_eq!(report.failed_count(), 0);
@@ -275,12 +280,15 @@ mod tests {
 
     #[test]
     fn test_verify_mismatch() {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"Original content").unwrap();
-        file.flush().unwrap();
+        let mut file = NamedTempFile::new().expect("operation should succeed");
+        file.write_all(b"Original content")
+            .expect("operation should succeed");
+        file.flush().expect("operation should succeed");
 
         let generator = ChecksumGenerator::new();
-        let mut expected = generator.generate_file(file.path()).unwrap();
+        let mut expected = generator
+            .generate_file(file.path())
+            .expect("operation should succeed");
 
         // Modify the expected checksum
         expected
@@ -288,7 +296,9 @@ mod tests {
             .insert(ChecksumAlgorithm::Sha256, "deadbeef".to_string());
 
         let verifier = ChecksumVerifier::new();
-        let report = verifier.verify_file(&expected).unwrap();
+        let report = verifier
+            .verify_file(&expected)
+            .expect("operation should succeed");
 
         assert!(!report.is_success());
         assert_eq!(report.failed_count(), 1);
@@ -296,13 +306,19 @@ mod tests {
 
     #[test]
     fn test_verify_simple() {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"Simple test").unwrap();
-        file.flush().unwrap();
+        let mut file = NamedTempFile::new().expect("operation should succeed");
+        file.write_all(b"Simple test")
+            .expect("operation should succeed");
+        file.flush().expect("operation should succeed");
 
         let generator = ChecksumGenerator::new();
-        let checksum = generator.generate_file(file.path()).unwrap();
-        let expected = checksum.checksums.get(&ChecksumAlgorithm::Sha256).unwrap();
+        let checksum = generator
+            .generate_file(file.path())
+            .expect("operation should succeed");
+        let expected = checksum
+            .checksums
+            .get(&ChecksumAlgorithm::Sha256)
+            .expect("operation should succeed");
 
         let result =
             ChecksumVerifier::verify_simple(file.path(), ChecksumAlgorithm::Sha256, expected);
@@ -311,21 +327,31 @@ mod tests {
 
     #[test]
     fn test_verify_batch() {
-        let mut file1 = NamedTempFile::new().unwrap();
-        let mut file2 = NamedTempFile::new().unwrap();
-        file1.write_all(b"File 1").unwrap();
-        file2.write_all(b"File 2").unwrap();
-        file1.flush().unwrap();
-        file2.flush().unwrap();
+        let mut file1 = NamedTempFile::new().expect("operation should succeed");
+        let mut file2 = NamedTempFile::new().expect("operation should succeed");
+        file1
+            .write_all(b"File 1")
+            .expect("operation should succeed");
+        file2
+            .write_all(b"File 2")
+            .expect("operation should succeed");
+        file1.flush().expect("operation should succeed");
+        file2.flush().expect("operation should succeed");
 
         let generator = ChecksumGenerator::new();
         let expected = vec![
-            generator.generate_file(file1.path()).unwrap(),
-            generator.generate_file(file2.path()).unwrap(),
+            generator
+                .generate_file(file1.path())
+                .expect("operation should succeed"),
+            generator
+                .generate_file(file2.path())
+                .expect("operation should succeed"),
         ];
 
         let verifier = ChecksumVerifier::new();
-        let report = verifier.verify_batch(&expected).unwrap();
+        let report = verifier
+            .verify_batch(&expected)
+            .expect("operation should succeed");
 
         assert!(report.is_success());
         assert_eq!(report.success_count(), 2);

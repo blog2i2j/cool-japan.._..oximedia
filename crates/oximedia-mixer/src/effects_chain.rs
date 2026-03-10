@@ -76,40 +76,98 @@ impl AudioEffect for DelayEffect {
 // Chorus
 // ---------------------------------------------------------------------------
 
-/// Simple LFO-modulated chorus effect (stub).
+/// LFO-modulated chorus effect using an all-pass delay line.
+///
+/// The LFO sweeps the read position within a delay buffer, producing
+/// pitch modulation between the dry signal and the delayed copy.
+/// This implements the classic "Haas / flanging" model: one modulated
+/// delay tap mixed with the dry signal.
 #[derive(Debug, Clone)]
 pub struct ChorusEffect {
     /// LFO rate in Hz.
     pub rate_hz: f32,
-    /// Modulation depth in samples.
+    /// Peak modulation depth in samples (max read-offset swing around the centre delay).
     pub depth_samples: f32,
-    /// Wet/dry mix.
+    /// Wet/dry mix (0.0 = dry, 1.0 = full wet).
     pub mix: f32,
     /// Current LFO phase (radians).
     lfo_phase: f32,
+    /// Circular delay buffer — length = `centre_delay + depth_samples` rounded up, minimum 8.
+    delay_buffer: Vec<f32>,
+    /// Current write position in the delay buffer.
+    write_pos: usize,
 }
 
 impl ChorusEffect {
+    /// Default sample rate assumed when not provided externally.
+    const SAMPLE_RATE: f32 = 48_000.0;
+    /// Centre delay around which the LFO modulates (in samples at 48 kHz).
+    const CENTRE_DELAY_SAMPLES: f32 = 720.0; // ~15 ms
+
     /// Create a new chorus effect.
+    ///
+    /// * `rate_hz` — LFO rate (Hz), clamped to ≥ 0.
+    /// * `depth_samples` — peak modulation depth in samples, clamped to ≥ 0.
+    /// * `mix` — wet/dry blend \[0, 1\].
     #[must_use]
     pub fn new(rate_hz: f32, depth_samples: f32, mix: f32) -> Self {
+        let depth = depth_samples.max(0.0);
+        let buf_len = ((Self::CENTRE_DELAY_SAMPLES + depth).ceil() as usize + 2).max(8);
         Self {
             rate_hz: rate_hz.max(0.0),
-            depth_samples: depth_samples.max(0.0),
+            depth_samples: depth,
             mix: mix.clamp(0.0, 1.0),
             lfo_phase: 0.0,
+            delay_buffer: vec![0.0_f32; buf_len],
+            write_pos: 0,
         }
     }
 }
 
 impl AudioEffect for ChorusEffect {
+    /// Process samples with LFO-modulated delay-line chorus.
+    ///
+    /// For each input sample:
+    /// 1. Write the dry sample into the circular buffer.
+    /// 2. Compute the fractional read offset: `centre + depth * sin(lfo_phase)`.
+    /// 3. Linear-interpolate between the two surrounding buffer slots.
+    /// 4. Advance the LFO phase by `TAU * rate_hz / SAMPLE_RATE`.
+    /// 5. Mix dry and wet.
     fn process(&mut self, samples: &mut [f32]) {
         use std::f32::consts::TAU;
-        // Stub: apply subtle sine-wave amplitude modulation as placeholder.
+
+        let buf_len = self.delay_buffer.len();
+        let lfo_step = TAU * self.rate_hz / Self::SAMPLE_RATE;
+
         for sample in samples.iter_mut() {
-            let lfo = self.lfo_phase.sin() * self.depth_samples * 0.01;
-            *sample = *sample * (1.0 - self.mix) + *sample * (1.0 + lfo) * self.mix;
-            self.lfo_phase = (self.lfo_phase + TAU * self.rate_hz / 48_000.0) % TAU;
+            // Write dry sample into delay buffer.
+            self.delay_buffer[self.write_pos] = *sample;
+
+            // Modulated delay offset (in samples), always ≥ 1 to avoid reading
+            // the sample we just wrote.
+            let mod_offset = Self::CENTRE_DELAY_SAMPLES + self.depth_samples * self.lfo_phase.sin();
+            let offset_floor = mod_offset.floor() as usize;
+            let frac = mod_offset - mod_offset.floor();
+
+            // Clamp offsets within valid buffer range.
+            let offset_a = offset_floor.min(buf_len - 1);
+            let offset_b = (offset_floor + 1).min(buf_len - 1);
+
+            let read_a = (self.write_pos + buf_len - offset_a) % buf_len;
+            let read_b = (self.write_pos + buf_len - offset_b) % buf_len;
+
+            // Linear interpolation between the two tap samples.
+            let delayed =
+                self.delay_buffer[read_a] * (1.0 - frac) + self.delay_buffer[read_b] * frac;
+
+            // Advance buffer write position.
+            self.write_pos = (self.write_pos + 1) % buf_len;
+
+            // Advance LFO phase.
+            self.lfo_phase = (self.lfo_phase + lfo_step) % TAU;
+
+            // Mix dry and wet.
+            *sample = *sample * (1.0 - self.mix) + delayed * self.mix;
         }
     }
 
@@ -122,10 +180,23 @@ impl AudioEffect for ChorusEffect {
 // Reverb
 // ---------------------------------------------------------------------------
 
-/// Simple Schroeder-inspired reverb stub using parallel comb filters.
+/// Schroeder reverb with 4 parallel comb filters followed by 2 all-pass filters in series.
+///
+/// Architecture (classic Schroeder 1962 / Moorer 1979 topology):
+///
+/// ```text
+///                     ┌─ comb0 (LP-damped) ─┐
+///                     ├─ comb1 (LP-damped) ─┤
+///  input ─────────────┤                      ├──(sum)── allpass0 ── allpass1 ── wet
+///                     ├─ comb2 (LP-damped) ─┤
+///                     └─ comb3 (LP-damped) ─┘
+/// ```
+///
+/// The four comb filters run in parallel; their outputs are averaged and then
+/// passed through two all-pass diffusers before being mixed with the dry signal.
 #[derive(Debug, Clone)]
 pub struct ReverbEffect {
-    /// Room size factor (0.0–1.0 controls comb filter delays).
+    /// Room size factor (0.0–1.0 controls comb filter delays and feedback).
     pub room_size: f32,
     /// High-frequency damping (0.0 = bright, 1.0 = dark).
     pub damping: f32,
@@ -135,61 +206,109 @@ pub struct ReverbEffect {
     comb_buffers: Vec<Vec<f32>>,
     /// Write positions for each comb filter.
     comb_positions: Vec<usize>,
-    /// Low-pass filter states for damping.
+    /// Low-pass filter states for HF damping inside each comb filter.
     lp_states: Vec<f32>,
+    /// All-pass filter buffers (2 filters).
+    ap_buffers: [Vec<f32>; 2],
+    /// Write positions for each all-pass filter.
+    ap_positions: [usize; 2],
 }
 
 impl ReverbEffect {
-    /// Comb filter delay lengths (in samples at 44100 Hz; scaled by `room_size`).
-    const BASE_DELAYS: [usize; 4] = [1557, 1617, 1491, 1422];
+    /// Comb filter base delay lengths (samples at 44100 Hz), scaled by `room_size`.
+    const COMB_BASE_DELAYS: [usize; 4] = [1557, 1617, 1491, 1422];
+    /// All-pass filter fixed delay lengths (samples at 44100 Hz).
+    const AP_DELAYS: [usize; 2] = [225, 556];
+    /// All-pass filter gain coefficient (Schroeder standard: 0.5).
+    const AP_GAIN: f32 = 0.5;
 
     /// Create a new reverb effect.
+    ///
+    /// * `room_size` — \[0, 1\]: larger values → longer delays and more feedback.
+    /// * `damping`   — \[0, 1\]: 0 = bright (no HF roll-off), 1 = very dark.
+    /// * `mix`       — \[0, 1\]: wet/dry blend.
     #[must_use]
     pub fn new(room_size: f32, damping: f32, mix: f32) -> Self {
         let rs = room_size.clamp(0.0, 1.0);
-        let comb_buffers: Vec<Vec<f32>> = Self::BASE_DELAYS
+
+        let comb_buffers: Vec<Vec<f32>> = Self::COMB_BASE_DELAYS
             .iter()
             .map(|&d| {
                 let len = ((d as f32 * (0.5 + rs * 0.5)) as usize).max(1);
                 vec![0.0_f32; len]
             })
             .collect();
-        let n = comb_buffers.len();
+        let n_comb = comb_buffers.len();
+
+        let ap_buffers = [
+            vec![0.0_f32; Self::AP_DELAYS[0].max(1)],
+            vec![0.0_f32; Self::AP_DELAYS[1].max(1)],
+        ];
+
         Self {
             room_size: rs,
             damping: damping.clamp(0.0, 1.0),
             mix: mix.clamp(0.0, 1.0),
             comb_buffers,
-            comb_positions: vec![0; n],
-            lp_states: vec![0.0_f32; n],
+            comb_positions: vec![0; n_comb],
+            lp_states: vec![0.0_f32; n_comb],
+            ap_buffers,
+            ap_positions: [0; 2],
         }
+    }
+
+    /// Process one sample through a single all-pass diffuser.
+    ///
+    /// The all-pass transfer function is:
+    ///   `H(z) = (-g + z^{-N}) / (1 - g * z^{-N})`
+    ///
+    /// with `g = AP_GAIN`.  This colours the echo density without colouring
+    /// the frequency response (flat magnitude).
+    #[inline]
+    fn allpass_tick(buf: &mut Vec<f32>, pos: &mut usize, input: f32) -> f32 {
+        let len = buf.len();
+        let delayed = buf[*pos];
+        let feedback = input + delayed * Self::AP_GAIN;
+        buf[*pos] = feedback;
+        *pos = (*pos + 1) % len;
+        delayed - input * Self::AP_GAIN
     }
 }
 
 impl AudioEffect for ReverbEffect {
+    /// Process samples through the Schroeder reverb network.
     fn process(&mut self, samples: &mut [f32]) {
-        let feedback = 0.84_f32 * self.room_size.max(0.1);
+        // Feedback coefficient: scales with room size, capped well below 1.0
+        // to guarantee stability.
+        let feedback = (0.7_f32 + 0.28 * self.room_size).min(0.98);
         let damp = self.damping;
 
         for sample in samples.iter_mut() {
-            let mut wet = 0.0_f32;
+            let input = *sample;
+            let mut comb_sum = 0.0_f32;
 
+            // ── 4 parallel LP-damped comb filters ────────────────────────────
             for i in 0..self.comb_buffers.len() {
                 let len = self.comb_buffers[i].len();
                 let pos = self.comb_positions[i];
                 let delayed = self.comb_buffers[i][pos];
 
-                // Low-pass damping
+                // One-pole low-pass inside the feedback loop (Moorer damping).
                 self.lp_states[i] = delayed * (1.0 - damp) + self.lp_states[i] * damp;
-                self.comb_buffers[i][pos] = *sample + self.lp_states[i] * feedback;
+                self.comb_buffers[i][pos] = input + self.lp_states[i] * feedback;
                 self.comb_positions[i] = (pos + 1) % len;
 
-                wet += delayed;
+                comb_sum += delayed;
             }
 
             #[allow(clippy::cast_precision_loss)]
-            let scale = 1.0 / self.comb_buffers.len() as f32;
-            *sample = *sample * (1.0 - self.mix) + wet * scale * self.mix;
+            let mut wet = comb_sum / self.comb_buffers.len() as f32;
+
+            // ── 2 all-pass diffusers in series ────────────────────────────────
+            wet = Self::allpass_tick(&mut self.ap_buffers[0], &mut self.ap_positions[0], wet);
+            wet = Self::allpass_tick(&mut self.ap_buffers[1], &mut self.ap_positions[1], wet);
+
+            *sample = input * (1.0 - self.mix) + wet * self.mix;
         }
     }
 

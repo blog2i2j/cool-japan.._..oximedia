@@ -301,7 +301,7 @@ pub mod math {
         }
 
         let mut sorted = values.to_vec();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         let idx = ((p / 100.0) * (sorted.len() - 1) as f64).round() as usize;
         Some(sorted[idx])
@@ -359,14 +359,18 @@ pub mod system {
 
     /// Generate unique ID.
     pub fn generate_id() -> String {
+        use std::sync::atomic::{AtomicU64, Ordering};
         use std::time::{SystemTime, UNIX_EPOCH};
+
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
 
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .unwrap()
+            .unwrap_or_default()
             .as_nanos();
 
-        format!("auto_{now}")
+        let seq = COUNTER.fetch_add(1, Ordering::Relaxed);
+        format!("auto_{now}_{seq}")
     }
 }
 
@@ -443,7 +447,8 @@ mod tests {
 
         #[test]
         fn test_timecode_to_frames() {
-            let frames = time::timecode_to_frames("00:01:00:00", 30.0).unwrap();
+            let frames = time::timecode_to_frames("00:01:00:00", 30.0)
+                .expect("timecode_to_frames should succeed");
             assert_eq!(frames, 1800); // 60 seconds * 30 fps
         }
 
@@ -455,14 +460,16 @@ mod tests {
 
         #[test]
         fn test_timecode_duration() {
-            let duration = time::timecode_duration("00:00:00:00", "00:01:00:00", 30.0).unwrap();
+            let duration = time::timecode_duration("00:00:00:00", "00:01:00:00", 30.0)
+                .expect("timecode_duration should succeed");
 
             assert_eq!(duration.as_secs(), 60);
         }
 
         #[test]
         fn test_timecode_add() {
-            let result = time::timecode_add("00:00:30:00", Duration::from_secs(30), 30.0).unwrap();
+            let result = time::timecode_add("00:00:30:00", Duration::from_secs(30), 30.0)
+                .expect("timecode_add should succeed");
 
             assert_eq!(result, "00:01:00:00");
         }

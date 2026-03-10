@@ -289,7 +289,7 @@ mod tests {
         let mut a = BitrateAnalyzer::new();
         a.feed(&pkt(0, 500, 0, true));
         a.feed(&pkt(0, 700, 3000, false));
-        let s = a.stats_for(0).unwrap();
+        let s = a.stats_for(0).expect("operation should succeed");
         assert_eq!(s.total_bytes, 1200);
     }
 
@@ -302,7 +302,7 @@ mod tests {
             pkt(0, 500, 3000, false),
             pkt(0, 300, 6000, false),
         ]);
-        let s = a.stats_for(0).unwrap();
+        let s = a.stats_for(0).expect("operation should succeed");
         assert_eq!(s.min_packet_bytes, 100);
         assert_eq!(s.max_packet_bytes, 500);
     }
@@ -312,7 +312,7 @@ mod tests {
     fn test_dts_range() {
         let mut a = BitrateAnalyzer::new();
         a.feed_batch(&[pkt(0, 100, 1000, true), pkt(0, 100, 5000, false)]);
-        let s = a.stats_for(0).unwrap();
+        let s = a.stats_for(0).expect("operation should succeed");
         assert_eq!(s.first_dts, 1000);
         assert_eq!(s.last_dts, 5000);
     }
@@ -323,7 +323,7 @@ mod tests {
         let mut a = BitrateAnalyzer::new();
         // 1000 bytes over 1 second at timescale 90000
         a.feed_batch(&[pkt(0, 500, 0, true), pkt(0, 500, 90000, false)]);
-        let s = a.stats_for(0).unwrap();
+        let s = a.stats_for(0).expect("operation should succeed");
         let br = s.avg_bitrate_kbps(90000);
         // 1000 * 8 / (1.0 * 1000) = 8.0
         assert!((br - 8.0).abs() < 1e-6);
@@ -351,7 +351,7 @@ mod tests {
     fn test_avg_packet_size() {
         let mut a = BitrateAnalyzer::new();
         a.feed_batch(&[pkt(0, 200, 0, true), pkt(0, 400, 3000, false)]);
-        let s = a.stats_for(0).unwrap();
+        let s = a.stats_for(0).expect("operation should succeed");
         assert!((s.avg_packet_size() - 300.0).abs() < f64::EPSILON);
     }
 
@@ -364,7 +364,7 @@ mod tests {
             pkt(0, 100, 3000, false),
             pkt(0, 100, 6000, false),
         ]);
-        let s = a.stats_for(0).unwrap();
+        let s = a.stats_for(0).expect("operation should succeed");
         assert!((s.keyframe_ratio() - 1.0 / 3.0).abs() < 1e-9);
     }
 
@@ -400,7 +400,7 @@ mod tests {
     fn test_keyframe_bytes() {
         let mut a = BitrateAnalyzer::new();
         a.feed_batch(&[pkt(0, 800, 0, true), pkt(0, 100, 3000, false)]);
-        let s = a.stats_for(0).unwrap();
+        let s = a.stats_for(0).expect("operation should succeed");
         assert_eq!(s.keyframe_bytes, 800);
     }
 

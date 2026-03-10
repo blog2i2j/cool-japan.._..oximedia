@@ -325,7 +325,8 @@ mod tests {
                 drift_ms: 10.0,
             },
         ];
-        let model = DriftCorrectionModel::fit(samples).unwrap();
+        let model =
+            DriftCorrectionModel::fit(samples).expect("multicam test operation should succeed");
         // slope should be 0.5 ms/s
         assert!((model.drift_rate_ms_per_s() - 0.5).abs() < 1e-6);
     }
@@ -342,7 +343,8 @@ mod tests {
                 drift_ms: 10.0,
             },
         ];
-        let model = DriftCorrectionModel::fit(samples).unwrap();
+        let model =
+            DriftCorrectionModel::fit(samples).expect("multicam test operation should succeed");
         let predicted = model.predict_drift_ms(50.0);
         assert!((predicted - 5.0).abs() < 1e-6);
     }
@@ -372,7 +374,8 @@ mod tests {
                 drift_ms: 0.2,
             },
         ];
-        let model = DriftCorrectionModel::fit(samples).unwrap();
+        let model =
+            DriftCorrectionModel::fit(samples).expect("multicam test operation should succeed");
         assert_eq!(model.sample_count(), 3);
     }
 
@@ -389,7 +392,8 @@ mod tests {
                 drift_ms: 10.0,
             },
         ];
-        let model = DriftCorrectionModel::fit(samples).unwrap();
+        let model =
+            DriftCorrectionModel::fit(samples).expect("multicam test operation should succeed");
         let corrected = model.correct_timestamp_s(10.0);
         // 10.0 - 0.010 = 9.990
         assert!((corrected - 9.99).abs() < 1e-6);
@@ -426,7 +430,8 @@ mod tests {
                 drift_ms: 1.0,
             },
         ];
-        let model = DriftCorrectionModel::fit(samples).unwrap();
+        let model =
+            DriftCorrectionModel::fit(samples).expect("multicam test operation should succeed");
         let tid = IsoTrackId::new(1);
         session.set_drift_model(tid, model);
         assert!(session.drift_model(tid).is_some());

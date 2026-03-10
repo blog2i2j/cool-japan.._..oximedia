@@ -343,13 +343,14 @@ mod tests {
 
     #[test]
     fn test_loudness_meter_creation() {
-        let meter = LoudnessMeter::new(48000, LoudnessStandard::EbuR128).unwrap();
+        let meter = LoudnessMeter::new(48000, LoudnessStandard::EbuR128).expect("failed to create");
         assert_eq!(meter.sample_rate, 48000);
     }
 
     #[test]
     fn test_loudness_meter_process() {
-        let mut meter = LoudnessMeter::new(48000, LoudnessStandard::EbuR128).unwrap();
+        let mut meter =
+            LoudnessMeter::new(48000, LoudnessStandard::EbuR128).expect("failed to create");
         let audio = vec![0.1_f32; 1000];
         meter.process(&audio);
         assert!(meter.get_momentary_lufs() > -70.0);
@@ -357,7 +358,8 @@ mod tests {
 
     #[test]
     fn test_loudness_meter_reset() {
-        let mut meter = LoudnessMeter::new(48000, LoudnessStandard::EbuR128).unwrap();
+        let mut meter =
+            LoudnessMeter::new(48000, LoudnessStandard::EbuR128).expect("failed to create");
         let audio = vec![0.1_f32; 1000];
         meter.process(&audio);
         meter.reset();
@@ -366,21 +368,21 @@ mod tests {
 
     #[test]
     fn test_compliance_report() {
-        let meter = LoudnessMeter::new(48000, LoudnessStandard::EbuR128).unwrap();
+        let meter = LoudnessMeter::new(48000, LoudnessStandard::EbuR128).expect("failed to create");
         let report = meter.get_compliance_report();
         assert_eq!(report.target_lufs, -23.0);
     }
 
     #[test]
     fn test_loudness_normalizer() {
-        let normalizer = LoudnessNormalizer::new(48000, -23.0).unwrap();
+        let normalizer = LoudnessNormalizer::new(48000, -23.0).expect("failed to create");
         let gain = normalizer.calculate_gain(-26.0);
         assert!((gain - 3.0).abs() < 1e-6);
     }
 
     #[test]
     fn test_normalize_audio() {
-        let normalizer = LoudnessNormalizer::new(48000, -23.0).unwrap();
+        let normalizer = LoudnessNormalizer::new(48000, -23.0).expect("failed to create");
         let input = vec![0.1_f32; 1000];
         let mut output = vec![0.0_f32; 1000];
         normalizer.normalize(&input, &mut output, -26.0);
@@ -389,7 +391,7 @@ mod tests {
 
     #[test]
     fn test_auto_gain() {
-        let mut auto_gain = AutoGain::new(48000, -23.0).unwrap();
+        let mut auto_gain = AutoGain::new(48000, -23.0).expect("failed to create");
         auto_gain.set_attack_time(50.0);
         auto_gain.set_release_time(500.0);
         assert_eq!(auto_gain.attack_time, 50.0);

@@ -453,7 +453,10 @@ mod tests {
             .with_term(NegotiationTerm::negotiable("price", "1000"));
         let term = offer.get_term("price");
         assert!(term.is_some());
-        assert_eq!(term.unwrap().value, "1000");
+        assert_eq!(
+            term.expect("rights test operation should succeed").value,
+            "1000"
+        );
         assert!(offer.get_term("nonexistent").is_none());
     }
 
@@ -517,8 +520,18 @@ mod tests {
         neg.submit_proposal(Offer::new("o1", "A", "B", true));
         neg.submit_counter_offer(Offer::new("o2", "B", "A", false));
 
-        assert_eq!(neg.initial_offer().unwrap().offer_id, "o1");
-        assert_eq!(neg.latest_offer().unwrap().offer_id, "o2");
+        assert_eq!(
+            neg.initial_offer()
+                .expect("rights test operation should succeed")
+                .offer_id,
+            "o1"
+        );
+        assert_eq!(
+            neg.latest_offer()
+                .expect("rights test operation should succeed")
+                .offer_id,
+            "o2"
+        );
     }
 
     #[test]

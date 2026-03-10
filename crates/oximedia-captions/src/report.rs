@@ -495,16 +495,16 @@ mod tests {
                 Timestamp::from_secs(5),
                 "Test caption one".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
         track
             .add_caption(Caption::new(
                 Timestamp::from_secs(10),
                 Timestamp::from_secs(15),
                 "Test caption two".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
-        let report = QualityReport::generate(&track).unwrap();
+        let report = QualityReport::generate(&track).expect("generation should succeed");
 
         assert_eq!(report.statistics.total_captions, 2);
         assert_eq!(report.statistics.total_words, 6);
@@ -519,9 +519,9 @@ mod tests {
                 Timestamp::from_secs(5),
                 "Test".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
-        let report = QualityReport::generate(&track).unwrap();
+        let report = QualityReport::generate(&track).expect("generation should succeed");
         let summary = report.to_text_summary();
 
         assert!(summary.contains("Caption Quality Report"));
@@ -537,10 +537,10 @@ mod tests {
                 Timestamp::from_secs(5),
                 "Test".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
-        let report = QualityReport::generate(&track).unwrap();
-        let json = report.to_json().unwrap();
+        let report = QualityReport::generate(&track).expect("generation should succeed");
+        let json = report.to_json().expect("JSON serialization should succeed");
 
         assert!(!json.is_empty());
         assert!(json.contains("statistics"));

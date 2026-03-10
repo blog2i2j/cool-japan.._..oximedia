@@ -338,7 +338,9 @@ mod tests {
         let neg = NdiFormatNegotiator::new()
             .prefer_color_space(NdiColorSpace::Bt2100Pq)
             .prefer_color_space(NdiColorSpace::Bt709);
-        let best = neg.select_best(&candidates).unwrap();
+        let best = neg
+            .select_best(&candidates)
+            .expect("expected best selection");
         assert_eq!(best.color_space, NdiColorSpace::Bt2100Pq);
     }
 
@@ -346,6 +348,11 @@ mod tests {
     fn test_select_best_single() {
         let fmt = NdiVideoFormat::hd_1080p60();
         let neg = NdiFormatNegotiator::new();
-        assert_eq!(neg.select_best(&[fmt]).unwrap().width, 1920);
+        assert_eq!(
+            neg.select_best(&[fmt])
+                .expect("expected best selection")
+                .width,
+            1920
+        );
     }
 }

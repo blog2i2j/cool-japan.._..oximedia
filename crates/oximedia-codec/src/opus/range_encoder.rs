@@ -285,10 +285,10 @@ mod tests {
     #[test]
     fn test_finalize() {
         let mut encoder = RangeEncoder::new(1024);
-        encoder.encode_uniform(1, 4).unwrap();
+        encoder.encode_uniform(1, 4).expect("should succeed");
         let data = encoder.finalize();
         assert!(data.is_ok());
-        assert!(!data.unwrap().is_empty());
+        assert!(!data.expect("should succeed").is_empty());
     }
 
     #[test]

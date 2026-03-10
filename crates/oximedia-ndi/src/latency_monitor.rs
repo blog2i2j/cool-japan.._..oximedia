@@ -562,7 +562,7 @@ mod tests {
         let t1 = t0 + Duration::from_millis(12);
         m.record_timestamps(t0, t1);
         assert_eq!(m.sample_count(), 1);
-        let s = m.last_sample().unwrap();
+        let s = m.last_sample().expect("expected last sample to exist");
         assert!((s.latency_ms - 12.0).abs() < 1.0);
     }
 

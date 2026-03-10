@@ -164,29 +164,43 @@ impl LicenseAgreement {
         .fetch_optional(db.pool())
         .await?;
 
-        Ok(row.map(|r| {
-            let terms_json: String = r.get("terms_json");
-            let terms = serde_json::from_str(&terms_json).unwrap_or_default();
+        let agreement = match row {
+            None => return Ok(None),
+            Some(r) => {
+                let terms_json: String = r.get("terms_json");
+                let terms = serde_json::from_str(&terms_json).unwrap_or_default();
 
-            LicenseAgreement {
-                id: r.get("id"),
-                grant_id: r.get("grant_id"),
-                agreement_number: r.get("agreement_number"),
-                terms,
-                status: AgreementStatus::from_str(r.get("status")),
-                signed_date: r.get::<Option<String>, _>("signed_date").map(|s| {
-                    DateTime::parse_from_rfc3339(&s)
-                        .unwrap()
-                        .with_timezone(&Utc)
-                }),
-                created_at: DateTime::parse_from_rfc3339(r.get("created_at"))
-                    .unwrap()
-                    .with_timezone(&Utc),
-                updated_at: DateTime::parse_from_rfc3339(r.get("updated_at"))
-                    .unwrap()
-                    .with_timezone(&Utc),
+                let signed_date = r
+                    .get::<Option<String>, _>("signed_date")
+                    .map(|s| {
+                        DateTime::parse_from_rfc3339(&s)
+                            .map(|dt| dt.with_timezone(&Utc))
+                            .map_err(|e| crate::RightsError::Serialization(e.to_string()))
+                    })
+                    .transpose()?;
+
+                let created_at = DateTime::parse_from_rfc3339(r.get("created_at"))
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .map_err(|e| crate::RightsError::Serialization(e.to_string()))?;
+
+                let updated_at = DateTime::parse_from_rfc3339(r.get("updated_at"))
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .map_err(|e| crate::RightsError::Serialization(e.to_string()))?;
+
+                LicenseAgreement {
+                    id: r.get("id"),
+                    grant_id: r.get("grant_id"),
+                    agreement_number: r.get("agreement_number"),
+                    terms,
+                    status: AgreementStatus::from_str(r.get("status")),
+                    signed_date,
+                    created_at,
+                    updated_at,
+                }
             }
-        }))
+        };
+
+        Ok(Some(agreement))
     }
 
     /// List agreements for a grant
@@ -202,32 +216,40 @@ impl LicenseAgreement {
         .fetch_all(db.pool())
         .await?;
 
-        Ok(rows
-            .into_iter()
+        rows.into_iter()
             .map(|r| {
                 let terms_json: String = r.get("terms_json");
                 let terms = serde_json::from_str(&terms_json).unwrap_or_default();
 
-                LicenseAgreement {
+                let signed_date = r
+                    .get::<Option<String>, _>("signed_date")
+                    .map(|s| {
+                        DateTime::parse_from_rfc3339(&s)
+                            .map(|dt| dt.with_timezone(&Utc))
+                            .map_err(|e| crate::RightsError::Serialization(e.to_string()))
+                    })
+                    .transpose()?;
+
+                let created_at = DateTime::parse_from_rfc3339(r.get("created_at"))
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .map_err(|e| crate::RightsError::Serialization(e.to_string()))?;
+
+                let updated_at = DateTime::parse_from_rfc3339(r.get("updated_at"))
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .map_err(|e| crate::RightsError::Serialization(e.to_string()))?;
+
+                Ok(LicenseAgreement {
                     id: r.get("id"),
                     grant_id: r.get("grant_id"),
                     agreement_number: r.get("agreement_number"),
                     terms,
                     status: AgreementStatus::from_str(r.get("status")),
-                    signed_date: r.get::<Option<String>, _>("signed_date").map(|s| {
-                        DateTime::parse_from_rfc3339(&s)
-                            .unwrap()
-                            .with_timezone(&Utc)
-                    }),
-                    created_at: DateTime::parse_from_rfc3339(r.get("created_at"))
-                        .unwrap()
-                        .with_timezone(&Utc),
-                    updated_at: DateTime::parse_from_rfc3339(r.get("updated_at"))
-                        .unwrap()
-                        .with_timezone(&Utc),
-                }
+                    signed_date,
+                    created_at,
+                    updated_at,
+                })
             })
-            .collect())
+            .collect()
     }
 
     /// Delete agreement from database
@@ -269,15 +291,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_agreement_save_and_load() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("rights test operation should succeed");
         let db_path = format!("sqlite://{}/test.db", temp_dir.path().display());
-        let db = RightsDatabase::new(&db_path).await.unwrap();
+        let db = RightsDatabase::new(&db_path)
+            .await
+            .expect("rights test operation should succeed");
 
         // Create asset and owner first
         let asset = crate::rights::Asset::new("Test Asset", crate::rights::AssetType::Video);
-        asset.save(&db).await.unwrap();
+        asset
+            .save(&db)
+            .await
+            .expect("rights test operation should succeed");
         let owner = crate::rights::RightsOwner::new("Test Owner");
-        owner.save(&db).await.unwrap();
+        owner
+            .save(&db)
+            .await
+            .expect("rights test operation should succeed");
 
         // Create grant
         let grant = crate::rights::RightsGrant::new(
@@ -289,16 +319,24 @@ mod tests {
             true,
         );
         let grant_id = grant.id.clone();
-        grant.save(&db).await.unwrap();
+        grant
+            .save(&db)
+            .await
+            .expect("rights test operation should succeed");
 
         let agreement = LicenseAgreement::new(&grant_id, "AGR-2024-001");
         let agreement_id = agreement.id.clone();
 
-        agreement.save(&db).await.unwrap();
+        agreement
+            .save(&db)
+            .await
+            .expect("rights test operation should succeed");
 
-        let loaded = LicenseAgreement::load(&db, &agreement_id).await.unwrap();
+        let loaded = LicenseAgreement::load(&db, &agreement_id)
+            .await
+            .expect("rights test operation should succeed");
         assert!(loaded.is_some());
-        let loaded = loaded.unwrap();
+        let loaded = loaded.expect("rights test operation should succeed");
         assert_eq!(loaded.agreement_number, "AGR-2024-001");
     }
 }

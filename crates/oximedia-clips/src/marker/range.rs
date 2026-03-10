@@ -237,7 +237,7 @@ mod tests {
         let mut col = RangeCollection::new();
         let id = col.add("Scene A", 0, 100);
         assert_eq!(col.len(), 1);
-        let r = col.get(id).unwrap();
+        let r = col.get(id).expect("get should succeed");
         assert_eq!(r.name, "Scene A");
     }
 

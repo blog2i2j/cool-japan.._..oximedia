@@ -512,7 +512,7 @@ mod tests {
     fn test_deformation_field_get_set() {
         let mut field = DeformationField::new(64, 64, 16);
         field.set(1, 2, 3.5, -1.5);
-        let (dx, dy) = field.get(1, 2).unwrap();
+        let (dx, dy) = field.get(1, 2).expect("get should succeed");
         assert!((dx - 3.5).abs() < f64::EPSILON);
         assert!((dy - (-1.5)).abs() < f64::EPSILON);
     }
@@ -573,7 +573,7 @@ mod tests {
             ControlPoint::with_unit_weight(Point2D::new(100.0, 100.0), Point2D::new(100.0, 100.0)),
         ];
 
-        let result = aligner.align(&points).unwrap();
+        let result = aligner.align(&points).expect("result should be valid");
         // RMS error should be very small for identity
         assert!(result.rms_error < 1.0);
     }
@@ -595,7 +595,7 @@ mod tests {
             ControlPoint::with_unit_weight(Point2D::new(100.0, 100.0), Point2D::new(105.0, 103.0)),
         ];
 
-        let result = aligner.align(&points).unwrap();
+        let result = aligner.align(&points).expect("result should be valid");
         // Transform a test point
         let transformed = aligner.transform_point(&Point2D::new(50.0, 50.0), &result);
         // Should be approximately (55, 53)

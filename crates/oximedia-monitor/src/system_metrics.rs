@@ -285,7 +285,9 @@ mod tests {
     fn test_collector_record_and_current() {
         let mut c = SystemMetricsCollector::new(10);
         c.record(sample(SystemMetric::CpuPercent, 42.0, 1));
-        let cur = c.current(&SystemMetric::CpuPercent).unwrap();
+        let cur = c
+            .current(&SystemMetric::CpuPercent)
+            .expect("current should succeed");
         assert!((cur.value - 42.0).abs() < f64::EPSILON);
     }
 
@@ -314,7 +316,9 @@ mod tests {
         c.record(sample(SystemMetric::NetworkMbps, 100.0, 1));
         c.record(sample(SystemMetric::NetworkMbps, 200.0, 2));
         c.record(sample(SystemMetric::NetworkMbps, 300.0, 3));
-        let avg = c.average(&SystemMetric::NetworkMbps).unwrap();
+        let avg = c
+            .average(&SystemMetric::NetworkMbps)
+            .expect("average should succeed");
         assert!((avg - 200.0).abs() < f64::EPSILON);
     }
 

@@ -472,7 +472,7 @@ mod tests {
             .framerate(60)
             .bitrate(6000)
             .build()
-            .unwrap();
+            .expect("should succeed");
 
         assert_eq!(config.resolution, (1920, 1080));
         assert_eq!(config.framerate, 60);
@@ -501,30 +501,41 @@ mod tests {
 
     #[tokio::test]
     async fn test_streamer_lifecycle() {
-        let config = StreamConfig::builder().build().unwrap();
-        let mut streamer = GameStreamer::new(config).await.unwrap();
+        let config = StreamConfig::builder()
+            .build()
+            .expect("valid stream config");
+        let mut streamer = GameStreamer::new(config)
+            .await
+            .expect("valid game streamer");
 
         assert!(!streamer.is_streaming());
 
-        streamer.start().await.unwrap();
+        streamer.start().await.expect("start should succeed");
         assert!(streamer.is_streaming());
 
-        streamer.pause().unwrap();
+        streamer.pause().expect("pause should succeed");
         assert!(!streamer.is_streaming());
 
-        streamer.resume().unwrap();
+        streamer.resume().expect("resume should succeed");
         assert!(streamer.is_streaming());
 
-        streamer.stop().await.unwrap();
+        streamer.stop().await.expect("stop should succeed");
         assert!(!streamer.is_streaming());
     }
 
     #[tokio::test]
     async fn test_replay_buffer() {
-        let config = StreamConfig::builder().replay_buffer(30).build().unwrap();
+        let config = StreamConfig::builder()
+            .replay_buffer(30)
+            .build()
+            .expect("valid stream config");
 
-        let mut streamer = GameStreamer::new(config).await.unwrap();
-        streamer.enable_replay_buffer(60).unwrap();
+        let mut streamer = GameStreamer::new(config)
+            .await
+            .expect("valid game streamer");
+        streamer
+            .enable_replay_buffer(60)
+            .expect("enable replay buffer should succeed");
     }
 
     #[test]
@@ -540,7 +551,7 @@ mod tests {
             let config = StreamConfig::builder()
                 .encoder_preset(preset)
                 .build()
-                .unwrap();
+                .expect("should succeed");
             assert_eq!(config.encoder_preset, preset);
         }
     }
@@ -555,7 +566,10 @@ mod tests {
         ];
 
         for source in sources {
-            let config = StreamConfig::builder().source(source).build().unwrap();
+            let config = StreamConfig::builder()
+                .source(source)
+                .build()
+                .expect("valid stream config");
             assert_eq!(config.source, source);
         }
     }
@@ -572,7 +586,7 @@ mod tests {
             .webcam(true)
             .microphone(true)
             .build()
-            .unwrap();
+            .expect("should succeed");
 
         assert_eq!(config.resolution, (2560, 1440));
         assert_eq!(config.framerate, 144);
@@ -584,7 +598,10 @@ mod tests {
 
     #[test]
     fn test_high_framerate_config() {
-        let config = StreamConfig::builder().framerate(240).build().unwrap();
+        let config = StreamConfig::builder()
+            .framerate(240)
+            .build()
+            .expect("valid stream config");
 
         assert_eq!(config.framerate, 240);
     }
@@ -595,15 +612,19 @@ mod tests {
             .resolution(3840, 2160)
             .bitrate(20000)
             .build()
-            .unwrap();
+            .expect("should succeed");
 
         assert_eq!(config.resolution, (3840, 2160));
     }
 
     #[tokio::test]
     async fn test_stream_stats() {
-        let config = StreamConfig::builder().build().unwrap();
-        let streamer = GameStreamer::new(config).await.unwrap();
+        let config = StreamConfig::builder()
+            .build()
+            .expect("valid stream config");
+        let streamer = GameStreamer::new(config)
+            .await
+            .expect("valid game streamer");
 
         let stats = streamer.get_stats();
         assert_eq!(stats.fps, 60);

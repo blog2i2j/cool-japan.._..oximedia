@@ -156,7 +156,7 @@ impl ScriptExecutor {
 
 impl Default for ScriptExecutor {
     fn default() -> Self {
-        Self::new().unwrap()
+        Self::new().expect("Lua runtime initialisation with safe stdlib should always succeed")
     }
 }
 
@@ -172,71 +172,81 @@ mod tests {
 
     #[test]
     fn test_execute_simple_script() {
-        let executor = ScriptExecutor::new().unwrap();
+        let executor = ScriptExecutor::new().expect("failed to create");
         let result = executor.execute("return 42");
 
         assert!(result.is_ok());
-        let is_integer_42 = matches!(result.unwrap(), Value::Integer(42));
+        let is_integer_42 = matches!(result.expect("result should be valid"), Value::Integer(42));
         assert!(is_integer_42);
     }
 
     #[test]
     fn test_execute_boolean_expression() {
-        let executor = ScriptExecutor::new().unwrap();
+        let executor = ScriptExecutor::new().expect("failed to create");
         let result = executor.execute("return 10 > 5");
 
         assert!(result.is_ok());
-        let is_true = matches!(result.unwrap(), Value::Boolean(true));
+        let is_true = matches!(
+            result.expect("result should be valid"),
+            Value::Boolean(true)
+        );
         assert!(is_true);
     }
 
     #[test]
     fn test_evaluate_bool() {
-        let executor = ScriptExecutor::new().unwrap();
+        let executor = ScriptExecutor::new().expect("failed to create");
         let result = executor.evaluate_bool("return true");
 
         assert!(result.is_ok());
-        assert!(result.unwrap());
+        assert!(result.expect("result should be valid"));
     }
 
     #[test]
     fn test_set_and_get_global() {
-        let executor = ScriptExecutor::new().unwrap();
+        let executor = ScriptExecutor::new().expect("failed to create");
 
         executor
             .set_global(
                 "test_var",
-                Value::String(executor.lua.create_string("hello").unwrap()),
+                Value::String(
+                    executor
+                        .lua
+                        .create_string("hello")
+                        .expect("create_string should succeed"),
+                ),
             )
-            .unwrap();
+            .expect("operation should succeed");
 
         let is_hello = {
-            let value = executor.get_global("test_var").unwrap();
-            matches!(value, Value::String(ref s) if s.to_str().unwrap() == "hello")
+            let value = executor
+                .get_global("test_var")
+                .expect("get_global should succeed");
+            matches!(value, Value::String(ref s) if s.to_str().expect("path should be valid UTF-8") == "hello")
         };
         assert!(is_hello);
     }
 
     #[test]
     fn test_call_function() {
-        let executor = ScriptExecutor::new().unwrap();
+        let executor = ScriptExecutor::new().expect("failed to create");
 
         // Define a function
         executor
             .execute("function double(x) return x * 2 end")
-            .unwrap();
+            .expect("operation should succeed");
 
         // Call the function
         let result = executor.call_function("double", &[Value::Integer(21)]);
 
         assert!(result.is_ok());
-        let is_42 = matches!(result.unwrap(), Value::Integer(42));
+        let is_42 = matches!(result.expect("result should be valid"), Value::Integer(42));
         assert!(is_42);
     }
 
     #[test]
     fn test_create_context() {
-        let executor = ScriptExecutor::new().unwrap();
+        let executor = ScriptExecutor::new().expect("failed to create");
         let result = executor.create_context();
 
         assert!(result.is_ok());
@@ -244,7 +254,7 @@ mod tests {
 
     #[test]
     fn test_invalid_script() {
-        let executor = ScriptExecutor::new().unwrap();
+        let executor = ScriptExecutor::new().expect("failed to create");
         let result = executor.execute("invalid lua code @#$");
 
         assert!(result.is_err());

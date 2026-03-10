@@ -267,7 +267,12 @@ impl CheckpointManager {
         }
         let ckpt = RenderCheckpoint::new(&self.job_id);
         self.checkpoints.push(ckpt);
-        self.checkpoints.last().expect("just pushed")
+        // SAFETY: we just pushed an element, so `last()` is guaranteed to be `Some`.
+        // Using a match to satisfy no-unwrap policy.
+        match self.checkpoints.last() {
+            Some(last) => last,
+            None => unreachable!(),
+        }
     }
 
     /// Returns the latest complete checkpoint, if any.

@@ -445,14 +445,17 @@ mod tests {
     fn test_check_video_freeze_detected() {
         // Frames frozen at timestamp 1000 for 3 seconds.
         let mut frames: Vec<u64> = (0..10).map(|i| i * 40).collect();
-        let freeze_start = *frames.last().unwrap();
+        let freeze_start = *frames.last().expect("should have last element");
         for _ in 0..100 {
             frames.push(freeze_start);
         }
         frames.push(freeze_start + 5000);
         let anomaly = AnomalyDetector::check_video_freeze(&frames, 2000);
         assert!(anomaly.is_some(), "Expected freeze anomaly");
-        assert_eq!(anomaly.unwrap().anomaly_type, AnomalyType::VideoFreeze);
+        assert_eq!(
+            anomaly.expect("anomaly should be valid").anomaly_type,
+            AnomalyType::VideoFreeze
+        );
     }
 
     #[test]
@@ -470,7 +473,10 @@ mod tests {
         let current = 2_500_000u64; // 150% spike
         let result = AnomalyDetector::check_bitrate_spike(&history, current, 50.0);
         assert!(result.is_some());
-        assert_eq!(result.unwrap().anomaly_type, AnomalyType::BitrateSpike);
+        assert_eq!(
+            result.expect("result should be valid").anomaly_type,
+            AnomalyType::BitrateSpike
+        );
     }
 
     #[test]
@@ -479,7 +485,10 @@ mod tests {
         let current = 100_000u64; // 90% drop
         let result = AnomalyDetector::check_bitrate_spike(&history, current, 50.0);
         assert!(result.is_some());
-        assert_eq!(result.unwrap().anomaly_type, AnomalyType::BitrateDropout);
+        assert_eq!(
+            result.expect("result should be valid").anomaly_type,
+            AnomalyType::BitrateDropout
+        );
     }
 
     #[test]
@@ -506,7 +515,10 @@ mod tests {
         });
         let anomaly = d.check_sync_drift(1000.0, 1200.0, 5000);
         assert!(anomaly.is_some());
-        assert_eq!(anomaly.unwrap().anomaly_type, AnomalyType::SyncDrift);
+        assert_eq!(
+            anomaly.expect("anomaly should be valid").anomaly_type,
+            AnomalyType::SyncDrift
+        );
     }
 
     #[test]

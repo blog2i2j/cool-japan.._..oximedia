@@ -581,7 +581,7 @@ impl LoudnessRangeCalculator {
         }
 
         // Sort by loudness
-        self.histogram.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        self.histogram.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
 
         // Calculate percentiles (10th and 95th)
         let total = self.histogram.len();

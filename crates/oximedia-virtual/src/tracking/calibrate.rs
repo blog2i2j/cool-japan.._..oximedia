@@ -4,8 +4,8 @@
 //! coordinate system alignment and reference point mapping.
 
 use super::CameraPose;
+use crate::math::{Matrix3, Matrix4, Point3, UnitQuaternion};
 use crate::{Result, VirtualProductionError};
-use nalgebra::{Matrix4, Point3, UnitQuaternion};
 use serde::{Deserialize, Serialize};
 
 /// Calibration method
@@ -60,12 +60,13 @@ impl CalibrationResult {
     #[must_use]
     pub fn apply(&self, pose: &CameraPose) -> CameraPose {
         // Transform position
-        let pos_homogeneous = self.transform * pose.position.to_homogeneous();
+        let pos_homogeneous = self
+            .transform
+            .mul_homogeneous(&pose.position.to_homogeneous());
         let position = Point3::from_homogeneous(pos_homogeneous).unwrap_or(pose.position);
 
         // Extract rotation from transform matrix and compose with existing orientation
-        let rotation_matrix = self.transform.fixed_view::<3, 3>(0, 0);
-        let rotation_3x3 = rotation_matrix.into_owned();
+        let rotation_3x3 = self.transform.fixed_view_3x3(0, 0);
         let cal_rotation = UnitQuaternion::from_matrix(&rotation_3x3);
         let orientation = cal_rotation * pose.orientation;
 
@@ -125,9 +126,7 @@ impl TrackingCalibrator {
         let translation = point.world_position - point.tracker_position;
 
         let mut transform = Matrix4::identity();
-        transform
-            .fixed_view_mut::<3, 1>(0, 3)
-            .copy_from(&translation);
+        transform.set_block_3x1(0, 3, &translation);
 
         let error = self.compute_error(&transform);
 
@@ -167,31 +166,24 @@ impl TrackingCalibrator {
 
         // Build rotation matrix
         let mut world_mat = Matrix4::identity();
-        world_mat.fixed_view_mut::<3, 1>(0, 0).copy_from(&world_x);
-        world_mat.fixed_view_mut::<3, 1>(0, 1).copy_from(&world_y);
-        world_mat.fixed_view_mut::<3, 1>(0, 2).copy_from(&world_z);
+        world_mat.set_block_3x1(0, 0, &world_x);
+        world_mat.set_block_3x1(0, 1, &world_y);
+        world_mat.set_block_3x1(0, 2, &world_z);
 
         let mut tracker_mat = Matrix4::identity();
-        tracker_mat
-            .fixed_view_mut::<3, 1>(0, 0)
-            .copy_from(&tracker_x);
-        tracker_mat
-            .fixed_view_mut::<3, 1>(0, 1)
-            .copy_from(&tracker_y);
-        tracker_mat
-            .fixed_view_mut::<3, 1>(0, 2)
-            .copy_from(&tracker_z);
+        tracker_mat.set_block_3x1(0, 0, &tracker_x);
+        tracker_mat.set_block_3x1(0, 1, &tracker_y);
+        tracker_mat.set_block_3x1(0, 2, &tracker_z);
 
         // Compute transform
         let rotation = world_mat * tracker_mat.try_inverse().unwrap_or(Matrix4::identity());
         let mut transform = rotation;
 
         // Add translation
+        let rot_3x3 = rotation.fixed_view_3x3(0, 0);
         let translation =
-            p0.world_position - (rotation.fixed_view::<3, 3>(0, 0) * p0.tracker_position);
-        transform
-            .fixed_view_mut::<3, 1>(0, 3)
-            .copy_from(&translation);
+            p0.world_position.coords() - rot_3x3.mul_vec(&p0.tracker_position.coords());
+        transform.set_block_3x1(0, 3, &translation);
 
         let error = self.compute_error(&transform);
 
@@ -217,16 +209,16 @@ impl TrackingCalibrator {
         let mut tracker_centroid = Point3::origin();
 
         for point in &self.points {
-            world_centroid += point.world_position.coords;
-            tracker_centroid += point.tracker_position.coords;
+            world_centroid += point.world_position.coords();
+            tracker_centroid += point.tracker_position.coords();
         }
 
         let n = self.points.len() as f64;
-        world_centroid = Point3::from(world_centroid.coords / n);
-        tracker_centroid = Point3::from(tracker_centroid.coords / n);
+        world_centroid = Point3::from(world_centroid.coords() / n);
+        tracker_centroid = Point3::from(tracker_centroid.coords() / n);
 
         // Build correlation matrix
-        let mut h = nalgebra::Matrix3::zeros();
+        let mut h = Matrix3::zeros();
 
         for point in &self.points {
             let world_centered = point.world_position - world_centroid;
@@ -236,28 +228,30 @@ impl TrackingCalibrator {
 
         // SVD to find rotation
         let svd = h.svd(true, true);
-        let u = svd.u.unwrap_or(nalgebra::Matrix3::identity());
-        let v_t = svd.v_t.unwrap_or(nalgebra::Matrix3::identity());
+        let u = svd.u.unwrap_or(Matrix3::identity());
+        let v_t = svd.v_t.unwrap_or(Matrix3::identity());
         let mut rotation_3x3 = v_t.transpose() * u.transpose();
 
         // Ensure proper rotation (det = 1)
         if rotation_3x3.determinant() < 0.0 {
             let mut v = v_t.transpose();
-            v.fixed_view_mut::<3, 1>(0, 2).scale_mut(-1.0);
+            // Negate third column of V
+            let mut col2 = v.column(2);
+            col2.scale_mut(-1.0);
+            v.data[0][2] = col2.x;
+            v.data[1][2] = col2.y;
+            v.data[2][2] = col2.z;
             rotation_3x3 = v * u.transpose();
         }
 
         // Build 4x4 transform
         let mut transform = Matrix4::identity();
-        transform
-            .fixed_view_mut::<3, 3>(0, 0)
-            .copy_from(&rotation_3x3);
+        transform.set_block_3x3(0, 0, &rotation_3x3);
 
         // Compute translation
-        let translation = world_centroid - (rotation_3x3 * tracker_centroid);
-        transform
-            .fixed_view_mut::<3, 1>(0, 3)
-            .copy_from(&translation);
+        let translation =
+            world_centroid.coords() - rotation_3x3.mul_vec(&tracker_centroid.coords());
+        transform.set_block_3x1(0, 3, &translation);
 
         let error = self.compute_error(&transform);
 
@@ -278,7 +272,7 @@ impl TrackingCalibrator {
         let mut sum_squared_error = 0.0;
 
         for point in &self.points {
-            let transformed = transform * point.tracker_position.to_homogeneous();
+            let transformed = transform.mul_homogeneous(&point.tracker_position.to_homogeneous());
             let transformed_point =
                 Point3::from_homogeneous(transformed).unwrap_or(point.tracker_position);
             let error = (transformed_point - point.world_position).norm();

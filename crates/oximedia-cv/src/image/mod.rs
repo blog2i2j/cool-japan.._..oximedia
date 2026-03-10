@@ -18,7 +18,7 @@ pub mod morph;
 pub mod resize;
 
 // Re-export commonly used items
-pub use convert::ColorSpace;
+pub use convert::{bgr_to_yuv420p, rgb_to_grayscale_bt601, ColorSpace};
 pub use edge::{CannyEdge, EdgeDetector, LaplacianEdge, SobelEdge};
 pub use filter::{BilateralFilter, BoxBlur, GaussianBlur, ImageFilter, MedianFilter};
 pub use histogram::Histogram;

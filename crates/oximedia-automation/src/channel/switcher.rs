@@ -118,10 +118,16 @@ mod tests {
 
     #[tokio::test]
     async fn test_switcher_program_preview() {
-        let mut switcher = AutomatedSwitcher::new(0).await.unwrap();
+        let mut switcher = AutomatedSwitcher::new(0).await.expect("new should succeed");
 
-        switcher.set_program(1).await.unwrap();
-        switcher.set_preview(2).await.unwrap();
+        switcher
+            .set_program(1)
+            .await
+            .expect("operation should succeed");
+        switcher
+            .set_preview(2)
+            .await
+            .expect("operation should succeed");
 
         assert_eq!(switcher.get_program().await, Some(1));
         assert_eq!(switcher.get_preview().await, Some(2));
@@ -129,11 +135,17 @@ mod tests {
 
     #[tokio::test]
     async fn test_auto_cut() {
-        let mut switcher = AutomatedSwitcher::new(0).await.unwrap();
+        let mut switcher = AutomatedSwitcher::new(0).await.expect("new should succeed");
 
-        switcher.set_program(1).await.unwrap();
-        switcher.set_preview(2).await.unwrap();
-        switcher.auto_cut().await.unwrap();
+        switcher
+            .set_program(1)
+            .await
+            .expect("operation should succeed");
+        switcher
+            .set_preview(2)
+            .await
+            .expect("operation should succeed");
+        switcher.auto_cut().await.expect("operation should succeed");
 
         assert_eq!(switcher.get_program().await, Some(2));
     }

@@ -428,9 +428,8 @@ impl HighlightDetector {
                     None => {
                         current_highlight = Some((i, motion));
                     }
-                    Some((_, max_motion)) => {
-                        current_highlight =
-                            Some((current_highlight.unwrap().0, max_motion.max(motion)));
+                    Some((start_idx, max_motion)) => {
+                        current_highlight = Some((start_idx, max_motion.max(motion)));
                     }
                 }
             } else if let Some((start_idx, max_motion)) = current_highlight {
@@ -567,7 +566,7 @@ impl HighlightDetector {
                 window
                     .iter()
                     .map(|&s| s.abs())
-                    .max_by(|a, b| a.partial_cmp(b).unwrap())
+                    .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
                     .unwrap_or(0.0)
             };
 
@@ -578,9 +577,8 @@ impl HighlightDetector {
                     None => {
                         current_highlight = Some((i, energy_f64));
                     }
-                    Some((_, max_energy)) => {
-                        current_highlight =
-                            Some((current_highlight.unwrap().0, max_energy.max(energy_f64)));
+                    Some((start_sample, max_energy)) => {
+                        current_highlight = Some((start_sample, max_energy.max(energy_f64)));
                     }
                 }
             } else if let Some((start_sample, max_energy)) = current_highlight {

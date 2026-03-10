@@ -1,8 +1,8 @@
 //! Camera angle classification.
 
 use crate::error::{ShotError, ShotResult};
+use crate::frame_buffer::{FrameBuffer, GrayImage};
 use crate::types::CameraAngle;
-use ndarray::Array3;
 
 /// Camera angle classifier.
 pub struct AngleClassifier {
@@ -24,7 +24,7 @@ impl AngleClassifier {
     /// # Errors
     ///
     /// Returns error if frame is invalid.
-    pub fn classify(&self, frame: &Array3<u8>) -> ShotResult<(CameraAngle, f32)> {
+    pub fn classify(&self, frame: &FrameBuffer) -> ShotResult<(CameraAngle, f32)> {
         let shape = frame.dim();
         if shape.2 < 3 {
             return Err(ShotError::InvalidFrame(
@@ -58,7 +58,7 @@ impl AngleClassifier {
     }
 
     /// Detect horizon position (0.0 = top, 1.0 = bottom).
-    fn detect_horizon_position(&self, frame: &Array3<u8>) -> ShotResult<f32> {
+    fn detect_horizon_position(&self, frame: &FrameBuffer) -> ShotResult<f32> {
         let shape = frame.dim();
         let height = shape.0;
 
@@ -81,7 +81,7 @@ impl AngleClassifier {
     }
 
     /// Calculate horizontal edge strength at a given row.
-    fn calculate_horizontal_edge_strength(&self, gray: &ndarray::Array2<u8>, y: usize) -> f32 {
+    fn calculate_horizontal_edge_strength(&self, gray: &GrayImage, y: usize) -> f32 {
         let shape = gray.dim();
         let width = shape.1;
 
@@ -89,9 +89,9 @@ impl AngleClassifier {
 
         for x in 0..width {
             if y > 0 && y < shape.0 - 1 {
-                let above = f32::from(gray[[y - 1, x]]);
-                let current = f32::from(gray[[y, x]]);
-                let below = f32::from(gray[[y + 1, x]]);
+                let above = f32::from(gray.get(y - 1, x));
+                let current = f32::from(gray.get(y, x));
+                let below = f32::from(gray.get(y + 1, x));
 
                 let gradient = ((above - current).abs() + (current - below).abs()) / 2.0;
                 edge_sum += gradient;
@@ -102,7 +102,7 @@ impl AngleClassifier {
     }
 
     /// Analyze perspective distortion (for Dutch angle detection).
-    fn analyze_perspective(&self, frame: &Array3<u8>) -> ShotResult<f32> {
+    fn analyze_perspective(&self, frame: &FrameBuffer) -> ShotResult<f32> {
         let gray = self.to_grayscale(frame);
         let shape = gray.dim();
 
@@ -134,7 +134,7 @@ impl AngleClassifier {
     }
 
     /// Detect edge direction at a point (0 = horizontal, 1 = vertical, 2 = diagonal).
-    fn detect_edge_direction(&self, gray: &ndarray::Array2<u8>, x: usize, y: usize) -> Option<u8> {
+    fn detect_edge_direction(&self, gray: &GrayImage, x: usize, y: usize) -> Option<u8> {
         let shape = gray.dim();
 
         if y < 2 || y >= shape.0 - 2 || x < 2 || x >= shape.1 - 2 {
@@ -142,8 +142,8 @@ impl AngleClassifier {
         }
 
         // Calculate gradients
-        let gx = (f32::from(gray[[y, x + 1]]) - f32::from(gray[[y, x - 1]])).abs();
-        let gy = (f32::from(gray[[y + 1, x]]) - f32::from(gray[[y - 1, x]])).abs();
+        let gx = (f32::from(gray.get(y, x + 1)) - f32::from(gray.get(y, x - 1))).abs();
+        let gy = (f32::from(gray.get(y + 1, x)) - f32::from(gray.get(y - 1, x))).abs();
 
         let threshold = 20.0;
 
@@ -161,16 +161,16 @@ impl AngleClassifier {
     }
 
     /// Convert RGB to grayscale.
-    fn to_grayscale(&self, frame: &Array3<u8>) -> ndarray::Array2<u8> {
+    fn to_grayscale(&self, frame: &FrameBuffer) -> GrayImage {
         let shape = frame.dim();
-        let mut gray = ndarray::Array2::zeros((shape.0, shape.1));
+        let mut gray = GrayImage::zeros(shape.0, shape.1);
 
         for y in 0..shape.0 {
             for x in 0..shape.1 {
-                let r = f32::from(frame[[y, x, 0]]);
-                let g = f32::from(frame[[y, x, 1]]);
-                let b = f32::from(frame[[y, x, 2]]);
-                gray[[y, x]] = ((r * 0.299) + (g * 0.587) + (b * 0.114)) as u8;
+                let r = f32::from(frame.get(y, x, 0));
+                let g = f32::from(frame.get(y, x, 1));
+                let b = f32::from(frame.get(y, x, 2));
+                gray.set(y, x, ((r * 0.299) + (g * 0.587) + (b * 0.114)) as u8);
             }
         }
 
@@ -197,7 +197,7 @@ mod tests {
     #[test]
     fn test_classify_frame() {
         let classifier = AngleClassifier::new();
-        let frame = Array3::from_elem((100, 100, 3), 128);
+        let frame = FrameBuffer::from_elem(100, 100, 3, 128);
         let result = classifier.classify(&frame);
         assert!(result.is_ok());
     }
@@ -205,18 +205,19 @@ mod tests {
     #[test]
     fn test_horizon_detection() {
         let classifier = AngleClassifier::new();
-        let mut frame = Array3::zeros((100, 100, 3));
+        let mut frame = FrameBuffer::zeros(100, 100, 3);
 
         // Create artificial horizon in middle
         for x in 0..100 {
             for c in 0..3 {
-                frame[[50, x, c]] = 255;
+                frame.set(50, x, c, 255);
             }
         }
 
         let horizon = classifier.detect_horizon_position(&frame);
         assert!(horizon.is_ok());
-        let pos = horizon.expect("should succeed in test");
-        assert!((pos - 0.5).abs() < 0.1);
+        if let Ok(pos) = horizon {
+            assert!((pos - 0.5).abs() < 0.1);
+        }
     }
 }

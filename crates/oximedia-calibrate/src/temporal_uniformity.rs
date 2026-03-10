@@ -280,7 +280,9 @@ mod tests {
         for i in 0..5 {
             analyzer.add_frame(FrameLuminance::new(i, 0.5, 0.1, 0.9));
         }
-        let flicker = analyzer.detect_flicker().unwrap();
+        let flicker = analyzer
+            .detect_flicker()
+            .expect("flicker detection should succeed");
         assert_eq!(flicker.severity(), FlickerSeverity::None);
         assert!(!flicker.has_flicker());
     }
@@ -290,7 +292,9 @@ mod tests {
         let mut analyzer = TemporalUniformityAnalyzer::new();
         analyzer.add_frame(FrameLuminance::new(0, 0.4, 0.0, 1.0));
         analyzer.add_frame(FrameLuminance::new(1, 0.9, 0.0, 1.0)); // +0.5 variation
-        let flicker = analyzer.detect_flicker().unwrap();
+        let flicker = analyzer
+            .detect_flicker()
+            .expect("flicker detection should succeed");
         assert_eq!(flicker.severity(), FlickerSeverity::Severe);
         assert!(flicker.has_flicker());
     }
@@ -302,7 +306,9 @@ mod tests {
         analyzer.add_frame(FrameLuminance::new(0, 0.0, 0.0, 1.0));
         analyzer.add_frame(FrameLuminance::new(1, 0.5, 0.0, 1.0));
         analyzer.add_frame(FrameLuminance::new(2, 0.5, 0.0, 1.0));
-        let flicker = analyzer.detect_flicker().unwrap();
+        let flicker = analyzer
+            .detect_flicker()
+            .expect("flicker detection should succeed");
         // 1 out of 2 consecutive pairs flickered; total_frames = 3
         assert!(flicker.flicker_pct() > 0.0);
     }

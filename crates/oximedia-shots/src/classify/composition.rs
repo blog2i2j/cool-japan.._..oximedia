@@ -1,8 +1,8 @@
 //! Composition analysis (rule of thirds, symmetry, balance, etc.).
 
 use crate::error::{ShotError, ShotResult};
+use crate::frame_buffer::{FloatImage, FrameBuffer, GrayImage};
 use crate::types::CompositionAnalysis;
-use ndarray::Array3;
 
 /// Composition analyzer.
 pub struct CompositionAnalyzer;
@@ -19,7 +19,7 @@ impl CompositionAnalyzer {
     /// # Errors
     ///
     /// Returns error if frame is invalid.
-    pub fn analyze(&self, frame: &Array3<u8>) -> ShotResult<CompositionAnalysis> {
+    pub fn analyze(&self, frame: &FrameBuffer) -> ShotResult<CompositionAnalysis> {
         let shape = frame.dim();
         if shape.2 < 3 {
             return Err(ShotError::InvalidFrame(
@@ -43,7 +43,7 @@ impl CompositionAnalyzer {
     }
 
     /// Analyze rule of thirds compliance.
-    fn analyze_rule_of_thirds(&self, frame: &Array3<u8>) -> ShotResult<f32> {
+    fn analyze_rule_of_thirds(&self, frame: &FrameBuffer) -> ShotResult<f32> {
         let shape = frame.dim();
         let height = shape.0;
         let width = shape.1;
@@ -69,7 +69,7 @@ impl CompositionAnalyzer {
                 for dx in -(window_size as i32)..(window_size as i32) {
                     let y = (iy as i32 + dy).clamp(0, height as i32 - 1) as usize;
                     let x = (ix as i32 + dx).clamp(0, width as i32 - 1) as usize;
-                    local_saliency += saliency[[y, x]];
+                    local_saliency += saliency.get(y, x);
                 }
             }
 
@@ -80,7 +80,7 @@ impl CompositionAnalyzer {
     }
 
     /// Analyze symmetry (vertical and horizontal).
-    fn analyze_symmetry(&self, frame: &Array3<u8>) -> ShotResult<f32> {
+    fn analyze_symmetry(&self, frame: &FrameBuffer) -> ShotResult<f32> {
         let shape = frame.dim();
         let height = shape.0;
         let width = shape.1;
@@ -96,8 +96,8 @@ impl CompositionAnalyzer {
 
                 if right_x < width {
                     for c in 0..3 {
-                        let left = f32::from(frame[[y, left_x, c]]);
-                        let right = f32::from(frame[[y, right_x, c]]);
+                        let left = f32::from(frame.get(y, left_x, c));
+                        let right = f32::from(frame.get(y, right_x, c));
                         v_symmetry += 1.0 - ((left - right).abs() / 255.0);
                     }
                 }
@@ -117,8 +117,8 @@ impl CompositionAnalyzer {
 
                 if bottom_y < height {
                     for c in 0..3 {
-                        let top = f32::from(frame[[top_y, x, c]]);
-                        let bottom = f32::from(frame[[bottom_y, x, c]]);
+                        let top = f32::from(frame.get(top_y, x, c));
+                        let bottom = f32::from(frame.get(bottom_y, x, c));
                         h_symmetry += 1.0 - ((top - bottom).abs() / 255.0);
                     }
                 }
@@ -132,7 +132,7 @@ impl CompositionAnalyzer {
     }
 
     /// Analyze visual balance.
-    fn analyze_balance(&self, frame: &Array3<u8>) -> ShotResult<f32> {
+    fn analyze_balance(&self, frame: &FrameBuffer) -> ShotResult<f32> {
         let shape = frame.dim();
         let height = shape.0;
         let width = shape.1;
@@ -146,7 +146,7 @@ impl CompositionAnalyzer {
             for x in 0..width {
                 let mut pixel_weight = 0.0;
                 for c in 0..3 {
-                    pixel_weight += f32::from(frame[[y, x, c]]);
+                    pixel_weight += f32::from(frame.get(y, x, c));
                 }
                 pixel_weight /= 3.0;
 
@@ -177,7 +177,7 @@ impl CompositionAnalyzer {
     }
 
     /// Analyze leading lines.
-    fn analyze_leading_lines(&self, frame: &Array3<u8>) -> ShotResult<f32> {
+    fn analyze_leading_lines(&self, frame: &FrameBuffer) -> ShotResult<f32> {
         let gray = self.to_grayscale(frame);
         let edges = self.detect_edges(&gray);
         let shape = edges.dim();
@@ -186,9 +186,9 @@ impl CompositionAnalyzer {
         let mut diagonal_strength = 0.0;
         let mut edge_count = 0;
 
-        for y in 1..(shape.0 - 1) {
-            for x in 1..(shape.1 - 1) {
-                if edges[[y, x]] > 128 {
+        for y in 1..(shape.0.saturating_sub(1)) {
+            for x in 1..(shape.1.saturating_sub(1)) {
+                if edges.get(y, x) > 128 {
                     edge_count += 1;
 
                     // Check if this edge is part of a diagonal line
@@ -208,7 +208,7 @@ impl CompositionAnalyzer {
     }
 
     /// Analyze depth perception.
-    fn analyze_depth(&self, frame: &Array3<u8>) -> ShotResult<f32> {
+    fn analyze_depth(&self, frame: &FrameBuffer) -> ShotResult<f32> {
         let shape = frame.dim();
         let height = shape.0;
 
@@ -224,8 +224,8 @@ impl CompositionAnalyzer {
         // Top third
         for y in 0..(height / 3) {
             for x in 0..shape.1 {
-                top_brightness += f32::from(gray[[y, x]]);
-                if edges[[y, x]] > 128 {
+                top_brightness += f32::from(gray.get(y, x));
+                if edges.get(y, x) > 128 {
                     top_detail += 1.0;
                 }
             }
@@ -234,8 +234,8 @@ impl CompositionAnalyzer {
         // Bottom third
         for y in (2 * height / 3)..height {
             for x in 0..shape.1 {
-                bottom_brightness += f32::from(gray[[y, x]]);
-                if edges[[y, x]] > 128 {
+                bottom_brightness += f32::from(gray.get(y, x));
+                if edges.get(y, x) > 128 {
                     bottom_detail += 1.0;
                 }
             }
@@ -255,17 +255,17 @@ impl CompositionAnalyzer {
     }
 
     /// Calculate saliency map.
-    fn calculate_saliency(&self, frame: &Array3<u8>) -> ShotResult<ndarray::Array2<f32>> {
+    fn calculate_saliency(&self, frame: &FrameBuffer) -> ShotResult<FloatImage> {
         let shape = frame.dim();
-        let mut saliency = ndarray::Array2::zeros((shape.0, shape.1));
+        let mut saliency = FloatImage::zeros(shape.0, shape.1);
 
         // Simple saliency based on local contrast
-        for y in 1..(shape.0 - 1) {
-            for x in 1..(shape.1 - 1) {
+        for y in 1..(shape.0.saturating_sub(1)) {
+            for x in 1..(shape.1.saturating_sub(1)) {
                 let mut local_variance = 0.0;
 
                 for c in 0..3 {
-                    let center = f32::from(frame[[y, x, c]]);
+                    let center = f32::from(frame.get(y, x, c));
                     let mut neighbor_sum = 0.0;
 
                     for dy in -1..=1 {
@@ -273,7 +273,7 @@ impl CompositionAnalyzer {
                             if dx != 0 || dy != 0 {
                                 let ny = (y as i32 + dy) as usize;
                                 let nx = (x as i32 + dx) as usize;
-                                neighbor_sum += f32::from(frame[[ny, nx, c]]);
+                                neighbor_sum += f32::from(frame.get(ny, nx, c));
                             }
                         }
                     }
@@ -282,7 +282,7 @@ impl CompositionAnalyzer {
                     local_variance += (center - mean).abs();
                 }
 
-                saliency[[y, x]] = local_variance / 3.0 / 255.0;
+                saliency.set(y, x, local_variance / 3.0 / 255.0);
             }
         }
 
@@ -290,16 +290,16 @@ impl CompositionAnalyzer {
     }
 
     /// Convert RGB to grayscale.
-    fn to_grayscale(&self, frame: &Array3<u8>) -> ndarray::Array2<u8> {
+    fn to_grayscale(&self, frame: &FrameBuffer) -> GrayImage {
         let shape = frame.dim();
-        let mut gray = ndarray::Array2::zeros((shape.0, shape.1));
+        let mut gray = GrayImage::zeros(shape.0, shape.1);
 
         for y in 0..shape.0 {
             for x in 0..shape.1 {
-                let r = f32::from(frame[[y, x, 0]]);
-                let g = f32::from(frame[[y, x, 1]]);
-                let b = f32::from(frame[[y, x, 2]]);
-                gray[[y, x]] = ((r * 0.299) + (g * 0.587) + (b * 0.114)) as u8;
+                let r = f32::from(frame.get(y, x, 0));
+                let g = f32::from(frame.get(y, x, 1));
+                let b = f32::from(frame.get(y, x, 2));
+                gray.set(y, x, ((r * 0.299) + (g * 0.587) + (b * 0.114)) as u8);
             }
         }
 
@@ -307,32 +307,32 @@ impl CompositionAnalyzer {
     }
 
     /// Detect edges.
-    fn detect_edges(&self, gray: &ndarray::Array2<u8>) -> ndarray::Array2<u8> {
+    fn detect_edges(&self, gray: &GrayImage) -> GrayImage {
         let shape = gray.dim();
-        let mut edges = ndarray::Array2::zeros((shape.0, shape.1));
+        let mut edges = GrayImage::zeros(shape.0, shape.1);
 
-        for y in 1..(shape.0 - 1) {
-            for x in 1..(shape.1 - 1) {
+        for y in 1..(shape.0.saturating_sub(1)) {
+            for x in 1..(shape.1.saturating_sub(1)) {
                 let mut gx = 0i32;
                 let mut gy = 0i32;
 
                 // Sobel operator
-                gx += -i32::from(gray[[y - 1, x - 1]]);
-                gx += i32::from(gray[[y - 1, x + 1]]);
-                gx += -2 * i32::from(gray[[y, x - 1]]);
-                gx += 2 * i32::from(gray[[y, x + 1]]);
-                gx += -i32::from(gray[[y + 1, x - 1]]);
-                gx += i32::from(gray[[y + 1, x + 1]]);
+                gx += -i32::from(gray.get(y - 1, x - 1));
+                gx += i32::from(gray.get(y - 1, x + 1));
+                gx += -2 * i32::from(gray.get(y, x - 1));
+                gx += 2 * i32::from(gray.get(y, x + 1));
+                gx += -i32::from(gray.get(y + 1, x - 1));
+                gx += i32::from(gray.get(y + 1, x + 1));
 
-                gy += -i32::from(gray[[y - 1, x - 1]]);
-                gy += -2 * i32::from(gray[[y - 1, x]]);
-                gy += -i32::from(gray[[y - 1, x + 1]]);
-                gy += i32::from(gray[[y + 1, x - 1]]);
-                gy += 2 * i32::from(gray[[y + 1, x]]);
-                gy += i32::from(gray[[y + 1, x + 1]]);
+                gy += -i32::from(gray.get(y - 1, x - 1));
+                gy += -2 * i32::from(gray.get(y - 1, x));
+                gy += -i32::from(gray.get(y - 1, x + 1));
+                gy += i32::from(gray.get(y + 1, x - 1));
+                gy += 2 * i32::from(gray.get(y + 1, x));
+                gy += i32::from(gray.get(y + 1, x + 1));
 
                 let magnitude = ((gx * gx + gy * gy) as f32).sqrt();
-                edges[[y, x]] = magnitude.min(255.0) as u8;
+                edges.set(y, x, magnitude.min(255.0) as u8);
             }
         }
 
@@ -340,7 +340,7 @@ impl CompositionAnalyzer {
     }
 
     /// Check if edge is part of a diagonal line.
-    fn is_diagonal_edge(&self, edges: &ndarray::Array2<u8>, x: usize, y: usize) -> bool {
+    fn is_diagonal_edge(&self, edges: &GrayImage, x: usize, y: usize) -> bool {
         let shape = edges.dim();
 
         if y < 2 || y >= shape.0 - 2 || x < 2 || x >= shape.1 - 2 {
@@ -348,10 +348,10 @@ impl CompositionAnalyzer {
         }
 
         // Check diagonal neighbors
-        let tl = edges[[y - 1, x - 1]];
-        let tr = edges[[y - 1, x + 1]];
-        let bl = edges[[y + 1, x - 1]];
-        let br = edges[[y + 1, x + 1]];
+        let tl = edges.get(y - 1, x - 1);
+        let tr = edges.get(y - 1, x + 1);
+        let bl = edges.get(y + 1, x - 1);
+        let br = edges.get(y + 1, x + 1);
 
         // Strong diagonal if both diagonal neighbors are edges
         (tl > 128 && br > 128) || (tr > 128 && bl > 128)
@@ -376,17 +376,18 @@ mod tests {
     #[test]
     fn test_analyze_uniform_frame() {
         let analyzer = CompositionAnalyzer::new();
-        let frame = Array3::from_elem((100, 100, 3), 128);
+        let frame = FrameBuffer::from_elem(100, 100, 3, 128);
         let result = analyzer.analyze(&frame);
         assert!(result.is_ok());
-        let comp = result.expect("should succeed in test");
-        assert!(comp.symmetry > 0.9); // Uniform frame is highly symmetric
+        if let Ok(comp) = result {
+            assert!(comp.symmetry > 0.9); // Uniform frame is highly symmetric
+        }
     }
 
     #[test]
     fn test_analyze_black_frame() {
         let analyzer = CompositionAnalyzer::new();
-        let frame = Array3::zeros((100, 100, 3));
+        let frame = FrameBuffer::zeros(100, 100, 3);
         let result = analyzer.analyze(&frame);
         assert!(result.is_ok());
     }

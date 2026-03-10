@@ -723,6 +723,111 @@ pub fn convert_color_space(
     }
 }
 
+/// Convert RGB24 (packed, R first) to grayscale using BT.601 luma coefficients.
+///
+/// Output is a single-channel image of size `w * h` bytes.
+/// BT.601: Y = 0.299*R + 0.587*G + 0.114*B
+///
+/// # Arguments
+///
+/// * `src` - Source RGB image data (interleaved, 3 bytes per pixel)
+/// * `w` - Image width in pixels
+/// * `h` - Image height in pixels
+///
+/// # Returns
+///
+/// Grayscale image data (`w * h` bytes).
+///
+/// # Errors
+///
+/// Returns an error if the source buffer is too small.
+pub fn rgb_to_grayscale_bt601(src: &[u8], w: usize, h: usize) -> CvResult<Vec<u8>> {
+    let pixel_count = w * h;
+    let expected = pixel_count * 3;
+    if src.len() < expected {
+        return Err(CvError::insufficient_data(expected, src.len()));
+    }
+    let mut out = vec![0u8; pixel_count];
+    for i in 0..pixel_count {
+        let r = src[i * 3] as f32;
+        let g = src[i * 3 + 1] as f32;
+        let b = src[i * 3 + 2] as f32;
+        out[i] = (0.299 * r + 0.587 * g + 0.114 * b) as u8;
+    }
+    Ok(out)
+}
+
+/// Convert BGR24 to YUV420P (planar: Y plane full-res, then U plane half-res, then V plane half-res).
+///
+/// The output buffer layout is:
+/// - bytes `[0 .. w*h)`: Y plane
+/// - bytes `[w*h .. w*h + (w/2)*(h/2))`: U (Cb) plane
+/// - bytes `[w*h + (w/2)*(h/2) .. w*h + 2*(w/2)*(h/2))`: V (Cr) plane
+///
+/// Coefficients follow the studio-swing BT.601 convention (Y: 16-235, UV: 16-240).
+///
+/// # Arguments
+///
+/// * `src` - Source BGR image data (interleaved, 3 bytes per pixel, B first)
+/// * `w` - Image width in pixels (should be even)
+/// * `h` - Image height in pixels (should be even)
+///
+/// # Returns
+///
+/// YUV420P planar image data.
+///
+/// # Errors
+///
+/// Returns an error if the source buffer is too small or dimensions are zero.
+pub fn bgr_to_yuv420p(src: &[u8], w: usize, h: usize) -> CvResult<Vec<u8>> {
+    if w == 0 || h == 0 {
+        return Err(CvError::invalid_dimensions(w as u32, h as u32));
+    }
+    let expected = w * h * 3;
+    if src.len() < expected {
+        return Err(CvError::insufficient_data(expected, src.len()));
+    }
+
+    let y_size = w * h;
+    let uv_w = w / 2;
+    let uv_h = h / 2;
+    let uv_size = uv_w * uv_h;
+    let mut out = vec![0u8; y_size + 2 * uv_size];
+
+    // Y plane (full resolution)
+    for row in 0..h {
+        for col in 0..w {
+            let off = (row * w + col) * 3;
+            let b = src[off] as f32;
+            let g = src[off + 1] as f32;
+            let r = src[off + 2] as f32;
+            out[row * w + col] =
+                (0.257 * r + 0.504 * g + 0.098 * b + 16.0).clamp(16.0, 235.0) as u8;
+        }
+    }
+
+    // U (Cb) and V (Cr) planes — 4:2:0 subsampling: one sample per 2×2 block.
+    // We sample the top-left pixel of each 2×2 block (simple subsampling).
+    let u_base = y_size;
+    let v_base = y_size + uv_size;
+    for row in 0..uv_h {
+        for col in 0..uv_w {
+            let src_row = row * 2;
+            let src_col = col * 2;
+            let off = (src_row * w + src_col) * 3;
+            let b = src[off] as f32;
+            let g = src[off + 1] as f32;
+            let r = src[off + 2] as f32;
+            out[u_base + row * uv_w + col] =
+                (-0.148 * r - 0.291 * g + 0.439 * b + 128.0).clamp(16.0, 240.0) as u8;
+            out[v_base + row * uv_w + col] =
+                (0.439 * r - 0.368 * g - 0.071 * b + 128.0).clamp(16.0, 240.0) as u8;
+        }
+    }
+
+    Ok(out)
+}
+
 /// Validate image dimensions and data size.
 fn validate_dimensions(data: &[u8], width: u32, height: u32, channels: usize) -> CvResult<()> {
     if width == 0 || height == 0 {
@@ -762,16 +867,18 @@ mod tests {
     #[test]
     fn test_rgb_bgr_roundtrip() {
         let src = vec![255, 0, 0, 0, 255, 0, 0, 0, 255]; // R, G, B pixels
-        let bgr = rgb_to_bgr(&src, 3, 1).unwrap();
-        let rgb = bgr_to_rgb(&bgr, 3, 1).unwrap();
+        let bgr = rgb_to_bgr(&src, 3, 1).expect("rgb_to_bgr should succeed");
+        let rgb = bgr_to_rgb(&bgr, 3, 1).expect("bgr_to_rgb should succeed");
         assert_eq!(src, rgb);
     }
 
     #[test]
     fn test_rgb_yuv_bt601_roundtrip() {
         let src = vec![128, 128, 128]; // Gray pixel
-        let yuv = rgb_to_yuv(&src, 1, 1, YuvCoefficients::BT601).unwrap();
-        let rgb = yuv_to_rgb(&yuv, 1, 1, YuvCoefficients::BT601).unwrap();
+        let yuv =
+            rgb_to_yuv(&src, 1, 1, YuvCoefficients::BT601).expect("rgb_to_yuv should succeed");
+        let rgb =
+            yuv_to_rgb(&yuv, 1, 1, YuvCoefficients::BT601).expect("yuv_to_rgb should succeed");
 
         // Allow small rounding errors
         for i in 0..3 {
@@ -782,8 +889,8 @@ mod tests {
     #[test]
     fn test_rgb_hsv_roundtrip() {
         let src = vec![200, 100, 50]; // Orange-ish color
-        let hsv = rgb_to_hsv(&src, 1, 1).unwrap();
-        let rgb = hsv_to_rgb(&hsv, 1, 1).unwrap();
+        let hsv = rgb_to_hsv(&src, 1, 1).expect("rgb_to_hsv should succeed");
+        let rgb = hsv_to_rgb(&hsv, 1, 1).expect("hsv_to_rgb should succeed");
 
         // Allow small rounding errors
         for i in 0..3 {
@@ -794,8 +901,8 @@ mod tests {
     #[test]
     fn test_rgb_hsl_roundtrip() {
         let src = vec![100, 150, 200]; // Light blue
-        let hsl = rgb_to_hsl(&src, 1, 1).unwrap();
-        let rgb = hsl_to_rgb(&hsl, 1, 1).unwrap();
+        let hsl = rgb_to_hsl(&src, 1, 1).expect("rgb_to_hsl should succeed");
+        let rgb = hsl_to_rgb(&hsl, 1, 1).expect("hsl_to_rgb should succeed");
 
         // Allow small rounding errors
         for i in 0..3 {
@@ -806,7 +913,7 @@ mod tests {
     #[test]
     fn test_rgb_grayscale() {
         let src = vec![100, 150, 200]; // Light blue
-        let gray = rgb_to_grayscale(&src, 1, 1).unwrap();
+        let gray = rgb_to_grayscale(&src, 1, 1).expect("rgb_to_grayscale should succeed");
         assert_eq!(gray.len(), 1);
 
         // BT.709: 0.2126 * 100 + 0.7152 * 150 + 0.0722 * 200 = 142.88
@@ -816,14 +923,15 @@ mod tests {
     #[test]
     fn test_grayscale_to_rgb() {
         let src = vec![128];
-        let rgb = grayscale_to_rgb(&src, 1, 1).unwrap();
+        let rgb = grayscale_to_rgb(&src, 1, 1).expect("grayscale_to_rgb should succeed");
         assert_eq!(rgb, vec![128, 128, 128]);
     }
 
     #[test]
     fn test_convert_color_space_same() {
         let src = vec![100, 150, 200];
-        let result = convert_color_space(&src, 1, 1, ColorSpace::Rgb, ColorSpace::Rgb).unwrap();
+        let result = convert_color_space(&src, 1, 1, ColorSpace::Rgb, ColorSpace::Rgb)
+            .expect("convert_color_space should succeed");
         assert_eq!(src, result);
     }
 

@@ -442,7 +442,10 @@ mod tests {
         data[1] = 0xFB;
         data[200] = 0xFF;
         data[201] = 0xFB;
-        let pat = engine.library.get_pattern(StreamType::Mp3).unwrap();
+        let pat = engine
+            .library
+            .get_pattern(StreamType::Mp3)
+            .expect("unexpected None/Err");
         let offsets = engine.find_sync_points(&data, pat);
         assert_eq!(offsets.len(), 2);
         assert_eq!(offsets[0], 0);
@@ -453,7 +456,10 @@ mod tests {
     fn test_find_sync_points_empty() {
         let engine = StreamRecoveryEngine::new();
         let data = vec![0u8; 100];
-        let pat = engine.library.get_pattern(StreamType::Ac3).unwrap();
+        let pat = engine
+            .library
+            .get_pattern(StreamType::Ac3)
+            .expect("unexpected None/Err");
         let offsets = engine.find_sync_points(&data, pat);
         assert!(offsets.is_empty());
     }
@@ -462,7 +468,10 @@ mod tests {
     fn test_find_sync_points_short_data() {
         let engine = StreamRecoveryEngine::new();
         let data = vec![0u8; 1];
-        let pat = engine.library.get_pattern(StreamType::Mp3).unwrap();
+        let pat = engine
+            .library
+            .get_pattern(StreamType::Mp3)
+            .expect("unexpected None/Err");
         let offsets = engine.find_sync_points(&data, pat);
         assert!(offsets.is_empty());
     }

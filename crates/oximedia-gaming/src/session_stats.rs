@@ -237,7 +237,9 @@ mod tests {
         let mut s = make_session("s1", "p1", 0, None);
         s.record(SessionEvent::new("score", 100, 10.0));
         s.record(SessionEvent::new("score", 200, 20.0));
-        let avg = s.avg_event_value("score").unwrap();
+        let avg = s
+            .avg_event_value("score")
+            .expect("avg value should succeed");
         assert!((avg - 15.0).abs() < 1e-9);
     }
 

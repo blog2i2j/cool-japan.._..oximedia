@@ -4,4 +4,4 @@ pub mod alert;
 pub mod detect;
 
 pub use alert::{AlertLevel, RegressionAlert};
-pub use detect::{RegressionDetector, RegressionInfo};
+pub use detect::{ExtendedRegressionInfo, RegressionConfig, RegressionDetector, RegressionInfo};

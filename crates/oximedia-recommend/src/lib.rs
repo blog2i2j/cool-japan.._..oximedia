@@ -78,6 +78,7 @@ pub mod content;
 pub mod content_based;
 pub mod context_signal;
 pub mod decay_model;
+pub mod dense_linalg;
 pub mod diversity;
 pub mod error;
 pub mod explain;

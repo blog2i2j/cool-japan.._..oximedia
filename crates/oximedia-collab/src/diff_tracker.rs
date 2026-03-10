@@ -350,7 +350,10 @@ mod tests {
         tracker.compute_diff(&from, &to);
         let stored = tracker.get_diff("doc", 1, 2);
         assert!(stored.is_some());
-        assert_eq!(stored.unwrap().len(), 1);
+        assert_eq!(
+            stored.expect("collab test operation should succeed").len(),
+            1
+        );
     }
 
     #[test]

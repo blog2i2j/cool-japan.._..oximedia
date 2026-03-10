@@ -1,7 +1,6 @@
 //! Content vector representation for similarity calculations.
 
 use super::features::ContentFeatures;
-use ndarray::{Array1, ArrayView1};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -47,16 +46,16 @@ impl ContentVector {
         }
     }
 
-    /// Get dense features as ndarray
+    /// Get dense features as a cloned Vec
     #[must_use]
-    pub fn as_array(&self) -> Array1<f32> {
-        Array1::from_vec(self.dense_features.clone())
+    pub fn as_vec(&self) -> Vec<f32> {
+        self.dense_features.clone()
     }
 
-    /// Get dense features as array view
+    /// Get dense features as a slice
     #[must_use]
-    pub fn as_view(&self) -> ArrayView1<'_, f32> {
-        ArrayView1::from(&self.dense_features)
+    pub fn as_slice(&self) -> &[f32] {
+        &self.dense_features
     }
 
     /// Calculate L2 norm

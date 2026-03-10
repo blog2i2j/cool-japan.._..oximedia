@@ -599,7 +599,9 @@ mod tests {
         mgr.add_distribution(dist);
 
         // Request from Osaka (34.69N, 135.50E) – closer to Tokyo
-        let best = mgr.get_best_edge(34.69, 135.50).unwrap();
+        let best = mgr
+            .get_best_edge(34.69, 135.50)
+            .expect("best should be valid");
         assert_eq!(best.city, "Tokyo");
     }
 

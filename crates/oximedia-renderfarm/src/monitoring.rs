@@ -308,7 +308,49 @@ impl Monitor {
 
 impl Default for Monitor {
     fn default() -> Self {
-        Self::new(MonitorConfig::default()).expect("Failed to create monitor")
+        // MonitorConfig::default() with a fresh Registry is infallible in practice
+        // since all metric names are valid and the registry is empty.
+        match Self::new(MonitorConfig::default()) {
+            Ok(monitor) => monitor,
+            Err(e) => {
+                // Disable metrics if prometheus initialisation fails
+                let registry = Arc::new(Registry::new());
+                // Create metrics without registering them — they still work as counters
+                // but won't be exported. Use a disabled config to suppress recording.
+                let metrics = Arc::new(MonitorMetrics {
+                    jobs_submitted: Counter::new("noop_submitted", "noop")
+                        .unwrap_or_else(|_| unreachable!()),
+                    jobs_completed: Counter::new("noop_completed", "noop")
+                        .unwrap_or_else(|_| unreachable!()),
+                    jobs_failed: Counter::new("noop_failed", "noop")
+                        .unwrap_or_else(|_| unreachable!()),
+                    jobs_active: Gauge::new("noop_active", "noop")
+                        .unwrap_or_else(|_| unreachable!()),
+                    workers_registered: Counter::new("noop_workers_reg", "noop")
+                        .unwrap_or_else(|_| unreachable!()),
+                    workers_active: Gauge::new("noop_workers_act", "noop")
+                        .unwrap_or_else(|_| unreachable!()),
+                    frame_render_time: Histogram::with_opts(prometheus::HistogramOpts::new(
+                        "noop_frame_time",
+                        "noop",
+                    ))
+                    .unwrap_or_else(|_| unreachable!()),
+                    queue_size: Gauge::new("noop_queue", "noop").unwrap_or_else(|_| unreachable!()),
+                });
+                eprintln!("warning: Monitor::default() failed ({e}), metrics disabled");
+                Self {
+                    config: MonitorConfig {
+                        enable_metrics: false,
+                        ..MonitorConfig::default()
+                    },
+                    metrics,
+                    registry,
+                    job_history: Vec::new(),
+                    worker_history: Vec::new(),
+                    system_history: Vec::new(),
+                }
+            }
+        }
     }
 }
 

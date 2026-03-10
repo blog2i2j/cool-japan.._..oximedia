@@ -4,29 +4,27 @@ use crate::error::Result;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Get current timestamp in seconds
+/// Get current timestamp in seconds.
 ///
-/// # Panics
-///
-/// Panics if system time is before Unix epoch.
+/// Returns 0 if the system clock is set before the Unix epoch (an anomalous
+/// condition that cannot occur on any normal operating system configuration).
 #[must_use]
 pub fn current_timestamp() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_secs()
 }
 
-/// Get current timestamp in milliseconds
+/// Get current timestamp in milliseconds.
 ///
-/// # Panics
-///
-/// Panics if system time is before Unix epoch.
+/// Returns 0 if the system clock is set before the Unix epoch (an anomalous
+/// condition that cannot occur on any normal operating system configuration).
 #[must_use]
 pub fn current_timestamp_millis() -> u128 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_millis()
 }
 
@@ -294,41 +292,41 @@ mod tests {
 
     #[test]
     fn test_count_files() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
 
         // Create some test files
-        std::fs::write(temp_dir.path().join("file1.txt"), b"test").unwrap();
-        std::fs::write(temp_dir.path().join("file2.txt"), b"test").unwrap();
+        std::fs::write(temp_dir.path().join("file1.txt"), b"test").expect("failed to join");
+        std::fs::write(temp_dir.path().join("file2.txt"), b"test").expect("failed to join");
 
-        let count = count_files(temp_dir.path(), false).unwrap();
+        let count = count_files(temp_dir.path(), false).expect("operation should succeed");
         assert_eq!(count, 2);
     }
 
     #[test]
     fn test_is_directory_empty() {
-        let temp_dir = TempDir::new().unwrap();
-        assert!(is_directory_empty(temp_dir.path()).unwrap());
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
+        assert!(is_directory_empty(temp_dir.path()).expect("operation should succeed"));
 
-        std::fs::write(temp_dir.path().join("file.txt"), b"test").unwrap();
-        assert!(!is_directory_empty(temp_dir.path()).unwrap());
+        std::fs::write(temp_dir.path().join("file.txt"), b"test").expect("failed to join");
+        assert!(!is_directory_empty(temp_dir.path()).expect("operation should succeed"));
     }
 
     #[test]
     fn test_directory_size() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
 
-        std::fs::write(temp_dir.path().join("file1.txt"), b"test").unwrap();
-        std::fs::write(temp_dir.path().join("file2.txt"), b"test").unwrap();
+        std::fs::write(temp_dir.path().join("file1.txt"), b"test").expect("failed to join");
+        std::fs::write(temp_dir.path().join("file2.txt"), b"test").expect("failed to join");
 
-        let size = directory_size(temp_dir.path()).unwrap();
+        let size = directory_size(temp_dir.path()).expect("operation should succeed");
         assert_eq!(size, 8);
     }
 
     #[test]
     fn test_create_temp_dir() {
-        let temp_dir = create_temp_dir().unwrap();
+        let temp_dir = create_temp_dir().expect("operation should succeed");
         assert!(temp_dir.exists());
-        cleanup_temp_files(&temp_dir).unwrap();
+        cleanup_temp_files(&temp_dir).expect("operation should succeed");
         assert!(!temp_dir.exists());
     }
 }

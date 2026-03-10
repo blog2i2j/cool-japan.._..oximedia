@@ -358,7 +358,7 @@ mod tests {
         db.set_rating(1, ClipRating::Excellent);
         db.set_flag(1, ClipFlag::Green);
 
-        let entry = db.get(1).unwrap();
+        let entry = db.get(1).expect("get should succeed");
         assert_eq!(entry.rating, ClipRating::Excellent);
         assert_eq!(entry.flag, ClipFlag::Green);
     }
@@ -368,7 +368,10 @@ mod tests {
         let mut db = RatingDatabase::new();
         db.set_rating(1, ClipRating::Ok);
         db.set_rating(1, ClipRating::Excellent);
-        assert_eq!(db.get(1).unwrap().rating, ClipRating::Excellent);
+        assert_eq!(
+            db.get(1).expect("get should succeed").rating,
+            ClipRating::Excellent
+        );
     }
 
     #[test]

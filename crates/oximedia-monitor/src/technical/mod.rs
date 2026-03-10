@@ -149,7 +149,7 @@ mod tests {
 
     #[test]
     fn test_analyze_frame() {
-        let mut analyzer = TechnicalAnalyzer::new().unwrap();
+        let mut analyzer = TechnicalAnalyzer::new().expect("failed to create");
 
         let frame = vec![128u8; 1920 * 1080 * 3];
         assert!(analyzer.analyze_frame(&frame, 1920, 1080).is_ok());

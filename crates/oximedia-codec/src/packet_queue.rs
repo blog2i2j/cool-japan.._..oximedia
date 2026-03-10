@@ -319,7 +319,7 @@ mod tests {
         assert!(queue.push(pkt));
         assert_eq!(queue.len(), 1);
 
-        let out = queue.pop().unwrap();
+        let out = queue.pop().expect("pop should return item");
         assert_eq!(out.pts, 100);
         assert_eq!(out.data, vec![42]);
         assert!(queue.is_empty());
@@ -332,9 +332,9 @@ mod tests {
         queue.push(QueuedPacket::new(100, 100, vec![1]));
         queue.push(QueuedPacket::new(200, 200, vec![2]));
 
-        assert_eq!(queue.pop().unwrap().pts, 100);
-        assert_eq!(queue.pop().unwrap().pts, 200);
-        assert_eq!(queue.pop().unwrap().pts, 300);
+        assert_eq!(queue.pop().expect("pop should return item").pts, 100);
+        assert_eq!(queue.pop().expect("pop should return item").pts, 200);
+        assert_eq!(queue.pop().expect("pop should return item").pts, 300);
     }
 
     #[test]
@@ -348,9 +348,9 @@ mod tests {
         queue.push(QueuedPacket::new(100, 100, vec![1]));
         queue.push(QueuedPacket::new(200, 300, vec![3]));
 
-        assert_eq!(queue.pop().unwrap().dts, 100);
-        assert_eq!(queue.pop().unwrap().dts, 200);
-        assert_eq!(queue.pop().unwrap().dts, 300);
+        assert_eq!(queue.pop().expect("pop should return item").dts, 100);
+        assert_eq!(queue.pop().expect("pop should return item").dts, 200);
+        assert_eq!(queue.pop().expect("pop should return item").dts, 300);
     }
 
     #[test]

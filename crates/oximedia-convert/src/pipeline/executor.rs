@@ -208,7 +208,10 @@ mod tests {
             JobPriority::Normal,
         );
 
-        let job_id = executor.submit(job).await.unwrap();
+        let job_id = executor
+            .submit(job)
+            .await
+            .expect("executor operation should succeed");
         assert!(!job_id.is_empty());
 
         let stats = executor.get_stats();
@@ -231,10 +234,17 @@ mod tests {
             JobPriority::Normal,
         );
 
-        let job_id = executor.submit(job).await.unwrap();
-        executor.cancel_job(&job_id).unwrap();
+        let job_id = executor
+            .submit(job)
+            .await
+            .expect("executor operation should succeed");
+        executor
+            .cancel_job(&job_id)
+            .expect("executor operation should succeed");
 
-        let status = executor.get_job_status(&job_id).unwrap();
+        let status = executor
+            .get_job_status(&job_id)
+            .expect("executor operation should succeed");
         assert_eq!(status, JobStatus::Cancelled);
 
         let stats = executor.get_stats();
@@ -257,8 +267,13 @@ mod tests {
             JobPriority::Normal,
         );
 
-        let job_id = executor.submit(job).await.unwrap();
-        executor.remove_job(&job_id).unwrap();
+        let job_id = executor
+            .submit(job)
+            .await
+            .expect("executor operation should succeed");
+        executor
+            .remove_job(&job_id)
+            .expect("executor operation should succeed");
 
         assert!(executor.get_job_status(&job_id).is_none());
     }

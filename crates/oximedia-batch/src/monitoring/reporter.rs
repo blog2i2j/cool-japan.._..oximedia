@@ -273,9 +273,12 @@ mod tests {
 
     #[test]
     fn test_report_generator_creation() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
-        let database = Arc::new(Database::new(db_path).unwrap());
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
+        let database = Arc::new(Database::new(db_path).expect("failed to create database"));
 
         let generator = ReportGenerator::new(database);
         assert!(std::mem::size_of_val(&generator) > 0);
@@ -283,84 +286,102 @@ mod tests {
 
     #[test]
     fn test_generate_report() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
-        let database = Arc::new(Database::new(db_path).unwrap());
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
+        let database = Arc::new(Database::new(db_path).expect("failed to create database"));
 
         let generator = ReportGenerator::new(database);
         let report = generator.generate();
 
         assert!(report.is_ok());
-        let report = report.unwrap();
+        let report = report.expect("report should be valid");
         assert_eq!(report.summary.total_jobs, 0);
     }
 
     #[test]
     fn test_generate_report_cancelled_count() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
-        let database = Arc::new(Database::new(db_path).unwrap());
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
+        let database = Arc::new(Database::new(db_path).expect("failed to create database"));
 
         let generator = ReportGenerator::new(Arc::clone(&database));
-        let report = generator.generate().unwrap();
+        let report = generator.generate().expect("failed to generate");
         // Empty database: no cancelled jobs
         assert_eq!(report.summary.cancelled, 0);
     }
 
     #[test]
     fn test_generate_report_total_duration() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
-        let database = Arc::new(Database::new(db_path).unwrap());
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
+        let database = Arc::new(Database::new(db_path).expect("failed to create database"));
 
         let generator = ReportGenerator::new(Arc::clone(&database));
-        let report = generator.generate().unwrap();
+        let report = generator.generate().expect("failed to generate");
         // Empty database: total duration is 0
         assert_eq!(report.summary.total_duration_secs, 0.0);
     }
 
     #[test]
     fn test_export_json() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
-        let database = Arc::new(Database::new(db_path).unwrap());
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
+        let database = Arc::new(Database::new(db_path).expect("failed to create database"));
 
         let generator = ReportGenerator::new(database);
-        let report = generator.generate().unwrap();
+        let report = generator.generate().expect("failed to generate");
         let json = generator.export_json(&report);
 
         assert!(json.is_ok());
-        let json_str = json.unwrap();
+        let json_str = json.expect("json should be valid");
         assert!(json_str.contains("title"));
     }
 
     #[test]
     fn test_export_csv() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
-        let database = Arc::new(Database::new(db_path).unwrap());
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
+        let database = Arc::new(Database::new(db_path).expect("failed to create database"));
 
         let generator = ReportGenerator::new(database);
-        let report = generator.generate().unwrap();
+        let report = generator.generate().expect("failed to generate");
         let csv = generator.export_csv(&report);
 
         assert!(csv.is_ok());
-        let csv_str = csv.unwrap();
+        let csv_str = csv.expect("csv should be valid");
         assert!(csv_str.contains("ID,Name,Status"));
     }
 
     #[test]
     fn test_export_html() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
-        let database = Arc::new(Database::new(db_path).unwrap());
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
+        let database = Arc::new(Database::new(db_path).expect("failed to create database"));
 
         let generator = ReportGenerator::new(database);
-        let report = generator.generate().unwrap();
+        let report = generator.generate().expect("failed to generate");
         let html = generator.export_html(&report);
 
         assert!(html.is_ok());
-        let html_str = html.unwrap();
+        let html_str = html.expect("html should be valid");
         assert!(html_str.contains("<html>"));
         assert!(html_str.contains("</html>"));
     }

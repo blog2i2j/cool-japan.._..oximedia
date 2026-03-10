@@ -645,7 +645,7 @@ mod tests {
         let frame = FrameBuffer::new(64, 64, 8, ChromaSubsampling::Cs420);
         let mut formatter = OutputFormatter::new();
 
-        let output = formatter.format(&frame).unwrap();
+        let output = formatter.format(&frame).expect("should succeed");
         assert_eq!(output.width(), 64);
         assert_eq!(output.height(), 64);
         assert_eq!(output.format(), OutputFormat::YuvPlanar);
@@ -657,7 +657,7 @@ mod tests {
         let config = OutputConfig::new(OutputFormat::Rgb);
         let mut formatter = OutputFormatter::with_config(config);
 
-        let output = formatter.format(&frame).unwrap();
+        let output = formatter.format(&frame).expect("should succeed");
         assert_eq!(output.format(), OutputFormat::Rgb);
         assert_eq!(output.plane(0).len(), 64 * 64 * 3);
     }

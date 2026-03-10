@@ -629,12 +629,107 @@ impl TimelineExporter {
         Ok(stats)
     }
 
-    /// Exports to AAF format.
-    fn export_aaf(&self, _timeline: &Timeline, _path: &Path) -> TimelineResult<ExportStats> {
-        // TODO: Integrate with oximedia-aaf crate
-        Err(TimelineError::ExportError(
-            "AAF export not yet implemented".to_string(),
-        ))
+    /// Exports to AAF format using the `oximedia-aaf` crate.
+    ///
+    /// Builds a minimal SMPTE ST 377-1 compliant AAF container from the
+    /// [`Timeline`].  Each enabled video clip is added as a source-clip
+    /// reference inside a composition mob track; audio tracks are
+    /// added as separate tracks when [`ExportOptions::export_audio`] is set.
+    ///
+    /// The output file is written via [`oximedia_aaf::writer::AafBuilder`]
+    /// which serialises the object graph into a Microsoft Structured Storage
+    /// byte stream.
+    fn export_aaf(&self, timeline: &Timeline, path: &Path) -> TimelineResult<ExportStats> {
+        use oximedia_aaf::composition::{
+            CompositionMob, Sequence, SequenceComponent, SourceClip, Track, TrackType, UsageCode,
+        };
+        use oximedia_aaf::dictionary::Auid;
+        use oximedia_aaf::timeline::{EditRate, Position as AafPosition};
+        use oximedia_aaf::writer::AafBuilder;
+
+        let fps_num = timeline.frame_rate.num as i32;
+        let fps_den = (timeline.frame_rate.den.max(1)) as i32;
+        let edit_rate = EditRate::new(fps_num, fps_den);
+
+        let mut comp_mob = CompositionMob::new(uuid::Uuid::new_v4(), &timeline.name);
+        comp_mob.usage_code = Some(UsageCode::TopLevel);
+
+        let mut stats = ExportStats::default();
+        let mut slot_id: u32 = 1;
+
+        // ---- Video tracks ------------------------------------------------
+        if self.options.export_video {
+            for track in &timeline.video_tracks {
+                stats.video_tracks += 1;
+                let mut sequence = Sequence::new(Auid::PICTURE);
+
+                for clip in &track.clips {
+                    if !clip.enabled {
+                        continue;
+                    }
+                    let src_in = clip.source_in.value().max(0);
+                    let length = clip.source_duration().value().max(0);
+
+                    // Each clip references its own source mob (created on demand).
+                    // Use the clip's UUID as the source mob ID.
+                    let source_clip = SourceClip::new(
+                        length,
+                        AafPosition::new(src_in),
+                        *clip.id.as_uuid(),
+                        1, // source mob slot 1
+                    );
+                    sequence.add_component(SequenceComponent::SourceClip(source_clip));
+                    stats.clips += 1;
+                }
+
+                // Derive track name from slot index.
+                let track_name = format!("V{slot_id}");
+                let mut aaf_track = Track::new(slot_id, track_name, edit_rate, TrackType::Picture);
+                aaf_track.set_sequence(sequence);
+                comp_mob.add_track(aaf_track);
+                slot_id += 1;
+            }
+        }
+
+        // ---- Audio tracks ------------------------------------------------
+        if self.options.export_audio {
+            for track in &timeline.audio_tracks {
+                stats.audio_tracks += 1;
+                let mut sequence = Sequence::new(Auid::SOUND);
+
+                for clip in &track.clips {
+                    if !clip.enabled {
+                        continue;
+                    }
+                    let src_in = clip.source_in.value().max(0);
+                    let length = clip.source_duration().value().max(0);
+
+                    let source_clip =
+                        SourceClip::new(length, AafPosition::new(src_in), *clip.id.as_uuid(), 1);
+                    sequence.add_component(SequenceComponent::SourceClip(source_clip));
+                    stats.clips += 1;
+                }
+
+                let track_name = format!("A{slot_id}");
+                let mut aaf_track = Track::new(slot_id, track_name, edit_rate, TrackType::Sound);
+                aaf_track.set_sequence(sequence);
+                comp_mob.add_track(aaf_track);
+                slot_id += 1;
+            }
+        }
+
+        AafBuilder::new()
+            .add_composition_mob(comp_mob)
+            .write_to_file(path)
+            .map_err(|e| TimelineError::ExportError(format!("AAF write error: {e}")))?;
+
+        let file_size = std::fs::metadata(path)
+            .map(|m| m.len() as usize)
+            .unwrap_or(0);
+        stats.file_size = file_size;
+        stats.markers = timeline.markers.markers().len();
+
+        Ok(stats)
     }
 
     /// Exports to `DaVinci` Resolve XML format (xmeml v5).

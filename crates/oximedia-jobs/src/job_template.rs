@@ -384,7 +384,7 @@ mod tests {
         let mut vals = HashMap::new();
         vals.insert("input".to_string(), "video.mp4".to_string());
         vals.insert("output".to_string(), "video_hd.mp4".to_string());
-        let instance = t.instantiate(&vals).unwrap();
+        let instance = t.instantiate(&vals).expect("instance should be valid");
         assert_eq!(
             instance.resolved_body,
             "transcode video.mp4 -> video_hd.mp4 at 5000000"
@@ -399,7 +399,7 @@ mod tests {
         vals.insert("input".to_string(), "a.mp4".to_string());
         vals.insert("output".to_string(), "b.mp4".to_string());
         vals.insert("bitrate".to_string(), "8000000".to_string());
-        let instance = t.instantiate(&vals).unwrap();
+        let instance = t.instantiate(&vals).expect("instance should be valid");
         assert!(instance.resolved_body.contains("8000000"));
     }
 
@@ -442,7 +442,8 @@ mod tests {
     #[test]
     fn test_registry_register_and_get() {
         let mut reg = TemplateRegistry::new();
-        reg.register(sample_template()).unwrap();
+        reg.register(sample_template())
+            .expect("test expectation failed");
         assert_eq!(reg.len(), 1);
         assert!(reg.get("transcode-hd").is_ok());
     }
@@ -450,7 +451,8 @@ mod tests {
     #[test]
     fn test_registry_duplicate() {
         let mut reg = TemplateRegistry::new();
-        reg.register(sample_template()).unwrap();
+        reg.register(sample_template())
+            .expect("test expectation failed");
         let result = reg.register(sample_template());
         assert!(matches!(result, Err(TemplateError::Duplicate(_))));
     }
@@ -458,8 +460,11 @@ mod tests {
     #[test]
     fn test_registry_unregister() {
         let mut reg = TemplateRegistry::new();
-        reg.register(sample_template()).unwrap();
-        let removed = reg.unregister("transcode-hd").unwrap();
+        reg.register(sample_template())
+            .expect("test expectation failed");
+        let removed = reg
+            .unregister("transcode-hd")
+            .expect("removed should be valid");
         assert_eq!(removed.name, "transcode-hd");
         assert!(reg.is_empty());
     }
@@ -476,11 +481,14 @@ mod tests {
     #[test]
     fn test_registry_instantiate() {
         let mut reg = TemplateRegistry::new();
-        reg.register(sample_template()).unwrap();
+        reg.register(sample_template())
+            .expect("test expectation failed");
         let mut vals = HashMap::new();
         vals.insert("input".to_string(), "x.mp4".to_string());
         vals.insert("output".to_string(), "y.mp4".to_string());
-        let instance = reg.instantiate("transcode-hd", &vals).unwrap();
+        let instance = reg
+            .instantiate("transcode-hd", &vals)
+            .expect("instance should be valid");
         assert!(instance.resolved_body.contains("x.mp4"));
     }
 

@@ -257,7 +257,8 @@ mod tests {
             (PathBuf::from("file3.txt"), "hash3".to_string()),
         ];
 
-        let tree = MerkleTree::build(files, ChecksumAlgorithm::Sha256).unwrap();
+        let tree =
+            MerkleTree::build(files, ChecksumAlgorithm::Sha256).expect("operation should succeed");
         assert_eq!(tree.file_count(), 3);
         assert!(tree.depth() >= 2);
     }
@@ -269,7 +270,8 @@ mod tests {
             (PathBuf::from("b.txt"), "hash2".to_string()),
         ];
 
-        let tree = MerkleTree::build(files, ChecksumAlgorithm::Sha256).unwrap();
+        let tree =
+            MerkleTree::build(files, ChecksumAlgorithm::Sha256).expect("operation should succeed");
         assert!(tree.verify_structure());
     }
 
@@ -283,7 +285,8 @@ mod tests {
             (path2.clone(), "hash2".to_string()),
         ];
 
-        let tree = MerkleTree::build(files, ChecksumAlgorithm::Sha256).unwrap();
+        let tree =
+            MerkleTree::build(files, ChecksumAlgorithm::Sha256).expect("operation should succeed");
 
         assert!(tree.find_file(&path1).is_some());
         assert!(tree.find_file(&path2).is_some());

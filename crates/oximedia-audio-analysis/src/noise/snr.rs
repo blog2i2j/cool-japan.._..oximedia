@@ -51,7 +51,7 @@ pub fn estimate_snr(samples: &[f32]) -> f32 {
 
     // Sort by amplitude to separate signal from noise
     let mut sorted: Vec<f32> = samples.iter().map(|&x| x.abs()).collect();
-    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
     // Bottom 25% is noise
     let noise_cutoff = sorted.len() / 4;

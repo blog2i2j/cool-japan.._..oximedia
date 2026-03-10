@@ -404,7 +404,7 @@ mod tests {
         monitor.record(Duration::from_millis(60));
         monitor.record(Duration::from_millis(70));
 
-        let avg = monitor.average_latency().unwrap();
+        let avg = monitor.average_latency().expect("operation should succeed");
         assert!(avg >= Duration::from_millis(59) && avg <= Duration::from_millis(61));
         assert!(monitor.is_within_target());
     }

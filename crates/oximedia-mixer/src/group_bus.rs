@@ -331,8 +331,12 @@ mod tests {
     fn test_manager_get_bus_mut() {
         let mut mgr = GroupBusManager::new();
         let id = mgr.create_bus("Keys");
-        mgr.get_bus_mut(id).unwrap().set_fader(0.5);
-        assert!((mgr.get_bus(id).unwrap().fader - 0.5).abs() < f32::EPSILON);
+        mgr.get_bus_mut(id)
+            .expect("get_bus_mut should succeed")
+            .set_fader(0.5);
+        assert!(
+            (mgr.get_bus(id).expect("get_bus should succeed").fader - 0.5).abs() < f32::EPSILON
+        );
     }
 
     #[test]
@@ -347,19 +351,21 @@ mod tests {
         let idx = mgr.add_mute_group(mg);
 
         mgr.engage_mute_group(idx);
-        assert!(mgr.get_bus(id1).unwrap().muted);
-        assert!(mgr.get_bus(id2).unwrap().muted);
+        assert!(mgr.get_bus(id1).expect("get_bus should succeed").muted);
+        assert!(mgr.get_bus(id2).expect("get_bus should succeed").muted);
 
         mgr.release_mute_group(idx);
-        assert!(!mgr.get_bus(id1).unwrap().muted);
-        assert!(!mgr.get_bus(id2).unwrap().muted);
+        assert!(!mgr.get_bus(id1).expect("get_bus should succeed").muted);
+        assert!(!mgr.get_bus(id2).expect("get_bus should succeed").muted);
     }
 
     #[test]
     fn test_effective_gains_map() {
         let mut mgr = GroupBusManager::new();
         let id = mgr.create_bus("Perc");
-        mgr.get_bus_mut(id).unwrap().set_fader(0.8);
+        mgr.get_bus_mut(id)
+            .expect("get_bus_mut should succeed")
+            .set_fader(0.8);
         let gains = mgr.effective_gains();
         assert!((gains[&id] - 0.8).abs() < f32::EPSILON);
     }

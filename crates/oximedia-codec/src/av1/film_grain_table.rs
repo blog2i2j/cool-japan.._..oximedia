@@ -32,7 +32,7 @@
 //! table.insert(0, params);
 //!
 //! // Retrieve parameters for frame
-//! let frame_params = table.get(42).unwrap();
+//! let frame_params = table.get(42)?;
 //! ```
 
 #![forbid(unsafe_code)]
@@ -898,7 +898,7 @@ mod tests {
         table.insert(0, params.clone());
         assert_eq!(table.len(), 1);
 
-        let retrieved = table.get(0).unwrap();
+        let retrieved = table.get(0).expect("get should return value");
         assert_eq!(retrieved.grain_seed, 1234);
     }
 
@@ -915,11 +915,11 @@ mod tests {
         table.insert(10, params10);
 
         // Frame 5 should get params from frame 0
-        let params5 = table.get(5).unwrap();
+        let params5 = table.get(5).expect("get should return value");
         assert_eq!(params5.grain_seed, 100);
 
         // Frame 15 should get params from frame 10
-        let params15 = table.get(15).unwrap();
+        let params15 = table.get(15).expect("get should return value");
         assert_eq!(params15.grain_seed, 200);
     }
 
@@ -1094,7 +1094,7 @@ mod tests {
         default_params.grain_seed = 9999;
 
         let table = FilmGrainTable::with_default(default_params);
-        let params = table.get(100).unwrap();
+        let params = table.get(100).expect("get should return value");
         assert_eq!(params.grain_seed, 9999);
     }
 

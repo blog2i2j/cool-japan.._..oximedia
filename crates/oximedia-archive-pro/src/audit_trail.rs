@@ -455,7 +455,13 @@ mod tests {
         assert_eq!(event.outcome, AuditOutcome::Failure);
         assert!(event.is_failure());
         assert_eq!(event.description, "failed checksum");
-        assert_eq!(event.metadata.get("size").unwrap(), "1024");
+        assert_eq!(
+            event
+                .metadata
+                .get("size")
+                .expect("operation should succeed"),
+            "1024"
+        );
     }
 
     #[test]
@@ -490,7 +496,7 @@ mod tests {
         trail.record(make_event(AuditAction::Ingest, "alice", "a1"));
         trail.record(make_event(AuditAction::Export, "bob", "a2"));
 
-        let latest = trail.latest().unwrap();
+        let latest = trail.latest().expect("operation should succeed");
         assert_eq!(latest.action, AuditAction::Export);
         assert_eq!(latest.actor, "bob");
     }

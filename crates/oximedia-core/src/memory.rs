@@ -19,13 +19,13 @@
 //!
 //! // Pool
 //! let mut pool = MemoryPool::new(4, 1024, 16);
-//! let idx = pool.allocate(512).unwrap();
+//! let idx = pool.allocate(512)?;
 //! pool.deallocate(idx);
 //! assert_eq!(pool.available(), 4);
 //!
 //! // Ring allocator
 //! let mut ring = RingAllocator::new(256);
-//! let offset = ring.allocate(64).unwrap();
+//! let offset = ring.allocate(64)?;
 //! assert_eq!(offset, 0);
 //! ```
 
@@ -319,7 +319,7 @@ mod tests {
     fn test_pool_allocate_success() {
         let mut pool = MemoryPool::new(4, 1024, 16);
         assert_eq!(pool.available(), 4);
-        let idx = pool.allocate(512).unwrap();
+        let idx = pool.allocate(512).expect("allocate should succeed");
         assert_eq!(pool.available(), 3);
         assert!(pool.buffer(idx).is_some());
     }
@@ -328,7 +328,7 @@ mod tests {
     #[test]
     fn test_pool_allocate_exhausted() {
         let mut pool = MemoryPool::new(1, 64, 8);
-        let _ = pool.allocate(64).unwrap();
+        let _ = pool.allocate(64).expect("allocate should succeed");
         assert!(pool.allocate(64).is_none());
     }
 
@@ -336,7 +336,7 @@ mod tests {
     #[test]
     fn test_pool_deallocate() {
         let mut pool = MemoryPool::new(2, 128, 16);
-        let idx = pool.allocate(64).unwrap();
+        let idx = pool.allocate(64).expect("allocate should succeed");
         assert_eq!(pool.available(), 1);
         pool.deallocate(idx);
         assert_eq!(pool.available(), 2);

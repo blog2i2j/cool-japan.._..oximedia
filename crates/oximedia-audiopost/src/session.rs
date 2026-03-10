@@ -141,8 +141,11 @@ impl PostProductionSession {
     /// Add a marker
     pub fn add_marker(&mut self, marker: Marker) {
         self.markers.push(marker);
-        self.markers
-            .sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap());
+        self.markers.sort_by(|a, b| {
+            a.time
+                .partial_cmp(&b.time)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         self.update_modified();
     }
 
@@ -176,14 +179,14 @@ impl PostProductionSession {
             .tracks
             .values()
             .filter_map(|track| track.clips.last().map(|clip| clip.end_time))
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .unwrap_or(0.0);
 
         let region_duration = self
             .regions
             .iter()
             .map(|region| region.end_time)
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .unwrap_or(0.0);
 
         track_duration.max(region_duration)
@@ -236,8 +239,11 @@ impl Track {
     /// Add a clip to the track
     pub fn add_clip(&mut self, clip: AudioClip) {
         self.clips.push(clip);
-        self.clips
-            .sort_by(|a, b| a.start_time.partial_cmp(&b.start_time).unwrap());
+        self.clips.sort_by(|a, b| {
+            a.start_time
+                .partial_cmp(&b.start_time)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
     }
 
     /// Remove a clip
@@ -743,7 +749,7 @@ mod tests {
     fn test_session_creation() {
         let session =
             PostProductionSession::new("Test Session", PathBuf::from("/tmp/test"), 48000, 24, 24.0)
-                .unwrap();
+                .expect("operation should succeed");
         assert_eq!(session.name, "Test Session");
         assert_eq!(session.sample_rate, 48000);
     }
@@ -761,7 +767,8 @@ mod tests {
     #[test]
     fn test_add_track() {
         let mut session =
-            PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0).unwrap();
+            PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
+                .expect("failed to create");
         let track = Track::new("Dialogue", TrackType::Dialogue, 0);
         let id = session.add_track(track);
         assert_eq!(id, 1);
@@ -771,7 +778,8 @@ mod tests {
     #[test]
     fn test_get_track() {
         let mut session =
-            PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0).unwrap();
+            PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
+                .expect("failed to create");
         let track = Track::new("Dialogue", TrackType::Dialogue, 0);
         let id = session.add_track(track);
         assert!(session.get_track(id).is_ok());
@@ -780,7 +788,8 @@ mod tests {
     #[test]
     fn test_remove_track() {
         let mut session =
-            PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0).unwrap();
+            PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
+                .expect("failed to create");
         let track = Track::new("Dialogue", TrackType::Dialogue, 0);
         let id = session.add_track(track);
         assert!(session.remove_track(id).is_ok());
@@ -868,7 +877,8 @@ mod tests {
     #[test]
     fn test_add_marker() {
         let mut session =
-            PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0).unwrap();
+            PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
+                .expect("failed to create");
         let marker = Marker::new("Marker 1", 10.0, MarkerType::Cue);
         session.add_marker(marker);
         assert_eq!(session.get_markers().len(), 1);
@@ -884,7 +894,8 @@ mod tests {
     #[test]
     fn test_add_region() {
         let mut session =
-            PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0).unwrap();
+            PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
+                .expect("failed to create");
         let region = Region::new("Region 1", 0.0, 10.0, RegionType::Loop);
         session.add_region(region);
         assert_eq!(session.get_regions().len(), 1);
@@ -922,8 +933,8 @@ mod tests {
 
     #[test]
     fn test_session_backup() {
-        let session =
-            PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0).unwrap();
+        let session = PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
+            .expect("failed to create");
         let backup = SessionBackup::new(session, "Test backup");
         assert_eq!(backup.description, "Test backup");
     }
@@ -939,7 +950,7 @@ mod tests {
         let mut manager = SessionManager::new();
         let id = manager
             .create_session("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
-            .unwrap();
+            .expect("operation should succeed");
         assert_eq!(manager.session_count(), 1);
         assert!(manager.get_session(&id).is_ok());
     }
@@ -949,7 +960,7 @@ mod tests {
         let mut manager = SessionManager::new();
         let id = manager
             .create_session("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
-            .unwrap();
+            .expect("operation should succeed");
         assert!(manager.close_session(&id).is_ok());
         assert_eq!(manager.session_count(), 0);
     }
@@ -959,7 +970,7 @@ mod tests {
         let mut manager = SessionManager::new();
         let id = manager
             .create_session("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
-            .unwrap();
+            .expect("operation should succeed");
         assert!(manager.create_backup(&id, "Backup 1").is_ok());
     }
 
@@ -968,17 +979,18 @@ mod tests {
         let mut manager = SessionManager::new();
         manager
             .create_session("Test 1", PathBuf::from("/tmp1"), 48000, 24, 24.0)
-            .unwrap();
+            .expect("operation should succeed");
         manager
             .create_session("Test 2", PathBuf::from("/tmp2"), 48000, 24, 24.0)
-            .unwrap();
+            .expect("operation should succeed");
         assert_eq!(manager.get_session_ids().len(), 2);
     }
 
     #[test]
     fn test_session_duration() {
         let mut session =
-            PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0).unwrap();
+            PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
+                .expect("failed to create");
         let mut track = Track::new("Test", TrackType::Music, 0);
         track.add_clip(AudioClip::new(
             "Clip",

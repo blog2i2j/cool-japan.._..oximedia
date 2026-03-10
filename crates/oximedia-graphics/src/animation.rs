@@ -51,13 +51,14 @@ impl Timeline {
             }
             LoopMode::PingPong => {
                 if self.current_time >= self.duration {
+                    let overflow = self
+                        .current_time
+                        .checked_sub(self.duration)
+                        .unwrap_or(Duration::ZERO);
                     self.current_time = self
                         .duration
-                        .checked_sub(self.current_time.checked_sub(self.duration).unwrap())
-                        .unwrap();
-                    if self.current_time < Duration::ZERO {
-                        self.current_time = Duration::ZERO;
-                    }
+                        .checked_sub(overflow)
+                        .unwrap_or(Duration::ZERO);
                 }
             }
         }
@@ -313,7 +314,15 @@ impl<T: Animatable> AnimationTrack<T> {
             prev = keyframe;
         }
 
-        Some(self.keyframes.last().unwrap().value.clone())
+        // SAFETY: the loop above always assigns `prev` to a keyframe and we have len >= 2,
+        // so `last()` is always Some here
+        Some(
+            self.keyframes
+                .last()
+                .expect("keyframes non-empty after len >= 2 check")
+                .value
+                .clone(),
+        )
     }
 }
 
@@ -494,7 +503,7 @@ mod tests {
         track.add_keyframe(Keyframe::new(0.0, Point::new(0.0, 0.0), Easing::Linear));
         track.add_keyframe(Keyframe::new(1.0, Point::new(100.0, 100.0), Easing::Linear));
 
-        let pos = track.evaluate(0.5).unwrap();
+        let pos = track.evaluate(0.5).expect("pos should be valid");
         assert_eq!(pos, Point::new(50.0, 50.0));
     }
 

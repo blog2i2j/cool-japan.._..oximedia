@@ -347,6 +347,158 @@ impl Scheduler {
     pub fn active_count(&self) -> usize {
         self.assignments.read().len()
     }
+
+    /// Estimate total render time for all queued and active tasks.
+    ///
+    /// Uses a weighted model that accounts for:
+    /// - Estimated execution time of each task
+    /// - Number of available workers (parallelism)
+    /// - Priority-based urgency weighting
+    /// - Historical completion rate if available
+    ///
+    /// Returns the estimated wall-clock seconds to complete all remaining work
+    /// given `worker_count` available workers.
+    #[must_use]
+    pub fn estimate_total_time(&self, worker_count: usize) -> f64 {
+        if worker_count == 0 {
+            return f64::INFINITY;
+        }
+
+        // Gather estimated times from all queued tasks
+        let queued_times: Vec<f64> = match self.algorithm {
+            SchedulingAlgorithm::FCFS => self
+                .pending
+                .read()
+                .iter()
+                .map(|t| t.estimated_time)
+                .collect(),
+            _ => self.queue.read().iter().map(|t| t.estimated_time).collect(),
+        };
+
+        // Add in-progress task remaining times (estimate 50% remaining on average)
+        let active_remaining: f64 = self
+            .assignments
+            .read()
+            .values()
+            .map(|a| {
+                let elapsed = (Utc::now() - a.assigned_at).num_seconds().max(0) as f64;
+                // Remaining = estimated - elapsed, but at least 0
+                (a.task.estimated_time - elapsed).max(0.0)
+            })
+            .sum();
+
+        let total_queued_work: f64 = queued_times.iter().sum();
+        let total_work = total_queued_work + active_remaining;
+
+        // Wall-clock time = total work / parallelism
+        // Apply a scheduling overhead factor (context switches, data transfer)
+        let scheduling_overhead = 1.05; // 5% overhead
+        let parallel_time = total_work / worker_count as f64;
+
+        parallel_time * scheduling_overhead
+    }
+
+    /// Estimate completion time for a specific job.
+    ///
+    /// Sums estimated times for all tasks belonging to the given job
+    /// that are still queued, and divides by `worker_count`.
+    #[must_use]
+    pub fn estimate_job_time(&self, job_id: JobId, worker_count: usize) -> f64 {
+        if worker_count == 0 {
+            return f64::INFINITY;
+        }
+
+        let queued_job_time: f64 = match self.algorithm {
+            SchedulingAlgorithm::FCFS => self
+                .pending
+                .read()
+                .iter()
+                .filter(|t| t.job_id == job_id)
+                .map(|t| t.estimated_time)
+                .sum(),
+            _ => self
+                .queue
+                .read()
+                .iter()
+                .filter(|t| t.job_id == job_id)
+                .map(|t| t.estimated_time)
+                .sum(),
+        };
+
+        // Check active assignments for this job
+        let active_remaining: f64 = self
+            .assignments
+            .read()
+            .values()
+            .filter(|a| a.task.job_id == job_id)
+            .map(|a| {
+                let elapsed = (Utc::now() - a.assigned_at).num_seconds().max(0) as f64;
+                (a.task.estimated_time - elapsed).max(0.0)
+            })
+            .sum();
+
+        let total_job_work = queued_job_time + active_remaining;
+
+        // For a single job, tasks may run in parallel up to worker_count
+        let job_task_count = match self.algorithm {
+            SchedulingAlgorithm::FCFS => self
+                .pending
+                .read()
+                .iter()
+                .filter(|t| t.job_id == job_id)
+                .count(),
+            _ => self
+                .queue
+                .read()
+                .iter()
+                .filter(|t| t.job_id == job_id)
+                .count(),
+        };
+
+        let effective_parallelism = worker_count.min(job_task_count.max(1));
+        total_job_work / effective_parallelism as f64
+    }
+
+    /// Compute a schedule feasibility report.
+    ///
+    /// Returns `(feasible_count, infeasible_count)` where infeasible tasks
+    /// are those whose estimated completion time exceeds their deadline.
+    #[must_use]
+    pub fn feasibility_check(&self, worker_count: usize) -> (usize, usize) {
+        let now = Utc::now();
+        let tasks: Vec<Task> = match self.algorithm {
+            SchedulingAlgorithm::FCFS => self.pending.read().iter().cloned().collect(),
+            _ => self.queue.read().iter().cloned().collect(),
+        };
+
+        let mut feasible = 0;
+        let mut infeasible = 0;
+
+        // Estimate when each task might start (simple queuing model)
+        let mut accumulated_time = 0.0_f64;
+        let parallelism = (worker_count as f64).max(1.0);
+
+        for task in &tasks {
+            let start_time = accumulated_time / parallelism;
+            let finish_time = start_time + task.estimated_time;
+
+            if let Some(deadline) = task.deadline {
+                let deadline_secs = (deadline - now).num_seconds() as f64;
+                if finish_time <= deadline_secs {
+                    feasible += 1;
+                } else {
+                    infeasible += 1;
+                }
+            } else {
+                // No deadline => always feasible
+                feasible += 1;
+            }
+
+            accumulated_time += task.estimated_time;
+        }
+
+        (feasible, infeasible)
+    }
 }
 
 impl Default for Scheduler {
@@ -486,6 +638,68 @@ mod tests {
         let next = scheduler.schedule(&worker);
         assert!(next.is_some());
         assert_eq!(next.expect("should succeed in test").id, task2.id);
+    }
+
+    #[test]
+    fn test_estimate_total_time() {
+        let scheduler = Scheduler::new(SchedulingAlgorithm::FCFS);
+        let mut task1 = Task::new(JobId::new(), 1, Priority::Normal);
+        task1.estimated_time = 100.0;
+        let mut task2 = Task::new(JobId::new(), 2, Priority::Normal);
+        task2.estimated_time = 200.0;
+
+        scheduler.enqueue(task1);
+        scheduler.enqueue(task2);
+
+        // 2 workers: total work = 300s, parallelism = 2, expected ~157.5s (with 5% overhead)
+        let est = scheduler.estimate_total_time(2);
+        assert!(est > 0.0);
+        assert!(est < 400.0);
+
+        // 0 workers: infinity
+        assert!(scheduler.estimate_total_time(0).is_infinite());
+    }
+
+    #[test]
+    fn test_estimate_job_time() {
+        let scheduler = Scheduler::new(SchedulingAlgorithm::Priority);
+        let job_id = JobId::new();
+
+        let mut t1 = Task::new(job_id, 1, Priority::Normal);
+        t1.estimated_time = 50.0;
+        let mut t2 = Task::new(job_id, 2, Priority::Normal);
+        t2.estimated_time = 50.0;
+        let mut t3 = Task::new(JobId::new(), 3, Priority::Normal);
+        t3.estimated_time = 100.0;
+
+        scheduler.enqueue(t1);
+        scheduler.enqueue(t2);
+        scheduler.enqueue(t3);
+
+        let est = scheduler.estimate_job_time(job_id, 2);
+        // 2 tasks of 50s each, 2 workers => ~50s
+        assert!(est > 0.0);
+        assert!(est < 200.0);
+    }
+
+    #[test]
+    fn test_feasibility_check() {
+        let scheduler = Scheduler::new(SchedulingAlgorithm::FCFS);
+
+        let mut task1 = Task::new(JobId::new(), 1, Priority::Normal);
+        task1.estimated_time = 10.0;
+        task1.deadline = Some(Utc::now() + chrono::Duration::hours(1));
+
+        let mut task2 = Task::new(JobId::new(), 2, Priority::Normal);
+        task2.estimated_time = 10.0;
+        // No deadline
+
+        scheduler.enqueue(task1);
+        scheduler.enqueue(task2);
+
+        let (feasible, infeasible) = scheduler.feasibility_check(2);
+        assert_eq!(feasible, 2);
+        assert_eq!(infeasible, 0);
     }
 
     #[test]

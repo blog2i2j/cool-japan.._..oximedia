@@ -92,7 +92,7 @@ impl MultiTapDelay {
         let max_delay_ms = taps
             .iter()
             .map(|t| t.delay_ms)
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .unwrap_or(1000.0);
 
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]

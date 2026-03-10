@@ -268,7 +268,7 @@ mod tests {
 
         assert!(result.is_ok());
 
-        let ca = result.unwrap();
+        let ca = result.expect("expected successful result");
         assert_eq!(ca.source_illuminant(), Illuminant::D50);
         assert_eq!(ca.target_illuminant(), Illuminant::D65);
         assert_eq!(ca.method(), ChromaticAdaptationMethod::Bradford);
@@ -284,7 +284,7 @@ mod tests {
 
         assert!(result.is_ok());
 
-        let ca = result.unwrap();
+        let ca = result.expect("expected successful result");
         let xyz = [0.5, 0.5, 0.5];
         let adapted = ca.adapt_xyz(&xyz);
 
@@ -334,7 +334,7 @@ mod tests {
             Illuminant::D50,
             Illuminant::D65,
         )
-        .unwrap();
+        .expect("unexpected None/Err");
 
         let xyz = [0.5, 0.5, 0.5];
         let adapted = ca.adapt_xyz(&xyz);

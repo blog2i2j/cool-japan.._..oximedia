@@ -13,8 +13,8 @@
 //! let mut reader = BitReader::new(&data);
 //!
 //! // Read 4 bits at a time
-//! assert_eq!(reader.read_bits(4).unwrap(), 0b1011);
-//! assert_eq!(reader.read_bits(4).unwrap(), 0b0100);
+//! assert_eq!(reader.read_bits(4)?, 0b1011);
+//! assert_eq!(reader.read_bits(4)?, 0b0100);
 //! ```
 
 mod exp_golomb;

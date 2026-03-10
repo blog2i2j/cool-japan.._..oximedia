@@ -459,8 +459,8 @@ fn compute_timestamp_stats(timestamps: &[i64]) -> TimestampStats {
     }
 
     let count = timestamps.len();
-    let min = *timestamps.iter().min().unwrap();
-    let max = *timestamps.iter().max().unwrap();
+    let min = timestamps.iter().copied().min().unwrap_or(0);
+    let max = timestamps.iter().copied().max().unwrap_or(0);
     let negative_count = timestamps.iter().filter(|&&t| t < 0).count();
 
     let mut deltas: Vec<i64> = Vec::with_capacity(count.saturating_sub(1));
@@ -1418,7 +1418,7 @@ mod tests {
 
     #[test]
     fn test_compute_index_stats_empty() {
-        let stats = compute_index_stats(&[], 1000).unwrap();
+        let stats = compute_index_stats(&[], 1000).expect("index stats should succeed");
         assert_eq!(stats.entry_count, 0);
         assert!(!stats.covers_full_file);
     }
@@ -1426,7 +1426,7 @@ mod tests {
     #[test]
     fn test_compute_index_stats_valid() {
         let offsets = vec![100u64, 200, 300, 400, 500];
-        let stats = compute_index_stats(&offsets, 1000).unwrap();
+        let stats = compute_index_stats(&offsets, 1000).expect("index stats should succeed");
         assert_eq!(stats.entry_count, 5);
         assert_eq!(stats.out_of_bounds_count, 0);
         // 500 is 50% of 1000, not >= 95%, so covers_full_file should be false
@@ -1436,14 +1436,14 @@ mod tests {
     #[test]
     fn test_compute_index_stats_out_of_bounds() {
         let offsets = vec![100u64, 200, 5000]; // 5000 > file_size=1000
-        let stats = compute_index_stats(&offsets, 1000).unwrap();
+        let stats = compute_index_stats(&offsets, 1000).expect("index stats should succeed");
         assert_eq!(stats.out_of_bounds_count, 1);
     }
 
     #[test]
     fn test_compute_index_stats_duplicates() {
         let offsets = vec![100u64, 100, 200, 300];
-        let stats = compute_index_stats(&offsets, 1000).unwrap();
+        let stats = compute_index_stats(&offsets, 1000).expect("index stats should succeed");
         assert_eq!(stats.duplicate_offset_count, 1);
     }
 

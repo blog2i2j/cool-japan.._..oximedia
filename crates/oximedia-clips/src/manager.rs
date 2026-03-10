@@ -394,47 +394,75 @@ mod tests {
 
     #[tokio::test]
     async fn test_clip_manager() {
-        let manager = ClipManager::new(":memory:").await.unwrap();
-        let count = manager.clip_count().await.unwrap();
+        let manager = ClipManager::new(":memory:")
+            .await
+            .expect("new should succeed");
+        let count = manager
+            .clip_count()
+            .await
+            .expect("clip_count should succeed");
         assert_eq!(count, 0);
     }
 
     #[tokio::test]
     async fn test_add_and_get_clip() {
-        let manager = ClipManager::new(":memory:").await.unwrap();
+        let manager = ClipManager::new(":memory:")
+            .await
+            .expect("new should succeed");
 
         let clip = Clip::new(PathBuf::from("/test.mov"));
-        let clip_id = manager.add_clip(clip.clone()).await.unwrap();
+        let clip_id = manager
+            .add_clip(clip.clone())
+            .await
+            .expect("add_clip should succeed");
 
-        let loaded = manager.get_clip(&clip_id).await.unwrap();
+        let loaded = manager
+            .get_clip(&clip_id)
+            .await
+            .expect("get_clip should succeed");
         assert_eq!(loaded.id, clip_id);
     }
 
     #[tokio::test]
     async fn test_bins() {
-        let mut manager = ClipManager::new(":memory:").await.unwrap();
+        let mut manager = ClipManager::new(":memory:")
+            .await
+            .expect("new should succeed");
 
         let bin_id = manager.create_bin("Test Bin");
-        let bin = manager.get_bin(&bin_id).unwrap();
+        let bin = manager.get_bin(&bin_id).expect("get_bin should succeed");
         assert_eq!(bin.name, "Test Bin");
 
         let clip = Clip::new(PathBuf::from("/test.mov"));
-        let clip_id = manager.add_clip(clip).await.unwrap();
+        let clip_id = manager
+            .add_clip(clip)
+            .await
+            .expect("add_clip should succeed");
 
-        manager.add_clip_to_bin(&bin_id, clip_id).unwrap();
-        let bin = manager.get_bin(&bin_id).unwrap();
+        manager
+            .add_clip_to_bin(&bin_id, clip_id)
+            .expect("add_clip_to_bin should succeed");
+        let bin = manager.get_bin(&bin_id).expect("get_bin should succeed");
         assert_eq!(bin.count(), 1);
     }
 
     #[tokio::test]
     async fn test_search() {
-        let manager = ClipManager::new(":memory:").await.unwrap();
+        let manager = ClipManager::new(":memory:")
+            .await
+            .expect("new should succeed");
 
         let mut clip = Clip::new(PathBuf::from("/test.mov"));
         clip.set_name("Interview");
-        manager.add_clip(clip).await.unwrap();
+        manager
+            .add_clip(clip)
+            .await
+            .expect("operation should succeed");
 
-        let results = manager.search("interview").await.unwrap();
+        let results = manager
+            .search("interview")
+            .await
+            .expect("search should succeed");
         assert_eq!(results.len(), 1);
     }
 }

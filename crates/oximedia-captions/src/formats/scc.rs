@@ -102,7 +102,7 @@ mod tests {
 
     #[test]
     fn test_parse_scc_timecode() {
-        let ts = parse_scc_timecode("01:30:45:15").unwrap();
+        let ts = parse_scc_timecode("01:30:45:15").expect("timestamp parsing should succeed");
         let (h, m, s, _) = ts.as_hmsm();
         assert_eq!((h, m, s), (1, 30, 45));
     }

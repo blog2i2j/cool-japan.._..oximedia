@@ -5,7 +5,7 @@
 
 use crate::error::{StabilizeError, StabilizeResult};
 use crate::motion::trajectory::Trajectory;
-use ndarray::Array1;
+use scirs2_core::ndarray::Array1;
 
 /// Temporal coherence optimizer.
 pub struct TemporalCoherence {

@@ -728,7 +728,7 @@ pub fn normalize_scores(scenes: &mut [ScoredScene]) {
     let max_score = scenes
         .iter()
         .map(ScoredScene::adjusted_score)
-        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
         .unwrap_or(1.0);
 
     if max_score > 0.0 {

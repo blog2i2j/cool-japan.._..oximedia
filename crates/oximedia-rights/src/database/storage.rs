@@ -280,7 +280,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_database_creation() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("rights test operation should succeed");
         let db_path = format!("sqlite://{}/test.db", temp_dir.path().display());
         let db = RightsDatabase::new(&db_path).await;
         assert!(db.is_ok());
@@ -288,9 +288,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_schema_initialization() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("rights test operation should succeed");
         let db_path = format!("sqlite://{}/test.db", temp_dir.path().display());
-        let db = RightsDatabase::new(&db_path).await.unwrap();
+        let db = RightsDatabase::new(&db_path)
+            .await
+            .expect("rights test operation should succeed");
 
         // Verify tables exist by querying sqlite_master
         let result = sqlx::query(

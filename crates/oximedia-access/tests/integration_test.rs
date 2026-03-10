@@ -44,7 +44,7 @@ fn test_caption_generation_workflow() {
     let result = generator.generate_from_transcript(transcript, &timestamps);
     assert!(result.is_ok());
 
-    let captions = result.unwrap();
+    let captions = result.expect("captions should be valid");
     assert_eq!(captions.len(), 2);
 }
 
@@ -119,8 +119,8 @@ fn test_script_json_roundtrip() {
         "Test entry".to_string(),
     ));
 
-    let json = script.to_json().unwrap();
-    let restored = AudioDescriptionScript::from_json(&json).unwrap();
+    let json = script.to_json().expect("json should be valid");
+    let restored = AudioDescriptionScript::from_json(&json).expect("restored should be valid");
 
     assert_eq!(script.len(), restored.len());
     assert_eq!(script.entries()[0].text, restored.entries()[0].text);
@@ -193,7 +193,7 @@ fn test_transcript_generation() {
 
     let captions = caption_gen
         .generate_from_transcript(transcript_text, &timestamps)
-        .unwrap();
+        .expect("test expectation failed");
 
     let transcript = generator.from_captions(&captions);
     assert_eq!(transcript.entries.len(), 1);
@@ -358,7 +358,7 @@ fn test_compliance_report() {
     let text = report.to_text();
     assert!(text.contains("Test Issue"));
 
-    let json = report.to_json().unwrap();
+    let json = report.to_json().expect("json should be valid");
     assert!(json.contains("TEST-001"));
 }
 

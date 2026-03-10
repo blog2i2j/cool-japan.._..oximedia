@@ -28,7 +28,7 @@ fn test_screen_capture_all_regions() {
             capture_cursor: true,
         };
 
-        let capture = ScreenCapture::new(config).unwrap();
+        let capture = ScreenCapture::new(config).expect("valid screen capture");
         assert!(!capture.is_capturing());
     }
 }
@@ -71,21 +71,21 @@ fn test_screen_capture_framerate_limits() {
 #[test]
 fn test_screen_capture_lifecycle() {
     let config = CaptureConfig::default();
-    let mut capture = ScreenCapture::new(config).unwrap();
+    let mut capture = ScreenCapture::new(config).expect("valid screen capture");
 
     // Initial state
     assert!(!capture.is_capturing());
 
     // Start
-    capture.start().unwrap();
+    capture.start().expect("start should succeed");
     assert!(capture.is_capturing());
 
     // Pause
-    capture.pause().unwrap();
+    capture.pause().expect("pause should succeed");
     assert!(!capture.is_capturing());
 
     // Resume
-    capture.resume().unwrap();
+    capture.resume().expect("resume should succeed");
     assert!(capture.is_capturing());
 
     // Stop
@@ -96,9 +96,9 @@ fn test_screen_capture_lifecycle() {
 #[test]
 fn test_screen_capture_double_start() {
     let config = CaptureConfig::default();
-    let mut capture = ScreenCapture::new(config).unwrap();
+    let mut capture = ScreenCapture::new(config).expect("valid screen capture");
 
-    capture.start().unwrap();
+    capture.start().expect("start should succeed");
     assert!(capture.start().is_err());
 
     capture.stop();
@@ -107,7 +107,7 @@ fn test_screen_capture_double_start() {
 #[test]
 fn test_screen_capture_pause_when_not_running() {
     let config = CaptureConfig::default();
-    let mut capture = ScreenCapture::new(config).unwrap();
+    let mut capture = ScreenCapture::new(config).expect("valid screen capture");
 
     assert!(capture.pause().is_err());
 }
@@ -115,7 +115,7 @@ fn test_screen_capture_pause_when_not_running() {
 #[test]
 fn test_screen_capture_resume_when_not_paused() {
     let config = CaptureConfig::default();
-    let mut capture = ScreenCapture::new(config).unwrap();
+    let mut capture = ScreenCapture::new(config).expect("valid screen capture");
 
     assert!(capture.resume().is_err());
 }
@@ -123,14 +123,16 @@ fn test_screen_capture_resume_when_not_paused() {
 #[test]
 fn test_capture_frame() {
     let config = CaptureConfig::default();
-    let mut capture = ScreenCapture::new(config).unwrap();
+    let mut capture = ScreenCapture::new(config).expect("valid screen capture");
 
     // Should fail when not capturing
     assert!(capture.capture_frame().is_err());
 
     // Should succeed when capturing
-    capture.start().unwrap();
-    let frame = capture.capture_frame().unwrap();
+    capture.start().expect("start should succeed");
+    let frame = capture
+        .capture_frame()
+        .expect("capture frame should succeed");
     assert!(frame.width > 0);
     assert!(frame.height > 0);
     assert!(!frame.data.is_empty());
@@ -140,7 +142,7 @@ fn test_capture_frame() {
 
 #[test]
 fn test_list_monitors() {
-    let monitors = ScreenCapture::list_monitors().unwrap();
+    let monitors = ScreenCapture::list_monitors().expect("list monitors should succeed");
     assert!(!monitors.is_empty());
 
     for monitor in &monitors {
@@ -209,7 +211,7 @@ fn test_game_capture_attach_detach() {
 
     assert!(!capture.is_active());
 
-    capture.attach(12345).unwrap();
+    capture.attach(12345).expect("attach should succeed");
     assert!(capture.is_active());
 
     capture.detach();
@@ -234,18 +236,24 @@ fn test_cursor_position_tracking() {
     let mut capture = CursorCapture::new();
 
     capture.update_position(100, 200);
-    let info = capture.get_cursor_info().unwrap();
+    let info = capture
+        .get_cursor_info()
+        .expect("cursor info should succeed");
     assert_eq!(info.position, (100, 200));
 
     capture.update_position(500, 300);
-    let info = capture.get_cursor_info().unwrap();
+    let info = capture
+        .get_cursor_info()
+        .expect("cursor info should succeed");
     assert_eq!(info.position, (500, 300));
 }
 
 #[test]
 fn test_cursor_visibility() {
     let capture = CursorCapture::new();
-    let info = capture.get_cursor_info().unwrap();
+    let info = capture
+        .get_cursor_info()
+        .expect("cursor info should succeed");
 
     assert!(info.visible);
 }
@@ -265,10 +273,12 @@ fn test_custom_region_capture() {
         capture_cursor: false,
     };
 
-    let mut capture = ScreenCapture::new(config).unwrap();
-    capture.start().unwrap();
+    let mut capture = ScreenCapture::new(config).expect("valid screen capture");
+    capture.start().expect("start should succeed");
 
-    let frame = capture.capture_frame().unwrap();
+    let frame = capture
+        .capture_frame()
+        .expect("capture frame should succeed");
     assert_eq!(frame.width, 1280);
     assert_eq!(frame.height, 720);
 
@@ -283,7 +293,7 @@ fn test_high_framerate_capture() {
         capture_cursor: true,
     };
 
-    let capture = ScreenCapture::new(config).unwrap();
+    let capture = ScreenCapture::new(config).expect("valid screen capture");
     assert_eq!(capture.config().framerate, 144);
 }
 

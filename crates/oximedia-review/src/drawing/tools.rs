@@ -125,15 +125,43 @@ impl Shape {
     }
 
     /// Check if shape contains a point.
+    ///
+    /// For closed shapes (circle, rectangle) performs an interior test.
+    /// For freehand paths uses the even-odd ray-casting rule.
+    /// Arrows and text have no fill and always return `false`.
     #[must_use]
     pub fn contains(&self, point: &Point) -> bool {
         match self {
-            Shape::Arrow(_) => false, // Arrows don't have fill
+            Shape::Arrow(_) => false,
             Shape::Circle(circle) => circle.contains(point),
             Shape::Rectangle(rect) => rect.contains(point),
-            Shape::Freehand(_) => false, // Simplified
+            Shape::Freehand(path) => Self::freehand_contains(path, point),
             Shape::Text(_) => false,
         }
+    }
+
+    /// Even-odd ray casting test for a closed freehand polygon.
+    fn freehand_contains(path: &FreehandPath, point: &Point) -> bool {
+        let pts = &path.points;
+        if pts.len() < 3 {
+            return false;
+        }
+        let mut inside = false;
+        let n = pts.len();
+        let mut j = n - 1;
+        for i in 0..n {
+            let yi = pts[i].y;
+            let yj = pts[j].y;
+            let xi = pts[i].x;
+            let xj = pts[j].x;
+            if ((yi > point.y) != (yj > point.y))
+                && (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi)
+            {
+                inside = !inside;
+            }
+            j = i;
+        }
+        inside
     }
 }
 

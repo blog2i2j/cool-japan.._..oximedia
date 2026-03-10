@@ -271,8 +271,18 @@ mod tests {
         t.record_task_for_worker("w1", make_stats("t1", 200, 8000, 20));
         t.record_task_for_worker("w1", make_stats("t2", 300, 12000, 30));
         t.record_task_for_worker("w2", make_stats("t3", 100, 4000, 10));
-        assert_eq!(*t.worker_frame_counts().get("w1").unwrap(), 500);
-        assert_eq!(*t.worker_frame_counts().get("w2").unwrap(), 100);
+        assert_eq!(
+            *t.worker_frame_counts()
+                .get("w1")
+                .expect("failed to get value"),
+            500
+        );
+        assert_eq!(
+            *t.worker_frame_counts()
+                .get("w2")
+                .expect("failed to get value"),
+            100
+        );
     }
 
     #[test]
@@ -304,7 +314,9 @@ mod tests {
         t.record_task(s1);
         t.record_task(s2);
         let agg = t.aggregate();
-        assert!((agg.mean_quality.unwrap() - 85.0).abs() < f64::EPSILON);
+        assert!(
+            (agg.mean_quality.expect("mean_quality should be valid") - 85.0).abs() < f64::EPSILON
+        );
     }
 
     #[test]
@@ -338,7 +350,7 @@ mod tests {
     #[test]
     fn test_estimate_remaining() {
         let est = estimate_remaining(50, 100, Duration::from_secs(10));
-        let remaining = est.unwrap();
+        let remaining = est.expect("est should be valid");
         // 50 frames in 10s => 5fps => 50 remaining => 10s
         assert!((remaining.as_secs_f64() - 10.0).abs() < 0.1);
     }
@@ -346,7 +358,7 @@ mod tests {
     #[test]
     fn test_estimate_remaining_complete() {
         let est = estimate_remaining(100, 100, Duration::from_secs(10));
-        assert_eq!(est.unwrap(), Duration::ZERO);
+        assert_eq!(est.expect("est should be valid"), Duration::ZERO);
     }
 
     #[test]

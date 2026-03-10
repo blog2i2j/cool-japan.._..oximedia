@@ -381,7 +381,7 @@ mod tests {
         p.push(PipelineStage::new("A"));
         p.push(PipelineStage::new("B"));
         assert_eq!(p.len(), 2);
-        assert_eq!(p.get(0).unwrap().name, "A");
+        assert_eq!(p.get(0).expect("get should succeed").name, "A");
         assert!(p.get(99).is_none());
     }
 

@@ -298,14 +298,14 @@ mod tests {
                 Timestamp::from_millis(3000),
                 "Test".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
         let shot_changes = vec![Timestamp::from_millis(990), Timestamp::from_millis(2995)];
 
         let detector = ShotChangeDetector::new(25.0);
         let snapped = detector
             .snap_to_shots(&mut track, &shot_changes, 5)
-            .unwrap();
+            .expect("operation should succeed in test");
 
         assert!(snapped > 0);
         // Caption should be snapped to shot changes
@@ -321,7 +321,7 @@ mod tests {
                 Timestamp::from_secs(5),
                 "Test".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
         let shot_changes = vec![Timestamp::from_secs(2), Timestamp::from_secs(4)];
 

@@ -477,11 +477,11 @@ mod tests {
         queue.push(BatchJobItem::new(2, "high", 100)).await;
         queue.push(BatchJobItem::new(3, "medium", 50)).await;
 
-        let first = queue.pop().await.unwrap();
+        let first = queue.pop().await.expect("failed to pop");
         assert_eq!(first.priority, 100);
-        let second = queue.pop().await.unwrap();
+        let second = queue.pop().await.expect("failed to pop");
         assert_eq!(second.priority, 50);
-        let third = queue.pop().await.unwrap();
+        let third = queue.pop().await.expect("failed to pop");
         assert_eq!(third.priority, 1);
     }
 
@@ -596,7 +596,7 @@ mod tests {
             failed: 0,
             elapsed_secs: 10.0,
         };
-        let eta = stats.eta(5).unwrap();
+        let eta = stats.eta(5).expect("eta should succeed");
         assert!((eta - 10.0).abs() < 0.1);
     }
 
@@ -650,7 +650,7 @@ mod tests {
         let counter = Arc::new(StdMutex::new(0u64));
         let counter_clone = Arc::clone(&counter);
         let cb: ProgressCallback = Arc::new(move |done, _total| {
-            *counter_clone.lock().unwrap() = done;
+            *counter_clone.lock().expect("lock poisoned") = done;
         });
 
         let processor = BatchProcessor::new(2).with_progress(cb);
@@ -661,7 +661,7 @@ mod tests {
         let stats = processor.process(specs).await;
         assert_eq!(stats.total, 2);
 
-        let final_count = *counter.lock().unwrap();
+        let final_count = *counter.lock().expect("lock poisoned");
         assert_eq!(final_count, 2);
     }
 

@@ -199,7 +199,9 @@ mod tests {
         for i in 0..4 {
             for o in 0..4 {
                 assert!(!m.is_enabled(i, o));
-                assert!((m.get_gain(i, o).unwrap() - 0.0).abs() < f32::EPSILON);
+                assert!(
+                    (m.get_gain(i, o).expect("get_gain should succeed") - 0.0).abs() < f32::EPSILON
+                );
             }
         }
     }
@@ -218,21 +220,21 @@ mod tests {
     fn test_set_and_get_gain() {
         let mut m = MatrixMixer::new(2, 2);
         m.set_gain(0, 1, 0.5);
-        assert!((m.get_gain(0, 1).unwrap() - 0.5).abs() < f32::EPSILON);
+        assert!((m.get_gain(0, 1).expect("get_gain should succeed") - 0.5).abs() < f32::EPSILON);
     }
 
     #[test]
     fn test_gain_clamped_above_max() {
         let mut m = MatrixMixer::new(2, 2);
         m.set_gain(0, 0, 5.0);
-        assert!((m.get_gain(0, 0).unwrap() - 2.0).abs() < f32::EPSILON);
+        assert!((m.get_gain(0, 0).expect("get_gain should succeed") - 2.0).abs() < f32::EPSILON);
     }
 
     #[test]
     fn test_gain_clamped_below_min() {
         let mut m = MatrixMixer::new(2, 2);
         m.set_gain(0, 0, -1.0);
-        assert!((m.get_gain(0, 0).unwrap() - 0.0).abs() < f32::EPSILON);
+        assert!((m.get_gain(0, 0).expect("get_gain should succeed") - 0.0).abs() < f32::EPSILON);
     }
 
     #[test]

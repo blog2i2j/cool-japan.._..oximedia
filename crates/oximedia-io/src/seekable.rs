@@ -154,7 +154,9 @@ mod tests {
     #[test]
     fn test_seek_from_start() {
         let mut buf = make_buf();
-        let new_pos = buf.seek(SeekPosition::FromStart(5)).unwrap();
+        let new_pos = buf
+            .seek(SeekPosition::FromStart(5))
+            .expect("seek should succeed");
         assert_eq!(new_pos, 5);
         assert_eq!(buf.position(), 5);
         assert_eq!(buf.bytes_remaining(), 5);
@@ -163,30 +165,37 @@ mod tests {
     #[test]
     fn test_seek_from_current_forward() {
         let mut buf = make_buf();
-        buf.seek(SeekPosition::FromStart(3)).unwrap();
-        buf.seek(SeekPosition::FromCurrent(4)).unwrap();
+        buf.seek(SeekPosition::FromStart(3))
+            .expect("seek should succeed");
+        buf.seek(SeekPosition::FromCurrent(4))
+            .expect("seek should succeed");
         assert_eq!(buf.position(), 7);
     }
 
     #[test]
     fn test_seek_from_current_backward() {
         let mut buf = make_buf();
-        buf.seek(SeekPosition::FromStart(6)).unwrap();
-        buf.seek(SeekPosition::FromCurrent(-3)).unwrap();
+        buf.seek(SeekPosition::FromStart(6))
+            .expect("seek should succeed");
+        buf.seek(SeekPosition::FromCurrent(-3))
+            .expect("seek should succeed");
         assert_eq!(buf.position(), 3);
     }
 
     #[test]
     fn test_seek_from_end() {
         let mut buf = make_buf();
-        buf.seek(SeekPosition::FromEnd(-2)).unwrap();
+        buf.seek(SeekPosition::FromEnd(-2))
+            .expect("seek should succeed");
         assert_eq!(buf.position(), 8);
     }
 
     #[test]
     fn test_seek_to_end_boundary() {
         let mut buf = make_buf();
-        let pos = buf.seek(SeekPosition::FromStart(10)).unwrap();
+        let pos = buf
+            .seek(SeekPosition::FromStart(10))
+            .expect("seek should succeed");
         assert_eq!(pos, 10);
         assert_eq!(buf.bytes_remaining(), 0);
     }
@@ -227,7 +236,8 @@ mod tests {
     #[test]
     fn test_read_bytes_past_end() {
         let mut buf = make_buf();
-        buf.seek(SeekPosition::FromStart(8)).unwrap();
+        buf.seek(SeekPosition::FromStart(8))
+            .expect("seek should succeed");
         let mut out = vec![0u8; 5];
         let n = buf.read_bytes(&mut out);
         assert_eq!(n, 2);

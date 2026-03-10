@@ -88,7 +88,10 @@ pub use tonemap::{
 };
 
 // Re-export delogo filter
-pub use delogo::{DelogoConfig, DelogoFilter, DelogoMethod, LogoDetection, Rectangle};
+pub use delogo::{
+    advanced_inpainting, color, detection, mask, metrics, DelogoConfig, DelogoFilter, DelogoMethod,
+    LogoDetection, Rectangle,
+};
 
 // Re-export denoise filter
 pub use denoise::{DenoiseConfig, DenoiseFilter, DenoiseMethod, MotionQuality, TemporalMode};

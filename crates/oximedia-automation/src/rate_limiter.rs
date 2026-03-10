@@ -454,7 +454,7 @@ mod tests {
         let mut engine = RateLimiterEngine::new(config);
         engine.check("ch1", 0);
         engine.check("ch1", 0);
-        let stats = engine.stats("ch1").unwrap();
+        let stats = engine.stats("ch1").expect("stats should succeed");
         assert_eq!(stats.total_checked, 2);
         assert_eq!(stats.total_allowed, 1);
         assert_eq!(stats.total_limited, 1);

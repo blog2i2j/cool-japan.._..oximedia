@@ -324,7 +324,7 @@ mod tests {
 
     #[test]
     fn test_srgb_white_point() {
-        let srgb = ColorSpace::srgb().unwrap();
+        let srgb = ColorSpace::srgb().expect("sRGB color space creation should succeed");
         let white_rgb = [1.0, 1.0, 1.0];
         let xyz = srgb.rgb_to_xyz(white_rgb);
 
@@ -337,7 +337,7 @@ mod tests {
 
     #[test]
     fn test_srgb_roundtrip() {
-        let srgb = ColorSpace::srgb().unwrap();
+        let srgb = ColorSpace::srgb().expect("sRGB color space creation should succeed");
         let rgb = [0.5, 0.3, 0.7];
 
         let xyz = srgb.rgb_to_xyz(rgb);
@@ -350,7 +350,7 @@ mod tests {
 
     #[test]
     fn test_linearize_delinearize() {
-        let srgb = ColorSpace::srgb().unwrap();
+        let srgb = ColorSpace::srgb().expect("sRGB color space creation should succeed");
         let rgb = [0.5, 0.3, 0.7];
 
         let linear = srgb.linearize(rgb);

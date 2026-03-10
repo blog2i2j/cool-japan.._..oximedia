@@ -603,8 +603,10 @@ mod tests {
     #[test]
     fn test_encode_frame() {
         let mut encoder = LtcEncoder::new(48000, FrameRate::Fps25, 0.5);
-        let timecode = Timecode::new(1, 2, 3, 4, FrameRate::Fps25).unwrap();
-        let samples = encoder.encode_frame(&timecode).unwrap();
+        let timecode = Timecode::new(1, 2, 3, 4, FrameRate::Fps25).expect("valid timecode");
+        let samples = encoder
+            .encode_frame(&timecode)
+            .expect("encode should succeed");
         assert!(!samples.is_empty());
     }
 

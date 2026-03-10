@@ -142,7 +142,8 @@ mod tests {
     #[test]
     fn test_mode_optimizer_creation() {
         let config = OptimizerConfig::default();
-        let optimizer = ModeOptimizer::new(&config).unwrap();
+        let optimizer =
+            ModeOptimizer::new(&config).expect("mode optimizer creation should succeed");
         assert!(!optimizer.full_rdo); // Medium level doesn't use full RDO
     }
 
@@ -150,7 +151,8 @@ mod tests {
     fn test_candidate_modes_fast() {
         let mut config = OptimizerConfig::default();
         config.level = crate::OptimizationLevel::Fast;
-        let optimizer = ModeOptimizer::new(&config).unwrap();
+        let optimizer =
+            ModeOptimizer::new(&config).expect("mode optimizer creation should succeed");
         let modes = optimizer.candidate_modes();
         assert!(modes.len() <= 6); // Reduced set
     }
@@ -159,7 +161,8 @@ mod tests {
     fn test_candidate_modes_slow() {
         let mut config = OptimizerConfig::default();
         config.level = crate::OptimizationLevel::Slow;
-        let optimizer = ModeOptimizer::new(&config).unwrap();
+        let optimizer =
+            ModeOptimizer::new(&config).expect("mode optimizer creation should succeed");
         let modes = optimizer.candidate_modes();
         assert!(modes.len() > 6); // Full set with directional modes
     }

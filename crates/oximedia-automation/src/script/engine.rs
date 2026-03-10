@@ -182,19 +182,21 @@ mod tests {
 
     #[test]
     fn test_execute_simple_script() {
-        let engine = ScriptEngine::new().unwrap();
+        let engine = ScriptEngine::new().expect("new should succeed");
         let result = engine.execute("return 1 + 1");
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_set_variable() {
-        let mut engine = ScriptEngine::new().unwrap();
+        let mut engine = ScriptEngine::new().expect("new should succeed");
         engine
             .set_variable("test".to_string(), "value".to_string())
-            .unwrap();
+            .expect("operation should succeed");
 
-        let value = engine.get_global("test").unwrap();
+        let value = engine
+            .get_global("test")
+            .expect("get_global should succeed");
         assert!(matches!(value, Value::String(_)));
     }
 

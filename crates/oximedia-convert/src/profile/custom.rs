@@ -217,7 +217,7 @@ mod tests {
             .video_codec("h264")
             .audio_codec("aac")
             .build()
-            .unwrap();
+            .expect("profile build should succeed");
 
         assert_eq!(profile.name, "Test Profile");
         assert_eq!(profile.description, "Test description");
@@ -246,7 +246,7 @@ mod tests {
             .parameter("preset", "medium")
             .parameter("crf", "23")
             .build()
-            .unwrap();
+            .expect("profile build should succeed");
 
         assert_eq!(profile.settings.parameters.len(), 2);
         assert!(profile
@@ -263,7 +263,7 @@ mod tests {
             .format("mp4")
             .resolution(1920, 1080)
             .build()
-            .unwrap();
+            .expect("profile build should succeed");
 
         assert_eq!(profile.settings.resolution, Some((1920, 1080)));
     }
@@ -276,7 +276,7 @@ mod tests {
             .video_bitrate(5_000_000)
             .audio_bitrate(192_000)
             .build()
-            .unwrap();
+            .expect("profile build should succeed");
 
         assert_eq!(profile.settings.video_bitrate, Some(5_000_000));
         assert_eq!(profile.settings.audio_bitrate, Some(192_000));
@@ -287,11 +287,17 @@ mod tests {
         let profile = ProfileBuilder::high_quality_video()
             .name("HQ Video")
             .build()
-            .unwrap();
+            .expect("profile build should succeed");
 
         assert_eq!(profile.settings.format, "mp4");
         assert_eq!(profile.settings.video_codec, Some("h264".to_string()));
-        assert!(profile.settings.video_bitrate.unwrap() > 5_000_000);
+        assert!(
+            profile
+                .settings
+                .video_bitrate
+                .expect("profile build should succeed")
+                > 5_000_000
+        );
     }
 
     #[test]
@@ -299,10 +305,16 @@ mod tests {
         let profile = ProfileBuilder::low_quality_video()
             .name("LQ Video")
             .build()
-            .unwrap();
+            .expect("profile build should succeed");
 
         assert_eq!(profile.settings.format, "mp4");
-        assert!(profile.settings.video_bitrate.unwrap() < 2_000_000);
+        assert!(
+            profile
+                .settings
+                .video_bitrate
+                .expect("profile build should succeed")
+                < 2_000_000
+        );
     }
 
     #[test]
@@ -310,7 +322,7 @@ mod tests {
         let profile = ProfileBuilder::high_quality_audio()
             .name("HQ Audio")
             .build()
-            .unwrap();
+            .expect("profile build should succeed");
 
         assert_eq!(profile.settings.format, "flac");
         assert_eq!(profile.settings.audio_codec, Some("flac".to_string()));
@@ -323,12 +335,12 @@ mod tests {
             .format("mp4")
             .video_codec("h264")
             .build()
-            .unwrap();
+            .expect("profile build should succeed");
 
         let cloned = ProfileBuilder::from_profile(&original)
             .name("Cloned")
             .build()
-            .unwrap();
+            .expect("profile build should succeed");
 
         assert_eq!(cloned.name, "Cloned");
         assert_eq!(cloned.settings.format, original.settings.format);

@@ -20,7 +20,7 @@ tensorrt = ["onnx"]
 
 [dependencies]
 oximedia-core = { workspace = true }
-oximedia-codec = { workspace = true }
+oximedia-codec = { workspace = true, default-features = true }
 thiserror = { workspace = true }
 ort = { workspace = true, optional = true }
 ndarray = { workspace = true }

@@ -237,7 +237,7 @@ mod tests {
     #[test]
     fn test_from_icc_value_round_trip() {
         for v in 0..=3 {
-            let ri = RenderingIntent::from_icc_value(v).unwrap();
+            let ri = RenderingIntent::from_icc_value(v).expect("ICC value parsing should succeed");
             assert_eq!(ri.icc_value(), v);
         }
     }
@@ -259,7 +259,7 @@ mod tests {
     #[test]
     fn test_rendering_intent_names_non_empty() {
         for v in 0..=3 {
-            let ri = RenderingIntent::from_icc_value(v).unwrap();
+            let ri = RenderingIntent::from_icc_value(v).expect("ICC value parsing should succeed");
             assert!(!ri.name().is_empty());
         }
     }

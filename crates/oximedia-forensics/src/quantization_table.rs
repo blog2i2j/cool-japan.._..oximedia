@@ -232,7 +232,7 @@ mod tests {
     #[test]
     fn test_from_slice_valid() {
         let v: Vec<u16> = (1..=64).collect();
-        let t = QuantTable::from_slice(&v).unwrap();
+        let t = QuantTable::from_slice(&v).expect("t should be valid");
         assert_eq!(t.values[0], 1);
         assert_eq!(t.values[63], 64);
     }

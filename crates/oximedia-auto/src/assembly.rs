@@ -342,7 +342,11 @@ impl AutoAssembler {
         }
 
         // Sort by importance (descending)
-        filtered.sort_by(|a, b| b.adjusted_score().partial_cmp(&a.adjusted_score()).unwrap());
+        filtered.sort_by(|a, b| {
+            b.adjusted_score()
+                .partial_cmp(&a.adjusted_score())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         // Select clips to fit target duration
         let selected = self.select_clips_for_duration(&filtered)?;
@@ -502,7 +506,11 @@ impl AutoAssembler {
 
         // Sort clips by importance
         let mut sorted_by_importance: Vec<_> = clips.iter().enumerate().collect();
-        sorted_by_importance.sort_by(|a, b| b.1.importance.partial_cmp(&a.1.importance).unwrap());
+        sorted_by_importance.sort_by(|a, b| {
+            b.1.importance
+                .partial_cmp(&a.1.importance)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         // Create arc: moderate -> build -> climax -> moderate
         let climax_pos = clips.len() * 3 / 4; // Climax at 75% through
@@ -624,7 +632,11 @@ pub fn extract_best_moments(
         .filter(|s| s.adjusted_score() >= min_score)
         .collect();
 
-    filtered.sort_by(|a, b| b.adjusted_score().partial_cmp(&a.adjusted_score()).unwrap());
+    filtered.sort_by(|a, b| {
+        b.adjusted_score()
+            .partial_cmp(&a.adjusted_score())
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     filtered.into_iter().take(count).cloned().collect()
 }

@@ -375,14 +375,26 @@ mod tests {
         fm.register(make_button("a", 0));
         fm.register(make_button("b", 1));
         fm.register(make_button("c", 2));
-        let first = fm.navigate(FocusDirection::Forward).unwrap().to_string();
+        let first = fm
+            .navigate(FocusDirection::Forward)
+            .expect("first should be valid")
+            .to_string();
         assert_eq!(first, "a");
-        let second = fm.navigate(FocusDirection::Forward).unwrap().to_string();
+        let second = fm
+            .navigate(FocusDirection::Forward)
+            .expect("second should be valid")
+            .to_string();
         assert_eq!(second, "b");
-        let third = fm.navigate(FocusDirection::Forward).unwrap().to_string();
+        let third = fm
+            .navigate(FocusDirection::Forward)
+            .expect("third should be valid")
+            .to_string();
         assert_eq!(third, "c");
         // Wrap around
-        let wrap = fm.navigate(FocusDirection::Forward).unwrap().to_string();
+        let wrap = fm
+            .navigate(FocusDirection::Forward)
+            .expect("wrap should be valid")
+            .to_string();
         assert_eq!(wrap, "a");
     }
 
@@ -392,7 +404,10 @@ mod tests {
         fm.register(make_button("a", 0));
         fm.register(make_button("b", 1));
         fm.focus("b");
-        let prev = fm.navigate(FocusDirection::Backward).unwrap().to_string();
+        let prev = fm
+            .navigate(FocusDirection::Backward)
+            .expect("prev should be valid")
+            .to_string();
         assert_eq!(prev, "a");
     }
 
@@ -402,7 +417,7 @@ mod tests {
         fm.register(make_button("a", 0));
         fm.register(make_button("b", 1));
         assert!(fm.focus("b"));
-        assert_eq!(fm.focused().unwrap(), "b");
+        assert_eq!(fm.focused().expect("focused should succeed"), "b");
         assert!(!fm.focus("nonexistent"));
     }
 
@@ -418,9 +433,15 @@ mod tests {
         trap.activate();
         fm.set_trap(trap);
         fm.focus("b");
-        let next = fm.navigate(FocusDirection::Forward).unwrap().to_string();
+        let next = fm
+            .navigate(FocusDirection::Forward)
+            .expect("next should be valid")
+            .to_string();
         assert_eq!(next, "c");
-        let wrap = fm.navigate(FocusDirection::Forward).unwrap().to_string();
+        let wrap = fm
+            .navigate(FocusDirection::Forward)
+            .expect("wrap should be valid")
+            .to_string();
         assert_eq!(wrap, "b");
     }
 

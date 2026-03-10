@@ -224,7 +224,9 @@ mod tests {
             })
             .collect();
 
-        let result = tracker.track(&samples, sample_rate).unwrap();
+        let result = tracker
+            .track(&samples, sample_rate)
+            .expect("tracking should succeed");
 
         // YIN should detect some pitch
         assert!(result.estimates.len() > 0);
@@ -238,7 +240,9 @@ mod tests {
 
         // White noise (unvoiced)
         let samples = vec![0.01; 8192];
-        let result = tracker.track(&samples, 44100.0).unwrap();
+        let result = tracker
+            .track(&samples, 44100.0)
+            .expect("tracking should succeed");
 
         // Should detect mostly unvoiced
         assert!(result.voicing_rate < 0.3);

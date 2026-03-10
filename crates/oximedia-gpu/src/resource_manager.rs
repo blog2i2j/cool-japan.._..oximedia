@@ -223,7 +223,9 @@ mod tests {
     #[test]
     fn test_allocated_handle_valid() {
         let mut mgr = make_manager();
-        let h = mgr.allocate(ResourceType::GpuBuffer, 1024, "buf").unwrap();
+        let h = mgr
+            .allocate(ResourceType::GpuBuffer, 1024, "buf")
+            .expect("allocation should succeed");
         assert!(h.is_valid());
     }
 
@@ -232,7 +234,9 @@ mod tests {
     #[test]
     fn test_allocate_returns_valid_handle() {
         let mut mgr = make_manager();
-        let h = mgr.allocate(ResourceType::Texture2D, 4096, "tex").unwrap();
+        let h = mgr
+            .allocate(ResourceType::Texture2D, 4096, "tex")
+            .expect("allocation should succeed");
         assert!(h.is_valid());
     }
 
@@ -245,33 +249,39 @@ mod tests {
     #[test]
     fn test_allocation_count_increases() {
         let mut mgr = make_manager();
-        mgr.allocate(ResourceType::GpuBuffer, 256, "a").unwrap();
-        mgr.allocate(ResourceType::HostBuffer, 512, "b").unwrap();
+        mgr.allocate(ResourceType::GpuBuffer, 256, "a")
+            .expect("allocation should succeed");
+        mgr.allocate(ResourceType::HostBuffer, 512, "b")
+            .expect("allocation should succeed");
         assert_eq!(mgr.allocation_count(), 2);
     }
 
     #[test]
     fn test_total_gpu_bytes_only_counts_gpu_resources() {
         let mut mgr = make_manager();
-        mgr.allocate(ResourceType::GpuBuffer, 1024, "gpu").unwrap();
+        mgr.allocate(ResourceType::GpuBuffer, 1024, "gpu")
+            .expect("allocation should succeed");
         mgr.allocate(ResourceType::HostBuffer, 2048, "host")
-            .unwrap();
+            .expect("operation should succeed in test");
         assert_eq!(mgr.total_gpu_bytes(), 1024);
     }
 
     #[test]
     fn test_total_bytes_counts_all() {
         let mut mgr = make_manager();
-        mgr.allocate(ResourceType::GpuBuffer, 1024, "gpu").unwrap();
+        mgr.allocate(ResourceType::GpuBuffer, 1024, "gpu")
+            .expect("allocation should succeed");
         mgr.allocate(ResourceType::HostBuffer, 2048, "host")
-            .unwrap();
+            .expect("operation should succeed in test");
         assert_eq!(mgr.total_bytes(), 3072);
     }
 
     #[test]
     fn test_free_removes_resource() {
         let mut mgr = make_manager();
-        let h = mgr.allocate(ResourceType::GpuBuffer, 512, "buf").unwrap();
+        let h = mgr
+            .allocate(ResourceType::GpuBuffer, 512, "buf")
+            .expect("allocation should succeed");
         assert!(mgr.free(h));
         assert_eq!(mgr.allocation_count(), 0);
     }
@@ -286,14 +296,18 @@ mod tests {
     #[test]
     fn test_resource_type_query() {
         let mut mgr = make_manager();
-        let h = mgr.allocate(ResourceType::Sampler, 64, "s").unwrap();
+        let h = mgr
+            .allocate(ResourceType::Sampler, 64, "s")
+            .expect("allocation should succeed");
         assert_eq!(mgr.resource_type(h), Some(ResourceType::Sampler));
     }
 
     #[test]
     fn test_resource_size_query() {
         let mut mgr = make_manager();
-        let h = mgr.allocate(ResourceType::Texture2D, 8192, "t").unwrap();
+        let h = mgr
+            .allocate(ResourceType::Texture2D, 8192, "t")
+            .expect("allocation should succeed");
         assert_eq!(mgr.resource_size(h), Some(8192));
     }
 
@@ -302,14 +316,16 @@ mod tests {
         let mut mgr = make_manager();
         let h = mgr
             .allocate(ResourceType::GpuBuffer, 128, "my_label")
-            .unwrap();
+            .expect("operation should succeed in test");
         assert_eq!(mgr.resource_label(h), Some("my_label"));
     }
 
     #[test]
     fn test_is_alive_after_free_is_false() {
         let mut mgr = make_manager();
-        let h = mgr.allocate(ResourceType::GpuBuffer, 256, "buf").unwrap();
+        let h = mgr
+            .allocate(ResourceType::GpuBuffer, 256, "buf")
+            .expect("allocation should succeed");
         mgr.free(h);
         assert!(!mgr.is_alive(h));
     }

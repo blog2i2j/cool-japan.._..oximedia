@@ -163,7 +163,7 @@ pub async fn example_scheduled_job(engine: &Arc<BatchEngine>) -> Result<()> {
     let scheduled_time = tomorrow
         .date_naive()
         .and_hms_opt(2, 0, 0)
-        .unwrap()
+        .ok_or_else(|| crate::error::BatchError::InvalidJobConfig("invalid time 02:00:00".into()))?
         .and_utc();
 
     job.set_schedule(Schedule::At(scheduled_time));
@@ -629,11 +629,14 @@ mod tests {
     use tempfile::TempDir;
 
     async fn create_test_engine() -> (Arc<BatchEngine>, TempDir) {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
         let db_path = temp_dir.path().join("test.db");
-        let db_path_str = db_path.to_str().unwrap().to_string();
+        let db_path_str = db_path
+            .to_str()
+            .expect("path should be valid UTF-8")
+            .to_string();
         (
-            Arc::new(BatchEngine::new(&db_path_str, 2).unwrap()),
+            Arc::new(BatchEngine::new(&db_path_str, 2).expect("failed to create")),
             temp_dir,
         )
     }

@@ -74,7 +74,7 @@ mod tests {
         let mut audio = vec![100, 200, 300];
         let video = vec![0, 100, 200];
 
-        fix_sync(&mut audio, &video, 100).unwrap();
+        fix_sync(&mut audio, &video, 100).expect("sync fix should succeed");
 
         assert_eq!(audio[0], 0);
         assert_eq!(audio[1], 100);
@@ -86,7 +86,7 @@ mod tests {
         let mut audio = vec![100, 200, 300];
         let mut video = vec![0, 100, 200];
 
-        align_start_times(&mut audio, &mut video).unwrap();
+        align_start_times(&mut audio, &mut video).expect("alignment should succeed");
 
         assert_eq!(audio[0], video[0]);
     }

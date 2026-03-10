@@ -356,7 +356,7 @@ mod tests {
         m.add_target(uptime_target());
         // Simulate a violation with 60-second duration in a 1-hour window.
         let result = m.check("uptime_pct", 95.0, 0);
-        let mut v = result.unwrap();
+        let mut v = result.expect("result should be valid");
         v.duration_ms = 60_000;
         m.violations.clear();
         m.violations.push(v);
@@ -397,7 +397,9 @@ mod tests {
     fn test_violation_description_contains_metric() {
         let mut m = SlaMonitor::new();
         m.add_target(latency_target());
-        let v = m.check("latency_ms", 999.0, 5000).unwrap();
+        let v = m
+            .check("latency_ms", 999.0, 5000)
+            .expect("check should succeed");
         let desc = v.description();
         assert!(desc.contains("latency_ms"));
     }

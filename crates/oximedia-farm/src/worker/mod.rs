@@ -380,7 +380,7 @@ mod tests {
         let config = WorkerConfig::default();
         let worker = Arc::new(Worker::new(config));
 
-        worker.shutdown().await.unwrap();
+        worker.shutdown().await.expect("await should be valid");
         assert_eq!(worker.state(), WorkerState::Draining);
     }
 

@@ -421,7 +421,7 @@ mod tests {
         assert!(fence.signal_latency().is_none());
         fence.signal();
         // Latency should be non-negative
-        let latency = fence.signal_latency().unwrap();
+        let latency = fence.signal_latency().expect("latency should be valid");
         assert!(latency.as_nanos() < 1_000_000_000); // less than 1 second
     }
 }

@@ -465,7 +465,7 @@ mod tests {
             .preserve_metadata(true)
             .max_resolution(1920, 1080)
             .build()
-            .unwrap();
+            .expect("builder should produce valid options");
 
         assert_eq!(options.profile, Profile::WebOptimized);
         assert_eq!(options.quality_mode, QualityMode::Best);

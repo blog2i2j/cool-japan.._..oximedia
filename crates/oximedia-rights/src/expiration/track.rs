@@ -36,8 +36,7 @@ impl<'a> ExpirationTracker<'a> {
         .fetch_all(self.db.pool())
         .await?;
 
-        Ok(rows
-            .into_iter()
+        rows.into_iter()
             .map(|r| {
                 let territory_json: Option<String> = r.get("territory_json");
                 let territory = territory_json.and_then(|json| serde_json::from_str(&json).ok());
@@ -46,31 +45,47 @@ impl<'a> ExpirationTracker<'a> {
                 let usage_restrictions =
                     usage_json.and_then(|json| serde_json::from_str(&json).ok());
 
-                RightsGrant {
+                let start_date = DateTime::parse_from_rfc3339(r.get("start_date"))
+                    .map_err(|e| {
+                        crate::RightsError::InvalidLicense(format!("Invalid start_date: {e}"))
+                    })?
+                    .with_timezone(&Utc);
+                let end_date = r
+                    .get::<Option<String>, _>("end_date")
+                    .map(|s| {
+                        DateTime::parse_from_rfc3339(&s)
+                            .map_err(|e| {
+                                crate::RightsError::InvalidLicense(format!("Invalid end_date: {e}"))
+                            })
+                            .map(|dt| dt.with_timezone(&Utc))
+                    })
+                    .transpose()?;
+                let created_at = DateTime::parse_from_rfc3339(r.get("created_at"))
+                    .map_err(|e| {
+                        crate::RightsError::InvalidLicense(format!("Invalid created_at: {e}"))
+                    })?
+                    .with_timezone(&Utc);
+                let updated_at = DateTime::parse_from_rfc3339(r.get("updated_at"))
+                    .map_err(|e| {
+                        crate::RightsError::InvalidLicense(format!("Invalid updated_at: {e}"))
+                    })?
+                    .with_timezone(&Utc);
+
+                Ok(RightsGrant {
                     id: r.get("id"),
                     asset_id: r.get("asset_id"),
                     owner_id: r.get("owner_id"),
                     license_type: crate::license::LicenseType::from_str(r.get("license_type")),
-                    start_date: DateTime::parse_from_rfc3339(r.get("start_date"))
-                        .unwrap()
-                        .with_timezone(&Utc),
-                    end_date: r.get::<Option<String>, _>("end_date").map(|s| {
-                        DateTime::parse_from_rfc3339(&s)
-                            .unwrap()
-                            .with_timezone(&Utc)
-                    }),
+                    start_date,
+                    end_date,
                     is_exclusive: r.get::<i32, _>("is_exclusive") != 0,
                     territory,
                     usage_restrictions,
-                    created_at: DateTime::parse_from_rfc3339(r.get("created_at"))
-                        .unwrap()
-                        .with_timezone(&Utc),
-                    updated_at: DateTime::parse_from_rfc3339(r.get("updated_at"))
-                        .unwrap()
-                        .with_timezone(&Utc),
-                }
+                    created_at,
+                    updated_at,
+                })
             })
-            .collect())
+            .collect()
     }
 
     /// Get all expired grants
@@ -90,8 +105,7 @@ impl<'a> ExpirationTracker<'a> {
         .fetch_all(self.db.pool())
         .await?;
 
-        Ok(rows
-            .into_iter()
+        rows.into_iter()
             .map(|r| {
                 let territory_json: Option<String> = r.get("territory_json");
                 let territory = territory_json.and_then(|json| serde_json::from_str(&json).ok());
@@ -100,31 +114,47 @@ impl<'a> ExpirationTracker<'a> {
                 let usage_restrictions =
                     usage_json.and_then(|json| serde_json::from_str(&json).ok());
 
-                RightsGrant {
+                let start_date = DateTime::parse_from_rfc3339(r.get("start_date"))
+                    .map_err(|e| {
+                        crate::RightsError::InvalidLicense(format!("Invalid start_date: {e}"))
+                    })?
+                    .with_timezone(&Utc);
+                let end_date = r
+                    .get::<Option<String>, _>("end_date")
+                    .map(|s| {
+                        DateTime::parse_from_rfc3339(&s)
+                            .map_err(|e| {
+                                crate::RightsError::InvalidLicense(format!("Invalid end_date: {e}"))
+                            })
+                            .map(|dt| dt.with_timezone(&Utc))
+                    })
+                    .transpose()?;
+                let created_at = DateTime::parse_from_rfc3339(r.get("created_at"))
+                    .map_err(|e| {
+                        crate::RightsError::InvalidLicense(format!("Invalid created_at: {e}"))
+                    })?
+                    .with_timezone(&Utc);
+                let updated_at = DateTime::parse_from_rfc3339(r.get("updated_at"))
+                    .map_err(|e| {
+                        crate::RightsError::InvalidLicense(format!("Invalid updated_at: {e}"))
+                    })?
+                    .with_timezone(&Utc);
+
+                Ok(RightsGrant {
                     id: r.get("id"),
                     asset_id: r.get("asset_id"),
                     owner_id: r.get("owner_id"),
                     license_type: crate::license::LicenseType::from_str(r.get("license_type")),
-                    start_date: DateTime::parse_from_rfc3339(r.get("start_date"))
-                        .unwrap()
-                        .with_timezone(&Utc),
-                    end_date: r.get::<Option<String>, _>("end_date").map(|s| {
-                        DateTime::parse_from_rfc3339(&s)
-                            .unwrap()
-                            .with_timezone(&Utc)
-                    }),
+                    start_date,
+                    end_date,
                     is_exclusive: r.get::<i32, _>("is_exclusive") != 0,
                     territory,
                     usage_restrictions,
-                    created_at: DateTime::parse_from_rfc3339(r.get("created_at"))
-                        .unwrap()
-                        .with_timezone(&Utc),
-                    updated_at: DateTime::parse_from_rfc3339(r.get("updated_at"))
-                        .unwrap()
-                        .with_timezone(&Utc),
-                }
+                    created_at,
+                    updated_at,
+                })
             })
-            .collect())
+            .collect()
     }
 
     /// Check if a grant is about to expire (within specified days)
@@ -185,7 +215,10 @@ mod tests {
 
         let days = ExpirationTracker::days_until_expiration(&grant);
         assert!(days.is_some());
-        assert!(days.unwrap() >= 4 && days.unwrap() <= 5);
+        assert!(
+            days.expect("rights test operation should succeed") >= 4
+                && days.expect("rights test operation should succeed") <= 5
+        );
     }
 
     #[test]

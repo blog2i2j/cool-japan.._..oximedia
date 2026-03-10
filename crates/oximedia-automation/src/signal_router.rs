@@ -410,7 +410,7 @@ mod tests {
         let mut router = setup_router();
         let result = router.set_route("CAM1", "PGM", SignalType::Video, "op1", 1000);
         assert!(result.is_ok());
-        let route = router.get_route("PGM").unwrap();
+        let route = router.get_route("PGM").expect("get_route should succeed");
         assert_eq!(route.source.0, "CAM1");
         assert_eq!(route.signal_type, SignalType::Video);
     }
@@ -437,7 +437,7 @@ mod tests {
         let mut router = setup_router();
         router
             .set_route("CAM1", "PGM", SignalType::Video, "op1", 1000)
-            .unwrap();
+            .expect("operation should succeed");
         assert!(router.lock_route("PGM"));
         let result = router.set_route("CAM2", "PGM", SignalType::Video, "op1", 2000);
         assert!(matches!(result, Err(RouteError::RouteLocked { .. })));
@@ -448,7 +448,7 @@ mod tests {
         let mut router = setup_router();
         router
             .set_route("CAM1", "PGM", SignalType::Video, "op1", 1000)
-            .unwrap();
+            .expect("operation should succeed");
         router.lock_route("PGM");
         router.unlock_route("PGM");
         let result = router.set_route("CAM2", "PGM", SignalType::Video, "op1", 2000);
@@ -460,7 +460,7 @@ mod tests {
         let mut router = setup_router();
         router
             .set_route("CAM1", "PGM", SignalType::Video, "op1", 1000)
-            .unwrap();
+            .expect("operation should succeed");
         assert!(router.clear_route("PGM").is_ok());
         assert!(router.get_route("PGM").is_none());
     }
@@ -470,7 +470,7 @@ mod tests {
         let mut router = setup_router();
         router
             .set_route("CAM1", "PGM", SignalType::Video, "op1", 1000)
-            .unwrap();
+            .expect("operation should succeed");
         router.lock_route("PGM");
         assert!(matches!(
             router.clear_route("PGM"),
@@ -486,7 +486,9 @@ mod tests {
         salvo.add_route("PVW", "CAM2");
         assert_eq!(salvo.route_count(), 2);
         router.save_salvo(salvo);
-        let applied = router.recall_salvo("default_config", "op1", 1000).unwrap();
+        let applied = router
+            .recall_salvo("default_config", "op1", 1000)
+            .expect("recall_salvo should succeed");
         assert_eq!(applied, 2);
         assert_eq!(router.active_route_count(), 2);
     }
@@ -503,10 +505,10 @@ mod tests {
         let mut router = setup_router();
         router
             .set_route("CAM1", "PGM", SignalType::Video, "op1", 1000)
-            .unwrap();
+            .expect("operation should succeed");
         router
             .set_route("CAM2", "PGM", SignalType::Video, "op1", 2000)
-            .unwrap();
+            .expect("operation should succeed");
         assert_eq!(router.history().len(), 2);
         assert_eq!(router.history()[1].previous_source.as_deref(), Some("CAM1"));
         assert_eq!(router.history()[1].new_source, "CAM2");

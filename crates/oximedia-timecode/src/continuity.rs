@@ -257,7 +257,7 @@ mod tests {
     use super::*;
 
     fn tc(h: u8, m: u8, s: u8, f: u8) -> Timecode {
-        Timecode::new(h, m, s, f, FrameRate::Fps25).unwrap()
+        Timecode::new(h, m, s, f, FrameRate::Fps25).expect("valid timecode")
     }
 
     #[test]
@@ -344,7 +344,7 @@ mod tests {
     fn test_timecode_range_contains() {
         let start = tc(0, 0, 0, 0);
         let end = tc(0, 0, 1, 0);
-        let range = TimecodeRange::new(start, end).unwrap();
+        let range = TimecodeRange::new(start, end).expect("valid timecode range");
         assert!(range.contains(&tc(0, 0, 0, 10)));
         assert!(!range.contains(&tc(0, 0, 2, 0)));
     }
@@ -353,15 +353,15 @@ mod tests {
     fn test_timecode_range_duration() {
         let start = tc(0, 0, 0, 0);
         let end = tc(0, 0, 0, 24);
-        let range = TimecodeRange::new(start, end).unwrap();
+        let range = TimecodeRange::new(start, end).expect("valid timecode range");
         assert_eq!(range.duration_frames(), 25);
     }
 
     #[test]
     fn test_timecode_range_overlaps() {
-        let r1 = TimecodeRange::new(tc(0, 0, 0, 0), tc(0, 0, 0, 10)).unwrap();
-        let r2 = TimecodeRange::new(tc(0, 0, 0, 5), tc(0, 0, 0, 20)).unwrap();
-        let r3 = TimecodeRange::new(tc(0, 0, 1, 0), tc(0, 0, 1, 10)).unwrap();
+        let r1 = TimecodeRange::new(tc(0, 0, 0, 0), tc(0, 0, 0, 10)).expect("valid timecode range");
+        let r2 = TimecodeRange::new(tc(0, 0, 0, 5), tc(0, 0, 0, 20)).expect("valid timecode range");
+        let r3 = TimecodeRange::new(tc(0, 0, 1, 0), tc(0, 0, 1, 10)).expect("valid timecode range");
         assert!(r1.overlaps(&r2));
         assert!(!r1.overlaps(&r3));
     }

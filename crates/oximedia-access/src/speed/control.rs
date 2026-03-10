@@ -88,7 +88,7 @@ mod tests {
     #[test]
     fn test_calculate_duration() {
         let mut controller = SpeedController::default();
-        controller.set_speed(2.0).unwrap();
+        controller.set_speed(2.0).expect("set_speed should succeed");
 
         let new_duration = controller.calculate_new_duration(1000);
         assert_eq!(new_duration, 500);

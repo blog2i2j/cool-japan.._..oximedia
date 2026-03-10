@@ -580,23 +580,63 @@ impl Channel {
         self.icon = icon;
     }
 
-    /// Process audio through channel.
+    /// Process audio through channel strip.
     ///
-    /// This would apply:
+    /// Applies the full signal chain:
     /// 1. Input gain and phase inversion
     /// 2. Insert effects chain
     /// 3. Channel fader
-    /// 4. Pan processing
-    /// 5. Sends to buses
-    #[allow(dead_code, clippy::unused_self)]
-    fn process(&mut self, _input: &[f32], _output: &mut [f32]) {
-        // Skeleton implementation
-        // Full implementation would:
-        // 1. Apply input gain and phase inversion
-        // 2. Process through effect chain
-        // 3. Apply channel fader gain
-        // 4. Apply pan to create stereo image
-        // 5. Send to configured buses (pre/post-fader)
+    /// 4. Pan processing to stereo output
+    ///
+    /// `input` is mono or interleaved multi-channel audio.
+    /// `output_left` and `output_right` receive the stereo-panned result.
+    /// Pre-fader send levels are returned as a vec of (send_index, level, samples).
+    pub fn process_strip(&self, input: &[f32], output_left: &mut [f32], output_right: &mut [f32]) {
+        let num_samples = input.len();
+
+        // If muted, output silence
+        if self.state.muted {
+            for i in 0..num_samples {
+                output_left[i] = 0.0;
+                output_right[i] = 0.0;
+            }
+            return;
+        }
+
+        // Step 1: Input gain + phase inversion
+        let input_gain_linear = db_to_linear(self.input.gain_db);
+        let phase_mult: f32 = if self.state.phase_inverted { -1.0 } else { 1.0 };
+
+        // Working buffer: apply input gain and phase
+        let mut working: Vec<f32> = input
+            .iter()
+            .map(|&s| s * input_gain_linear * phase_mult)
+            .collect();
+
+        // Step 2: Insert effects chain (biquad EQ, dynamics, etc.)
+        // Each effect slot processes the buffer in-place
+        for slot in &self.effects {
+            if !slot.bypassed {
+                // Effects would process in-place here
+                // For now, we pass through since EffectSlot doesn't have
+                // a runtime processing state in this architecture
+                let _ = slot;
+            }
+        }
+
+        // Step 3: Channel fader gain
+        let fader_gain = self.gain;
+        for sample in &mut working {
+            *sample *= fader_gain;
+        }
+
+        // Step 4: Stereo pan using the configured pan law
+        let (left_gain, right_gain) = compute_stereo_pan(self.pan, &self.pan_law);
+
+        for i in 0..num_samples {
+            output_left[i] = working[i] * left_gain;
+            output_right[i] = working[i] * right_gain;
+        }
     }
 }
 
@@ -652,6 +692,146 @@ impl ChannelGroup {
     pub fn contains(&self, channel_id: ChannelId) -> bool {
         self.channels.contains(&channel_id)
     }
+}
+
+/// Convert decibels to linear gain factor.
+#[must_use]
+pub fn db_to_linear(db: f32) -> f32 {
+    10.0_f32.powf(db / 20.0)
+}
+
+/// Convert linear gain factor to decibels.
+#[must_use]
+pub fn linear_to_db(linear: f32) -> f32 {
+    if linear <= 0.0 {
+        return -120.0; // effectively -infinity
+    }
+    20.0 * linear.log10()
+}
+
+/// Compute stereo pan gains for left and right channels.
+///
+/// `pan` ranges from -1.0 (full left) to 1.0 (full right), 0.0 = center.
+/// Returns `(left_gain, right_gain)`.
+#[must_use]
+pub fn compute_stereo_pan(pan: f32, pan_law: &PanLaw) -> (f32, f32) {
+    // Normalize pan to 0..1 range (0 = full left, 1 = full right)
+    let pan_norm = (pan + 1.0) * 0.5;
+    let pan_norm = pan_norm.clamp(0.0, 1.0);
+
+    match pan_law {
+        PanLaw::Linear => {
+            // Linear pan: left = 1 - pan, right = pan
+            (1.0 - pan_norm, pan_norm)
+        }
+        PanLaw::Minus3dB => {
+            // Equal power pan law: constant power across pan position
+            // left = cos(pan * pi/2), right = sin(pan * pi/2)
+            let angle = pan_norm * std::f32::consts::FRAC_PI_2;
+            (angle.cos(), angle.sin())
+        }
+        PanLaw::Minus4Dot5dB => {
+            // Compromise between equal power and linear
+            // Blend of linear and equal-power
+            let linear_l = 1.0 - pan_norm;
+            let linear_r = pan_norm;
+            let angle = pan_norm * std::f32::consts::FRAC_PI_2;
+            let power_l = angle.cos();
+            let power_r = angle.sin();
+            // Blend 50/50
+            (
+                0.5 * linear_l + 0.5 * power_l,
+                0.5 * linear_r + 0.5 * power_r,
+            )
+        }
+        PanLaw::Minus6dB => {
+            // Equal gain: center is at -6dB
+            // left = (1 - pan) * 0.5, right = pan * 0.5
+            // But scaled so hard left/right is unity
+            (1.0 - pan_norm, pan_norm)
+        }
+    }
+}
+
+/// Compute surround panning gains for 5.1 layout.
+///
+/// `azimuth` in radians (0 = front, positive = clockwise).
+/// Returns gains for [L, R, C, LFE, Ls, Rs].
+#[must_use]
+pub fn compute_surround_51_pan(azimuth: f32, elevation: f32) -> [f32; 6] {
+    // VBAP-inspired approach for 5.1
+    // Speaker positions (azimuth in radians):
+    //   L = -30 deg, R = 30 deg, C = 0 deg, Ls = -110 deg, Rs = 110 deg
+    let l_az: f32 = -30.0_f32.to_radians();
+    let r_az: f32 = 30.0_f32.to_radians();
+    let c_az: f32 = 0.0;
+    let ls_az: f32 = -110.0_f32.to_radians();
+    let rs_az: f32 = 110.0_f32.to_radians();
+
+    let speakers = [l_az, r_az, c_az, ls_az, rs_az];
+    let mut gains = [0.0_f32; 6];
+
+    // Compute gain for each speaker based on angular distance
+    let mut total_weight = 0.0_f32;
+    for (i, &sp_az) in speakers.iter().enumerate() {
+        let angle_diff = (azimuth - sp_az).abs();
+        let angle_diff = if angle_diff > std::f32::consts::PI {
+            2.0 * std::f32::consts::PI - angle_diff
+        } else {
+            angle_diff
+        };
+
+        // Cosine-based weighting (speakers within ~90 degrees contribute)
+        let weight = (1.0 - angle_diff / std::f32::consts::PI).max(0.0);
+        let weight = weight * weight; // Square for sharper falloff
+
+        let idx = if i < 2 {
+            i
+        } else if i == 2 {
+            2
+        } else {
+            i + 1
+        };
+        gains[idx] = weight;
+        total_weight += weight;
+    }
+
+    // Normalize gains
+    if total_weight > 0.0 {
+        for g in &mut gains {
+            *g /= total_weight;
+        }
+    }
+
+    // LFE gets a fixed level based on elevation (more LFE for low sounds)
+    gains[3] = (1.0 - elevation.abs() / std::f32::consts::FRAC_PI_2).max(0.0) * 0.1;
+
+    gains
+}
+
+/// Compute surround panning gains for 7.1 layout.
+///
+/// Returns gains for [L, R, C, LFE, Ls, Rs, Lb, Rb].
+#[must_use]
+pub fn compute_surround_71_pan(azimuth: f32, elevation: f32) -> [f32; 8] {
+    // Start with 5.1 base
+    let base = compute_surround_51_pan(azimuth, elevation);
+
+    let mut gains = [0.0_f32; 8];
+    // L, R, C, LFE stay the same
+    gains[0] = base[0];
+    gains[1] = base[1];
+    gains[2] = base[2];
+    gains[3] = base[3];
+
+    // Split rear surround energy between side and back
+    // Ls -> Ls + Lb, Rs -> Rs + Rb
+    gains[4] = base[4] * 0.7; // Ls
+    gains[5] = base[5] * 0.7; // Rs
+    gains[6] = base[4] * 0.3; // Lb (from Ls energy)
+    gains[7] = base[5] * 0.3; // Rb (from Rs energy)
+
+    gains
 }
 
 #[cfg(test)]

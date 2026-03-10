@@ -5,7 +5,7 @@
 
 use crate::error::{StabilizeError, StabilizeResult};
 use crate::motion::trajectory::Trajectory;
-use ndarray::Array1;
+use scirs2_core::ndarray::Array1;
 
 /// Main trajectory smoother that combines multiple filtering techniques.
 #[derive(Debug)]
@@ -116,7 +116,7 @@ impl TrajectorySmoother {
             let end = (i + half + 1).min(n);
             let count = end - start;
 
-            let sum: f64 = data.slice(ndarray::s![start..end]).sum();
+            let sum: f64 = data.slice(scirs2_core::ndarray::s![start..end]).sum();
             result[i] = sum / count as f64;
         }
 
@@ -135,7 +135,10 @@ impl TrajectorySmoother {
             let count = end - start;
 
             // Geometric mean for scale factors
-            let product: f64 = data.slice(ndarray::s![start..end]).iter().product();
+            let product: f64 = data
+                .slice(scirs2_core::ndarray::s![start..end])
+                .iter()
+                .product();
             result[i] = product.powf(1.0 / count as f64);
         }
 
@@ -521,7 +524,7 @@ impl SavitzkyGolayFilter {
             let end = (i + half + 1).min(n);
 
             // Simple moving average as approximation
-            let sum: f64 = data.slice(ndarray::s![start..end]).sum();
+            let sum: f64 = data.slice(scirs2_core::ndarray::s![start..end]).sum();
             let count = end - start;
             result[i] = sum / count as f64;
         }
@@ -553,7 +556,7 @@ impl MedianFilter {
             let start = i.saturating_sub(half);
             let end = (i + half + 1).min(n);
 
-            let mut window: Vec<f64> = data.slice(ndarray::s![start..end]).to_vec();
+            let mut window: Vec<f64> = data.slice(scirs2_core::ndarray::s![start..end]).to_vec();
             window.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
             result[i] = if window.len() % 2 == 0 {

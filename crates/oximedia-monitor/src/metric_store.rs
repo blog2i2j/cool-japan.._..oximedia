@@ -196,7 +196,9 @@ mod tests {
     fn store_record_and_latest() {
         let mut s = MetricStore::new(5);
         s.record(MetricType::CpuPercent, 45.0);
-        let latest = s.latest(&MetricType::CpuPercent).unwrap();
+        let latest = s
+            .latest(&MetricType::CpuPercent)
+            .expect("latest should succeed");
         assert!((latest.value - 45.0).abs() < 1e-9);
     }
 

@@ -116,7 +116,9 @@ mod tests {
         let scheduled = std::time::SystemTime::now() + Duration::from_secs(10);
         let preroll_start = manager.calculate_preroll_start(scheduled);
 
-        let diff = scheduled.duration_since(preroll_start).unwrap();
+        let diff = scheduled
+            .duration_since(preroll_start)
+            .expect("duration_since should succeed");
         assert_eq!(diff.as_secs(), 5);
     }
 }

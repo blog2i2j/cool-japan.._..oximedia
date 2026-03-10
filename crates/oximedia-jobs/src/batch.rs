@@ -330,7 +330,7 @@ mod tests {
         let bid = mgr.create_batch("test", vec![1, 2, 3], 2);
         // Complete one out of three
         mgr.complete_job(bid, 1, true, None);
-        let status = mgr.batch_status(bid).unwrap();
+        let status = mgr.batch_status(bid).expect("status should be valid");
         match status {
             BatchStatus::Running { done, .. } => assert_eq!(done, 1),
             _ => panic!("Expected Running, got {status:?}"),
@@ -343,7 +343,7 @@ mod tests {
         let bid = mgr.create_batch("test", vec![1, 2], 2);
         mgr.complete_job(bid, 1, true, None);
         mgr.complete_job(bid, 2, true, None);
-        let status = mgr.batch_status(bid).unwrap();
+        let status = mgr.batch_status(bid).expect("status should be valid");
         assert!(matches!(status, BatchStatus::Completed { .. }));
     }
 
@@ -353,7 +353,7 @@ mod tests {
         let bid = mgr.create_batch("test", vec![1, 2], 2);
         mgr.complete_job(bid, 1, false, Some("disk full"));
         mgr.complete_job(bid, 2, true, None);
-        let status = mgr.batch_status(bid).unwrap();
+        let status = mgr.batch_status(bid).expect("status should be valid");
         assert!(matches!(status, BatchStatus::Failed { .. }));
     }
 
@@ -392,7 +392,11 @@ mod tests {
     fn test_max_parallel_stored() {
         let mut mgr = BatchManager::new();
         let bid = mgr.create_batch("par-test", vec![1, 2, 3], 5);
-        let batch = mgr.batches().iter().find(|b| b.id == bid).unwrap();
+        let batch = mgr
+            .batches()
+            .iter()
+            .find(|b| b.id == bid)
+            .expect("batch should be valid");
         assert_eq!(batch.max_parallel, 5);
     }
 }

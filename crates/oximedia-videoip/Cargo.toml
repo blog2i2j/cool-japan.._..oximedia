@@ -14,7 +14,7 @@ workspace = true
 [dependencies]
 # Workspace dependencies
 oximedia-core = { workspace = true }
-oximedia-codec = { workspace = true }
+oximedia-codec = { workspace = true, default-features = true }
 oximedia-net = { workspace = true }
 oximedia-monitor = { workspace = true }
 oximedia-timecode = { workspace = true }
@@ -27,13 +27,11 @@ async-trait = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 chrono = { workspace = true }
-rand = { workspace = true }
 parking_lot = { workspace = true }
 dashmap = { workspace = true }
 
 # Networking
 socket2 = "0.6"
-nix = { version = "0.31", features = ["net"] }
 
 # mDNS/DNS-SD for service discovery
 mdns-sd = "0.18"

@@ -191,37 +191,46 @@ impl RightsGrant {
         .fetch_optional(db.pool())
         .await?;
 
-        Ok(row.map(|r| {
+        row.map(|r| {
             let territory_json: Option<String> = r.get("territory_json");
             let territory = territory_json.and_then(|json| serde_json::from_str(&json).ok());
 
             let usage_json: Option<String> = r.get("usage_restrictions_json");
             let usage_restrictions = usage_json.and_then(|json| serde_json::from_str(&json).ok());
 
-            RightsGrant {
+            let start_date = DateTime::parse_from_rfc3339(r.get("start_date"))
+                .map_err(|e| RightsError::InvalidLicense(format!("Invalid start_date: {e}")))?
+                .with_timezone(&Utc);
+            let end_date = r
+                .get::<Option<String>, _>("end_date")
+                .map(|s| {
+                    DateTime::parse_from_rfc3339(&s)
+                        .map_err(|e| RightsError::InvalidLicense(format!("Invalid end_date: {e}")))
+                        .map(|dt| dt.with_timezone(&Utc))
+                })
+                .transpose()?;
+            let created_at = DateTime::parse_from_rfc3339(r.get("created_at"))
+                .map_err(|e| RightsError::InvalidLicense(format!("Invalid created_at: {e}")))?
+                .with_timezone(&Utc);
+            let updated_at = DateTime::parse_from_rfc3339(r.get("updated_at"))
+                .map_err(|e| RightsError::InvalidLicense(format!("Invalid updated_at: {e}")))?
+                .with_timezone(&Utc);
+
+            Ok(RightsGrant {
                 id: r.get("id"),
                 asset_id: r.get("asset_id"),
                 owner_id: r.get("owner_id"),
                 license_type: LicenseType::from_str(r.get("license_type")),
-                start_date: DateTime::parse_from_rfc3339(r.get("start_date"))
-                    .unwrap()
-                    .with_timezone(&Utc),
-                end_date: r.get::<Option<String>, _>("end_date").map(|s| {
-                    DateTime::parse_from_rfc3339(&s)
-                        .unwrap()
-                        .with_timezone(&Utc)
-                }),
+                start_date,
+                end_date,
                 is_exclusive: r.get::<i32, _>("is_exclusive") != 0,
                 territory,
                 usage_restrictions,
-                created_at: DateTime::parse_from_rfc3339(r.get("created_at"))
-                    .unwrap()
-                    .with_timezone(&Utc),
-                updated_at: DateTime::parse_from_rfc3339(r.get("updated_at"))
-                    .unwrap()
-                    .with_timezone(&Utc),
-            }
-        }))
+                created_at,
+                updated_at,
+            })
+        })
+        .transpose()
     }
 
     /// List all grants for an asset
@@ -238,8 +247,7 @@ impl RightsGrant {
         .fetch_all(db.pool())
         .await?;
 
-        Ok(rows
-            .into_iter()
+        rows.into_iter()
             .map(|r| {
                 let territory_json: Option<String> = r.get("territory_json");
                 let territory = territory_json.and_then(|json| serde_json::from_str(&json).ok());
@@ -248,31 +256,41 @@ impl RightsGrant {
                 let usage_restrictions =
                     usage_json.and_then(|json| serde_json::from_str(&json).ok());
 
-                RightsGrant {
+                let start_date = DateTime::parse_from_rfc3339(r.get("start_date"))
+                    .map_err(|e| RightsError::InvalidLicense(format!("Invalid start_date: {e}")))?
+                    .with_timezone(&Utc);
+                let end_date = r
+                    .get::<Option<String>, _>("end_date")
+                    .map(|s| {
+                        DateTime::parse_from_rfc3339(&s)
+                            .map_err(|e| {
+                                RightsError::InvalidLicense(format!("Invalid end_date: {e}"))
+                            })
+                            .map(|dt| dt.with_timezone(&Utc))
+                    })
+                    .transpose()?;
+                let created_at = DateTime::parse_from_rfc3339(r.get("created_at"))
+                    .map_err(|e| RightsError::InvalidLicense(format!("Invalid created_at: {e}")))?
+                    .with_timezone(&Utc);
+                let updated_at = DateTime::parse_from_rfc3339(r.get("updated_at"))
+                    .map_err(|e| RightsError::InvalidLicense(format!("Invalid updated_at: {e}")))?
+                    .with_timezone(&Utc);
+
+                Ok(RightsGrant {
                     id: r.get("id"),
                     asset_id: r.get("asset_id"),
                     owner_id: r.get("owner_id"),
                     license_type: LicenseType::from_str(r.get("license_type")),
-                    start_date: DateTime::parse_from_rfc3339(r.get("start_date"))
-                        .unwrap()
-                        .with_timezone(&Utc),
-                    end_date: r.get::<Option<String>, _>("end_date").map(|s| {
-                        DateTime::parse_from_rfc3339(&s)
-                            .unwrap()
-                            .with_timezone(&Utc)
-                    }),
+                    start_date,
+                    end_date,
                     is_exclusive: r.get::<i32, _>("is_exclusive") != 0,
                     territory,
                     usage_restrictions,
-                    created_at: DateTime::parse_from_rfc3339(r.get("created_at"))
-                        .unwrap()
-                        .with_timezone(&Utc),
-                    updated_at: DateTime::parse_from_rfc3339(r.get("updated_at"))
-                        .unwrap()
-                        .with_timezone(&Utc),
-                }
+                    created_at,
+                    updated_at,
+                })
             })
-            .collect())
+            .collect()
     }
 
     /// Delete grant from database

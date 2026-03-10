@@ -621,17 +621,17 @@ mod tests {
     fn test_frame_size_calculation() {
         let size = OpusEncoder::calculate_frame_size(48000, 20.0);
         assert!(size.is_ok());
-        assert_eq!(size.unwrap(), 960);
+        assert_eq!(size.expect("should succeed"), 960);
 
         let size = OpusEncoder::calculate_frame_size(48000, 10.0);
         assert!(size.is_ok());
-        assert_eq!(size.unwrap(), 480);
+        assert_eq!(size.expect("should succeed"), 480);
     }
 
     #[test]
     fn test_encoder_reset() {
         let config = OpusEncoderConfig::new(48000, 2, 64000);
-        let mut encoder = OpusEncoder::new(config).unwrap();
+        let mut encoder = OpusEncoder::new(config).expect("should succeed");
         encoder.reset();
         assert_eq!(encoder.frame_count(), 0);
     }

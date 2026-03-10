@@ -289,7 +289,10 @@ mod tests {
         cfg.add_rule(LifecycleRule::new("videos/", StorageClass::Archive, 90));
         let rule = cfg.find_rule_for_object("videos/clip.mp4", 91);
         assert!(rule.is_some());
-        assert_eq!(rule.unwrap().transition_to, StorageClass::Archive);
+        assert_eq!(
+            rule.expect("test expectation failed").transition_to,
+            StorageClass::Archive
+        );
     }
 
     // 13. StorageConfig::find_rule_for_object – no match returns None
@@ -315,6 +318,9 @@ mod tests {
         cfg.add_rule(LifecycleRule::new("a/", StorageClass::Archive, 30));
         let rule = cfg.find_rule_for_object("a/file.bin", 40);
         assert!(rule.is_some());
-        assert_eq!(rule.unwrap().transition_to, StorageClass::InfrequentAccess);
+        assert_eq!(
+            rule.expect("test expectation failed").transition_to,
+            StorageClass::InfrequentAccess
+        );
     }
 }

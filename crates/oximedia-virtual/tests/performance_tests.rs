@@ -7,7 +7,7 @@
 //! from 1920×1080 (≈2 M pixels) to 64×64 (4 096 pixels) gives a ~500× speed
 //! improvement without changing the code paths exercised.
 
-use nalgebra::{Point3, UnitQuaternion};
+use oximedia_virtual::math::{Point3, UnitQuaternion};
 use oximedia_virtual::{
     led::{
         render::{LedRenderer, LedRendererConfig},
@@ -37,7 +37,7 @@ fn test_camera_tracking_performance() {
         max_latency_ms: 10.0,
     };
 
-    let mut tracker = CameraTracker::new(config).unwrap();
+    let mut tracker = CameraTracker::new(config).expect("test expectation failed");
     let mut total_time = std::time::Duration::ZERO;
 
     // 100 iterations is enough to measure average per-update cost
@@ -46,7 +46,7 @@ fn test_camera_tracking_performance() {
         let timestamp_ns = i * 8_333_333; // 120 Hz
 
         let start = Instant::now();
-        let _ = tracker.update(timestamp_ns).unwrap();
+        let _ = tracker.update(timestamp_ns).expect("_ should be valid");
         total_time += start.elapsed();
     }
 
@@ -81,7 +81,7 @@ fn test_led_rendering_performance() {
         motion_blur: false,
     };
 
-    let mut renderer = LedRenderer::new(config).unwrap();
+    let mut renderer = LedRenderer::new(config).expect("test expectation failed");
     renderer.set_led_wall(led_wall);
 
     let camera_pose = CameraPose::new(Point3::new(0.0, 1.5, 5.0), UnitQuaternion::identity(), 0);
@@ -95,7 +95,7 @@ fn test_led_rendering_performance() {
         let start = Instant::now();
         let _ = renderer
             .render(&camera_pose, &source_frame, TEST_W, TEST_H, timestamp_ns)
-            .unwrap();
+            .expect("test expectation failed");
         total_time += start.elapsed();
     }
 
@@ -114,7 +114,7 @@ fn test_compositing_performance() {
         quality: 0.5,
     };
 
-    let mut compositor = IcvfxCompositor::new(config).unwrap();
+    let mut compositor = IcvfxCompositor::new(config).expect("test expectation failed");
 
     let foreground = vec![255u8; TEST_W * TEST_H * 3];
     let background = vec![0u8; TEST_W * TEST_H * 3];
@@ -126,7 +126,7 @@ fn test_compositing_performance() {
         let start = Instant::now();
         let _ = compositor
             .composite(&foreground, &background, None, timestamp_ns)
-            .unwrap();
+            .expect("test expectation failed");
         total_time += start.elapsed();
     }
 
@@ -148,7 +148,7 @@ fn test_full_pipeline_performance() {
         unreal_integration: false,
     };
 
-    let mut vp = VirtualProduction::new(config).unwrap();
+    let mut vp = VirtualProduction::new(config).expect("test expectation failed");
 
     let mut led_wall = LedWall::new("Pipeline Test".to_string());
     led_wall.add_panel(LedPanel::new(
@@ -160,7 +160,8 @@ fn test_full_pipeline_performance() {
     ));
 
     vp.led_renderer_mut().set_led_wall(led_wall);
-    vp.set_compositor_resolution(TEST_W, TEST_H).unwrap();
+    vp.set_compositor_resolution(TEST_W, TEST_H)
+        .expect("set_compositor_resolution should succeed");
 
     let mut metrics = MetricsCollector::new(60);
 
@@ -170,20 +171,23 @@ fn test_full_pipeline_performance() {
         let start = Instant::now();
 
         // Full pipeline
-        let _ = vp.camera_tracker_mut().update(timestamp_ns).unwrap();
+        let _ = vp
+            .camera_tracker_mut()
+            .update(timestamp_ns)
+            .expect("_ should be valid");
         let camera_pose = *vp.camera_tracker().current_pose();
 
         let source_frame = vec![128u8; TEST_W * TEST_H * 3];
         let led_output = vp
             .led_renderer_mut()
             .render(&camera_pose, &source_frame, TEST_W, TEST_H, timestamp_ns)
-            .unwrap();
+            .expect("test expectation failed");
 
         let foreground = vec![64u8; TEST_W * TEST_H * 3];
         let _ = vp
             .compositor_mut()
             .composite(&foreground, &led_output.pixels, None, timestamp_ns)
-            .unwrap();
+            .expect("test expectation failed");
 
         let frame_time = start.elapsed();
         metrics.record_frame();
@@ -244,7 +248,7 @@ fn test_high_resolution_performance() {
         motion_blur: false,
     };
 
-    let mut renderer = LedRenderer::new(config).unwrap();
+    let mut renderer = LedRenderer::new(config).expect("test expectation failed");
     renderer.set_led_wall(led_wall);
 
     let camera_pose = CameraPose::new(Point3::new(0.0, 1.5, 10.0), UnitQuaternion::identity(), 0);
@@ -254,7 +258,7 @@ fn test_high_resolution_performance() {
     let start = Instant::now();
     let _ = renderer
         .render(&camera_pose, &source_frame, TEST_W, TEST_H, 0)
-        .unwrap();
+        .expect("test expectation failed");
     let render_time = start.elapsed();
 
     println!("Render time (64×64): {render_time:?}");
@@ -264,13 +268,16 @@ fn test_high_resolution_performance() {
 fn test_multi_camera_performance() {
     let config = VirtualProductionConfig::default().with_num_cameras(4);
 
-    let mut vp = VirtualProduction::new(config).unwrap();
+    let mut vp = VirtualProduction::new(config).expect("test expectation failed");
 
     let start = Instant::now();
 
     for i in 0..100u64 {
         let timestamp_ns = i * 16_666_667;
-        let _ = vp.camera_tracker_mut().update(timestamp_ns).unwrap();
+        let _ = vp
+            .camera_tracker_mut()
+            .update(timestamp_ns)
+            .expect("_ should be valid");
     }
 
     let total_time = start.elapsed();
@@ -296,7 +303,7 @@ fn test_sustained_performance() {
         unreal_integration: false,
     };
 
-    let mut vp = VirtualProduction::new(config).unwrap();
+    let mut vp = VirtualProduction::new(config).expect("test expectation failed");
 
     let mut led_wall = LedWall::new("Sustained Test".to_string());
     // Use small panel to keep the per-frame render time negligible
@@ -319,14 +326,17 @@ fn test_sustained_performance() {
 
         let start = Instant::now();
 
-        let _ = vp.camera_tracker_mut().update(timestamp_ns).unwrap();
+        let _ = vp
+            .camera_tracker_mut()
+            .update(timestamp_ns)
+            .expect("_ should be valid");
         let camera_pose = *vp.camera_tracker().current_pose();
 
         let source_frame = vec![128u8; TEST_W * TEST_H * 3];
         let _ = vp
             .led_renderer_mut()
             .render(&camera_pose, &source_frame, TEST_W, TEST_H, timestamp_ns)
-            .unwrap();
+            .expect("test expectation failed");
 
         if start.elapsed() > frame_budget {
             dropped_frames += 1;

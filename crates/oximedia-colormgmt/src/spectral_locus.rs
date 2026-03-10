@@ -258,13 +258,14 @@ mod tests {
 
     #[test]
     fn test_nearest_spectral_point_exact() {
-        let p = nearest_spectral_point(0.1741, 0.0050).unwrap();
+        let p =
+            nearest_spectral_point(0.1741, 0.0050).expect("nearest spectral point should be found");
         assert!((p.wavelength_nm - 380.0).abs() < 1e-9);
     }
 
     #[test]
     fn test_nearest_spectral_point_close_to_red() {
-        let p = nearest_spectral_point(0.73, 0.27).unwrap();
+        let p = nearest_spectral_point(0.73, 0.27).expect("nearest spectral point should be found");
         // Should be near the red end (660+ nm)
         assert!(p.wavelength_nm >= 650.0);
     }
@@ -272,7 +273,8 @@ mod tests {
     #[test]
     fn test_dominant_wavelength_red() {
         let (wx, wy) = d65_chromaticity();
-        let wl = dominant_wavelength(0.65, 0.33, wx, wy).unwrap();
+        let wl = dominant_wavelength(0.65, 0.33, wx, wy)
+            .expect("dominant wavelength should be computed");
         // A reddish chromaticity should yield a long wavelength
         assert!(wl >= 580.0, "expected red-ish wavelength, got {wl}");
     }
@@ -300,7 +302,7 @@ mod tests {
 
     #[test]
     fn test_planckian_xy_d65() {
-        let (x, y) = planckian_xy(6500.0).unwrap();
+        let (x, y) = planckian_xy(6500.0).expect("planckian xy should be computed");
         // D65 ≈ (0.3127, 0.3290) — CIE approximation won't be exact
         assert!((x - 0.3127).abs() < 0.02, "x={x}");
         assert!((y - 0.3290).abs() < 0.02, "y={y}");
@@ -314,7 +316,7 @@ mod tests {
 
     #[test]
     fn test_planckian_xy_tungsten() {
-        let (x, y) = planckian_xy(3200.0).unwrap();
+        let (x, y) = planckian_xy(3200.0).expect("planckian xy should be computed");
         // Tungsten should be warm (high x, low-ish y relative to D65)
         assert!(x > 0.4, "tungsten x should be warm, got {x}");
         assert!(y > 0.3, "tungsten y should be reasonable, got {y}");
@@ -347,8 +349,8 @@ mod tests {
     #[test]
     fn test_spectral_locus_wavelength_range() {
         let pts = spectral_locus_points();
-        let first = pts.first().unwrap();
-        let last = pts.last().unwrap();
+        let first = pts.first().expect("first element should exist");
+        let last = pts.last().expect("last element should exist");
         assert!((first.wavelength_nm - 380.0).abs() < 1e-9);
         assert!((last.wavelength_nm - 700.0).abs() < 1e-9);
     }

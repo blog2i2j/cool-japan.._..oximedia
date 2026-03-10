@@ -196,12 +196,10 @@ pub fn relocate_moov_atom(input: &Path, output: &Path) -> Result<bool> {
     let mut file = File::open(input)?;
 
     // Find moov atom
-    let moov_offset = find_atom(&mut file, b"moov")?;
-    if moov_offset.is_none() {
-        return Ok(false);
-    }
-
-    let moov_offset = moov_offset.unwrap();
+    let moov_offset = match find_atom(&mut file, b"moov")? {
+        Some(offset) => offset,
+        None => return Ok(false),
+    };
 
     // Check if moov is already at beginning (after ftyp)
     if moov_offset < 1024 {

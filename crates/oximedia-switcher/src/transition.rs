@@ -332,22 +332,150 @@ impl TransitionEngine {
         self.source_b
     }
 
-    /// Process a transition frame.
-    #[allow(dead_code)]
+    /// Process a transition frame by compositing `frame_a` and `frame_b`
+    /// according to the current transition type and position.
+    ///
+    /// For *Cut* the output is `frame_b` once position >= 1.0.
+    /// For *Mix / Dip* a linear crossfade is applied.
+    /// For *Wipe* a spatial boundary separates the two sources.
+    /// For *DVE* the mix ratio is used as a simple crossfade (the full DVE
+    /// path is handled by `DveProcessor`).
     pub fn process(
         &self,
-        _frame_a: &VideoFrame,
-        _frame_b: &VideoFrame,
+        frame_a: &VideoFrame,
+        frame_b: &VideoFrame,
     ) -> Result<VideoFrame, TransitionError> {
-        // In a real implementation, this would:
-        // 1. Mix frame_a and frame_b based on position and transition type
-        // 2. Apply wipe pattern, DVE, or other effects
-        // 3. Return the composited frame
+        if frame_a.width != frame_b.width || frame_a.height != frame_b.height {
+            return Err(TransitionError::ProcessingError(
+                "Frame dimensions do not match".to_string(),
+            ));
+        }
 
-        // Placeholder
-        Err(TransitionError::ProcessingError(
-            "Not implemented".to_string(),
-        ))
+        if frame_a.planes.is_empty() || frame_b.planes.is_empty() {
+            return Err(TransitionError::ProcessingError(
+                "Frames have no planes".to_string(),
+            ));
+        }
+
+        // Cut: instant swap
+        if matches!(self.config.transition_type, TransitionType::Cut) {
+            return if self.position >= 1.0 {
+                Ok(frame_b.clone())
+            } else {
+                Ok(frame_a.clone())
+            };
+        }
+
+        let ratio = self.mix_ratio();
+
+        // Create output frame
+        let mut output = VideoFrame::new(frame_a.format, frame_a.width, frame_a.height);
+        output.allocate();
+        output.timestamp = frame_a.timestamp;
+        output.frame_type = frame_a.frame_type;
+        output.color_info = frame_a.color_info;
+
+        let plane_count = output
+            .planes
+            .len()
+            .min(frame_a.planes.len())
+            .min(frame_b.planes.len());
+
+        match self.config.transition_type {
+            TransitionType::Cut => unreachable!(),
+            TransitionType::Mix | TransitionType::Dip | TransitionType::Dve(_) => {
+                // Linear crossfade on every plane
+                for pi in 0..plane_count {
+                    let pa = &frame_a.planes[pi];
+                    let pb = &frame_b.planes[pi];
+                    let po = &mut output.planes[pi];
+
+                    let len = po.data.len().min(pa.data.len()).min(pb.data.len());
+                    for i in 0..len {
+                        let a_val = pa.data[i] as f32;
+                        let b_val = pb.data[i] as f32;
+                        po.data[i] = (a_val * (1.0 - ratio) + b_val * ratio) as u8;
+                    }
+                }
+            }
+            TransitionType::Wipe(pattern) => {
+                // Spatial wipe: for each pixel determine whether it comes
+                // from source A or B (with optional soft edge).
+                for pi in 0..plane_count {
+                    let pa = &frame_a.planes[pi];
+                    let pb = &frame_b.planes[pi];
+                    let po = &mut output.planes[pi];
+
+                    let pw = po.width as usize;
+                    let ph = po.height as usize;
+
+                    let softness = self
+                        .config
+                        .wipe_config
+                        .as_ref()
+                        .map_or(0.02, |c| c.border_softness as f64)
+                        as f32;
+                    let half_soft = softness / 2.0;
+
+                    for y in 0..ph {
+                        for x in 0..pw {
+                            let nx = x as f32 / pw.max(1) as f32;
+                            let ny = y as f32 / ph.max(1) as f32;
+
+                            // Compute wipe boundary value (0.0..1.0)
+                            let boundary = match pattern {
+                                WipePattern::Horizontal => nx,
+                                WipePattern::Vertical => ny,
+                                WipePattern::DiagonalTopLeft => (nx + ny) / 2.0,
+                                WipePattern::DiagonalTopRight => ((1.0 - nx) + ny) / 2.0,
+                                WipePattern::Circle => {
+                                    let dx = nx - 0.5;
+                                    let dy = ny - 0.5;
+                                    ((dx * dx + dy * dy).sqrt() * 2.0).min(1.0)
+                                }
+                                WipePattern::Diamond => {
+                                    ((nx - 0.5).abs() + (ny - 0.5).abs()).min(1.0)
+                                }
+                                WipePattern::Box => {
+                                    let bx = (nx - 0.5).abs() * 2.0;
+                                    let by = (ny - 0.5).abs() * 2.0;
+                                    bx.max(by).min(1.0)
+                                }
+                                WipePattern::BarnDoorHorizontal => {
+                                    ((nx - 0.5).abs() * 2.0).min(1.0)
+                                }
+                                WipePattern::BarnDoorVertical => ((ny - 0.5).abs() * 2.0).min(1.0),
+                                WipePattern::Iris => {
+                                    let dx = nx - 0.5;
+                                    let dy = ny - 0.5;
+                                    1.0 - ((dx * dx + dy * dy).sqrt() * 2.0).min(1.0)
+                                }
+                                WipePattern::Custom(_) => nx, // fallback to horizontal
+                            };
+
+                            // Soft edge: smoothly blend around the boundary
+                            let local_ratio = if half_soft > f32::EPSILON {
+                                ((ratio - boundary + half_soft) / (2.0 * half_soft)).clamp(0.0, 1.0)
+                            } else if boundary <= ratio {
+                                1.0
+                            } else {
+                                0.0
+                            };
+
+                            let idx = y * po.stride + x;
+                            if idx < po.data.len() && idx < pa.data.len() && idx < pb.data.len() {
+                                let a_val = pa.data[idx] as f32;
+                                let b_val = pb.data[idx] as f32;
+                                po.data[idx] =
+                                    (a_val * (1.0 - local_ratio) + b_val * local_ratio) as u8;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(output)
     }
 
     /// Calculate mix ratio for current position.

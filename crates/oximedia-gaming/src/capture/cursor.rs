@@ -117,14 +117,18 @@ mod tests {
         let mut capture = CursorCapture::new();
         capture.update_position(100, 200);
 
-        let info = capture.get_cursor_info().unwrap();
+        let info = capture
+            .get_cursor_info()
+            .expect("cursor info should succeed");
         assert_eq!(info.position, (100, 200));
     }
 
     #[test]
     fn test_cursor_info() {
         let capture = CursorCapture::new();
-        let info = capture.get_cursor_info().unwrap();
+        let info = capture
+            .get_cursor_info()
+            .expect("cursor info should succeed");
 
         assert_eq!(info.cursor_type, CursorType::Arrow);
         assert!(info.visible);

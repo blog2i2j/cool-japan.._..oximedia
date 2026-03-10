@@ -320,10 +320,14 @@ mod tests {
         let scheduler = Scheduler::new(SchedulingStrategy::RoundRobin);
         let worker = create_test_worker("worker-1", 4, false);
 
-        scheduler.register_worker(worker.clone()).unwrap();
+        scheduler
+            .register_worker(worker.clone())
+            .expect("operation should succeed");
         assert_eq!(scheduler.active_worker_count(), 1);
 
-        let retrieved = scheduler.get_worker(&worker.worker_id).unwrap();
+        let retrieved = scheduler
+            .get_worker(&worker.worker_id)
+            .expect("get_worker should succeed");
         assert_eq!(retrieved.worker_id, worker.worker_id);
     }
 
@@ -332,7 +336,9 @@ mod tests {
         let scheduler = Scheduler::new(SchedulingStrategy::RoundRobin);
         let worker = create_test_worker("worker-1", 4, false);
 
-        scheduler.register_worker(worker.clone()).unwrap();
+        scheduler
+            .register_worker(worker.clone())
+            .expect("operation should succeed");
         let result = scheduler.register_worker(worker);
         assert!(result.is_err());
     }
@@ -342,8 +348,12 @@ mod tests {
         let scheduler = Scheduler::new(SchedulingStrategy::RoundRobin);
         let worker = create_test_worker("worker-1", 4, false);
 
-        scheduler.register_worker(worker.clone()).unwrap();
-        scheduler.unregister_worker(&worker.worker_id).unwrap();
+        scheduler
+            .register_worker(worker.clone())
+            .expect("operation should succeed");
+        scheduler
+            .unregister_worker(&worker.worker_id)
+            .expect("unregister_worker should succeed");
         assert_eq!(scheduler.active_worker_count(), 0);
     }
 
@@ -352,12 +362,16 @@ mod tests {
         let scheduler = Scheduler::new(SchedulingStrategy::RoundRobin);
         let worker = create_test_worker("worker-1", 4, false);
 
-        scheduler.register_worker(worker.clone()).unwrap();
+        scheduler
+            .register_worker(worker.clone())
+            .expect("operation should succeed");
         scheduler
             .update_worker_state(&worker.worker_id, WorkerState::Busy)
-            .unwrap();
+            .expect("operation should succeed");
 
-        let retrieved = scheduler.get_worker(&worker.worker_id).unwrap();
+        let retrieved = scheduler
+            .get_worker(&worker.worker_id)
+            .expect("get_worker should succeed");
         assert_eq!(retrieved.state, WorkerState::Busy);
     }
 
@@ -367,11 +381,17 @@ mod tests {
         let worker1 = create_test_worker("worker-1", 4, false);
         let worker2 = create_test_worker("worker-2", 8, false);
 
-        scheduler.register_worker(worker1).unwrap();
-        scheduler.register_worker(worker2).unwrap();
+        scheduler
+            .register_worker(worker1)
+            .expect("register_worker should succeed");
+        scheduler
+            .register_worker(worker2)
+            .expect("register_worker should succeed");
 
         let task = create_test_task(false);
-        let selected = scheduler.select_worker(&task).unwrap();
+        let selected = scheduler
+            .select_worker(&task)
+            .expect("select_worker should succeed");
         assert!(!selected.as_str().is_empty());
     }
 
@@ -381,11 +401,17 @@ mod tests {
         let worker1 = create_test_worker("worker-1", 4, false);
         let worker2 = create_test_worker("worker-2", 4, true);
 
-        scheduler.register_worker(worker1).unwrap();
-        scheduler.register_worker(worker2).unwrap();
+        scheduler
+            .register_worker(worker1)
+            .expect("register_worker should succeed");
+        scheduler
+            .register_worker(worker2)
+            .expect("register_worker should succeed");
 
         let task = create_test_task(true);
-        let selected = scheduler.select_worker(&task).unwrap();
+        let selected = scheduler
+            .select_worker(&task)
+            .expect("select_worker should succeed");
         assert_eq!(selected.as_str(), "worker-2");
     }
 
@@ -404,11 +430,15 @@ mod tests {
         let worker1 = create_test_worker("worker-1", 4, false);
         let worker2 = create_test_worker("worker-2", 4, false);
 
-        scheduler.register_worker(worker1.clone()).unwrap();
-        scheduler.register_worker(worker2.clone()).unwrap();
+        scheduler
+            .register_worker(worker1.clone())
+            .expect("operation should succeed");
+        scheduler
+            .register_worker(worker2.clone())
+            .expect("operation should succeed");
         scheduler
             .update_worker_state(&worker2.worker_id, WorkerState::Busy)
-            .unwrap();
+            .expect("operation should succeed");
 
         let idle_workers = scheduler.get_workers_by_state(WorkerState::Idle);
         assert_eq!(idle_workers.len(), 1);

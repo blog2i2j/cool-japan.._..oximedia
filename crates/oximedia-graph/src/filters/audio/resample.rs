@@ -631,7 +631,10 @@ impl Node for ResampleFilter {
             self.resample_state = Some(ResampleState::new(&self.config, channels));
         }
 
-        let state = self.resample_state.as_mut().unwrap();
+        let state = match self.resample_state.as_mut() {
+            Some(s) => s,
+            None => return Ok(None),
+        };
 
         // Convert to f64 samples
         let input_samples = Self::frame_to_samples(&frame);
@@ -773,7 +776,7 @@ mod tests {
         let config = ResampleConfig::new(48000, 44100);
         let mut filter = ResampleFilter::new(NodeId(0), "test", config);
 
-        let result = filter.process(None).unwrap();
+        let result = filter.process(None).expect("process should succeed");
         assert!(result.is_none());
     }
 
@@ -791,7 +794,9 @@ mod tests {
         }
         frame.samples = AudioBuffer::Interleaved(samples.freeze());
 
-        let result = filter.process(Some(FilterFrame::Audio(frame))).unwrap();
+        let result = filter
+            .process(Some(FilterFrame::Audio(frame)))
+            .expect("process should succeed");
         assert!(result.is_some());
     }
 
@@ -869,7 +874,9 @@ mod tests {
         }
         frame.samples = AudioBuffer::Interleaved(samples.freeze());
 
-        let result = filter.process(Some(FilterFrame::Audio(frame))).unwrap();
+        let result = filter
+            .process(Some(FilterFrame::Audio(frame)))
+            .expect("process should succeed");
         assert!(result.is_some());
 
         if let Some(FilterFrame::Audio(output)) = result {
@@ -896,7 +903,7 @@ mod tests {
         let _ = filter.process(Some(FilterFrame::Audio(frame)));
 
         // Flush should work without error
-        let flushed = filter.flush().unwrap();
+        let flushed = filter.flush().expect("flush should succeed");
         // May or may not have remaining samples depending on state
         assert!(flushed.len() <= 1);
     }

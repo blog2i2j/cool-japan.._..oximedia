@@ -482,7 +482,7 @@ mod tests {
     #[test]
     fn test_vbap_stereo() {
         let speakers = SpeakerLayout::stereo();
-        let panner = VbapPanner::new(speakers).unwrap();
+        let panner = VbapPanner::new(speakers).expect("should succeed");
 
         let source = SpeakerPosition::from_spherical(0.0, 0.0, 1.0);
         let gains = panner.calculate_gains(&source);
@@ -495,7 +495,7 @@ mod tests {
     #[test]
     fn test_dbap() {
         let speakers = SpeakerLayout::stereo();
-        let panner = DbapPanner::new(speakers, 1.0).unwrap();
+        let panner = DbapPanner::new(speakers, 1.0).expect("should succeed");
 
         let source = SpeakerPosition::from_spherical(0.0, 0.0, 1.0);
         let gains = panner.calculate_gains(&source);

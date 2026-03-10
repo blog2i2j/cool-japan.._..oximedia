@@ -146,7 +146,7 @@ mod tests {
         let mut source = ByteSource::new(data);
 
         let mut buf = [0u8; 5];
-        let n = source.read(&mut buf).unwrap();
+        let n = source.read(&mut buf).expect("read should succeed");
         assert_eq!(n, 5);
         assert_eq!(&buf, b"Hello");
         assert_eq!(source.position(), 5);
@@ -158,7 +158,7 @@ mod tests {
         let mut source = ByteSource::new(data);
 
         let mut buf = [0u8; 13];
-        source.read_exact(&mut buf).unwrap();
+        source.read_exact(&mut buf).expect("read should succeed");
         assert_eq!(&buf, b"Hello, World!");
     }
 
@@ -167,11 +167,13 @@ mod tests {
         let data = Bytes::from_static(b"Hello, World!");
         let mut source = ByteSource::new(data);
 
-        source.seek(SeekFrom::Start(7)).unwrap();
+        source
+            .seek(SeekFrom::Start(7))
+            .expect("seek should succeed");
         assert_eq!(source.position(), 7);
 
         let mut buf = [0u8; 5];
-        source.read(&mut buf).unwrap();
+        source.read(&mut buf).expect("read should succeed");
         assert_eq!(&buf, b"World");
     }
 
@@ -180,7 +182,7 @@ mod tests {
         let data = Bytes::from_static(b"Hello, World!");
         let source = ByteSource::new(data);
 
-        let peeked = source.peek(7, 5).unwrap();
+        let peeked = source.peek(7, 5).expect("peek should succeed");
         assert_eq!(&peeked[..], b"World");
         assert_eq!(source.position(), 0); // Position unchanged
     }
@@ -191,7 +193,7 @@ mod tests {
         let mut source = ByteSource::new(data);
 
         assert!(!source.is_eof());
-        source.seek(SeekFrom::End(0)).unwrap();
+        source.seek(SeekFrom::End(0)).expect("seek should succeed");
         assert!(source.is_eof());
     }
 }

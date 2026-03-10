@@ -44,7 +44,7 @@ fn benchmark_scene_detection() {
         let frame = vec![brightness; width * height];
         detector
             .process_frame(&frame, width, height, frame_num)
-            .unwrap();
+            .expect("unexpected None/Err");
     }
 
     let _scenes = detector.finalize();
@@ -70,7 +70,7 @@ fn benchmark_quality_assessment() {
         let frame = vec![128u8; width * height];
         assessor
             .process_frame(&frame, width, height, frame_num)
-            .unwrap();
+            .expect("unexpected None/Err");
     }
 
     let _stats = assessor.finalize();
@@ -101,7 +101,7 @@ fn benchmark_black_frame_detection() {
         let frame = vec![brightness; width * height];
         detector
             .process_frame(&frame, width, height, frame_num)
-            .unwrap();
+            .expect("unexpected None/Err");
     }
 
     let _segments = detector.finalize();
@@ -127,7 +127,7 @@ fn benchmark_content_classification() {
         let frame = vec![128u8; width * height];
         classifier
             .process_frame(&frame, width, height, frame_num)
-            .unwrap();
+            .expect("unexpected None/Err");
     }
 
     let _classification = classifier.finalize();
@@ -153,7 +153,7 @@ fn benchmark_thumbnail_selection() {
         let frame = vec![128u8; width * height];
         selector
             .process_frame(&frame, width, height, frame_num)
-            .unwrap();
+            .expect("unexpected None/Err");
     }
 
     let _thumbnails = selector.finalize();
@@ -188,7 +188,7 @@ fn benchmark_motion_analysis() {
 
         analyzer
             .process_frame(&frame, width, height, frame_num)
-            .unwrap();
+            .expect("unexpected None/Err");
     }
 
     let _stats = analyzer.finalize();
@@ -218,7 +218,7 @@ fn benchmark_color_analysis() {
         let v_plane = vec![128u8; uv_width * uv_height];
         analyzer
             .process_frame(&y_plane, &u_plane, &v_plane, width, height, frame_num)
-            .unwrap();
+            .expect("unexpected None/Err");
     }
 
     let _analysis = analyzer.finalize();
@@ -244,7 +244,7 @@ fn benchmark_temporal_analysis() {
         let frame = vec![128u8; width * height];
         analyzer
             .process_frame(&frame, width, height, frame_num)
-            .unwrap();
+            .expect("unexpected None/Err");
     }
 
     let _analysis = analyzer.finalize();
@@ -274,7 +274,9 @@ fn benchmark_audio_analysis() {
         audio.push(sample); // Stereo
     }
 
-    analyzer.process_samples(&audio, sample_rate).unwrap();
+    analyzer
+        .process_samples(&audio, sample_rate)
+        .expect("sample processing should succeed");
     let _analysis = analyzer.finalize();
     let elapsed = start.elapsed();
 
@@ -322,7 +324,7 @@ fn benchmark_full_pipeline() {
                 height,
                 Rational::new(30, 1),
             )
-            .unwrap();
+            .expect("unexpected None/Err");
     }
 
     // Process audio
@@ -333,7 +335,9 @@ fn benchmark_full_pipeline() {
         audio.push(sample);
         audio.push(sample);
     }
-    analyzer.process_audio_samples(&audio, 48000).unwrap();
+    analyzer
+        .process_audio_samples(&audio, 48000)
+        .expect("audio processing should succeed");
 
     let _results = analyzer.finalize();
     let elapsed = start.elapsed();
@@ -368,7 +372,7 @@ fn benchmark_different_resolutions() {
             let frame = vec![128u8; width * height];
             detector
                 .process_frame(&frame, width, height, frame_num)
-                .unwrap();
+                .expect("unexpected None/Err");
         }
 
         let _scenes = detector.finalize();

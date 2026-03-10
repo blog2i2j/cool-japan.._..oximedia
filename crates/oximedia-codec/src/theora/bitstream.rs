@@ -420,10 +420,10 @@ mod tests {
         let data = [0b1010_1100, 0b1111_0000];
         let mut reader = BitstreamReader::new(&data);
 
-        assert_eq!(reader.read_bit().unwrap(), true);
-        assert_eq!(reader.read_bit().unwrap(), false);
-        assert_eq!(reader.read_bits(3).unwrap(), 0b101);
-        assert_eq!(reader.read_bits(4).unwrap(), 0b1001);
+        assert_eq!(reader.read_bit().expect("should succeed"), true);
+        assert_eq!(reader.read_bit().expect("should succeed"), false);
+        assert_eq!(reader.read_bits(3).expect("should succeed"), 0b101);
+        assert_eq!(reader.read_bits(4).expect("should succeed"), 0b1001);
     }
 
     #[test]
@@ -452,8 +452,8 @@ mod tests {
         let data = writer.into_vec();
         let mut reader = ExpGolombReader::new(&data);
 
-        assert_eq!(reader.read_ue().unwrap(), 0);
-        assert_eq!(reader.read_ue().unwrap(), 1);
-        assert_eq!(reader.read_ue().unwrap(), 5);
+        assert_eq!(reader.read_ue().expect("should succeed"), 0);
+        assert_eq!(reader.read_ue().expect("should succeed"), 1);
+        assert_eq!(reader.read_ue().expect("should succeed"), 5);
     }
 }

@@ -626,7 +626,7 @@ mod tests {
 
         let next = scheduler.next_job();
         assert!(next.is_some());
-        assert_eq!(next.unwrap().job_id, job2.job_id);
+        assert_eq!(next.expect("next job should exist").job_id, job2.job_id);
     }
 
     #[test]
@@ -654,7 +654,7 @@ mod tests {
 
         let next = scheduler.next_job();
         assert!(next.is_some());
-        assert_eq!(next.unwrap().job_id, job1.job_id);
+        assert_eq!(next.expect("next job should exist").job_id, job1.job_id);
     }
 
     #[test]
@@ -706,7 +706,7 @@ mod tests {
 
         let next = scheduler.next_job();
         assert!(next.is_some());
-        assert_eq!(next.unwrap().job_id, job1.job_id);
+        assert_eq!(next.expect("next job should exist").job_id, job1.job_id);
     }
 
     #[test]

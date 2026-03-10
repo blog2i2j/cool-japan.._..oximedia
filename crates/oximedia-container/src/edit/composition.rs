@@ -306,7 +306,7 @@ mod tests {
         assert!(!table.is_empty());
         assert!(!table.all_zero());
 
-        let offset = table.get_offset(1).unwrap();
+        let offset = table.get_offset(1).expect("operation should succeed");
         assert_eq!(offset.dts, 1000);
         assert_eq!(offset.pts, 2000);
     }
@@ -357,7 +357,8 @@ mod tests {
         let dts = vec![0, 1000, 2000];
         let pts = vec![0, 3000, 1000];
 
-        let table = CompositionTimeUtils::from_arrays(&dts, &pts).unwrap();
+        let table =
+            CompositionTimeUtils::from_arrays(&dts, &pts).expect("operation should succeed");
         assert_eq!(table.len(), 3);
 
         let (dts_out, pts_out) = CompositionTimeUtils::to_arrays(&table);
@@ -375,7 +376,7 @@ mod tests {
 
         let next = reorderer.get_next_frame();
         assert!(next.is_some());
-        let (index, _, pts) = next.unwrap();
+        let (index, _, pts) = next.expect("operation should succeed");
         assert_eq!(index, 0);
         assert_eq!(pts, 0);
 

@@ -440,7 +440,7 @@ mod tests {
         assert_eq!(id, 1);
         assert_eq!(registry.len(), 1);
         assert!(!registry.is_empty());
-        let req = registry.get(id).unwrap();
+        let req = registry.get(id).expect("operation should succeed");
         assert_eq!(req.requester, "admin");
     }
 

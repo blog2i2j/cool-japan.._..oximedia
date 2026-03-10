@@ -242,7 +242,7 @@ mod tests {
     #[test]
     fn test_create_temp_file_exists_on_disk() {
         let mgr = TempFileManager::with_defaults();
-        let handle = mgr.create().unwrap();
+        let handle = mgr.create().expect("failed to create temp file");
         assert!(handle.exists());
     }
 
@@ -250,7 +250,7 @@ mod tests {
     fn test_auto_delete_on_drop() {
         let mgr = TempFileManager::with_defaults();
         let path = {
-            let handle = mgr.create().unwrap();
+            let handle = mgr.create().expect("failed to create temp file");
             handle.path().to_path_buf()
         };
         assert!(!path.exists());
@@ -261,28 +261,30 @@ mod tests {
         let config = TempFileConfig::new().no_auto_delete();
         let mgr = TempFileManager::new(config);
         let path = {
-            let handle = mgr.create().unwrap();
+            let handle = mgr.create().expect("failed to create temp file");
             handle.path().to_path_buf()
         };
         // File should still exist — clean up manually
         if path.exists() {
-            std::fs::remove_file(&path).unwrap();
+            std::fs::remove_file(&path).expect("failed to remove file");
         }
     }
 
     #[test]
     fn test_explicit_remove() {
         let mgr = TempFileManager::with_defaults();
-        let handle = mgr.create().unwrap();
+        let handle = mgr.create().expect("failed to create temp file");
         let path = handle.path().to_path_buf();
-        handle.remove().unwrap();
+        handle.remove().expect("failed to remove temp file");
         assert!(!path.exists());
     }
 
     #[test]
     fn test_create_named_and_lookup() {
         let mgr = TempFileManager::with_defaults();
-        let _handle = mgr.create_named("audio_work").unwrap();
+        let _handle = mgr
+            .create_named("audio_work")
+            .expect("failed to create named temp file");
         let found = mgr.lookup("audio_work");
         assert!(found.is_some());
     }
@@ -296,14 +298,18 @@ mod tests {
     #[test]
     fn test_cleanup_removes_files() {
         let mgr = TempFileManager::new(TempFileConfig::new().no_auto_delete());
-        let h1 = mgr.create_named("f1").unwrap();
-        let h2 = mgr.create_named("f2").unwrap();
+        let h1 = mgr
+            .create_named("f1")
+            .expect("failed to create named temp file");
+        let h2 = mgr
+            .create_named("f2")
+            .expect("failed to create named temp file");
         let p1 = h1.path().to_path_buf();
         let p2 = h2.path().to_path_buf();
         // Suppress their own drop (auto_delete = false)
         std::mem::forget(h1);
         std::mem::forget(h2);
-        mgr.cleanup().unwrap();
+        mgr.cleanup().expect("cleanup should succeed");
         assert!(!p1.exists());
         assert!(!p2.exists());
     }
@@ -311,9 +317,11 @@ mod tests {
     #[test]
     fn test_cleanup_clears_registry() {
         let mgr = TempFileManager::with_defaults();
-        let h = mgr.create_named("tmp_x").unwrap();
+        let h = mgr
+            .create_named("tmp_x")
+            .expect("failed to create named temp file");
         std::mem::forget(h);
-        mgr.cleanup().unwrap();
+        mgr.cleanup().expect("cleanup should succeed");
         assert_eq!(mgr.count(), 0);
     }
 
@@ -321,13 +329,17 @@ mod tests {
     fn test_count_tracks_entries() {
         let mgr = TempFileManager::with_defaults();
         assert_eq!(mgr.count(), 0);
-        let h1 = mgr.create_named("a").unwrap();
+        let h1 = mgr
+            .create_named("a")
+            .expect("failed to create named temp file");
         std::mem::forget(h1);
         assert_eq!(mgr.count(), 1);
-        let h2 = mgr.create_named("b").unwrap();
+        let h2 = mgr
+            .create_named("b")
+            .expect("failed to create named temp file");
         std::mem::forget(h2);
         assert_eq!(mgr.count(), 2);
-        mgr.cleanup().unwrap();
+        mgr.cleanup().expect("cleanup should succeed");
         assert_eq!(mgr.count(), 0);
     }
 
@@ -335,7 +347,7 @@ mod tests {
     fn test_suffix_applied() {
         let config = TempFileConfig::new().with_suffix(".ts");
         let mgr = TempFileManager::new(config);
-        let handle = mgr.create().unwrap();
+        let handle = mgr.create().expect("failed to create temp file");
         let path_str = handle.path().to_string_lossy().to_string();
         assert!(path_str.ends_with(".ts"));
         let _ = handle.remove();
@@ -345,11 +357,11 @@ mod tests {
     fn test_prefix_applied() {
         let config = TempFileConfig::new().with_prefix("oxi_pfx_");
         let mgr = TempFileManager::new(config);
-        let handle = mgr.create().unwrap();
+        let handle = mgr.create().expect("failed to create temp file");
         let fname = handle
             .path()
             .file_name()
-            .unwrap()
+            .expect("operation should succeed")
             .to_string_lossy()
             .to_string();
         assert!(fname.starts_with("oxi_pfx_"));
@@ -377,8 +389,8 @@ mod tests {
     #[test]
     fn test_multiple_create_unique_paths() {
         let mgr = TempFileManager::with_defaults();
-        let h1 = mgr.create().unwrap();
-        let h2 = mgr.create().unwrap();
+        let h1 = mgr.create().expect("failed to create temp file");
+        let h2 = mgr.create().expect("failed to create temp file");
         assert_ne!(h1.path(), h2.path());
     }
 }

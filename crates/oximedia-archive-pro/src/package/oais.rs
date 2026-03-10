@@ -268,20 +268,22 @@ mod tests {
 
     #[test]
     fn test_create_sip_package() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("operation should succeed");
         let pkg_dir = temp_dir.path().join("test-sip");
 
-        let mut test_file = NamedTempFile::new().unwrap();
-        test_file.write_all(b"SIP content").unwrap();
-        test_file.flush().unwrap();
+        let mut test_file = NamedTempFile::new().expect("operation should succeed");
+        test_file
+            .write_all(b"SIP content")
+            .expect("operation should succeed");
+        test_file.flush().expect("operation should succeed");
 
         let package =
             OaisBuilder::new(pkg_dir.clone(), OaisPackageType::Sip, "SIP-001".to_string())
                 .with_metadata("Creator", "Test System")
                 .add_content_file(test_file.path(), Path::new("video.mkv"))
-                .unwrap()
+                .expect("operation should succeed")
                 .build()
-                .unwrap();
+                .expect("operation should succeed");
 
         assert_eq!(package.package_type, OaisPackageType::Sip);
         assert_eq!(package.id, "SIP-001");
@@ -293,19 +295,21 @@ mod tests {
 
     #[test]
     fn test_create_aip_package() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("operation should succeed");
         let pkg_dir = temp_dir.path().join("test-aip");
 
-        let mut test_file = NamedTempFile::new().unwrap();
-        test_file.write_all(b"AIP content").unwrap();
-        test_file.flush().unwrap();
+        let mut test_file = NamedTempFile::new().expect("operation should succeed");
+        test_file
+            .write_all(b"AIP content")
+            .expect("operation should succeed");
+        test_file.flush().expect("operation should succeed");
 
         let package =
             OaisBuilder::new(pkg_dir.clone(), OaisPackageType::Aip, "AIP-001".to_string())
                 .add_content_file(test_file.path(), Path::new("preservation.mkv"))
-                .unwrap()
+                .expect("operation should succeed")
                 .build()
-                .unwrap();
+                .expect("operation should succeed");
 
         assert_eq!(package.package_type, OaisPackageType::Aip);
         assert!(package.root.join("preservation").exists());
@@ -313,20 +317,22 @@ mod tests {
 
     #[test]
     fn test_load_oais_package() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("operation should succeed");
         let pkg_dir = temp_dir.path().join("test-load");
 
-        let mut test_file = NamedTempFile::new().unwrap();
-        test_file.write_all(b"Load test").unwrap();
-        test_file.flush().unwrap();
+        let mut test_file = NamedTempFile::new().expect("operation should succeed");
+        test_file
+            .write_all(b"Load test")
+            .expect("operation should succeed");
+        test_file.flush().expect("operation should succeed");
 
         OaisBuilder::new(pkg_dir.clone(), OaisPackageType::Dip, "DIP-001".to_string())
             .add_content_file(test_file.path(), Path::new("access.mp4"))
-            .unwrap()
+            .expect("operation should succeed")
             .build()
-            .unwrap();
+            .expect("operation should succeed");
 
-        let loaded = OaisPackage::load(&pkg_dir).unwrap();
+        let loaded = OaisPackage::load(&pkg_dir).expect("operation should succeed");
         assert_eq!(loaded.package_type, OaisPackageType::Dip);
         assert_eq!(loaded.id, "DIP-001");
     }

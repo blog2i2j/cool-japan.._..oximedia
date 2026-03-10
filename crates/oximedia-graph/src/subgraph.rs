@@ -317,14 +317,14 @@ mod tests {
     #[test]
     fn test_extract_from_root_contains_all_nodes() {
         let ext = sample_extractor();
-        let sg = ext.extract(&[0], "full").unwrap();
+        let sg = ext.extract(&[0], "full").expect("extract should succeed");
         assert_eq!(sg.node_count(), 5);
     }
 
     #[test]
     fn test_extract_from_midpoint() {
         let ext = sample_extractor();
-        let sg = ext.extract(&[3], "tail").unwrap();
+        let sg = ext.extract(&[3], "tail").expect("extract should succeed");
         assert!(sg.contains_node(3));
         assert!(sg.contains_node(4));
         assert!(!sg.contains_node(0));
@@ -333,7 +333,7 @@ mod tests {
     #[test]
     fn test_extract_includes_internal_edges() {
         let ext = sample_extractor();
-        let sg = ext.extract(&[0], "full").unwrap();
+        let sg = ext.extract(&[0], "full").expect("extract should succeed");
         assert!(sg.edge_count() > 0);
     }
 
@@ -346,7 +346,7 @@ mod tests {
     #[test]
     fn test_extract_empty_seeds() {
         let ext = sample_extractor();
-        let sg = ext.extract(&[], "empty").unwrap();
+        let sg = ext.extract(&[], "empty").expect("extract should succeed");
         assert_eq!(sg.node_count(), 0);
     }
 }

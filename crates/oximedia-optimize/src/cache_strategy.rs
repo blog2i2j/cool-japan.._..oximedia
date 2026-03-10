@@ -199,7 +199,7 @@ mod tests {
             priority: 10,
         });
         assert_eq!(q.len(), 1);
-        let hint = q.pop().unwrap();
+        let hint = q.pop().expect("pop should return a value");
         assert_eq!(hint.key, "a");
         assert_eq!(q.len(), 0);
     }
@@ -234,9 +234,9 @@ mod tests {
                 priority: i,
             });
         }
-        assert_eq!(q.pop().unwrap().key, "0");
-        assert_eq!(q.pop().unwrap().key, "1");
-        assert_eq!(q.pop().unwrap().key, "2");
+        assert_eq!(q.pop().expect("pop should return a value").key, "0");
+        assert_eq!(q.pop().expect("pop should return a value").key, "1");
+        assert_eq!(q.pop().expect("pop should return a value").key, "2");
     }
 
     #[test]

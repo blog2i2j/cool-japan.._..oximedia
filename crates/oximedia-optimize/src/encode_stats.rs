@@ -630,8 +630,8 @@ mod tests {
         collector.record_frame(make_frame(1, StatsFrameType::Predicted, 300, 22.0));
         collector.record_frame(make_frame(2, StatsFrameType::Predicted, 400, 26.0));
         let hist = collector.qp_histogram();
-        assert_eq!(hist.get(&22).unwrap().count, 2);
-        assert_eq!(hist.get(&26).unwrap().count, 1);
+        assert_eq!(hist.get(&22).expect("entry should exist").count, 2);
+        assert_eq!(hist.get(&26).expect("entry should exist").count, 1);
     }
 
     #[test]

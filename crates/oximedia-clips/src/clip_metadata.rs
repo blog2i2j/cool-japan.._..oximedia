@@ -261,7 +261,7 @@ mod tests {
         overlay.insert(m2);
 
         base.merge(&overlay);
-        let merged = base.get(10).unwrap();
+        let merged = base.get(10).expect("get should succeed");
         assert_eq!(
             merged.get_attribute("codec"),
             Some(&ClipAttribute::Codec("hevc".into()))

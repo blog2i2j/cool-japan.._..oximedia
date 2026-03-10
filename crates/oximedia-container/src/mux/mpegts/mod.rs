@@ -618,7 +618,9 @@ mod tests {
         let mut muxer = MpegTsMuxer::new(source, config);
 
         let stream_info = StreamInfo::new(0, CodecId::Av1, Rational::new(1, 90000));
-        let index = muxer.add_stream(stream_info).unwrap();
+        let index = muxer
+            .add_stream(stream_info)
+            .expect("operation should succeed");
         assert_eq!(index, 0);
         assert_eq!(muxer.streams.len(), 1);
     }

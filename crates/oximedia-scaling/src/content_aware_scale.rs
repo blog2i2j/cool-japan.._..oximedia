@@ -349,6 +349,128 @@ impl ContentAwareScaler {
             0
         }
     }
+
+    /// Performs content-aware scaling on an RGB image.
+    ///
+    /// The image is provided as packed 3-byte RGB pixels in row-major order.
+    /// Vertical seams are removed first (reducing width), then horizontal
+    /// seams (reducing height). Returns the resized pixel buffer together
+    /// with the final `(width, height)`.
+    ///
+    /// If the target dimensions are larger than the source, those axes are
+    /// left unchanged (seam carving only shrinks).
+    #[allow(clippy::cast_precision_loss)]
+    pub fn scale_rgb(&self, pixels: &[u8], width: u32, height: u32) -> Option<(Vec<u8>, u32, u32)> {
+        if pixels.len() < (width as usize) * (height as usize) * 3 {
+            return None;
+        }
+
+        let mut buf = pixels.to_vec();
+        let mut w = width;
+        let mut h = height;
+
+        // --- Remove vertical seams (reduce width) ---
+        let v_seams = self.vertical_seams_to_remove(w);
+        for _ in 0..v_seams {
+            let luma = rgb_to_luma(&buf, w, h);
+            let energy = EnergyMap::compute_gradient_energy(&luma, w, h);
+            let seam = energy.find_vertical_seam();
+            buf = remove_vertical_seam_rgb(&buf, w, h, &seam);
+            w -= 1;
+        }
+
+        // --- Remove horizontal seams (reduce height) ---
+        let h_seams = self.horizontal_seams_to_remove(h);
+        for _ in 0..h_seams {
+            // Transpose, remove vertical seam, transpose back
+            let transposed = transpose_rgb(&buf, w, h);
+            let luma = rgb_to_luma(&transposed, h, w);
+            let energy = EnergyMap::compute_gradient_energy(&luma, h, w);
+            let seam = energy.find_vertical_seam();
+            let carved = remove_vertical_seam_rgb(&transposed, h, w, &seam);
+            h -= 1;
+            buf = transpose_rgb(&carved, h, w);
+        }
+
+        Some((buf, w, h))
+    }
+}
+
+/// Convert packed RGB buffer to single-channel luma (BT.709 weights).
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
+fn rgb_to_luma(pixels: &[u8], width: u32, height: u32) -> Vec<u8> {
+    let count = (width as usize) * (height as usize);
+    let mut luma = vec![0u8; count];
+    for i in 0..count {
+        let base = i * 3;
+        if base + 2 < pixels.len() {
+            let r = pixels[base] as f32;
+            let g = pixels[base + 1] as f32;
+            let b = pixels[base + 2] as f32;
+            // BT.709 luma
+            luma[i] = (0.2126 * r + 0.7152 * g + 0.0722 * b)
+                .round()
+                .clamp(0.0, 255.0) as u8;
+        }
+    }
+    luma
+}
+
+/// Remove a single vertical seam from a packed RGB buffer.
+///
+/// The seam indices give the column to remove at each row.
+/// Returns a buffer whose width is `width - 1`.
+fn remove_vertical_seam_rgb(pixels: &[u8], width: u32, height: u32, seam: &Seam) -> Vec<u8> {
+    let w = width as usize;
+    let new_w = w - 1;
+    let h = height as usize;
+    let mut out = Vec::with_capacity(new_w * h * 3);
+
+    for y in 0..h {
+        let seam_x = if y < seam.indices.len() {
+            seam.indices[y] as usize
+        } else {
+            w // skip nothing
+        };
+        for x in 0..w {
+            if x == seam_x {
+                continue;
+            }
+            let base = (y * w + x) * 3;
+            if base + 2 < pixels.len() {
+                out.push(pixels[base]);
+                out.push(pixels[base + 1]);
+                out.push(pixels[base + 2]);
+            }
+        }
+    }
+
+    out
+}
+
+/// Transpose a packed RGB image (swap width and height).
+fn transpose_rgb(pixels: &[u8], width: u32, height: u32) -> Vec<u8> {
+    let w = width as usize;
+    let h = height as usize;
+    let mut out = vec![0u8; w * h * 3];
+
+    for y in 0..h {
+        for x in 0..w {
+            let src_base = (y * w + x) * 3;
+            let dst_base = (x * h + y) * 3;
+            if src_base + 2 < pixels.len() && dst_base + 2 < out.len() {
+                out[dst_base] = pixels[src_base];
+                out[dst_base + 1] = pixels[src_base + 1];
+                out[dst_base + 2] = pixels[src_base + 2];
+            }
+        }
+    }
+
+    out
 }
 
 #[cfg(test)]
@@ -445,9 +567,7 @@ mod tests {
     #[test]
     fn test_find_vertical_seam() {
         // 3x3 energy map where center column has lowest energy
-        let data = vec![
-            10.0, 1.0, 10.0, 10.0, 1.0, 10.0, 10.0, 1.0, 10.0,
-        ];
+        let data = vec![10.0, 1.0, 10.0, 10.0, 1.0, 10.0, 10.0, 1.0, 10.0];
         let map = EnergyMap::from_data(3, 3, data).expect("should succeed in test");
         let seam = map.find_vertical_seam();
         assert_eq!(seam.direction, SeamDirection::Vertical);
@@ -460,9 +580,7 @@ mod tests {
 
     #[test]
     fn test_compute_gradient_energy() {
-        let pixels = vec![
-            10, 20, 30, 40, 50, 60, 70, 80, 90,
-        ];
+        let pixels = vec![10, 20, 30, 40, 50, 60, 70, 80, 90];
         let map = EnergyMap::compute_gradient_energy(&pixels, 3, 3);
         assert_eq!(map.width(), 3);
         assert_eq!(map.height(), 3);
@@ -478,5 +596,95 @@ mod tests {
         assert_eq!(scaler.horizontal_seams_to_remove(480), 120);
         assert_eq!(scaler.vertical_seams_to_remove(320), 0);
         assert_eq!(scaler.horizontal_seams_to_remove(200), 0);
+    }
+
+    #[test]
+    fn test_rgb_to_luma_basic() {
+        // Pure white pixel
+        let pixels = vec![255u8, 255, 255, 0, 0, 0];
+        let luma = rgb_to_luma(&pixels, 2, 1);
+        assert_eq!(luma.len(), 2);
+        assert!(luma[0] > 250); // white -> high luma
+        assert_eq!(luma[1], 0); // black -> 0 luma
+    }
+
+    #[test]
+    fn test_remove_vertical_seam_rgb() {
+        // 3x2 image with known pixels
+        let pixels = vec![
+            10, 20, 30, 40, 50, 60, 70, 80, 90, // row 0: 3 pixels
+            100, 110, 120, 130, 140, 150, 160, 170, 180, // row 1: 3 pixels
+        ];
+        let seam = Seam::new(SeamDirection::Vertical, vec![1, 1], 0.0);
+        let result = remove_vertical_seam_rgb(&pixels, 3, 2, &seam);
+        // Should remove column 1 from each row -> 2x2 image
+        assert_eq!(result.len(), 2 * 2 * 3);
+        // Row 0: pixel 0 and pixel 2
+        assert_eq!(&result[0..3], &[10, 20, 30]);
+        assert_eq!(&result[3..6], &[70, 80, 90]);
+        // Row 1: pixel 0 and pixel 2
+        assert_eq!(&result[6..9], &[100, 110, 120]);
+        assert_eq!(&result[9..12], &[160, 170, 180]);
+    }
+
+    #[test]
+    fn test_transpose_rgb_roundtrip() {
+        let pixels = vec![
+            1, 2, 3, 4, 5, 6, // row 0
+            7, 8, 9, 10, 11, 12, // row 1
+            13, 14, 15, 16, 17, 18, // row 2
+        ];
+        let transposed = transpose_rgb(&pixels, 2, 3);
+        // transposed dimensions: width=3, height=2
+        let back = transpose_rgb(&transposed, 3, 2);
+        assert_eq!(pixels, back);
+    }
+
+    #[test]
+    fn test_scale_rgb_reduces_width() {
+        // 4x4 uniform grey image
+        let pixels = vec![128u8; 4 * 4 * 3];
+        let config = ContentAwareConfig::new(2, 4);
+        let scaler = ContentAwareScaler::new(config);
+        let result = scaler.scale_rgb(&pixels, 4, 4);
+        assert!(result.is_some());
+        let (buf, w, h) = result.expect("should succeed");
+        assert_eq!(w, 2);
+        assert_eq!(h, 4);
+        assert_eq!(buf.len(), (w as usize) * (h as usize) * 3);
+    }
+
+    #[test]
+    fn test_scale_rgb_reduces_height() {
+        let pixels = vec![128u8; 4 * 4 * 3];
+        let config = ContentAwareConfig::new(4, 2);
+        let scaler = ContentAwareScaler::new(config);
+        let result = scaler.scale_rgb(&pixels, 4, 4);
+        assert!(result.is_some());
+        let (buf, w, h) = result.expect("should succeed");
+        assert_eq!(w, 4);
+        assert_eq!(h, 2);
+        assert_eq!(buf.len(), (w as usize) * (h as usize) * 3);
+    }
+
+    #[test]
+    fn test_scale_rgb_invalid_input() {
+        let config = ContentAwareConfig::new(2, 2);
+        let scaler = ContentAwareScaler::new(config);
+        // Buffer too small
+        assert!(scaler.scale_rgb(&[0u8; 5], 4, 4).is_none());
+    }
+
+    #[test]
+    fn test_scale_rgb_no_change_when_target_larger() {
+        let pixels = vec![128u8; 4 * 4 * 3];
+        let config = ContentAwareConfig::new(8, 8); // larger than source
+        let scaler = ContentAwareScaler::new(config);
+        let result = scaler.scale_rgb(&pixels, 4, 4);
+        assert!(result.is_some());
+        let (buf, w, h) = result.expect("should succeed");
+        assert_eq!(w, 4);
+        assert_eq!(h, 4);
+        assert_eq!(buf.len(), pixels.len());
     }
 }

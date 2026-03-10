@@ -222,7 +222,7 @@ mod tests {
 
         let entry = map.find_by_id("A001");
         assert!(entry.is_some());
-        assert_eq!(entry.unwrap().tape_name, "TAPE_001");
+        assert_eq!(entry.expect("entry should be valid").tape_name, "TAPE_001");
 
         assert!(map.find_by_id("UNKNOWN").is_none());
     }
@@ -235,7 +235,7 @@ mod tests {
 
         let entry = map.find_by_tape("TAPE_002");
         assert!(entry.is_some());
-        assert_eq!(entry.unwrap().reel_id, "A002");
+        assert_eq!(entry.expect("entry should be valid").reel_id, "A002");
 
         assert!(map.find_by_tape("NONEXISTENT").is_none());
     }

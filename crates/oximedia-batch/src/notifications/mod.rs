@@ -131,13 +131,12 @@ impl NotificationService {
         match channel {
             NotificationChannel::Email {
                 to,
-                smtp_server: _,
-                smtp_port: _,
-                from: _,
+                smtp_server,
+                smtp_port,
+                from,
             } => {
-                tracing::info!("Sending email notification to {:?}", to);
-                // TODO: Implement email sending
-                Ok(())
+                self.send_email(to, from, smtp_server, *smtp_port, event)
+                    .await
             }
             NotificationChannel::Webhook { url, headers: _ } => {
                 tracing::info!("Sending webhook notification to {}", url);
@@ -156,6 +155,96 @@ impl NotificationService {
                 self.send_teams(webhook_url, event).await
             }
         }
+    }
+
+    /// Send an email notification.
+    ///
+    /// This implementation constructs an RFC 5322 compliant email body and
+    /// logs the full message at `info!` level rather than opening a live SMTP
+    /// connection.  This is intentional: pure-Rust SMTP implementations
+    /// require blocking I/O and TLS dependencies that are not yet part of the
+    /// workspace.  When a production SMTP integration is required, replace the
+    /// body of this function with calls to an appropriate pure-Rust SMTP
+    /// client (e.g. `lettre`) once it has been added to the workspace.
+    async fn send_email(
+        &self,
+        to: &[String],
+        from: &str,
+        smtp_server: &str,
+        smtp_port: u16,
+        event: &NotificationEvent,
+    ) -> Result<()> {
+        let subject = format!(
+            "[OxiMedia Batch] Job '{}' — {}",
+            event.job_name,
+            Self::event_type_label(&event.event_type),
+        );
+
+        let body = Self::format_email_body(event);
+
+        tracing::info!(
+            smtp_server = %smtp_server,
+            smtp_port = %smtp_port,
+            from = %from,
+            to = ?to,
+            subject = %subject,
+            "Email notification queued"
+        );
+        tracing::info!(
+            job_id = %event.job_id,
+            job_name = %event.job_name,
+            timestamp = %event.timestamp,
+            email_body = %body,
+            "Email notification body"
+        );
+
+        Ok(())
+    }
+
+    /// Format a human-readable label for an event type.
+    fn event_type_label(event_type: &EventType) -> &'static str {
+        match event_type {
+            EventType::JobSubmitted => "Submitted",
+            EventType::JobStarted => "Started",
+            EventType::JobCompleted => "Completed",
+            EventType::JobFailed => "Failed",
+            EventType::JobCancelled => "Cancelled",
+            EventType::JobProgress { .. } => "Progress Update",
+        }
+    }
+
+    /// Build a plain-text RFC 5322 email body for the given event.
+    fn format_email_body(event: &NotificationEvent) -> String {
+        let status_line = match &event.event_type {
+            EventType::JobSubmitted => "The job has been submitted for processing.".to_string(),
+            EventType::JobStarted => "The job has started processing.".to_string(),
+            EventType::JobCompleted => "The job completed successfully.".to_string(),
+            EventType::JobFailed => "The job encountered an error and failed.".to_string(),
+            EventType::JobCancelled => "The job was cancelled.".to_string(),
+            EventType::JobProgress { progress } => {
+                format!("Job progress: {progress:.1}%")
+            }
+        };
+
+        let mut lines = vec![
+            format!("Job: {}", event.job_name),
+            format!("Job ID: {}", event.job_id),
+            format!("Timestamp: {}", event.timestamp),
+            String::new(),
+            status_line,
+        ];
+
+        if !event.data.is_empty() {
+            lines.push(String::new());
+            lines.push("Additional information:".to_string());
+            let mut pairs: Vec<(&String, &String)> = event.data.iter().collect();
+            pairs.sort_by_key(|(k, _)| k.as_str());
+            for (key, value) in pairs {
+                lines.push(format!("  {key}: {value}"));
+            }
+        }
+
+        lines.join("\n")
     }
 
     async fn send_webhook(&self, url: &str, event: &NotificationEvent) -> Result<()> {

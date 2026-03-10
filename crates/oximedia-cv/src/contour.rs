@@ -170,10 +170,30 @@ impl Contour {
         if self.points.is_empty() {
             return None;
         }
-        let min_x = self.points.iter().map(|p| p.x).min().unwrap();
-        let min_y = self.points.iter().map(|p| p.y).min().unwrap();
-        let max_x = self.points.iter().map(|p| p.x).max().unwrap();
-        let max_y = self.points.iter().map(|p| p.y).max().unwrap();
+        let min_x = self
+            .points
+            .iter()
+            .map(|p| p.x)
+            .min()
+            .expect("checked non-empty");
+        let min_y = self
+            .points
+            .iter()
+            .map(|p| p.y)
+            .min()
+            .expect("checked non-empty");
+        let max_x = self
+            .points
+            .iter()
+            .map(|p| p.x)
+            .max()
+            .expect("checked non-empty");
+        let max_y = self
+            .points
+            .iter()
+            .map(|p| p.y)
+            .max()
+            .expect("checked non-empty");
         Some((min_x, min_y, max_x, max_y))
     }
 }
@@ -422,7 +442,7 @@ mod tests {
     #[test]
     fn test_contour_bounding_box() {
         let c = make_square_contour();
-        let bb = c.bounding_box().unwrap();
+        let bb = c.bounding_box().expect("bounding_box should succeed");
         assert_eq!(bb, (0, 0, 4, 4));
     }
 

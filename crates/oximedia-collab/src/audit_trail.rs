@@ -314,7 +314,10 @@ mod tests {
     fn audit_entry_with_notes() {
         let entry = AuditEntry::new(0, 100, "u1".into(), "Alice".into(), AuditAction::UserJoined)
             .with_notes("first join".into());
-        assert_eq!(entry.notes.unwrap(), "first join");
+        assert_eq!(
+            entry.notes.expect("collab test operation should succeed"),
+            "first join"
+        );
     }
 
     #[test]
@@ -372,7 +375,17 @@ mod tests {
     fn trail_user_action_counts() {
         let trail = make_trail();
         let counts = trail.user_action_counts();
-        assert_eq!(*counts.get("u1").unwrap(), 3);
-        assert_eq!(*counts.get("u2").unwrap(), 2);
+        assert_eq!(
+            *counts
+                .get("u1")
+                .expect("collab test operation should succeed"),
+            3
+        );
+        assert_eq!(
+            *counts
+                .get("u2")
+                .expect("collab test operation should succeed"),
+            2
+        );
     }
 }

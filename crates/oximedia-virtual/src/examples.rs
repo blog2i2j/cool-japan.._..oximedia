@@ -4,6 +4,7 @@
 
 #![allow(dead_code)]
 
+use crate::math::{Point3, UnitQuaternion};
 use crate::{
     icvfx::composite::{CompositorConfig, IcvfxCompositor},
     led::{
@@ -18,7 +19,6 @@ use crate::{
     workflows::{ArWorkflow, HybridWorkflow, LedWallWorkflow},
     QualityMode, Result, VirtualProduction, VirtualProductionConfig, WorkflowType,
 };
-use nalgebra::{Point3, UnitQuaternion};
 
 /// Example: Basic LED wall setup
 pub fn example_basic_led_wall() -> Result<()> {

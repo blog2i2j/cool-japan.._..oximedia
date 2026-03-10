@@ -360,7 +360,9 @@ mod tests {
     fn test_add_dissolve() {
         let effect = AafEffectBuilder::add_dissolve(50);
         assert_eq!(effect.effect_type, AafEffectType::Dissolve);
-        let len_param = effect.get_parameter("Length").unwrap();
+        let len_param = effect
+            .get_parameter("Length")
+            .expect("len_param should be valid");
         assert!((len_param.value - 50.0).abs() < f64::EPSILON);
         assert_eq!(len_param.unit, "frames");
     }
@@ -369,7 +371,9 @@ mod tests {
     fn test_add_gain() {
         let effect = AafEffectBuilder::add_gain(-3.0);
         assert_eq!(effect.effect_type, AafEffectType::AudioGain);
-        let param = effect.get_parameter("Level").unwrap();
+        let param = effect
+            .get_parameter("Level")
+            .expect("param should be valid");
         assert!((param.value - (-3.0)).abs() < f64::EPSILON);
         assert_eq!(param.unit, "dB");
     }
@@ -378,9 +382,9 @@ mod tests {
     fn test_add_pan_vol() {
         let effect = AafEffectBuilder::add_pan_vol(0.5, -6.0);
         assert_eq!(effect.effect_type, AafEffectType::PanVol);
-        let pan = effect.get_parameter("Pan").unwrap();
+        let pan = effect.get_parameter("Pan").expect("pan should be valid");
         assert!((pan.value - 0.5).abs() < f64::EPSILON);
-        let vol = effect.get_parameter("Volume").unwrap();
+        let vol = effect.get_parameter("Volume").expect("vol should be valid");
         assert!((vol.value - (-6.0)).abs() < f64::EPSILON);
     }
 

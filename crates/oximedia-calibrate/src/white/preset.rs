@@ -163,7 +163,7 @@ mod tests {
         let result = preset.apply_to_image(&image);
 
         assert!(result.is_ok());
-        let output = result.unwrap();
+        let output = result.expect("expected successful result");
         assert_eq!(output.len(), image.len());
     }
 }

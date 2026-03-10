@@ -235,13 +235,13 @@ mod tests {
 
     #[test]
     fn test_parse_ttml_time() {
-        let ts = parse_ttml_time("01:30:45.500").unwrap();
+        let ts = parse_ttml_time("01:30:45.500").expect("parsing should succeed");
         assert_eq!(ts.as_hmsm(), (1, 30, 45, 500));
 
-        let ts = parse_ttml_time("10s").unwrap();
+        let ts = parse_ttml_time("10s").expect("parsing should succeed");
         assert_eq!(ts.as_secs(), 10);
 
-        let ts = parse_ttml_time("500ms").unwrap();
+        let ts = parse_ttml_time("500ms").expect("parsing should succeed");
         assert_eq!(ts.as_millis(), 500);
     }
 
@@ -254,11 +254,11 @@ mod tests {
                 Timestamp::from_secs(3),
                 "Test".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
         let writer = TtmlWriter;
-        let output = writer.write(&track).unwrap();
-        let text = String::from_utf8(output).unwrap();
+        let output = writer.write(&track).expect("writing should succeed");
+        let text = String::from_utf8(output).expect("output should be valid UTF-8");
 
         assert!(text.contains("<?xml"));
         assert!(text.contains("<tt"));

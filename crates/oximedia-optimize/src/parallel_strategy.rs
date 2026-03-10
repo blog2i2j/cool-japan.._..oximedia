@@ -242,7 +242,7 @@ mod tests {
         };
         let chunks = splitter.split(350, 4);
         assert_eq!(chunks[0].start, 0);
-        assert_eq!(chunks.last().unwrap().end, 350);
+        assert_eq!(chunks.last().expect("last element should exist").end, 350);
     }
 
     #[test]

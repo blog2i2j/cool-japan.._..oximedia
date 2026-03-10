@@ -154,7 +154,7 @@ impl MotionDetector {
     ///
     /// let mut detector = MotionDetector::new(10, 10);
     /// let frame = vec![100u8; 100];
-    /// let (mask, regions) = detector.process(&frame).unwrap();
+    /// let (mask, regions) = detector.process(&frame)?;
     /// ```
     pub fn process(&mut self, frame: &[u8]) -> CvResult<(Vec<u8>, Vec<MotionRegion>)> {
         let expected_size = self.width as usize * self.height as usize;
@@ -169,7 +169,10 @@ impl MotionDetector {
             return Ok((vec![0u8; expected_size], Vec::new()));
         }
 
-        let background = self.background.as_mut().unwrap();
+        let background = self
+            .background
+            .as_mut()
+            .expect("background initialized above");
 
         // Compute difference mask
         let mut mask = vec![0u8; expected_size];
@@ -558,13 +561,13 @@ mod tests {
 
         // First frame - should initialize
         let frame1 = vec![100u8; 100];
-        let (mask1, regions1) = detector.process(&frame1).unwrap();
+        let (mask1, regions1) = detector.process(&frame1).expect("process should succeed");
         assert_eq!(mask1.len(), 100);
         assert!(regions1.is_empty());
 
         // Second frame - same as first, no motion
         let frame2 = vec![100u8; 100];
-        let (mask2, regions2) = detector.process(&frame2).unwrap();
+        let (mask2, regions2) = detector.process(&frame2).expect("process should succeed");
         assert_eq!(mask2.len(), 100);
         assert!(regions2.is_empty());
     }
@@ -577,14 +580,14 @@ mod tests {
 
         // First frame
         let frame1 = vec![100u8; 100];
-        detector.process(&frame1).unwrap();
+        detector.process(&frame1).expect("process should succeed");
 
         // Second frame with significant change
         let mut frame2 = vec![100u8; 100];
         for i in 40..60 {
             frame2[i] = 200; // Create motion in the middle
         }
-        let (_mask, regions) = detector.process(&frame2).unwrap();
+        let (_mask, regions) = detector.process(&frame2).expect("process should succeed");
 
         // Should detect motion
         assert!(!regions.is_empty());
@@ -594,7 +597,7 @@ mod tests {
     fn test_motion_detector_reset() {
         let mut detector = MotionDetector::new(10, 10);
         let frame = vec![100u8; 100];
-        detector.process(&frame).unwrap();
+        detector.process(&frame).expect("process should succeed");
 
         detector.reset();
         assert!(detector.previous_frame.is_none());
@@ -616,7 +619,9 @@ mod tests {
         let curr = vec![100u8; 100];
         let points = vec![(5.0f32, 5.0f32)];
 
-        let (new_points, status, errors) = flow.calculate(&prev, &curr, 10, 10, &points).unwrap();
+        let (new_points, status, errors) = flow
+            .calculate(&prev, &curr, 10, 10, &points)
+            .expect("calculate should succeed");
 
         assert_eq!(new_points.len(), 1);
         assert_eq!(status.len(), 1);

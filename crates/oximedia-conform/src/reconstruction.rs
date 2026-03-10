@@ -506,7 +506,7 @@ mod tests {
 
         let timeline = reconstructor
             .reconstruct("Test Timeline".to_string(), &matches)
-            .unwrap();
+            .expect("test expectation failed");
 
         assert_eq!(timeline.name, "Test Timeline");
         assert_eq!(timeline.video_tracks.len(), 1);
@@ -525,7 +525,7 @@ mod tests {
 
         let timeline = reconstructor
             .reconstruct("Test".to_string(), &matches)
-            .unwrap();
+            .expect("test expectation failed");
 
         assert!(reconstructor.validate_timeline(&timeline).is_ok());
     }

@@ -538,7 +538,7 @@ mod tests {
     fn test_time_interval_intersect() {
         let a = TimeInterval::new(0, 5000);
         let b = TimeInterval::new(3000, 8000);
-        let overlap = a.intersect(&b).unwrap();
+        let overlap = a.intersect(&b).expect("intersection should succeed");
         assert_eq!(overlap.begin.as_ms(), 3000);
         assert_eq!(overlap.end.as_ms(), 5000);
     }

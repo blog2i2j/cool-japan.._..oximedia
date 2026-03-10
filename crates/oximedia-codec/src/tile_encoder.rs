@@ -433,7 +433,7 @@ impl TileBuffer {
 /// // Identity encode: return each tile unchanged.
 /// let processed = encoder
 ///     .encode_tiles_parallel(tiles, |tile| Ok(tile))
-///     .unwrap();
+///     ?;
 ///
 /// let merged = ParallelTileEncoder::merge_tiles(&processed, 64, 64, 3);
 /// assert_eq!(merged, frame);
@@ -644,13 +644,13 @@ mod tests {
 
         let layout = TileLayout::new(cfg);
 
-        let tl = layout.get_tile(0, 0).unwrap();
+        let tl = layout.get_tile(0, 0).expect("should succeed");
         assert_eq!((tl.x, tl.y), (0, 0));
 
-        let tr = layout.get_tile(1, 0).unwrap();
+        let tr = layout.get_tile(1, 0).expect("should succeed");
         assert_eq!(tr.x, 50);
 
-        let bl = layout.get_tile(0, 1).unwrap();
+        let bl = layout.get_tile(0, 1).expect("should succeed");
         assert_eq!(bl.y, 50);
 
         assert!(layout.get_tile(2, 0).is_none());
@@ -673,22 +673,22 @@ mod tests {
         assert_eq!(layout.tile_count(), 4);
 
         // Top-left: 50×50
-        let tl = layout.get_tile(0, 0).unwrap();
+        let tl = layout.get_tile(0, 0).expect("should succeed");
         assert_eq!(tl.width, 50);
         assert_eq!(tl.height, 50);
 
         // Top-right: 51×50 (gets the 1-pixel remainder in x)
-        let tr = layout.get_tile(1, 0).unwrap();
+        let tr = layout.get_tile(1, 0).expect("should succeed");
         assert_eq!(tr.width, 51);
         assert_eq!(tr.height, 50);
 
         // Bottom-left: 50×51
-        let bl = layout.get_tile(0, 1).unwrap();
+        let bl = layout.get_tile(0, 1).expect("should succeed");
         assert_eq!(bl.width, 50);
         assert_eq!(bl.height, 51);
 
         // Bottom-right: 51×51
-        let br = layout.get_tile(1, 1).unwrap();
+        let br = layout.get_tile(1, 1).expect("should succeed");
         assert_eq!(br.width, 51);
         assert_eq!(br.height, 51);
 
@@ -739,16 +739,16 @@ mod tests {
 
         let layout = TileLayout::new(cfg);
 
-        let t = layout.tile_for_pixel(25, 25).unwrap();
+        let t = layout.tile_for_pixel(25, 25).expect("should succeed");
         assert_eq!((t.col, t.row), (0, 0));
 
-        let t = layout.tile_for_pixel(75, 25).unwrap();
+        let t = layout.tile_for_pixel(75, 25).expect("should succeed");
         assert_eq!((t.col, t.row), (1, 0));
 
-        let t = layout.tile_for_pixel(25, 75).unwrap();
+        let t = layout.tile_for_pixel(25, 75).expect("should succeed");
         assert_eq!((t.col, t.row), (0, 1));
 
-        let t = layout.tile_for_pixel(75, 75).unwrap();
+        let t = layout.tile_for_pixel(75, 75).expect("should succeed");
         assert_eq!((t.col, t.row), (1, 1));
 
         // Out-of-frame pixel.
@@ -879,7 +879,7 @@ mod tests {
         // Identity encode: return each tile unchanged.
         let processed = encoder
             .encode_tiles_parallel(tiles, |tile| Ok(tile))
-            .unwrap();
+            .expect("should succeed");
 
         let merged = ParallelTileEncoder::merge_tiles(&processed, fw, fh, channels);
         assert_eq!(merged, frame, "parallel identity encode broke the frame");
@@ -926,7 +926,7 @@ mod tests {
                 }
                 Ok(tile)
             })
-            .unwrap();
+            .expect("should succeed");
 
         let merged = ParallelTileEncoder::merge_tiles(&inverted, fw, fh, channels);
         let expected: Vec<u8> = frame.iter().map(|&b| 255 - b).collect();

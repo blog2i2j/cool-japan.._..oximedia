@@ -723,8 +723,8 @@ mod tests {
         ));
 
         assert_eq!(list.len(), 2);
-        assert_eq!(list.get(0).unwrap().mv.dx, 10);
-        assert_eq!(list.get(1).unwrap().mv.dx, 30);
+        assert_eq!(list.get(0).expect("get should return value").mv.dx, 10);
+        assert_eq!(list.get(1).expect("get should return value").mv.dx, 30);
     }
 
     #[test]
@@ -744,7 +744,7 @@ mod tests {
 
         // Should merge duplicates
         assert_eq!(list.len(), 1);
-        assert_eq!(list.get(0).unwrap().weight, 3); // Higher weight kept
+        assert_eq!(list.get(0).expect("get should return value").weight, 3); // Higher weight kept
     }
 
     #[test]
@@ -769,9 +769,9 @@ mod tests {
 
         list.sort_by_weight();
 
-        assert_eq!(list.get(0).unwrap().weight, 3);
-        assert_eq!(list.get(1).unwrap().weight, 2);
-        assert_eq!(list.get(2).unwrap().weight, 1);
+        assert_eq!(list.get(0).expect("get should return value").weight, 3);
+        assert_eq!(list.get(1).expect("get should return value").weight, 2);
+        assert_eq!(list.get(2).expect("get should return value").weight, 1);
     }
 
     #[test]

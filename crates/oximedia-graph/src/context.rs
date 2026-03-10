@@ -319,9 +319,9 @@ mod tests {
 
         builder
             .connect(source_id, PortId(0), sink_id, PortId(0))
-            .unwrap()
+            .expect("operation should succeed")
             .build()
-            .unwrap()
+            .expect("operation should succeed")
     }
 
     #[test]
@@ -338,7 +338,7 @@ mod tests {
         let graph = create_simple_graph();
         let mut context = GraphContext::new(graph);
 
-        context.initialize().unwrap();
+        context.initialize().expect("initialize should succeed");
         assert!(!context.is_running());
     }
 
@@ -347,11 +347,11 @@ mod tests {
         let graph = create_simple_graph();
         let mut context = GraphContext::new(graph);
 
-        context.initialize().unwrap();
-        context.start().unwrap();
+        context.initialize().expect("initialize should succeed");
+        context.start().expect("start should succeed");
         assert!(context.is_running());
 
-        context.stop().unwrap();
+        context.stop().expect("stop should succeed");
         assert!(!context.is_running());
     }
 
@@ -360,9 +360,9 @@ mod tests {
         let graph = create_simple_graph();
         let mut context = GraphContext::new(graph);
 
-        context.initialize().unwrap();
-        context.start().unwrap();
-        context.reset().unwrap();
+        context.initialize().expect("initialize should succeed");
+        context.start().expect("start should succeed");
+        context.reset().expect("reset should succeed");
 
         assert!(!context.is_running());
         assert_eq!(context.stats().frames_processed, 0);

@@ -814,30 +814,30 @@ mod tests {
         let b = make_cpu_backend();
 
         let data = vec![1u8, 2, 3, 4, 5, 6];
-        let h = b.allocate_buffer(data.len() as u64).unwrap();
+        let h = b.allocate_buffer(data.len() as u64).expect("h should be valid");
 
-        b.upload_buffer(&h, &data).unwrap();
-        let out = b.download_buffer(&h).unwrap();
+        b.upload_buffer(&h, &data).expect("upload_buffer should succeed");
+        let out = b.download_buffer(&h).expect("out should be valid");
         assert_eq!(out, data);
 
-        b.free_buffer(h).unwrap();
+        b.free_buffer(h).expect("free_buffer should succeed");
     }
 
     #[test]
     fn test_cpu_backend_size_mismatch() {
         let b = make_cpu_backend();
-        let h = b.allocate_buffer(4).unwrap();
+        let h = b.allocate_buffer(4).expect("h should be valid");
         let result = b.upload_buffer(&h, &[1u8, 2, 3]); // 3 != 4
         assert!(result.is_err());
-        b.free_buffer(h).unwrap();
+        b.free_buffer(h).expect("free_buffer should succeed");
     }
 
     #[test]
     fn test_cpu_backend_double_free() {
         let b = make_cpu_backend();
-        let h = b.allocate_buffer(8).unwrap();
+        let h = b.allocate_buffer(8).expect("h should be valid");
         let h2 = BufferHandle::new(h.0);
-        b.free_buffer(h).unwrap();
+        b.free_buffer(h).expect("free_buffer should succeed");
         assert!(b.free_buffer(h2).is_err());
     }
 
@@ -845,28 +845,28 @@ mod tests {
     fn test_cpu_backend_dispatch_noop() {
         let b = make_cpu_backend();
         let dispatch = DispatchParams::new_2d(8, 8);
-        b.dispatch_kernel("my_kernel", &[], dispatch).unwrap();
+        b.dispatch_kernel("my_kernel", &[], dispatch).expect("dispatch_kernel should succeed");
     }
 
     #[test]
     fn test_cpu_backend_synchronize() {
         let b = make_cpu_backend();
-        b.synchronize().unwrap();
+        b.synchronize().expect("synchronize should succeed");
     }
 
     #[test]
     fn test_cpu_backend_memory_stats() {
         let b = make_cpu_backend();
-        let h1 = b.allocate_buffer(1024).unwrap();
-        let h2 = b.allocate_buffer(2048).unwrap();
+        let h1 = b.allocate_buffer(1024).expect("h1 should be valid");
+        let h2 = b.allocate_buffer(2048).expect("h2 should be valid");
         let stats = b.memory_stats();
         assert_eq!(stats.allocated_bytes, 3072);
         assert_eq!(stats.allocation_count, 2);
-        b.free_buffer(h1).unwrap();
+        b.free_buffer(h1).expect("free_buffer should succeed");
         let stats2 = b.memory_stats();
         assert_eq!(stats2.allocated_bytes, 2048);
         assert_eq!(stats2.peak_bytes, 3072);
-        b.free_buffer(h2).unwrap();
+        b.free_buffer(h2).expect("free_buffer should succeed");
     }
 
     #[test]
@@ -896,10 +896,10 @@ mod tests {
         let b = CpuFallbackBackend::new();
         let info = YuvFrameInfo::yuv420(4, 4);
         let data = vec![0u8; info.total_size() as usize];
-        let h = upload_yuv_frame(&b, &data, &info).unwrap();
-        let out = download_yuv_frame(&b, &h).unwrap();
+        let h = upload_yuv_frame(&b, &data, &info).expect("h should be valid");
+        let out = download_yuv_frame(&b, &h).expect("out should be valid");
         assert_eq!(out.len(), data.len());
-        b.free_buffer(h).unwrap();
+        b.free_buffer(h).expect("free_buffer should succeed");
     }
 
     #[test]
@@ -920,10 +920,10 @@ mod tests {
     fn test_vulkan_backend_alloc_upload_download() {
         let b = VulkanComputeBackend::new();
         let data = vec![42u8; 16];
-        let h = b.allocate_buffer(16).unwrap();
-        b.upload_buffer(&h, &data).unwrap();
-        let out = b.download_buffer(&h).unwrap();
+        let h = b.allocate_buffer(16).expect("h should be valid");
+        b.upload_buffer(&h, &data).expect("upload_buffer should succeed");
+        let out = b.download_buffer(&h).expect("out should be valid");
         assert_eq!(out, data);
-        b.free_buffer(h).unwrap();
+        b.free_buffer(h).expect("free_buffer should succeed");
     }
 }

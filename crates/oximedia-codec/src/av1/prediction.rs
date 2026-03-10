@@ -382,7 +382,9 @@ impl PredictionEngine {
 
         // Perform motion compensation
         self.motion_compensate(
-            ref_frame.as_ref().unwrap(),
+            ref_frame
+                .as_ref()
+                .expect("ref_frame is Some: checked is_none() above"),
             x,
             y,
             mv,

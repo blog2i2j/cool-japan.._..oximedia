@@ -24,7 +24,7 @@
 //! let mut frame = VideoFrame::new(PixelFormat::Yuv420p, 1920, 1080);
 //! frame.allocate();
 //!
-//! let info = detector.detect_interlacing(&[frame]).unwrap();
+//! let info = detector.detect_interlacing(&[frame])?;
 //! println!("Content type: {:?}", info.content_type);
 //! println!("Confidence: {:.2}", info.confidence);
 //! ```
@@ -47,7 +47,7 @@
 //!     frames.push(frame);
 //! }
 //!
-//! let info = detector.detect(&frames).unwrap();
+//! let info = detector.detect(&frames)?;
 //! if info.is_telecine {
 //!     println!("Detected telecine: {:?}", info.pattern);
 //!     println!("Confidence: {:.2}", info.confidence);

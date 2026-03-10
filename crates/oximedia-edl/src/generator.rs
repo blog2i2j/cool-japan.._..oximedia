@@ -265,8 +265,8 @@ mod tests {
         edl.set_title("Test EDL".to_string());
         edl.set_frame_rate(EdlFrameRate::Fps2997DF);
 
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps2997DF).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps2997DF).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps2997DF).expect("failed to create");
+        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps2997DF).expect("failed to create");
 
         let event = EdlEvent::new(
             1,
@@ -279,10 +279,10 @@ mod tests {
             tc2,
         );
 
-        edl.add_event(event).unwrap();
+        edl.add_event(event).expect("add_event should succeed");
 
         let generator = EdlGenerator::new();
-        let output = generator.generate(&edl).unwrap();
+        let output = generator.generate(&edl).expect("failed to generate");
 
         assert!(output.contains("TITLE: Test EDL"));
         assert!(output.contains("FCM: DROP FRAME"));
@@ -295,8 +295,8 @@ mod tests {
         let mut edl = Edl::new(crate::EdlFormat::Cmx3600);
         edl.set_frame_rate(EdlFrameRate::Fps25);
 
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).expect("failed to create");
 
         let mut event = EdlEvent::new(
             1,
@@ -310,10 +310,10 @@ mod tests {
         );
         event.set_transition_duration(30);
 
-        edl.add_event(event).unwrap();
+        edl.add_event(event).expect("add_event should succeed");
 
         let generator = EdlGenerator::new();
-        let output = generator.generate(&edl).unwrap();
+        let output = generator.generate(&edl).expect("failed to generate");
 
         assert!(output.contains("D"));
         assert!(output.contains("30"));
@@ -324,8 +324,8 @@ mod tests {
         let mut edl = Edl::new(crate::EdlFormat::Cmx3600);
         edl.set_frame_rate(EdlFrameRate::Fps25);
 
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).expect("failed to create");
 
         let mut event = EdlEvent::new(
             1,
@@ -339,10 +339,10 @@ mod tests {
         );
         event.set_clip_name("test_clip.mov".to_string());
 
-        edl.add_event(event).unwrap();
+        edl.add_event(event).expect("add_event should succeed");
 
         let generator = EdlGenerator::new();
-        let output = generator.generate(&edl).unwrap();
+        let output = generator.generate(&edl).expect("failed to generate");
 
         assert!(output.contains("FROM CLIP NAME: test_clip.mov"));
     }
@@ -352,8 +352,8 @@ mod tests {
         let mut edl = Edl::new(crate::EdlFormat::Cmx3600);
         edl.set_frame_rate(EdlFrameRate::Fps25);
 
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc2 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).expect("failed to create");
 
         let mut event = EdlEvent::new(
             1,
@@ -368,10 +368,10 @@ mod tests {
         event.set_clip_name("test_clip.mov".to_string());
         event.add_comment("This is a comment".to_string());
 
-        edl.add_event(event).unwrap();
+        edl.add_event(event).expect("add_event should succeed");
 
         let generator = EdlGenerator::minimal();
-        let output = generator.generate(&edl).unwrap();
+        let output = generator.generate(&edl).expect("failed to generate");
 
         assert!(!output.contains("FROM CLIP NAME"));
         assert!(!output.contains("This is a comment"));

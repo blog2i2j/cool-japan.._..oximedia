@@ -1,0 +1,21 @@
+[package]
+name = "oximedia-compat-ffmpeg"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "FFmpeg CLI argument compatibility layer for OxiMedia"
+
+[lints]
+workspace = true
+
+[dependencies]
+oximedia-core.workspace = true
+oximedia-transcode = { version = "0.1.1", path = "../oximedia-transcode" }
+oximedia-graph.workspace = true
+oximedia-lut.workspace = true
+oximedia-subtitle.workspace = true
+anyhow = "1"
+thiserror.workspace = true

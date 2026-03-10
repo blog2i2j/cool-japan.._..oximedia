@@ -200,7 +200,7 @@ mod tests {
 
     #[test]
     fn test_overlay_compositor_creation() {
-        let comp = OverlayCompositor::new(1920, 1080).unwrap();
+        let comp = OverlayCompositor::new(1920, 1080).expect("comp should be valid");
         assert_eq!(comp.width, 1920);
         assert_eq!(comp.height, 1080);
     }
@@ -212,9 +212,9 @@ mod tests {
 
     #[test]
     fn test_composite() {
-        let comp = OverlayCompositor::new(100, 100).unwrap();
+        let comp = OverlayCompositor::new(100, 100).expect("comp should be valid");
         let mut video = vec![0u8; 100 * 100 * 4];
-        let graphics = RenderTarget::new(100, 100).unwrap();
+        let graphics = RenderTarget::new(100, 100).expect("graphics should be valid");
 
         let result = comp.composite(&mut video, &graphics, Point::new(0.0, 0.0), 1.0);
         assert!(result.is_ok());
@@ -222,16 +222,16 @@ mod tests {
 
     #[test]
     fn test_create_matte() {
-        let comp = OverlayCompositor::new(100, 100).unwrap();
-        let graphics = RenderTarget::new(100, 100).unwrap();
+        let comp = OverlayCompositor::new(100, 100).expect("comp should be valid");
+        let graphics = RenderTarget::new(100, 100).expect("graphics should be valid");
 
-        let matte = comp.create_matte(&graphics).unwrap();
+        let matte = comp.create_matte(&graphics).expect("matte should be valid");
         assert_eq!(matte.len(), 100 * 100);
     }
 
     #[test]
     fn test_chroma_key() {
-        let comp = OverlayCompositor::new(100, 100).unwrap();
+        let comp = OverlayCompositor::new(100, 100).expect("comp should be valid");
         let mut frame = vec![0u8; 100 * 100 * 4];
 
         // Set all pixels to green
@@ -251,7 +251,7 @@ mod tests {
 
     #[test]
     fn test_luma_key() {
-        let comp = OverlayCompositor::new(100, 100).unwrap();
+        let comp = OverlayCompositor::new(100, 100).expect("comp should be valid");
         let mut frame = vec![0u8; 100 * 100 * 4];
 
         // Set all pixels to white

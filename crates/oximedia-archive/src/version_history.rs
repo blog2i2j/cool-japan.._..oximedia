@@ -320,9 +320,9 @@ mod tests {
     #[test]
     fn test_version_numbering() {
         let h = sample_history();
-        assert_eq!(h.get(1).unwrap().version, 1);
-        assert_eq!(h.get(2).unwrap().version, 2);
-        assert_eq!(h.get(3).unwrap().version, 3);
+        assert_eq!(h.get(1).expect("get should succeed").version, 1);
+        assert_eq!(h.get(2).expect("get should succeed").version, 2);
+        assert_eq!(h.get(3).expect("get should succeed").version, 3);
     }
 
     #[test]
@@ -335,7 +335,7 @@ mod tests {
     #[test]
     fn test_latest() {
         let h = sample_history();
-        let latest = h.latest().unwrap();
+        let latest = h.latest().expect("latest should be valid");
         assert_eq!(latest.version, 3);
         assert_eq!(latest.change_kind, ChangeKind::EssenceReplace);
     }
@@ -373,7 +373,7 @@ mod tests {
     #[test]
     fn test_diff_checksum_changed() {
         let h = sample_history();
-        let d = h.diff(1, 3).unwrap();
+        let d = h.diff(1, 3).expect("d should be valid");
         assert!(d.checksum_changed);
         assert!(d.size_changed);
     }
@@ -381,7 +381,7 @@ mod tests {
     #[test]
     fn test_diff_metadata_added() {
         let h = sample_history();
-        let d = h.diff(1, 2).unwrap();
+        let d = h.diff(1, 2).expect("d should be valid");
         assert!(d.added_metadata.contains(&"title".to_string()));
         assert!(!d.checksum_changed);
     }
@@ -398,7 +398,10 @@ mod tests {
         let removed = h.prune(2);
         assert_eq!(removed, 1);
         assert_eq!(h.len(), 2);
-        assert_eq!(h.get(1).unwrap().change_kind, ChangeKind::MetadataUpdate);
+        assert_eq!(
+            h.get(1).expect("get should succeed").change_kind,
+            ChangeKind::MetadataUpdate
+        );
     }
 
     #[test]

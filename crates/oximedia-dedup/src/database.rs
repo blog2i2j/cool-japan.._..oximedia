@@ -656,23 +656,30 @@ mod tests {
 
     #[tokio::test]
     async fn test_database_creation() {
-        let db = DedupDatabase::open_memory().await.unwrap();
-        let stats = db.get_stats().await.unwrap();
+        let db = DedupDatabase::open_memory()
+            .await
+            .expect("operation should succeed");
+        let stats = db.get_stats().await.expect("operation should succeed");
         assert_eq!(stats.total_files, 0);
     }
 
     #[tokio::test]
     async fn test_insert_file() {
-        let db = DedupDatabase::open_memory().await.unwrap();
+        let db = DedupDatabase::open_memory()
+            .await
+            .expect("operation should succeed");
 
         // Create a temporary file
         let temp_file = std::env::temp_dir().join("test_file.txt");
-        std::fs::write(&temp_file, b"test content").unwrap();
+        std::fs::write(&temp_file, b"test content").expect("operation should succeed");
 
-        let file_id = db.insert_file(&temp_file, "abcd1234").await.unwrap();
+        let file_id = db
+            .insert_file(&temp_file, "abcd1234")
+            .await
+            .expect("operation should succeed");
         assert!(file_id > 0);
 
-        let count = db.count_files().await.unwrap();
+        let count = db.count_files().await.expect("operation should succeed");
         assert_eq!(count, 1);
 
         // Cleanup
@@ -681,23 +688,38 @@ mod tests {
 
     #[tokio::test]
     async fn test_duplicate_detection() {
-        let db = DedupDatabase::open_memory().await.unwrap();
+        let db = DedupDatabase::open_memory()
+            .await
+            .expect("operation should succeed");
 
         let temp_dir = std::env::temp_dir();
         let file1 = temp_dir.join("test1.txt");
         let file2 = temp_dir.join("test2.txt");
 
-        std::fs::write(&file1, b"test").unwrap();
-        std::fs::write(&file2, b"test").unwrap();
+        std::fs::write(&file1, b"test").expect("operation should succeed");
+        std::fs::write(&file2, b"test").expect("operation should succeed");
 
         let hash = "same_hash";
 
-        db.insert_file(&file1, hash).await.unwrap();
-        db.insert_file(&file2, hash).await.unwrap();
+        db.insert_file(&file1, hash)
+            .await
+            .expect("operation should succeed");
+        db.insert_file(&file2, hash)
+            .await
+            .expect("operation should succeed");
 
-        let duplicates = db.find_duplicate_hashes().await.unwrap();
+        let duplicates = db
+            .find_duplicate_hashes()
+            .await
+            .expect("operation should succeed");
         assert_eq!(duplicates.len(), 1);
-        assert_eq!(duplicates.get(hash).unwrap().len(), 2);
+        assert_eq!(
+            duplicates
+                .get(hash)
+                .expect("operation should succeed")
+                .len(),
+            2
+        );
 
         // Cleanup
         std::fs::remove_file(&file1).ok();
@@ -706,16 +728,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_fingerprints() {
-        let db = DedupDatabase::open_memory().await.unwrap();
+        let db = DedupDatabase::open_memory()
+            .await
+            .expect("operation should succeed");
 
         let temp_file = std::env::temp_dir().join("test_fp.txt");
-        std::fs::write(&temp_file, b"test").unwrap();
+        std::fs::write(&temp_file, b"test").expect("operation should succeed");
 
-        let file_id = db.insert_file(&temp_file, "hash123").await.unwrap();
+        let file_id = db
+            .insert_file(&temp_file, "hash123")
+            .await
+            .expect("operation should succeed");
         let fp_id = db
             .insert_fingerprint(file_id, "phash", "abc123")
             .await
-            .unwrap();
+            .expect("operation should succeed");
 
         assert!(fp_id > 0);
 
@@ -725,16 +752,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_chunks() {
-        let db = DedupDatabase::open_memory().await.unwrap();
+        let db = DedupDatabase::open_memory()
+            .await
+            .expect("operation should succeed");
 
         let temp_file = std::env::temp_dir().join("test_chunk.txt");
-        std::fs::write(&temp_file, b"test").unwrap();
+        std::fs::write(&temp_file, b"test").expect("operation should succeed");
 
-        let file_id = db.insert_file(&temp_file, "hash456").await.unwrap();
+        let file_id = db
+            .insert_file(&temp_file, "hash456")
+            .await
+            .expect("operation should succeed");
         let chunk_id = db
             .insert_chunk(file_id, 0, 100, "chunk_hash")
             .await
-            .unwrap();
+            .expect("operation should succeed");
 
         assert!(chunk_id > 0);
 
@@ -744,19 +776,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_delete_file() {
-        let db = DedupDatabase::open_memory().await.unwrap();
+        let db = DedupDatabase::open_memory()
+            .await
+            .expect("operation should succeed");
 
         let temp_file = std::env::temp_dir().join("test_delete.txt");
-        std::fs::write(&temp_file, b"test").unwrap();
+        std::fs::write(&temp_file, b"test").expect("operation should succeed");
 
-        db.insert_file(&temp_file, "hash_del").await.unwrap();
+        db.insert_file(&temp_file, "hash_del")
+            .await
+            .expect("operation should succeed");
 
-        let count_before = db.count_files().await.unwrap();
+        let count_before = db.count_files().await.expect("operation should succeed");
         assert_eq!(count_before, 1);
 
-        db.delete_file(&temp_file).await.unwrap();
+        db.delete_file(&temp_file)
+            .await
+            .expect("operation should succeed");
 
-        let count_after = db.count_files().await.unwrap();
+        let count_after = db.count_files().await.expect("operation should succeed");
         assert_eq!(count_after, 0);
 
         // Cleanup
@@ -765,8 +803,10 @@ mod tests {
 
     #[tokio::test]
     async fn test_stats() {
-        let db = DedupDatabase::open_memory().await.unwrap();
-        let stats = db.get_stats().await.unwrap();
+        let db = DedupDatabase::open_memory()
+            .await
+            .expect("operation should succeed");
+        let stats = db.get_stats().await.expect("operation should succeed");
 
         assert_eq!(stats.total_files, 0);
         assert_eq!(stats.unique_hashes, 0);

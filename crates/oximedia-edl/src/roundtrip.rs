@@ -256,14 +256,16 @@ FCM: NON-DROP FRAME
 
     #[test]
     fn test_lossless_simple_edl() {
-        let result = is_lossless(SIMPLE_EDL).unwrap();
+        let result = is_lossless(SIMPLE_EDL).expect("operation should succeed");
         assert!(result, "Simple EDL should survive a roundtrip unchanged");
     }
 
     #[test]
     fn test_roundtrip_report_is_lossless() {
         let validator = RoundtripValidator::default();
-        let report = validator.validate(SIMPLE_EDL).unwrap();
+        let report = validator
+            .validate(SIMPLE_EDL)
+            .expect("validation should succeed");
         assert!(report.is_lossless());
         assert_eq!(report.diff_count(), 0);
     }
@@ -271,14 +273,18 @@ FCM: NON-DROP FRAME
     #[test]
     fn test_generated_text_not_empty() {
         let validator = RoundtripValidator::default();
-        let report = validator.validate(SIMPLE_EDL).unwrap();
+        let report = validator
+            .validate(SIMPLE_EDL)
+            .expect("validation should succeed");
         assert!(!report.generated_text.is_empty());
     }
 
     #[test]
     fn test_generated_text_contains_title() {
         let validator = RoundtripValidator::default();
-        let report = validator.validate(SIMPLE_EDL).unwrap();
+        let report = validator
+            .validate(SIMPLE_EDL)
+            .expect("validation should succeed");
         assert!(report.generated_text.contains("Roundtrip Test"));
     }
 
@@ -291,14 +297,14 @@ FCM: NON-DROP FRAME
 002  B001     V     C        01:00:05:00 01:00:10:00 01:00:05:00 01:00:10:00
 
 "#;
-        let result = is_lossless(edl_text).unwrap();
+        let result = is_lossless(edl_text).expect("operation should succeed");
         assert!(result);
     }
 
     #[test]
     fn test_compare_identical_edls_no_diffs() {
-        let a = parse_edl(SIMPLE_EDL).unwrap();
-        let b = parse_edl(SIMPLE_EDL).unwrap();
+        let a = parse_edl(SIMPLE_EDL).expect("operation should succeed");
+        let b = parse_edl(SIMPLE_EDL).expect("operation should succeed");
         let validator = RoundtripValidator::default();
         let diffs = validator.compare(&a, &b);
         assert!(diffs.is_empty());
@@ -306,8 +312,8 @@ FCM: NON-DROP FRAME
 
     #[test]
     fn test_compare_different_titles_produces_diff() {
-        let mut a = parse_edl(SIMPLE_EDL).unwrap();
-        let b = parse_edl(SIMPLE_EDL).unwrap();
+        let mut a = parse_edl(SIMPLE_EDL).expect("operation should succeed");
+        let b = parse_edl(SIMPLE_EDL).expect("operation should succeed");
         a.title = Some("Different Title".to_string());
         let validator = RoundtripValidator::default();
         let diffs = validator.compare(&a, &b);
@@ -317,8 +323,8 @@ FCM: NON-DROP FRAME
 
     #[test]
     fn test_compare_different_event_counts_produces_diff() {
-        let a = parse_edl(SIMPLE_EDL).unwrap();
-        let mut b = parse_edl(SIMPLE_EDL).unwrap();
+        let a = parse_edl(SIMPLE_EDL).expect("operation should succeed");
+        let mut b = parse_edl(SIMPLE_EDL).expect("operation should succeed");
         b.events.clear();
         let validator = RoundtripValidator::default();
         let diffs = validator.compare(&a, &b);
@@ -388,7 +394,7 @@ FCM: NON-DROP FRAME
     fn test_is_lossless_helper_returns_true_for_valid_edl() {
         let result = is_lossless(SIMPLE_EDL);
         assert!(result.is_ok());
-        assert!(result.unwrap());
+        assert!(result.expect("result should be valid"));
     }
 
     #[test]
@@ -402,7 +408,9 @@ FCM: NON-DROP FRAME
 
 "#;
         let validator = RoundtripValidator::default();
-        let report = validator.validate(edl_text).unwrap();
+        let report = validator
+            .validate(edl_text)
+            .expect("validation should succeed");
         assert!(report.is_lossless(), "diffs: {:?}", report.diffs);
     }
 }

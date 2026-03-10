@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn test_gpu_buffer_unmap_clears_flag() {
         let mut b = GpuBuffer::new(0, BufferUsage::Readback, 512);
-        b.map().unwrap();
+        b.map().expect("buffer map should succeed");
         b.unmap();
         assert!(!b.is_mapped());
     }

@@ -220,7 +220,27 @@ impl IsoFileNaming {
     /// ```
     #[must_use]
     pub fn generate(camera_id: u32, session_id: &str, quality: &IsoQuality) -> String {
-        let date = "20240101"; // placeholder date for library code
+        // Format the current UTC date as YYYYMMDD for the filename.
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        // Compute YYYY, MM, DD from Unix timestamp using the proleptic Gregorian
+        // calendar (no external crate required).
+        let days_since_epoch = now / 86400;
+        // Shift epoch from 1970-01-01 to the fictitious day 0 of the algorithm.
+        // Using the civil_from_days algorithm (Howard Hinnant, public domain).
+        let z = days_since_epoch as i64 + 719468;
+        let era = if z >= 0 { z } else { z - 146096 } / 146097;
+        let doe = z - era * 146097; // day of era [0, 146096]
+        let yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365; // year of era [0, 399]
+        let y = yoe + era * 400;
+        let doy = doe - (365 * yoe + yoe / 4 - yoe / 100); // day of year [0, 365]
+        let mp = (5 * doy + 2) / 153; // month prime [0, 11]
+        let d = doy - (153 * mp + 2) / 5 + 1; // day [1, 31]
+        let m = if mp < 10 { mp + 3 } else { mp - 9 }; // month [1, 12]
+        let y = if m <= 2 { y + 1 } else { y };
+        let date = format!("{:04}{:02}{:02}", y, m, d);
         format!(
             "ISO_CAM{:02}_{}_{}_{}.mxf",
             camera_id,
@@ -296,7 +316,9 @@ mod tests {
         assert!(recorder.start_recording("SESS001"));
         assert!(recorder.is_recording());
 
-        let session = recorder.stop_recording().unwrap();
+        let session = recorder
+            .stop_recording()
+            .expect("multicam test operation should succeed");
         assert_eq!(session.session_id, "SESS001");
         assert!(!recorder.is_recording());
     }

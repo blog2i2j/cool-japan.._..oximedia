@@ -304,7 +304,7 @@ mod tests {
         suite.add(make_result(35.0, 60.0, 2000));
         suite.add(make_result(42.0, 20.0, 4000));
         suite.add(make_result(38.0, 40.0, 3000));
-        let best = suite.best_quality().unwrap();
+        let best = suite.best_quality().expect("best should be valid");
         assert_eq!(best.psnr_db, 42.0);
     }
 
@@ -313,7 +313,7 @@ mod tests {
         let mut suite = CodecBenchSuite::new();
         suite.add(make_result(35.0, 60.0, 2000));
         suite.add(make_result(42.0, 20.0, 4000));
-        let best = suite.best_speed().unwrap();
+        let best = suite.best_speed().expect("best should be valid");
         assert_eq!(best.encode_fps, 60.0);
     }
 

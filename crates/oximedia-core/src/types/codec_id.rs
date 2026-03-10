@@ -95,6 +95,16 @@ pub enum CodecId {
     Theora,
     /// H.263 video codec (patents expired 2019, for education/compatibility).
     H263,
+    /// Raw uncompressed video (e.g., Y4M / YUV4MPEG2).
+    RawVideo,
+
+    // Image codecs (Green List)
+    /// JPEG-XL image codec (ISO/IEC 18181, royalty-free).
+    JpegXl,
+    /// DNG (Digital Negative) RAW image format (Adobe open standard, royalty-free).
+    Dng,
+    /// FFV1 lossless video codec (RFC 9043 / ISO/IEC 24114).
+    Ffv1,
 
     // Audio codecs (Green List)
     /// Opus audio codec (IETF/Xiph.org).
@@ -134,7 +144,15 @@ impl CodecId {
     #[must_use]
     pub const fn media_type(&self) -> MediaType {
         match self {
-            Self::Av1 | Self::Vp9 | Self::Vp8 | Self::Theora | Self::H263 => MediaType::Video,
+            Self::Av1
+            | Self::Vp9
+            | Self::Vp8
+            | Self::Theora
+            | Self::H263
+            | Self::RawVideo
+            | Self::JpegXl
+            | Self::Dng
+            | Self::Ffv1 => MediaType::Video,
             Self::Opus | Self::Vorbis | Self::Flac | Self::Mp3 | Self::Pcm => MediaType::Audio,
             Self::WebVtt | Self::Ass | Self::Ssa | Self::Srt => MediaType::Subtitle,
         }
@@ -203,6 +221,10 @@ impl CodecId {
             Self::Vp8 => "vp8",
             Self::Theora => "theora",
             Self::H263 => "h263",
+            Self::RawVideo => "rawvideo",
+            Self::JpegXl => "jpegxl",
+            Self::Dng => "dng",
+            Self::Ffv1 => "ffv1",
             Self::Opus => "opus",
             Self::Vorbis => "vorbis",
             Self::Flac => "flac",
@@ -228,7 +250,10 @@ impl CodecId {
     /// ```
     #[must_use]
     pub const fn is_lossless(&self) -> bool {
-        matches!(self, Self::Flac | Self::Pcm)
+        matches!(
+            self,
+            Self::Flac | Self::Pcm | Self::RawVideo | Self::JpegXl | Self::Dng | Self::Ffv1
+        )
     }
 }
 

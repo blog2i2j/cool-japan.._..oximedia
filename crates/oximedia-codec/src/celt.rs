@@ -332,7 +332,7 @@ mod tests {
         let cfg = CeltFrameConfig::default().with_frame_size(480);
         let mut dec = CeltDecoder::new(cfg);
         let data = vec![0u8; 21];
-        let frame = dec.decode_frame(&data).unwrap();
+        let frame = dec.decode_frame(&data).expect("should succeed");
         assert_eq!(frame.sample_count(), 480);
     }
 
@@ -341,7 +341,7 @@ mod tests {
         let cfg = CeltFrameConfig::default();
         let mut dec = CeltDecoder::new(cfg);
         let data = vec![0u8; 21];
-        let frame = dec.decode_frame(&data).unwrap();
+        let frame = dec.decode_frame(&data).expect("should succeed");
         for band in 0..NUM_BANDS {
             assert_eq!(frame.energy.energy(band), 0.0);
         }

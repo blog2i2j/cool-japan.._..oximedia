@@ -131,7 +131,7 @@ mod tests {
     fn test_result_type() {
         let result: MonitorResult<i32> = Ok(42);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), 42);
+        assert_eq!(result.expect("result should be valid"), 42);
     }
 
     #[test]

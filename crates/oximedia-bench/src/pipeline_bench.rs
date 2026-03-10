@@ -278,7 +278,7 @@ mod tests {
         let mut bench = make_bench_with_stages();
         bench.record_stage("decode", 10.0);
         bench.record_stage("decode", 20.0);
-        let stage = bench.get_stage("decode").unwrap();
+        let stage = bench.get_stage("decode").expect("stage should be valid");
         assert!((stage.avg_ms - 15.0).abs() < 1e-9);
     }
 
@@ -296,7 +296,7 @@ mod tests {
         bench.record_stage("decode", 5.0);
         bench.record_stage("filter", 50.0); // bottleneck
         bench.record_stage("encode", 10.0);
-        let bn = bench.bottleneck().unwrap();
+        let bn = bench.bottleneck().expect("bn should be valid");
         assert_eq!(bn.name, "filter");
     }
 

@@ -126,7 +126,9 @@ mod tests {
         let config = RouterConfig::default();
         let mut router = RouterAutomation::new(config);
 
-        router.set_crosspoint(1, 5).unwrap();
+        router
+            .set_crosspoint(1, 5)
+            .expect("set_crosspoint should succeed");
         assert_eq!(router.get_crosspoint(5), Some(1));
     }
 
@@ -163,7 +165,7 @@ mod tests {
             },
         ];
 
-        router.salvo(&crosspoints).unwrap();
+        router.salvo(&crosspoints).expect("salvo should succeed");
         assert_eq!(router.get_crosspoint(5), Some(1));
         assert_eq!(router.get_crosspoint(6), Some(2));
         assert_eq!(router.get_crosspoint(7), Some(3));

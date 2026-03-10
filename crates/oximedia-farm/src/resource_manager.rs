@@ -361,7 +361,9 @@ mod tests {
         r1.allocate(28.0); // high utilization
         pool.add_resource(r1);
         pool.add_resource(Resource::new(2, ResourceType::Cpu, 32.0, "node-2"));
-        let ll = pool.least_loaded(ResourceType::Cpu).unwrap();
+        let ll = pool
+            .least_loaded(ResourceType::Cpu)
+            .expect("least_loaded should succeed");
         assert_eq!(ll.id, 2);
     }
 
@@ -369,7 +371,7 @@ mod tests {
     fn test_allocate_for_job_success() {
         let mut pool = make_pool();
         let req = AllocationRequest::new(42, 4.0, 16.0, 0);
-        let ids = allocate_for_job(&mut pool, &req).unwrap();
+        let ids = allocate_for_job(&mut pool, &req).expect("operation should succeed");
         assert_eq!(ids.len(), 2); // CPU + Memory
     }
 

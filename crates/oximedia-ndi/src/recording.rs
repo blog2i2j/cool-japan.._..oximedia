@@ -243,7 +243,9 @@ impl RecordingSession {
         }
         self.paused_at = Some(Instant::now());
         if let Some(seg_start) = self.segment_start {
-            self.accumulated_duration += self.paused_at.unwrap().duration_since(seg_start);
+            if let Some(paused_at) = self.paused_at {
+                self.accumulated_duration += paused_at.duration_since(seg_start);
+            }
         }
         self.state = RecordingState::Paused;
         true

@@ -1,9 +1,9 @@
 //! High-level shot detector with batch processing capabilities.
 
 use crate::error::{ShotError, ShotResult};
+use crate::frame_buffer::FrameBuffer;
 use crate::types::{Scene, Shot, ShotStatistics};
 use crate::{ShotDetector, ShotDetectorConfig};
-use ndarray::Array3;
 use rayon::prelude::*;
 
 /// Batch shot detector for processing large video files.
@@ -34,7 +34,7 @@ impl BatchShotDetector {
     /// # Errors
     ///
     /// Returns error if frame processing fails.
-    pub fn process_batches(&self, frames: &[Array3<u8>]) -> ShotResult<Vec<Shot>> {
+    pub fn process_batches(&self, frames: &[FrameBuffer]) -> ShotResult<Vec<Shot>> {
         if frames.is_empty() {
             return Ok(Vec::new());
         }
@@ -88,7 +88,7 @@ impl BatchShotDetector {
     /// # Errors
     ///
     /// Returns error if processing fails.
-    pub fn process_and_analyze(&self, frames: &[Array3<u8>]) -> ShotResult<ProcessingResults> {
+    pub fn process_and_analyze(&self, frames: &[FrameBuffer]) -> ShotResult<ProcessingResults> {
         let shots = self.process_batches(frames)?;
         let statistics = self.detector.analyze_shots(&shots);
         let scenes = self.detector.detect_scenes(&shots);

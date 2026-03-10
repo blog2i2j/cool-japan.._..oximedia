@@ -548,7 +548,7 @@ mod tests {
             muted: false,
         });
         assert_eq!(conv.track_mapping_count(), 1);
-        let mapping = conv.get_track_mapping(1).unwrap();
+        let mapping = conv.get_track_mapping(1).expect("mapping should be valid");
         assert_eq!(mapping.dest_track_id, 10);
         assert_eq!(mapping.track_type, TrackKind::Video);
     }

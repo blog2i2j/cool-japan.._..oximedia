@@ -513,7 +513,10 @@ mod tests {
 
         let patch = checker.get_patch(0);
         assert!(patch.is_some());
-        assert_eq!(patch.unwrap().name, "Dark Skin");
+        assert_eq!(
+            patch.expect("expected patch to be Some/Ok").name,
+            "Dark Skin"
+        );
 
         assert!(checker.get_patch(100).is_none());
     }

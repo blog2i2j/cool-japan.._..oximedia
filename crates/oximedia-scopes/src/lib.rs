@@ -47,7 +47,9 @@
 #![allow(clippy::too_many_arguments)]
 
 pub mod audio_scope;
+pub mod bit_depth_scope;
 pub mod cie;
+pub mod clipping_detector;
 pub mod color_temperature;
 pub mod compliance;
 pub mod exposure_meter;
@@ -66,6 +68,7 @@ pub mod overlay;
 pub mod parade;
 pub mod peaking;
 pub mod render;
+pub mod rgb_balance;
 pub mod scope_layout;
 pub mod signal_stats;
 pub mod stats;

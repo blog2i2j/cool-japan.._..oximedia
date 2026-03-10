@@ -73,20 +73,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_track_usage() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("rights test operation should succeed");
         let db_path = format!("sqlite://{}/test.db", temp_dir.path().display());
-        let db = RightsDatabase::new(&db_path).await.unwrap();
+        let db = RightsDatabase::new(&db_path)
+            .await
+            .expect("rights test operation should succeed");
 
         // Create asset first to satisfy foreign key constraint
         let asset = crate::rights::Asset::new("Test Asset", crate::rights::AssetType::Video);
         let asset_id = asset.id.clone();
-        asset.save(&db).await.unwrap();
+        asset
+            .save(&db)
+            .await
+            .expect("rights test operation should succeed");
 
         let tracker = UsageTracker::new(&db);
         let log = tracker
             .track_usage(&asset_id, UsageType::Commercial, None, Some("US"))
             .await
-            .unwrap();
+            .expect("rights test operation should succeed");
 
         assert_eq!(log.asset_id, asset_id);
         assert_eq!(log.territory, Some("US".to_string()));

@@ -808,7 +808,7 @@ mod tests {
 
     #[test]
     fn test_tile_config_new_valid() {
-        let cfg = Vp9TileConfig::new(2, 1, 4).unwrap();
+        let cfg = Vp9TileConfig::new(2, 1, 4).expect("should succeed");
         assert_eq!(cfg.tile_cols(), 4);
         assert_eq!(cfg.tile_rows(), 2);
         assert_eq!(cfg.tile_count(), 8);
@@ -836,9 +836,9 @@ mod tests {
     #[test]
     fn test_splitter_single_tile() {
         let cfg = Vp9TileConfig::default();
-        let s = Vp9TileFrameSplitter::new(cfg, 1920, 1080).unwrap();
+        let s = Vp9TileFrameSplitter::new(cfg, 1920, 1080).expect("should succeed");
         assert_eq!(s.tile_count(), 1);
-        let r = s.region(0).unwrap();
+        let r = s.region(0).expect("should succeed");
         assert_eq!(r.x, 0);
         assert_eq!(r.y, 0);
         assert_eq!(r.width, 1920);
@@ -847,11 +847,11 @@ mod tests {
 
     #[test]
     fn test_splitter_2x1_tiles() {
-        let cfg = Vp9TileConfig::new(1, 0, 2).unwrap(); // 2 cols, 1 row
-        let s = Vp9TileFrameSplitter::new(cfg, 1920, 1080).unwrap();
+        let cfg = Vp9TileConfig::new(1, 0, 2).expect("should succeed"); // 2 cols, 1 row
+        let s = Vp9TileFrameSplitter::new(cfg, 1920, 1080).expect("should succeed");
         assert_eq!(s.tile_count(), 2);
-        let r0 = s.region(0).unwrap();
-        let r1 = s.region(1).unwrap();
+        let r0 = s.region(0).expect("should succeed");
+        let r1 = s.region(1).expect("should succeed");
         assert_eq!(r0.x, 0);
         assert!(r1.x > 0);
         assert_eq!(r0.y, 0);
@@ -862,12 +862,12 @@ mod tests {
 
     #[test]
     fn test_splitter_2x2_tiles() {
-        let cfg = Vp9TileConfig::new(1, 1, 4).unwrap(); // 2x2
-        let s = Vp9TileFrameSplitter::new(cfg, 1920, 1088).unwrap();
+        let cfg = Vp9TileConfig::new(1, 1, 4).expect("should succeed"); // 2x2
+        let s = Vp9TileFrameSplitter::new(cfg, 1920, 1088).expect("should succeed");
         assert_eq!(s.tile_count(), 4);
         // All rows should sum to full height.
-        let top_height = s.region(0).unwrap().height;
-        let bot_height = s.region(2).unwrap().height;
+        let top_height = s.region(0).expect("should succeed").height;
+        let bot_height = s.region(2).expect("should succeed").height;
         assert_eq!(top_height + bot_height, 1088);
     }
 
@@ -899,7 +899,7 @@ mod tests {
         let frame = make_frame(1920, 1080);
         let result = enc.encode(&frame);
         assert!(result.is_ok());
-        let tile = result.unwrap();
+        let tile = result.expect("should succeed");
         assert!(tile.encoded_size() > 0);
     }
 
@@ -916,18 +916,18 @@ mod tests {
     #[test]
     fn test_frame_encoder_single_tile() {
         let cfg = Vp9TileConfig::default();
-        let enc = Vp9FrameTileEncoder::new(cfg, 1920, 1080).unwrap();
+        let enc = Vp9FrameTileEncoder::new(cfg, 1920, 1080).expect("should succeed");
         let frame = make_frame(1920, 1080);
-        let tiles = enc.encode_frame(&frame, true).unwrap();
+        let tiles = enc.encode_frame(&frame, true).expect("should succeed");
         assert_eq!(tiles.len(), 1);
     }
 
     #[test]
     fn test_frame_encoder_4x2_tiles() {
-        let cfg = Vp9TileConfig::new(2, 1, 8).unwrap(); // 4 cols, 2 rows
-        let enc = Vp9FrameTileEncoder::new(cfg, 1920, 1088).unwrap();
+        let cfg = Vp9TileConfig::new(2, 1, 8).expect("should succeed"); // 4 cols, 2 rows
+        let enc = Vp9FrameTileEncoder::new(cfg, 1920, 1088).expect("should succeed");
         let frame = make_frame(1920, 1088);
-        let tiles = enc.encode_frame(&frame, false).unwrap();
+        let tiles = enc.encode_frame(&frame, false).expect("should succeed");
         assert_eq!(tiles.len(), 8);
         // Verify raster order
         for (i, tile) in tiles.iter().enumerate() {
@@ -938,18 +938,18 @@ mod tests {
     #[test]
     fn test_frame_encoder_wrong_dimensions() {
         let cfg = Vp9TileConfig::default();
-        let enc = Vp9FrameTileEncoder::new(cfg, 1920, 1080).unwrap();
+        let enc = Vp9FrameTileEncoder::new(cfg, 1920, 1080).expect("should succeed");
         let frame = make_frame(1280, 720);
         assert!(enc.encode_frame(&frame, true).is_err());
     }
 
     #[test]
     fn test_assemble_frame() {
-        let cfg = Vp9TileConfig::new(1, 0, 2).unwrap(); // 2 cols, 1 row
-        let enc = Vp9FrameTileEncoder::new(cfg, 1920, 1080).unwrap();
+        let cfg = Vp9TileConfig::new(1, 0, 2).expect("should succeed"); // 2 cols, 1 row
+        let enc = Vp9FrameTileEncoder::new(cfg, 1920, 1080).expect("should succeed");
         let frame = make_frame(1920, 1080);
-        let tiles = enc.encode_frame(&frame, true).unwrap();
-        let assembled = enc.assemble_frame(&tiles).unwrap();
+        let tiles = enc.encode_frame(&frame, true).expect("should succeed");
+        let assembled = enc.assemble_frame(&tiles).expect("should succeed");
         assert!(!assembled.is_empty());
         // Header byte must have bit 7 set.
         assert_eq!(assembled[0] & 0x80, 0x80);
@@ -958,7 +958,7 @@ mod tests {
     #[test]
     fn test_assemble_empty_error() {
         let cfg = Vp9TileConfig::default();
-        let enc = Vp9FrameTileEncoder::new(cfg, 1920, 1080).unwrap();
+        let enc = Vp9FrameTileEncoder::new(cfg, 1920, 1080).expect("should succeed");
         assert!(enc.assemble_frame(&[]).is_err());
     }
 

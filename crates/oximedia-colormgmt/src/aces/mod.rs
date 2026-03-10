@@ -232,7 +232,9 @@ mod tests {
     fn test_aces_transform_identity() {
         let transform = AcesTransform::new(AcesColorSpace::ACEScg, AcesColorSpace::ACEScg);
         let rgb = [0.5, 0.3, 0.7];
-        let result = transform.apply(rgb).unwrap();
+        let result = transform
+            .apply(rgb)
+            .expect("transform application should succeed");
 
         assert!((result[0] - rgb[0]).abs() < 1e-6);
         assert!((result[1] - rgb[1]).abs() < 1e-6);
@@ -267,8 +269,12 @@ mod tests {
         let transform2 = AcesTransform::new(AcesColorSpace::ACEScg, AcesColorSpace::ACES2065_1);
 
         let rgb = [0.5, 0.3, 0.7];
-        let ap1 = transform1.apply(rgb).unwrap();
-        let ap0 = transform2.apply(ap1).unwrap();
+        let ap1 = transform1
+            .apply(rgb)
+            .expect("transform application should succeed");
+        let ap0 = transform2
+            .apply(ap1)
+            .expect("transform application should succeed");
 
         assert!((ap0[0] - rgb[0]).abs() < 1e-6);
         assert!((ap0[1] - rgb[1]).abs() < 1e-6);

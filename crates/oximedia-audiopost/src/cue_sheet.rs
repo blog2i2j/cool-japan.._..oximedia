@@ -390,7 +390,7 @@ mod tests {
         ));
         let found = sheet.get_cue("FX-01");
         assert!(found.is_some());
-        assert_eq!(found.unwrap().description, "Boom");
+        assert_eq!(found.expect("found should be valid").description, "Boom");
     }
 
     #[test]

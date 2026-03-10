@@ -342,7 +342,7 @@ mod tests {
         reg.register(picture_desc());
         let found = reg.get("urn:uuid:pic-001");
         assert!(found.is_some());
-        assert!(found.unwrap().is_picture());
+        assert!(found.expect("test expectation failed").is_picture());
     }
 
     #[test]

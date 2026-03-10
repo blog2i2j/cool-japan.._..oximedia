@@ -231,7 +231,7 @@ mod tests {
         let result = adaptive_denoise(&frame, 0.5);
         assert!(result.is_ok());
 
-        let filtered = result.unwrap();
+        let filtered = result.expect("filtered should be valid");
         assert_eq!(filtered.width, 64);
         assert_eq!(filtered.height, 64);
     }
@@ -262,7 +262,7 @@ mod tests {
         let result = analyze_frame_activity(&frame);
         assert!(result.is_ok());
 
-        let activity = result.unwrap();
+        let activity = result.expect("activity should be valid");
         assert!(activity >= 0.0);
     }
 

@@ -266,7 +266,8 @@ mod tests {
         let orig = gray_ramp(32, 32);
         let mut buf = orig.clone();
         let cg = ColorGrade::new(ColorGradeConfig::default());
-        cg.apply(&mut buf, 32, 32, PixelFormat::Rgb).unwrap();
+        cg.apply(&mut buf, 32, 32, PixelFormat::Rgb)
+            .expect("apply should succeed");
         // Identity should leave image unchanged (within 1 LSB rounding)
         for (a, b) in buf.iter().zip(orig.iter()) {
             assert!(
@@ -294,7 +295,8 @@ mod tests {
     fn test_color_grade_bleach_bypass() {
         let mut buf = gray_ramp(32, 32);
         let cg = ColorGrade::new(ColorGradeConfig::bleach_bypass());
-        cg.apply(&mut buf, 32, 32, PixelFormat::Rgb).unwrap();
+        cg.apply(&mut buf, 32, 32, PixelFormat::Rgb)
+            .expect("apply should succeed");
         // After bleach bypass, R==G==B for a gray input (saturation only)
         for px in buf.chunks_exact(3) {
             // Some small diff is ok due to floating point
@@ -314,7 +316,8 @@ mod tests {
             ..Default::default()
         };
         let cg = ColorGrade::new(cfg);
-        cg.apply(&mut buf, 1, 1, PixelFormat::Rgb).unwrap();
+        cg.apply(&mut buf, 1, 1, PixelFormat::Rgb)
+            .expect("apply should succeed");
         assert!(buf[0] > 0, "Lift should raise black level");
     }
 
@@ -330,7 +333,8 @@ mod tests {
             ..Default::default()
         };
         let cg = ColorGrade::new(cfg);
-        cg.apply(&mut buf, 1, 1, PixelFormat::Rgb).unwrap();
+        cg.apply(&mut buf, 1, 1, PixelFormat::Rgb)
+            .expect("apply should succeed");
         assert!(buf[0] >= 200, "Gain should not reduce highlights");
     }
 
@@ -343,7 +347,8 @@ mod tests {
             ..Default::default()
         };
         let cg = ColorGrade::new(cfg);
-        cg.apply(&mut buf, 1, 1, PixelFormat::Rgb).unwrap();
+        cg.apply(&mut buf, 1, 1, PixelFormat::Rgb)
+            .expect("apply should succeed");
         // All channels should be equal (grayscale)
         assert!((buf[0] as i32 - buf[1] as i32).abs() <= 1);
         assert!((buf[1] as i32 - buf[2] as i32).abs() <= 1);

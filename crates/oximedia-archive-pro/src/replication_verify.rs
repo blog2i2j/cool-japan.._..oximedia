@@ -369,7 +369,10 @@ mod tests {
         v.add_location(ReplicaLocation::primary("dc1", "/mnt/dc1"));
         v.add_location(ReplicaLocation::secondary("dc2", "/mnt/dc2"));
         assert_eq!(v.location_count(), 2);
-        assert_eq!(v.primary_location().unwrap().name, "dc1");
+        assert_eq!(
+            v.primary_location().expect("operation should succeed").name,
+            "dc1"
+        );
     }
 
     #[test]

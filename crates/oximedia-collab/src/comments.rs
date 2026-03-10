@@ -275,7 +275,12 @@ mod tests {
         let mut store = CommentStore::new();
         store.add_comment(make_comment(1, "fix this"));
         assert!(store.resolve(CommentId(1)));
-        assert!(store.get(CommentId(1)).unwrap().resolved);
+        assert!(
+            store
+                .get(CommentId(1))
+                .expect("collab test operation should succeed")
+                .resolved
+        );
     }
 
     #[test]
@@ -334,7 +339,13 @@ mod tests {
     fn test_thread_root_comment() {
         let root = make_comment(5, "Root");
         let thread = CommentThread::new(root);
-        assert_eq!(thread.root_comment().unwrap().id, CommentId(5));
+        assert_eq!(
+            thread
+                .root_comment()
+                .expect("collab test operation should succeed")
+                .id,
+            CommentId(5)
+        );
     }
 
     #[test]

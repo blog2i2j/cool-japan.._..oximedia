@@ -391,7 +391,7 @@ mod tests {
             0.85,
         );
         assert!(r.detected);
-        let ratio = r.quality_ratio().unwrap();
+        let ratio = r.quality_ratio().expect("ratio should be valid");
         assert!((ratio - 1.2).abs() < 1e-10);
     }
 

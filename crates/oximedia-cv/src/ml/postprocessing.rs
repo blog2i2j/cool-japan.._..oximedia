@@ -29,7 +29,7 @@ use crate::ml::tensor::Tensor;
 /// use oximedia_cv::ml::{Tensor, postprocessing::softmax};
 ///
 /// let mut tensor = Tensor::zeros(&[1, 1000]);
-/// softmax(&mut tensor, 1).unwrap();
+/// softmax(&mut tensor, 1)?;
 /// ```
 pub fn softmax(tensor: &mut Tensor, axis: usize) -> CvResult<()> {
     let mut data = tensor.data().to_f32()?;
@@ -95,7 +95,7 @@ pub fn softmax(tensor: &mut Tensor, axis: usize) -> CvResult<()> {
 /// use oximedia_cv::ml::{Tensor, postprocessing::sigmoid};
 ///
 /// let mut tensor = Tensor::zeros(&[1, 100]);
-/// sigmoid(&mut tensor).unwrap();
+/// sigmoid(&mut tensor)?;
 /// ```
 pub fn sigmoid(tensor: &mut Tensor) -> CvResult<()> {
     let mut data = tensor.data().to_f32()?;
@@ -264,7 +264,7 @@ pub fn soft_nms(
 /// use oximedia_cv::ml::{Tensor, postprocessing::decode_yolo_boxes};
 ///
 /// let predictions = Tensor::zeros(&[1, 100, 85]); // 80 classes + 5
-/// let detections = decode_yolo_boxes(&predictions, 640, 480, 0.5).unwrap();
+/// let detections = decode_yolo_boxes(&predictions, 640, 480, 0.5)?;
 /// ```
 pub fn decode_yolo_boxes(
     predictions: &Tensor,
@@ -468,7 +468,7 @@ pub fn top_k_filter(tensor: &mut Tensor, k: usize, min_value: f32) -> CvResult<(
         let mut values: Vec<(usize, f32)> = (0..num_classes).map(|c| (c, data[[b, c]])).collect();
 
         // Sort by value descending
-        values.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap());
+        values.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
 
         // Keep only top k
         for (c, _) in values.iter().skip(k) {

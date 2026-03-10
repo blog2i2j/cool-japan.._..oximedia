@@ -312,7 +312,7 @@ mod tests {
         // forbidden=0, type=SequenceHeader(1), ext=0, has_size=1, reserved=0
         // bits: 0_0001_0_1_0 = 0x0A
         let byte = 0b0000_1010u8;
-        let h = ObuHeader::parse(byte).unwrap();
+        let h = ObuHeader::parse(byte).expect("should succeed");
         assert_eq!(h.obu_type, ObuType::SequenceHeader);
         assert!(!h.extension_flag);
         assert!(h.has_size_field);
@@ -330,7 +330,7 @@ mod tests {
         // type=TemporalDelimiter(2), ext=0, has_size=1
         // bits: 0_0010_0_1_0 = 0x12
         let data = [0b0001_0010u8];
-        let (h, consumed) = ObuHeader::parse_with_extension(&data).unwrap();
+        let (h, consumed) = ObuHeader::parse_with_extension(&data).expect("should succeed");
         assert_eq!(h.obu_type, ObuType::TemporalDelimiter);
         assert_eq!(consumed, 1);
         assert_eq!(h.temporal_id, 0);
@@ -342,7 +342,7 @@ mod tests {
         // main byte: 0_0011_1_1_0 = 0x1E
         // ext  byte: temporal_id=2 (bits 7:5=010), spatial_id=1 (bits 4:3=01), reserved=000 => 0b010_01_000 = 0x48
         let data = [0b0001_1110u8, 0b0100_1000u8];
-        let (h, consumed) = ObuHeader::parse_with_extension(&data).unwrap();
+        let (h, consumed) = ObuHeader::parse_with_extension(&data).expect("should succeed");
         assert_eq!(h.obu_type, ObuType::FrameHeader);
         assert_eq!(consumed, 2);
         assert_eq!(h.temporal_id, 2);
@@ -355,7 +355,7 @@ mod tests {
     fn leb128_encode_decode_zero() {
         let enc = Leb128::encode(0);
         assert_eq!(enc, vec![0x00]);
-        let (val, n) = Leb128::decode(&enc).unwrap();
+        let (val, n) = Leb128::decode(&enc).expect("should succeed");
         assert_eq!(val, 0);
         assert_eq!(n, 1);
     }
@@ -364,7 +364,7 @@ mod tests {
     fn leb128_encode_decode_small() {
         for v in [1u64, 127, 128, 255, 300, 16383, 16384] {
             let enc = Leb128::encode(v);
-            let (decoded, _) = Leb128::decode(&enc).unwrap();
+            let (decoded, _) = Leb128::decode(&enc).expect("should succeed");
             assert_eq!(decoded, v, "roundtrip failed for {v}");
         }
     }
@@ -373,7 +373,7 @@ mod tests {
     fn leb128_encode_decode_large() {
         let v = u64::MAX >> 1; // 0x7FFF_FFFF_FFFF_FFFF
         let enc = Leb128::encode(v);
-        let (decoded, _) = Leb128::decode(&enc).unwrap();
+        let (decoded, _) = Leb128::decode(&enc).expect("should succeed");
         assert_eq!(decoded, v);
     }
 

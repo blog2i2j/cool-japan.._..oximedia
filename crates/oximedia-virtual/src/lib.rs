@@ -29,6 +29,8 @@
 
 #![forbid(unsafe_code)]
 
+pub mod math;
+
 pub mod background_plate;
 pub mod camera_frustum;
 pub mod camera_tracking;

@@ -305,7 +305,9 @@ mod tests {
         lib.register(t2);
         assert_eq!(lib.count(), 1);
         assert_eq!(
-            lib.find("lower_third").unwrap().description,
+            lib.find("lower_third")
+                .expect("find should succeed")
+                .description,
             "Updated description"
         );
     }

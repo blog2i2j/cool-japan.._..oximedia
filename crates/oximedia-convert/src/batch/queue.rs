@@ -266,10 +266,12 @@ mod tests {
             ConversionOptions::default(),
         );
 
-        queue.enqueue(job.clone()).unwrap();
+        queue
+            .enqueue(job.clone())
+            .expect("queue operation should succeed");
         assert_eq!(queue.len(), 1);
 
-        let dequeued = queue.dequeue().unwrap();
+        let dequeued = queue.dequeue().expect("queue operation should succeed");
         assert_eq!(dequeued.input, job.input);
         assert!(queue.is_empty());
     }
@@ -288,10 +290,12 @@ mod tests {
             ConversionOptions::default(),
         );
 
-        queue.enqueue(job1).unwrap();
-        queue.enqueue_priority(job2.clone()).unwrap();
+        queue.enqueue(job1).expect("queue operation should succeed");
+        queue
+            .enqueue_priority(job2.clone())
+            .expect("queue operation should succeed");
 
-        let dequeued = queue.dequeue().unwrap();
+        let dequeued = queue.dequeue().expect("queue operation should succeed");
         assert_eq!(dequeued.input, job2.input);
     }
 
@@ -318,8 +322,10 @@ mod tests {
             ConversionOptions::default(),
         );
 
-        queue.enqueue(job).unwrap();
-        queue.update_status(0, JobStatus::Processing).unwrap();
+        queue.enqueue(job).expect("queue operation should succeed");
+        queue
+            .update_status(0, JobStatus::Processing)
+            .expect("queue operation should succeed");
 
         assert_eq!(queue.jobs()[0].status, JobStatus::Processing);
     }

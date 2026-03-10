@@ -162,7 +162,10 @@ mod tests {
         let id = a.asset_id;
         map.insert(a);
         assert_eq!(map.len(), 1);
-        assert_eq!(map.get(&id).unwrap().file_path, "/tmp/a.mxf");
+        assert_eq!(
+            map.get(&id).expect("get should succeed").file_path,
+            "/tmp/a.mxf"
+        );
     }
 
     #[test]
@@ -196,7 +199,7 @@ mod tests {
         let a = make_asset("/a.mxf", "application/mxf", 0);
         let id = a.asset_id;
         map.insert(a);
-        let paths = map.resolve_paths(&[id]).unwrap();
+        let paths = map.resolve_paths(&[id]).expect("paths should be valid");
         assert_eq!(paths[0], "/a.mxf");
     }
 
@@ -235,6 +238,9 @@ mod tests {
         map.insert(ResolvedAsset::new(id, "/old.mxf", "application/mxf", 1));
         map.insert(ResolvedAsset::new(id, "/new.mxf", "application/mxf", 2));
         assert_eq!(map.len(), 1);
-        assert_eq!(map.get(&id).unwrap().file_path, "/new.mxf");
+        assert_eq!(
+            map.get(&id).expect("get should succeed").file_path,
+            "/new.mxf"
+        );
     }
 }

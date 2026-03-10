@@ -452,7 +452,8 @@ mod tests {
 
     #[test]
     fn test_parse_timecode_string_25fps() {
-        let tc = parse_timecode_string("01:02:03:04", FrameRate::Fps25).unwrap();
+        let tc =
+            parse_timecode_string("01:02:03:04", FrameRate::Fps25).expect("valid timecode string");
         assert_eq!(tc.hours, 1);
         assert_eq!(tc.minutes, 2);
         assert_eq!(tc.seconds, 3);
@@ -461,7 +462,8 @@ mod tests {
 
     #[test]
     fn test_parse_timecode_string_drop_frame() {
-        let tc = parse_timecode_string("01:02:03;04", FrameRate::Fps2997DF).unwrap();
+        let tc = parse_timecode_string("01:02:03;04", FrameRate::Fps2997DF)
+            .expect("valid timecode string");
         assert_eq!(tc.hours, 1);
         assert_eq!(tc.seconds, 3);
         assert_eq!(tc.frames, 4);
@@ -517,7 +519,7 @@ mod tests {
     #[test]
     fn test_timecode_validator_valid() {
         let validator = TimecodeValidator::new(FrameRate::Fps25);
-        let tc = Timecode::new(1, 2, 3, 4, FrameRate::Fps25).unwrap();
+        let tc = Timecode::new(1, 2, 3, 4, FrameRate::Fps25).expect("valid timecode");
         assert!(validator.validate(&tc).is_ok());
     }
 
@@ -541,20 +543,28 @@ mod tests {
     #[test]
     fn test_timecode_validator_sequence_continuity() {
         let mut validator = TimecodeValidator::new(FrameRate::Fps25);
-        let tc1 = Timecode::new(0, 0, 0, 0, FrameRate::Fps25).unwrap();
-        let tc2 = Timecode::new(0, 0, 0, 1, FrameRate::Fps25).unwrap();
-        assert!(validator.validate_sequence(tc1).unwrap());
-        assert!(validator.validate_sequence(tc2).unwrap());
+        let tc1 = Timecode::new(0, 0, 0, 0, FrameRate::Fps25).expect("valid timecode");
+        let tc2 = Timecode::new(0, 0, 0, 1, FrameRate::Fps25).expect("valid timecode");
+        assert!(validator
+            .validate_sequence(tc1)
+            .expect("validation should succeed"));
+        assert!(validator
+            .validate_sequence(tc2)
+            .expect("validation should succeed"));
         assert_eq!(validator.discontinuity_count(), 0);
     }
 
     #[test]
     fn test_timecode_validator_sequence_discontinuity() {
         let mut validator = TimecodeValidator::new(FrameRate::Fps25);
-        let tc1 = Timecode::new(0, 0, 0, 0, FrameRate::Fps25).unwrap();
-        let tc2 = Timecode::new(0, 0, 1, 5, FrameRate::Fps25).unwrap();
-        validator.validate_sequence(tc1).unwrap();
-        let cont = validator.validate_sequence(tc2).unwrap();
+        let tc1 = Timecode::new(0, 0, 0, 0, FrameRate::Fps25).expect("valid timecode");
+        let tc2 = Timecode::new(0, 0, 1, 5, FrameRate::Fps25).expect("valid timecode");
+        validator
+            .validate_sequence(tc1)
+            .expect("validation should succeed");
+        let cont = validator
+            .validate_sequence(tc2)
+            .expect("validation should succeed");
         assert!(!cont);
         assert_eq!(validator.discontinuity_count(), 1);
     }
@@ -562,8 +572,10 @@ mod tests {
     #[test]
     fn test_timecode_validator_reset() {
         let mut validator = TimecodeValidator::new(FrameRate::Fps25);
-        let tc = Timecode::new(0, 0, 1, 5, FrameRate::Fps25).unwrap();
-        validator.validate_sequence(tc).unwrap();
+        let tc = Timecode::new(0, 0, 1, 5, FrameRate::Fps25).expect("valid timecode");
+        validator
+            .validate_sequence(tc)
+            .expect("validation should succeed");
         validator.reset();
         assert_eq!(validator.discontinuity_count(), 0);
         assert!(validator.last_timecode().is_none());

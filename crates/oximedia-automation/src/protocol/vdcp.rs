@@ -134,7 +134,7 @@ mod tests {
         let result = protocol.encode_timecode("01:23:45:12");
         assert!(result.is_ok());
 
-        let tc = result.unwrap();
+        let tc = result.expect("tc should be valid");
         assert_eq!(tc, vec![1, 23, 45, 12]);
     }
 

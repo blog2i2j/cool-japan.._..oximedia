@@ -314,6 +314,7 @@ fn create_job_queue(
             audio_bitrate: config.audio_bitrate.clone(),
             scale: config.scale.clone(),
             video_filter: config.video_filter.clone(),
+            audio_filter: None,
             start_time: None,
             duration: None,
             framerate: None,
@@ -399,7 +400,9 @@ async fn execute_jobs(jobs: Vec<BatchJob>, options: &BatchOptions) -> Result<Vec
             let result = process_job(job);
 
             // Update progress
-            let mut progress_guard = progress.lock().unwrap();
+            let mut progress_guard = progress
+                .lock()
+                .expect("progress mutex should not be poisoned");
             match &result {
                 JobResult::Success { .. } => progress_guard.inc_success(),
                 JobResult::Failed { .. } => progress_guard.inc_failed(),
@@ -408,18 +411,24 @@ async fn execute_jobs(jobs: Vec<BatchJob>, options: &BatchOptions) -> Result<Vec
             drop(progress_guard);
 
             // Store result
-            results.lock().unwrap().push(result);
+            results
+                .lock()
+                .expect("results mutex should not be poisoned")
+                .push(result);
         });
     });
 
     // Finish progress display
-    progress.lock().unwrap().finish();
+    progress
+        .lock()
+        .expect("progress mutex should not be poisoned")
+        .finish();
 
     // Extract results
     let final_results = Arc::try_unwrap(results)
         .map_err(|_| anyhow::anyhow!("Failed to extract results"))?
         .into_inner()
-        .unwrap();
+        .map_err(|e| anyhow::anyhow!("Failed to unwrap results mutex: {e}"))?;
 
     Ok(final_results)
 }
@@ -445,7 +454,15 @@ fn process_job(job: &BatchJob) -> JobResult {
     }
 
     // Run transcode (blocking call in thread pool)
-    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let runtime = match tokio::runtime::Runtime::new() {
+        Ok(rt) => rt,
+        Err(e) => {
+            return JobResult::Failed {
+                input: job.input_path.clone(),
+                error: format!("Failed to create tokio runtime: {e}"),
+            };
+        }
+    };
     match runtime.block_on(transcode::transcode(job.options.clone())) {
         Ok(()) => JobResult::Success {
             input: job.input_path.clone(),
@@ -531,7 +548,7 @@ mod tests {
             video_codec = "vp9"
         "#;
 
-        let config: BatchConfig = toml::from_str(toml).unwrap();
+        let config: BatchConfig = toml::from_str(toml).expect("toml::from_str should succeed");
         assert_eq!(config.preset, "medium");
         assert_eq!(config.output_extension, "webm");
         assert!(config.recursive);

@@ -254,14 +254,17 @@ mod tests {
     #[test]
     fn test_checkpoint_with_meta() {
         let cp = CheckpointData::new(&jid("j"), "lbl", 1, 5).with_meta("last_file", "/tmp/foo.mp4");
-        assert_eq!(cp.metadata.get("last_file").unwrap(), "/tmp/foo.mp4");
+        assert_eq!(
+            cp.metadata.get("last_file").expect("failed to get value"),
+            "/tmp/foo.mp4"
+        );
     }
 
     #[test]
     fn test_serialize_deserialize_roundtrip() {
         let cp = CheckpointData::new(&jid("j"), "lbl", 2, 8);
-        let bytes = serialize_checkpoint(&cp).unwrap();
-        let cp2 = deserialize_checkpoint(&bytes).unwrap();
+        let bytes = serialize_checkpoint(&cp).expect("operation should succeed");
+        let cp2 = deserialize_checkpoint(&bytes).expect("operation should succeed");
         assert_eq!(cp2.job_id, cp.job_id);
         assert_eq!(cp2.step, cp.step);
     }
@@ -271,7 +274,7 @@ mod tests {
         let store = CheckpointStore::new();
         let cp = CheckpointData::new(&jid("abc"), "lbl", 1, 5);
         store.save(cp);
-        let loaded = store.load(&jid("abc")).unwrap();
+        let loaded = store.load(&jid("abc")).expect("failed to load");
         assert_eq!(loaded.step, 1);
     }
 

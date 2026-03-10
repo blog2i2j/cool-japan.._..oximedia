@@ -278,7 +278,7 @@ mod tests {
         stack.push(Viewport::new(800.0, 600.0));
         stack.push(Viewport::new(400.0, 300.0));
         assert_eq!(stack.depth(), 2);
-        let top = stack.pop().unwrap();
+        let top = stack.pop().expect("stack pop should return a value");
         assert!((top.width - 400.0).abs() < 1e-6);
         assert_eq!(stack.depth(), 1);
     }
@@ -288,7 +288,7 @@ mod tests {
         let mut stack = ViewportStack::new();
         assert!(stack.current().is_none());
         stack.push(Viewport::new(1280.0, 720.0));
-        let cur = stack.current().unwrap();
+        let cur = stack.current().expect("current should return a value");
         assert!((cur.width - 1280.0).abs() < 1e-6);
     }
 

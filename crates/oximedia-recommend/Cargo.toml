@@ -19,9 +19,6 @@ serde_json = { workspace = true }
 rayon = { workspace = true }
 chrono = { workspace = true }
 
-# Linear algebra
-ndarray = { workspace = true }
-
 # Utilities
 uuid = { workspace = true }
 

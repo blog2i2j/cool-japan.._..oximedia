@@ -59,11 +59,11 @@ impl BeatGrid {
         if self.beats_ms.is_empty() {
             return time_ms;
         }
-        *self
-            .beats_ms
+        self.beats_ms
             .iter()
             .min_by_key(|&&b| b.abs_diff(time_ms))
-            .unwrap()
+            .copied()
+            .unwrap_or(time_ms)
     }
 
     /// Return the number of bars between two timestamps.

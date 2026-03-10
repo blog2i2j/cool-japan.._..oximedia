@@ -834,23 +834,28 @@ mod tests {
 
     #[test]
     fn test_generate_fingerprint() {
-        let mut temp_file = NamedTempFile::new().unwrap();
-        temp_file.write_all(b"test content").unwrap();
-        temp_file.flush().unwrap();
+        let mut temp_file = NamedTempFile::new().expect("test expectation failed");
+        temp_file
+            .write_all(b"test content")
+            .expect("write_all should succeed");
+        temp_file.flush().expect("flush should succeed");
 
-        let fingerprint = generate_fingerprint(temp_file.path()).unwrap();
+        let fingerprint =
+            generate_fingerprint(temp_file.path()).expect("fingerprint should be valid");
         assert_eq!(fingerprint.md5.len(), 32); // MD5 is 32 hex chars
         assert!(!fingerprint.xxhash.is_empty());
     }
 
     #[test]
     fn test_fingerprint_consistency() {
-        let mut temp_file = NamedTempFile::new().unwrap();
-        temp_file.write_all(b"test content").unwrap();
-        temp_file.flush().unwrap();
+        let mut temp_file = NamedTempFile::new().expect("test expectation failed");
+        temp_file
+            .write_all(b"test content")
+            .expect("write_all should succeed");
+        temp_file.flush().expect("flush should succeed");
 
-        let fp1 = generate_fingerprint(temp_file.path()).unwrap();
-        let fp2 = generate_fingerprint(temp_file.path()).unwrap();
+        let fp1 = generate_fingerprint(temp_file.path()).expect("fp1 should be valid");
+        let fp2 = generate_fingerprint(temp_file.path()).expect("fp2 should be valid");
 
         assert_eq!(fp1.md5, fp2.md5);
         assert_eq!(fp1.xxhash, fp2.xxhash);
@@ -858,11 +863,13 @@ mod tests {
 
     #[test]
     fn test_extract_media_info() {
-        let mut temp_file = NamedTempFile::new().unwrap();
-        temp_file.write_all(b"test content").unwrap();
-        temp_file.flush().unwrap();
+        let mut temp_file = NamedTempFile::new().expect("test expectation failed");
+        temp_file
+            .write_all(b"test content")
+            .expect("write_all should succeed");
+        temp_file.flush().expect("flush should succeed");
 
-        let info = extract_media_info(temp_file.path()).unwrap();
+        let info = extract_media_info(temp_file.path()).expect("info should be valid");
         // Placeholder returns None values
         assert!(info.duration.is_none());
     }

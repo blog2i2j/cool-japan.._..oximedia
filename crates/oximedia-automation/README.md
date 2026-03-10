@@ -68,7 +68,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-automation = "0.1.0"
+oximedia-automation = "0.1.1"
 ```
 
 ### Basic Example

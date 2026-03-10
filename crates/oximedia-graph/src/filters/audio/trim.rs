@@ -580,7 +580,10 @@ impl Node for TrimFilter {
             self.trim_state = Some(TrimState::new(&self.config, frame.sample_rate));
         }
 
-        let trim_state = self.trim_state.as_mut().unwrap();
+        let trim_state = match self.trim_state.as_mut() {
+            Some(s) => s,
+            None => return Ok(None),
+        };
 
         // Check if we're done
         if trim_state.is_done() {
@@ -729,7 +732,7 @@ mod tests {
         let config = TrimConfig::default();
         let mut filter = TrimFilter::new(NodeId(0), "test", config);
 
-        let result = filter.process(None).unwrap();
+        let result = filter.process(None).expect("process should succeed");
         assert!(result.is_none());
     }
 
@@ -746,7 +749,9 @@ mod tests {
         }
         frame.samples = AudioBuffer::Interleaved(samples.freeze());
 
-        let result = filter.process(Some(FilterFrame::Audio(frame))).unwrap();
+        let result = filter
+            .process(Some(FilterFrame::Audio(frame)))
+            .expect("process should succeed");
         assert!(result.is_some());
 
         if let Some(FilterFrame::Audio(output)) = result {
@@ -768,7 +773,9 @@ mod tests {
         }
         frame.samples = AudioBuffer::Interleaved(samples.freeze());
 
-        let result = filter.process(Some(FilterFrame::Audio(frame))).unwrap();
+        let result = filter
+            .process(Some(FilterFrame::Audio(frame)))
+            .expect("process should succeed");
         // Should return None because we're before the start
         assert!(result.is_none());
     }

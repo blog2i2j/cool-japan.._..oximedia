@@ -187,8 +187,8 @@ mod tests {
         g.add_job(1);
         g.add_job(2);
         g.add_job(3);
-        g.add_dependency(1, 2).unwrap(); // 1 depends on 2
-        g.add_dependency(2, 3).unwrap(); // 2 depends on 3
+        g.add_dependency(1, 2).expect("failed to add dependency"); // 1 depends on 2
+        g.add_dependency(2, 3).expect("failed to add dependency"); // 2 depends on 3
         g
     }
 
@@ -238,7 +238,7 @@ mod tests {
         let mut g = DependencyGraph::new();
         g.add_job(1);
         g.add_job(2);
-        g.add_dependency(1, 2).unwrap();
+        g.add_dependency(1, 2).expect("failed to add dependency");
         // Attempt to create a cycle: 2 depends on 1
         let result = g.add_dependency(2, 1);
         assert!(result.is_err());
@@ -258,7 +258,9 @@ mod tests {
     #[test]
     fn test_topological_sort_linear() {
         let g = linear_graph();
-        let order = g.topological_sort().unwrap();
+        let order = g
+            .topological_sort()
+            .expect("topological_sort should succeed");
         // 3 must come before 2, and 2 before 1
         let pos: std::collections::HashMap<u64, usize> =
             order.iter().enumerate().map(|(i, &j)| (j, i)).collect();
@@ -269,7 +271,9 @@ mod tests {
     #[test]
     fn test_topological_sort_empty() {
         let g = DependencyGraph::new();
-        let order = g.topological_sort().unwrap();
+        let order = g
+            .topological_sort()
+            .expect("topological_sort should succeed");
         assert!(order.is_empty());
     }
 
@@ -304,12 +308,14 @@ mod tests {
         for id in [1, 2, 3, 4] {
             g.add_job(id);
         }
-        g.add_dependency(1, 2).unwrap();
-        g.add_dependency(1, 3).unwrap();
-        g.add_dependency(2, 4).unwrap();
-        g.add_dependency(3, 4).unwrap();
+        g.add_dependency(1, 2).expect("failed to add dependency");
+        g.add_dependency(1, 3).expect("failed to add dependency");
+        g.add_dependency(2, 4).expect("failed to add dependency");
+        g.add_dependency(3, 4).expect("failed to add dependency");
         assert!(!g.has_cycle());
-        let order = g.topological_sort().unwrap();
+        let order = g
+            .topological_sort()
+            .expect("topological_sort should succeed");
         let pos: std::collections::HashMap<u64, usize> =
             order.iter().enumerate().map(|(i, &j)| (j, i)).collect();
         assert!(pos[&4] < pos[&2]);

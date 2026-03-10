@@ -92,6 +92,7 @@ pub mod detector;
 pub mod duration;
 pub mod error;
 pub mod export;
+pub mod frame_buffer;
 pub mod framing;
 pub mod framing_guide;
 pub mod log;
@@ -115,12 +116,11 @@ pub mod visualize;
 
 // Re-export commonly used items at crate root
 pub use error::{ShotError, ShotResult};
+pub use frame_buffer::{FloatImage, FrameBuffer, GrayImage};
 pub use types::{
     CameraAngle, CameraMovement, CompositionAnalysis, CoverageType, MovementType, Scene, Shot,
     ShotStatistics, ShotType, TransitionType,
 };
-
-use ndarray::Array3;
 
 /// Shot detector configuration.
 #[derive(Debug, Clone)]
@@ -199,7 +199,7 @@ impl ShotDetector {
     /// # Errors
     ///
     /// Returns error if frame processing fails.
-    pub fn detect_shots(&self, frames: &[Array3<u8>]) -> ShotResult<Vec<Shot>> {
+    pub fn detect_shots(&self, frames: &[FrameBuffer]) -> ShotResult<Vec<Shot>> {
         if frames.is_empty() {
             return Ok(Vec::new());
         }
@@ -331,17 +331,20 @@ mod tests {
         let detector = ShotDetector::default();
         let result = detector.detect_shots(&[]);
         assert!(result.is_ok());
-        assert!(result.expect("should succeed in test").is_empty());
+        if let Ok(shots) = result {
+            assert!(shots.is_empty());
+        }
     }
 
     #[test]
     fn test_detect_shots_single_frame() {
         let detector = ShotDetector::default();
-        let frames = vec![Array3::zeros((100, 100, 3))];
+        let frames = vec![FrameBuffer::zeros(100, 100, 3)];
         let result = detector.detect_shots(&frames);
         assert!(result.is_ok());
-        let shots = result.expect("should succeed in test");
-        assert_eq!(shots.len(), 1);
+        if let Ok(shots) = result {
+            assert_eq!(shots.len(), 1);
+        }
     }
 
     #[test]

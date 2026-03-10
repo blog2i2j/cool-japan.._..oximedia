@@ -245,7 +245,7 @@ mod tests {
             current_stage: "encode".to_string(),
             elapsed_secs: 10.0,
         };
-        assert!((snap.fraction().unwrap() - 0.5).abs() < f64::EPSILON);
+        assert!((snap.fraction().expect("fraction should succeed") - 0.5).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -279,7 +279,7 @@ mod tests {
             elapsed_secs: 10.0,
         };
         // remaining = 300, fps = 30 → eta = 10 s
-        assert!((snap.eta_secs().unwrap() - 10.0).abs() < 0.001);
+        assert!((snap.eta_secs().expect("eta_secs should succeed") - 10.0).abs() < 0.001);
     }
 
     #[test]

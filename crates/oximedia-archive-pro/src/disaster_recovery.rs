@@ -500,7 +500,7 @@ mod tests {
         let mut matrix = RiskMatrix::new(vec![]);
         matrix.add(DisasterScenario::Ransomware, 0.8, 0.9);
         matrix.add(DisasterScenario::Network, 0.1, 0.2);
-        let top = matrix.highest_risk().unwrap();
+        let top = matrix.highest_risk().expect("operation should succeed");
         assert_eq!(*top, DisasterScenario::Ransomware);
     }
 

@@ -121,9 +121,9 @@ fn hungarian_solve(cost_matrix: &[Vec<f64>]) -> Vec<usize> {
         // Find unassigned row
         let unassigned_row = (0..n).find(|&i| !row_assigned[i]);
 
-        if unassigned_row.is_none() {
+        let Some(start_row) = unassigned_row else {
             break; // All rows assigned
-        }
+        };
 
         // Augment path starting from unassigned row
         if !augment_path(
@@ -131,7 +131,7 @@ fn hungarian_solve(cost_matrix: &[Vec<f64>]) -> Vec<usize> {
             &mut assignments,
             &mut row_assigned,
             &mut col_assigned,
-            unassigned_row.unwrap(),
+            start_row,
         ) {
             // No augmenting path found, update costs
             update_costs(&mut costs, &row_assigned, &col_assigned);
@@ -189,11 +189,12 @@ fn augment_path(
                         return true;
                     }
 
-                    // Follow assignment to another row
-                    let assigned_row = (0..n).find(|&r| assignments[r] == col).unwrap();
-                    if !visited_rows[assigned_row] {
-                        visited_rows[assigned_row] = true;
-                        next_queue.push(assigned_row);
+                    // Follow assignment to another row (col is assigned, so a row must own it)
+                    if let Some(assigned_row) = (0..n).find(|&r| assignments[r] == col) {
+                        if !visited_rows[assigned_row] {
+                            visited_rows[assigned_row] = true;
+                            next_queue.push(assigned_row);
+                        }
                     }
                 }
             }
@@ -369,7 +370,7 @@ pub fn greedy_assignment(cost_matrix: &[Vec<f64>], max_cost: f64) -> Vec<Option<
     }
 
     // Sort by cost
-    costs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    costs.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
 
     // Assign greedily
     let mut assignments = vec![None; n_rows];

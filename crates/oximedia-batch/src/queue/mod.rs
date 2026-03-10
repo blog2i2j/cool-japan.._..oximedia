@@ -231,11 +231,11 @@ mod tests {
         );
 
         let job_id = job.id.clone();
-        queue.enqueue(job).await.unwrap();
+        queue.enqueue(job).await.expect("failed to enqueue");
 
         let status = queue.get_job_status(&job_id).await;
         assert!(status.is_ok());
-        assert_eq!(status.unwrap(), JobState::Queued);
+        assert_eq!(status.expect("status should be valid"), JobState::Queued);
     }
 
     #[tokio::test]
@@ -250,10 +250,16 @@ mod tests {
         );
 
         let job_id = job.id.clone();
-        queue.enqueue(job).await.unwrap();
-        queue.cancel_job(&job_id).await.unwrap();
+        queue.enqueue(job).await.expect("failed to enqueue");
+        queue
+            .cancel_job(&job_id)
+            .await
+            .expect("await should be valid");
 
-        let status = queue.get_job_status(&job_id).await.unwrap();
+        let status = queue
+            .get_job_status(&job_id)
+            .await
+            .expect("await should be valid");
         assert_eq!(status, JobState::Cancelled);
     }
 
@@ -275,8 +281,8 @@ mod tests {
             },
         );
 
-        queue.enqueue(job1).await.unwrap();
-        queue.enqueue(job2).await.unwrap();
+        queue.enqueue(job1).await.expect("failed to enqueue");
+        queue.enqueue(job2).await.expect("failed to enqueue");
 
         let all_jobs = queue.get_all_jobs();
         assert_eq!(all_jobs.len(), 2);

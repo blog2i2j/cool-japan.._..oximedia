@@ -148,9 +148,10 @@ impl MixAutomation {
         if time_ms <= self.keyframes[0].0 {
             return self.keyframes[0].1;
         }
-        let last = self.keyframes.last().unwrap();
-        if time_ms >= last.0 {
-            return last.1;
+        if let Some(last) = self.keyframes.last() {
+            if time_ms >= last.0 {
+                return last.1;
+            }
         }
         // Find surrounding keyframes
         let idx = self
@@ -396,7 +397,12 @@ mod tests {
         let mut session = MixSession::new("S");
         session.add_track(MixTrack::new(2, "Music"));
         session.mute_track(2);
-        assert!(session.track_by_id(2).unwrap().muted);
+        assert!(
+            session
+                .track_by_id(2)
+                .expect("track_by_id should succeed")
+                .muted
+        );
     }
 
     #[test]

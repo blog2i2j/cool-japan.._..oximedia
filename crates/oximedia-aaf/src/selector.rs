@@ -487,11 +487,17 @@ mod tests {
         sel.add_alternate(Alternate::new("Take 3", 900));
         assert_eq!(sel.alternate_count(), 3);
         assert_eq!(sel.selected_index(), 0);
-        assert_eq!(sel.selected().unwrap().label, "Take 1");
+        assert_eq!(
+            sel.selected().expect("selected should succeed").label,
+            "Take 1"
+        );
         assert_eq!(sel.duration(), 1000);
 
         assert!(sel.select(2));
-        assert_eq!(sel.selected().unwrap().label, "Take 3");
+        assert_eq!(
+            sel.selected().expect("selected should succeed").label,
+            "Take 3"
+        );
         assert_eq!(sel.duration(), 900);
 
         assert!(!sel.select(10));
@@ -505,7 +511,10 @@ mod tests {
         sel.add_alternate(Alternate::new("First", 300));
         sel.add_alternate(alt);
         assert!(sel.select_by_id(&target_id));
-        assert_eq!(sel.selected().unwrap().label, "Target");
+        assert_eq!(
+            sel.selected().expect("selected should succeed").label,
+            "Target"
+        );
         assert!(!sel.select_by_id(&Uuid::new_v4()));
     }
 
@@ -517,7 +526,10 @@ mod tests {
         sel.add_alternate(Alternate::new("French", 1000).with_language("fr"));
 
         assert!(sel.select_by_language("ja"));
-        assert_eq!(sel.selected().unwrap().label, "Japanese");
+        assert_eq!(
+            sel.selected().expect("selected should succeed").label,
+            "Japanese"
+        );
         assert!(!sel.select_by_language("de"));
     }
 
@@ -529,7 +541,10 @@ mod tests {
         sel.add_alternate(Alternate::new("Medium", 100).with_priority(25));
 
         assert!(sel.select_best_priority());
-        assert_eq!(sel.selected().unwrap().label, "High");
+        assert_eq!(
+            sel.selected().expect("selected should succeed").label,
+            "High"
+        );
     }
 
     #[test]
@@ -560,7 +575,7 @@ mod tests {
         // Remove the selected one
         let removed = sel.remove_alternate(2);
         assert!(removed.is_some());
-        assert_eq!(removed.unwrap().label, "C");
+        assert_eq!(removed.expect("test expectation failed").label, "C");
         // Selection index should adjust
         assert!(sel.selected_index() < sel.alternate_count());
     }
@@ -574,7 +589,7 @@ mod tests {
 
         assert!(sel.swap_alternates(0, 1));
         // After swap, selected_index should follow the originally selected item
-        assert_eq!(sel.selected().unwrap().label, "A");
+        assert_eq!(sel.selected().expect("selected should succeed").label, "A");
         assert_eq!(sel.alternates()[0].label, "B");
         assert!(!sel.swap_alternates(0, 99));
     }

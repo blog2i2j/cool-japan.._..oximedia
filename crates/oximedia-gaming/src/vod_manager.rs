@@ -414,7 +414,7 @@ mod tests {
 
         let ch = vod.chapter_at(150.0);
         assert!(ch.is_some());
-        assert_eq!(ch.unwrap().title, "Part 1");
+        assert_eq!(ch.expect("should succeed").title, "Part 1");
     }
 
     #[test]
@@ -448,7 +448,7 @@ mod tests {
         let mut mgr = VodManager::new();
         let id = mgr.create_vod("Session 1", "Dark Souls", 5400.0);
         assert_eq!(mgr.count(), 1);
-        let vod = mgr.get(id).unwrap();
+        let vod = mgr.get(id).expect("entry should exist");
         assert_eq!(vod.title, "Session 1");
     }
 
@@ -457,7 +457,9 @@ mod tests {
         let mut mgr = VodManager::new();
         let id1 = mgr.create_vod("V1", "Game A", 100.0);
         let _id2 = mgr.create_vod("V2", "Game B", 200.0);
-        mgr.get_mut(id1).unwrap().add_tag("epic");
+        mgr.get_mut(id1)
+            .expect("entry should exist")
+            .add_tag("epic");
 
         let results = mgr.search_by_tag("epic");
         assert_eq!(results.len(), 1);

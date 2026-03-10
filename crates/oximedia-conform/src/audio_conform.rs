@@ -245,7 +245,7 @@ mod tests {
         let checker = AudioConformChecker::new(broadcast_spec());
         let issue = checker.check_sample_rate(44_100);
         assert!(issue.is_some());
-        assert!(issue.unwrap().contains("44100"));
+        assert!(issue.expect("test expectation failed").contains("44100"));
     }
 
     #[test]
@@ -272,7 +272,7 @@ mod tests {
         let checker = AudioConformChecker::new(broadcast_spec());
         let issue = checker.check_bit_depth(16);
         assert!(issue.is_some());
-        assert!(issue.unwrap().contains("16-bit"));
+        assert!(issue.expect("test expectation failed").contains("16-bit"));
     }
 
     #[test]

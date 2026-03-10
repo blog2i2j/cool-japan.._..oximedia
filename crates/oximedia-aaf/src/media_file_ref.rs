@@ -262,7 +262,7 @@ mod tests {
         reg.add("target.mxf", MediaFileKind::Video);
         let found = reg.find_by_name("target.mxf");
         assert!(found.is_some());
-        assert_eq!(found.unwrap().name(), "target.mxf");
+        assert_eq!(found.expect("test expectation failed").name(), "target.mxf");
     }
 
     #[test]
@@ -286,7 +286,10 @@ mod tests {
         if let Some(r) = reg.find_by_id_mut(id) {
             r.set_path(PathBuf::from("/mnt/clip.mxf"));
         }
-        assert!(reg.find_by_id(id).unwrap().has_path());
+        assert!(reg
+            .find_by_id(id)
+            .expect("find_by_id should succeed")
+            .has_path());
     }
 
     #[test]

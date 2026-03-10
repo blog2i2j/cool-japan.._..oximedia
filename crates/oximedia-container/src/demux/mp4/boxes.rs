@@ -271,6 +271,58 @@ pub struct MoovBox {
     pub traks: Vec<TrakBox>,
 }
 
+impl MoovBox {
+    /// Parses the content of a `moov` box by iterating over its child boxes.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` - Box content (after the header)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the data is malformed.
+    pub fn parse(data: &[u8]) -> OxiResult<Self> {
+        let mut moov = MoovBox::default();
+        let mut offset = 0usize;
+
+        while offset + 8 <= data.len() {
+            let remaining = &data[offset..];
+            let header = BoxHeader::parse(remaining)?;
+            let header_size = header.header_size as usize;
+
+            // Determine total box size (with protection against zero-size infinite loops)
+            let box_total = if header.size == 0 {
+                // Box extends to end of container data
+                remaining.len()
+            } else {
+                header.size as usize
+            };
+
+            if box_total < header_size || offset + box_total > data.len() {
+                // Malformed or truncated box: stop parsing gracefully
+                break;
+            }
+
+            let content = &data[offset + header_size..offset + box_total];
+
+            match header.box_type {
+                BoxType::MVHD => {
+                    moov.mvhd = Some(MvhdBox::parse(content)?);
+                }
+                BoxType::TRAK => {
+                    moov.traks.push(TrakBox::parse(content)?);
+                }
+                // Skip udta, meta, edts, free, skip, and unknown boxes
+                _ => {}
+            }
+
+            offset += box_total;
+        }
+
+        Ok(moov)
+    }
+}
+
 /// Movie header box (`mvhd`).
 #[derive(Clone, Debug)]
 pub struct MvhdBox {
@@ -397,6 +449,425 @@ pub struct TrakBox {
     pub extradata: Option<Vec<u8>>,
 }
 
+impl TrakBox {
+    /// Parses the content of a `trak` box by iterating its child boxes.
+    ///
+    /// Walks the `trak → mdia → minf → stbl` hierarchy to extract:
+    /// - Track header (`tkhd`)
+    /// - Handler type (`hdlr`)
+    /// - Media timescale (`mdhd`)
+    /// - Sample description / codec tag (`stsd`)
+    /// - Sample tables (`stts`, `stsc`, `stsz`, `stco`, `co64`, `stss`, `ctts`)
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the data is malformed.
+    pub fn parse(data: &[u8]) -> OxiResult<Self> {
+        let mut trak = TrakBox::default();
+        Self::parse_container(data, &mut trak)?;
+        Ok(trak)
+    }
+
+    /// Iterates over child boxes in a container box and dispatches to handlers.
+    fn parse_container(data: &[u8], trak: &mut TrakBox) -> OxiResult<()> {
+        let mut offset = 0usize;
+
+        while offset + 8 <= data.len() {
+            let remaining = &data[offset..];
+            let header = BoxHeader::parse(remaining)?;
+            let header_size = header.header_size as usize;
+
+            let box_total = if header.size == 0 {
+                remaining.len()
+            } else {
+                header.size as usize
+            };
+
+            if box_total < header_size || offset + box_total > data.len() {
+                break;
+            }
+
+            let content = &data[offset + header_size..offset + box_total];
+
+            match header.box_type {
+                BoxType::TKHD => {
+                    trak.tkhd = Some(TkhdBox::parse(content)?);
+                }
+                // Container boxes — recurse directly
+                BoxType::MDIA | BoxType::MINF | BoxType::STBL | BoxType::EDTS => {
+                    Self::parse_container(content, trak)?;
+                }
+                BoxType::MDHD => {
+                    Self::parse_mdhd(content, trak)?;
+                }
+                BoxType::HDLR => {
+                    Self::parse_hdlr(content, trak)?;
+                }
+                BoxType::STSD => {
+                    Self::parse_stsd(content, trak)?;
+                }
+                BoxType::STTS => {
+                    Self::parse_stts(content, trak)?;
+                }
+                BoxType::STSC => {
+                    Self::parse_stsc(content, trak)?;
+                }
+                BoxType::STSZ => {
+                    Self::parse_stsz(content, trak)?;
+                }
+                BoxType::STCO => {
+                    Self::parse_stco(content, trak)?;
+                }
+                BoxType::CO64 => {
+                    Self::parse_co64(content, trak)?;
+                }
+                BoxType::STSS => {
+                    Self::parse_stss(content, trak)?;
+                }
+                BoxType::CTTS => {
+                    Self::parse_ctts(content, trak)?;
+                }
+                _ => {}
+            }
+
+            offset += box_total;
+        }
+
+        Ok(())
+    }
+
+    /// Parses a `mdhd` box to extract media timescale.
+    fn parse_mdhd(data: &[u8], trak: &mut TrakBox) -> OxiResult<()> {
+        let mut atom = Mp4Atom::new(data);
+        let version = atom.read_u8()?;
+        atom.skip(3)?; // flags
+
+        if version == 1 {
+            atom.skip(8)?; // creation_time (u64)
+            atom.skip(8)?; // modification_time (u64)
+            trak.timescale = atom.read_u32()?;
+        } else {
+            atom.skip(4)?; // creation_time (u32)
+            atom.skip(4)?; // modification_time (u32)
+            trak.timescale = atom.read_u32()?;
+        }
+
+        Ok(())
+    }
+
+    /// Parses a `hdlr` box to extract the handler type string.
+    fn parse_hdlr(data: &[u8], trak: &mut TrakBox) -> OxiResult<()> {
+        let mut atom = Mp4Atom::new(data);
+        atom.skip(4)?; // version + flags
+        atom.skip(4)?; // pre_defined
+        let handler_type = atom.read_type()?;
+        trak.handler_type = handler_type.trim_end_matches('\0').to_string();
+        Ok(())
+    }
+
+    /// Parses a `stsd` (sample description) box to extract the codec tag and codec-specific params.
+    ///
+    /// STSD layout:
+    ///   1-byte version, 3-byte flags, 4-byte entry count
+    ///   For each entry: 4-byte size, 4-byte codec-tag, 6-byte reserved, 2-byte data-ref-index,
+    ///                   then codec-specific fields.
+    fn parse_stsd(data: &[u8], trak: &mut TrakBox) -> OxiResult<()> {
+        let mut atom = Mp4Atom::new(data);
+        atom.skip(1)?; // version
+        atom.skip(3)?; // flags
+        let entry_count = atom.read_u32()?;
+        if entry_count == 0 {
+            return Ok(());
+        }
+
+        // Parse only the first entry
+        if atom.remaining().len() < 8 {
+            return Ok(());
+        }
+
+        let entry_size = atom.read_u32()? as usize;
+        if entry_size < 8 {
+            return Ok(());
+        }
+
+        let codec_tag = atom.read_u32()?;
+        trak.codec_tag = codec_tag;
+
+        // Minimum entry body = 6 (reserved) + 2 (data-ref-idx) = 8 bytes after codec tag
+        // Total consumed so far from entry: 4 (size) + 4 (codec_tag) = 8 bytes of header
+        let entry_body_size = entry_size.saturating_sub(8); // remaining bytes in entry after header
+        if atom.remaining().len() < entry_body_size {
+            return Ok(());
+        }
+        let entry_body = atom.read_bytes(entry_body_size)?;
+
+        // Dispatch based on handler type
+        match trak.handler_type.as_str() {
+            "vide" => Self::parse_visual_sample_entry(entry_body, trak)?,
+            "soun" => Self::parse_audio_sample_entry(entry_body, trak)?,
+            _ => {}
+        }
+
+        Ok(())
+    }
+
+    /// Parses the codec-specific portion of a visual sample entry.
+    ///
+    /// Layout (after codec-tag):
+    ///   6 bytes reserved, 2 bytes data_ref_index,
+    ///   2 bytes pre_defined, 2 bytes reserved, 12 bytes pre_defined,
+    ///   2 bytes width (pixels), 2 bytes height (pixels),
+    ///   4 bytes horizresolution, 4 bytes vertresolution,
+    ///   4 bytes reserved, 2 bytes frame_count,
+    ///   32 bytes compressorname,
+    ///   2 bytes depth, 2 bytes pre_defined (-1),
+    ///   then optional child boxes (e.g., av1C, vpcC)
+    fn parse_visual_sample_entry(data: &[u8], trak: &mut TrakBox) -> OxiResult<()> {
+        let mut atom = Mp4Atom::new(data);
+
+        // 6 bytes reserved + 2 bytes data_ref_index
+        if atom.remaining().len() < 70 {
+            return Ok(());
+        }
+        atom.skip(6)?; // reserved
+        atom.skip(2)?; // data_reference_index
+        atom.skip(2)?; // pre_defined
+        atom.skip(2)?; // reserved
+        atom.skip(12)?; // pre_defined (3 * u32)
+        let width = u32::from(atom.read_u16()?);
+        let height = u32::from(atom.read_u16()?);
+        atom.skip(4)?; // horizresolution
+        atom.skip(4)?; // vertresolution
+        atom.skip(4)?; // reserved
+        atom.skip(2)?; // frame_count
+        atom.skip(32)?; // compressorname
+        atom.skip(2)?; // depth
+        atom.skip(2)?; // pre_defined
+
+        trak.width = Some(width);
+        trak.height = Some(height);
+
+        // Parse child boxes for extradata (av1C, vpcC, etc.)
+        let extra_data = atom.remaining();
+        if extra_data.len() >= 8 {
+            Self::parse_codec_config(extra_data, trak)?;
+        }
+
+        Ok(())
+    }
+
+    /// Parses the codec-specific portion of an audio sample entry.
+    ///
+    /// Layout (after codec-tag):
+    ///   6 bytes reserved, 2 bytes data_ref_index,
+    ///   8 bytes reserved,
+    ///   2 bytes channelcount, 2 bytes samplesize,
+    ///   2 bytes pre_defined, 2 bytes reserved,
+    ///   4 bytes samplerate (16.16 fixed-point),
+    ///   then optional child boxes (e.g., dOps for Opus)
+    fn parse_audio_sample_entry(data: &[u8], trak: &mut TrakBox) -> OxiResult<()> {
+        let mut atom = Mp4Atom::new(data);
+
+        if atom.remaining().len() < 20 {
+            return Ok(());
+        }
+
+        atom.skip(6)?; // reserved
+        atom.skip(2)?; // data_reference_index
+        atom.skip(8)?; // reserved
+        let channel_count = atom.read_u16()?;
+        atom.skip(2)?; // samplesize
+        atom.skip(2)?; // pre_defined
+        atom.skip(2)?; // reserved
+                       // samplerate is stored as 16.16 fixed-point; integer part is in top 2 bytes
+        let sample_rate_fp = atom.read_u32()?;
+        let sample_rate = sample_rate_fp >> 16;
+
+        trak.channels = Some(channel_count);
+        trak.sample_rate = Some(sample_rate);
+
+        // Parse child boxes for extradata (dOps for Opus, dfLa for FLAC, etc.)
+        let extra_data = atom.remaining();
+        if extra_data.len() >= 8 {
+            Self::parse_codec_config(extra_data, trak)?;
+        }
+
+        Ok(())
+    }
+
+    /// Scans child boxes within a codec-specific config area to extract extradata.
+    ///
+    /// Looks for known config boxes: `av1C`, `vpcC`, `dOps`, `dfLa`.
+    fn parse_codec_config(data: &[u8], trak: &mut TrakBox) -> OxiResult<()> {
+        let mut offset = 0usize;
+
+        while offset + 8 <= data.len() {
+            let remaining = &data[offset..];
+            let header = BoxHeader::parse(remaining).unwrap_or(BoxHeader {
+                size: 0,
+                box_type: BoxType::FREE,
+                header_size: 8,
+            });
+            let header_size = header.header_size as usize;
+            let box_total = if header.size == 0 {
+                remaining.len()
+            } else {
+                header.size as usize
+            };
+            if box_total < header_size || offset + box_total > data.len() {
+                break;
+            }
+
+            let content = &data[offset + header_size..offset + box_total];
+            let tag = header.box_type.as_u32();
+
+            // AV1 config: "av1C"
+            // VP9 config: "vpcC"
+            // Opus config: "dOps"
+            // FLAC config: "dfLa"
+            if matches!(
+                tag,
+                0x6176_3143 | // av1C
+                0x7670_6343 | // vpcC
+                0x644F_7073 | // dOps
+                0x6466_4C61 // dfLa
+            ) {
+                trak.extradata = Some(content.to_vec());
+                break;
+            }
+
+            offset += box_total;
+        }
+
+        Ok(())
+    }
+
+    /// Parses a `stts` (time-to-sample) box.
+    fn parse_stts(data: &[u8], trak: &mut TrakBox) -> OxiResult<()> {
+        let mut atom = Mp4Atom::new(data);
+        atom.skip(4)?; // version + flags
+        let entry_count = atom.read_u32()? as usize;
+        let mut entries = Vec::with_capacity(entry_count);
+        for _ in 0..entry_count {
+            let sample_count = atom.read_u32()?;
+            let sample_delta = atom.read_u32()?;
+            entries.push(SttsEntry {
+                sample_count,
+                sample_delta,
+            });
+        }
+        trak.stts_entries = entries;
+        Ok(())
+    }
+
+    /// Parses a `stsc` (sample-to-chunk) box.
+    fn parse_stsc(data: &[u8], trak: &mut TrakBox) -> OxiResult<()> {
+        let mut atom = Mp4Atom::new(data);
+        atom.skip(4)?; // version + flags
+        let entry_count = atom.read_u32()? as usize;
+        let mut entries = Vec::with_capacity(entry_count);
+        for _ in 0..entry_count {
+            let first_chunk = atom.read_u32()?;
+            let samples_per_chunk = atom.read_u32()?;
+            let sample_description_index = atom.read_u32()?;
+            entries.push(StscEntry {
+                first_chunk,
+                samples_per_chunk,
+                sample_description_index,
+            });
+        }
+        trak.stsc_entries = entries;
+        Ok(())
+    }
+
+    /// Parses a `stsz` (sample size) box.
+    fn parse_stsz(data: &[u8], trak: &mut TrakBox) -> OxiResult<()> {
+        let mut atom = Mp4Atom::new(data);
+        atom.skip(4)?; // version + flags
+        let sample_size = atom.read_u32()?;
+        let sample_count = atom.read_u32()? as usize;
+
+        if sample_size > 0 {
+            // All samples have the same size
+            trak.default_sample_size = sample_size;
+        } else {
+            // Per-sample sizes
+            let mut sizes = Vec::with_capacity(sample_count);
+            for _ in 0..sample_count {
+                sizes.push(atom.read_u32()?);
+            }
+            trak.sample_sizes = sizes;
+        }
+
+        Ok(())
+    }
+
+    /// Parses a `stco` (32-bit chunk offset) box.
+    fn parse_stco(data: &[u8], trak: &mut TrakBox) -> OxiResult<()> {
+        let mut atom = Mp4Atom::new(data);
+        atom.skip(4)?; // version + flags
+        let entry_count = atom.read_u32()? as usize;
+        let mut offsets = Vec::with_capacity(entry_count);
+        for _ in 0..entry_count {
+            offsets.push(u64::from(atom.read_u32()?));
+        }
+        trak.chunk_offsets = offsets;
+        Ok(())
+    }
+
+    /// Parses a `co64` (64-bit chunk offset) box.
+    fn parse_co64(data: &[u8], trak: &mut TrakBox) -> OxiResult<()> {
+        let mut atom = Mp4Atom::new(data);
+        atom.skip(4)?; // version + flags
+        let entry_count = atom.read_u32()? as usize;
+        let mut offsets = Vec::with_capacity(entry_count);
+        for _ in 0..entry_count {
+            offsets.push(atom.read_u64()?);
+        }
+        trak.chunk_offsets = offsets;
+        Ok(())
+    }
+
+    /// Parses a `stss` (sync sample) box.
+    fn parse_stss(data: &[u8], trak: &mut TrakBox) -> OxiResult<()> {
+        let mut atom = Mp4Atom::new(data);
+        atom.skip(4)?; // version + flags
+        let entry_count = atom.read_u32()? as usize;
+        let mut samples = Vec::with_capacity(entry_count);
+        for _ in 0..entry_count {
+            samples.push(atom.read_u32()?);
+        }
+        trak.sync_samples = Some(samples);
+        Ok(())
+    }
+
+    /// Parses a `ctts` (composition time offset) box.
+    fn parse_ctts(data: &[u8], trak: &mut TrakBox) -> OxiResult<()> {
+        let mut atom = Mp4Atom::new(data);
+        let version = atom.read_u8()?;
+        atom.skip(3)?; // flags
+        let entry_count = atom.read_u32()? as usize;
+        let mut entries = Vec::with_capacity(entry_count);
+        for _ in 0..entry_count {
+            let sample_count = atom.read_u32()?;
+            // In version 1, the offset can be negative (signed)
+            let sample_offset = if version == 0 {
+                #[allow(clippy::cast_possible_wrap)]
+                let v = atom.read_u32()? as i32;
+                v
+            } else {
+                atom.read_i32()?
+            };
+            entries.push(CttsEntry {
+                sample_count,
+                sample_offset,
+            });
+        }
+        trak.ctts_entries = entries;
+        Ok(())
+    }
+}
+
 /// Track header box (`tkhd`).
 #[derive(Clone, Debug)]
 pub struct TkhdBox {
@@ -502,7 +973,7 @@ mod tests {
     #[test]
     fn test_box_header_normal() {
         let data = [0x00, 0x00, 0x00, 0x14, b'f', b't', b'y', b'p'];
-        let header = BoxHeader::parse(&data).unwrap();
+        let header = BoxHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.size, 20);
         assert_eq!(header.box_type, BoxType::FTYP);
         assert_eq!(header.header_size, 8);
@@ -516,7 +987,7 @@ mod tests {
             b'm', b'd', b'a', b't', 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
             0x00, // extended size = 256
         ];
-        let header = BoxHeader::parse(&data).unwrap();
+        let header = BoxHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.size, 256);
         assert_eq!(header.box_type, BoxType::MDAT);
         assert_eq!(header.header_size, 16);
@@ -526,7 +997,7 @@ mod tests {
     #[test]
     fn test_box_header_to_eof() {
         let data = [0x00, 0x00, 0x00, 0x00, b'm', b'd', b'a', b't'];
-        let header = BoxHeader::parse(&data).unwrap();
+        let header = BoxHeader::parse(&data).expect("operation should succeed");
         assert_eq!(header.size, 0);
         assert_eq!(header.content_size(), 0);
     }
@@ -557,7 +1028,7 @@ mod tests {
             0x00, 0x00, 0x00, 0x00, // minor version
             b'm', b'p', b'4', b'1', // compatible brand
         ];
-        let ftyp = FtypBox::parse(&data).unwrap();
+        let ftyp = FtypBox::parse(&data).expect("operation should succeed");
         assert_eq!(ftyp.major_brand.as_str(), "isom");
         assert_eq!(ftyp.minor_version, 0);
         assert_eq!(ftyp.compatible_brands.len(), 1);
@@ -598,7 +1069,7 @@ mod tests {
             0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
             0x00, 0x00, 0x00, 0x02, // next_track_id = 2
         ];
-        let mvhd = MvhdBox::parse(&data).unwrap();
+        let mvhd = MvhdBox::parse(&data).expect("operation should succeed");
         assert_eq!(mvhd.version, 0);
         assert_eq!(mvhd.timescale, 1000);
         assert_eq!(mvhd.duration, 10000);
@@ -634,7 +1105,7 @@ mod tests {
             // height = 1080 (in 16.16 fixed-point)
             0x04, 0x38, 0x00, 0x00,
         ];
-        let tkhd = TkhdBox::parse(&data).unwrap();
+        let tkhd = TkhdBox::parse(&data).expect("operation should succeed");
         assert_eq!(tkhd.track_id, 1);
         assert_eq!(tkhd.duration, 10000);
         assert!((tkhd.width - 1920.0).abs() < 1.0);

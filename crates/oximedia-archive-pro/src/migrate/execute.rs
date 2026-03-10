@@ -190,9 +190,10 @@ mod tests {
 
     #[test]
     fn test_dry_run_migration() {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"Test content").unwrap();
-        file.flush().unwrap();
+        let mut file = NamedTempFile::new().expect("operation should succeed");
+        file.write_all(b"Test content")
+            .expect("operation should succeed");
+        file.flush().expect("operation should succeed");
 
         let plan = MigrationPlan {
             source: file.path().to_path_buf(),
@@ -205,7 +206,7 @@ mod tests {
         };
 
         let executor = MigrationExecutor::new().with_dry_run(true);
-        let result = executor.execute(&plan).unwrap();
+        let result = executor.execute(&plan).expect("operation should succeed");
 
         assert!(result.success);
         assert_eq!(result.outputs.len(), 1);
@@ -213,9 +214,10 @@ mod tests {
 
     #[test]
     fn test_keep_both_strategy() {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"Test content").unwrap();
-        file.flush().unwrap();
+        let mut file = NamedTempFile::new().expect("operation should succeed");
+        file.write_all(b"Test content")
+            .expect("operation should succeed");
+        file.flush().expect("operation should succeed");
 
         let plan = MigrationPlan {
             source: file.path().to_path_buf(),
@@ -228,7 +230,7 @@ mod tests {
         };
 
         let executor = MigrationExecutor::new();
-        let result = executor.execute(&plan).unwrap();
+        let result = executor.execute(&plan).expect("operation should succeed");
 
         assert!(result.success);
         // KeepBoth should return both source and output

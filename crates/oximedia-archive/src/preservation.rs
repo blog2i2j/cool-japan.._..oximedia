@@ -349,7 +349,7 @@ mod tests {
         // Add one fresh copy (verified "now") and one stale (verified long ago)
         let now_ms = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
-            .unwrap()
+            .expect("test expectation failed")
             .as_millis() as u64;
         record.add_copy(make_copy(now_ms));
         record.add_copy(make_copy(1_000)); // epoch + 1 second → very stale

@@ -275,7 +275,7 @@ mod tests {
     fn test_mets_xml() {
         let doc = MetsDocument::new("obj-001").with_title("Test");
 
-        let xml = doc.to_xml().unwrap();
+        let xml = doc.to_xml().expect("operation should succeed");
         assert!(xml.contains("<mets"));
         assert!(xml.contains("obj-001"));
     }

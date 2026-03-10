@@ -270,26 +270,28 @@ mod tests {
 
     #[test]
     fn test_scan_empty_directory() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("temp_dir should be valid");
         let scanner = MediaScanner::new();
-        let result = scanner.scan(temp_dir.path(), None).unwrap();
+        let result = scanner
+            .scan(temp_dir.path(), None)
+            .expect("result should be valid");
         assert_eq!(result.len(), 0);
     }
 
     #[test]
     fn test_scan_with_progress() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("temp_dir should be valid");
 
         // Create some test files
-        fs::write(temp_dir.path().join("test1.mov"), b"test").unwrap();
-        fs::write(temp_dir.path().join("test2.mp4"), b"test").unwrap();
-        fs::write(temp_dir.path().join("test.txt"), b"test").unwrap();
+        fs::write(temp_dir.path().join("test1.mov"), b"test").expect("test expectation failed");
+        fs::write(temp_dir.path().join("test2.mp4"), b"test").expect("test expectation failed");
+        fs::write(temp_dir.path().join("test.txt"), b"test").expect("test expectation failed");
 
         let scanner = MediaScanner::new();
         let progress = Arc::new(ScanProgress::new());
         let result = scanner
             .scan(temp_dir.path(), Some(progress.clone()))
-            .unwrap();
+            .expect("test expectation failed");
 
         assert_eq!(result.len(), 2);
         assert!(progress.is_complete());

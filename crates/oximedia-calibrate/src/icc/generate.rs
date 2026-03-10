@@ -138,7 +138,7 @@ mod tests {
         let result = IccProfileGenerator::from_camera_profile(&camera_profile);
         assert!(result.is_ok());
 
-        let icc = result.unwrap();
+        let icc = result.expect("expected successful result");
         assert!(icc.description.contains("Test"));
         assert!(icc.description.contains("Camera"));
     }
@@ -157,7 +157,7 @@ mod tests {
 
         assert!(result.is_ok());
 
-        let icc = result.unwrap();
+        let icc = result.expect("expected successful result");
         assert!(icc.description.contains("Test"));
         assert!(icc.description.contains("Monitor"));
     }
@@ -167,7 +167,7 @@ mod tests {
         let result = IccProfileGenerator::srgb_profile();
         assert!(result.is_ok());
 
-        let icc = result.unwrap();
+        let icc = result.expect("expected successful result");
         assert_eq!(icc.description, "sRGB");
         assert_eq!(icc.white_point, Illuminant::D65);
     }
@@ -177,7 +177,7 @@ mod tests {
         let result = IccProfileGenerator::adobe_rgb_profile();
         assert!(result.is_ok());
 
-        let icc = result.unwrap();
+        let icc = result.expect("expected successful result");
         assert_eq!(icc.description, "Adobe RGB");
         assert_eq!(icc.white_point, Illuminant::D65);
     }
@@ -187,7 +187,7 @@ mod tests {
         let result = IccProfileGenerator::prophoto_rgb_profile();
         assert!(result.is_ok());
 
-        let icc = result.unwrap();
+        let icc = result.expect("expected successful result");
         assert_eq!(icc.description, "ProPhoto RGB");
         assert_eq!(icc.white_point, Illuminant::D50);
     }

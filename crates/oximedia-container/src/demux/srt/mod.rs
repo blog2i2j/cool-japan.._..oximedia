@@ -316,15 +316,24 @@ mod tests {
 
     #[test]
     fn test_parse_srt_timestamp() {
-        assert_eq!(parse_srt_timestamp("00:00:01,500").unwrap(), 1500);
-        assert_eq!(parse_srt_timestamp("01:30:00,000").unwrap(), 5400000);
-        assert_eq!(parse_srt_timestamp("00:02:15,750").unwrap(), 135750);
+        assert_eq!(
+            parse_srt_timestamp("00:00:01,500").expect("operation should succeed"),
+            1500
+        );
+        assert_eq!(
+            parse_srt_timestamp("01:30:00,000").expect("operation should succeed"),
+            5400000
+        );
+        assert_eq!(
+            parse_srt_timestamp("00:02:15,750").expect("operation should succeed"),
+            135750
+        );
     }
 
     #[test]
     fn test_parse_timing_line() {
         let line = "00:00:01,000 --> 00:00:03,500";
-        let (start, end) = parse_timing_line(line).unwrap();
+        let (start, end) = parse_timing_line(line).expect("operation should succeed");
         assert_eq!(start, 1000);
         assert_eq!(end, 3500);
     }
@@ -335,7 +344,7 @@ mod tests {
         let source = MemorySource::new(Bytes::from(content));
         let mut demuxer = SrtDemuxer::new(source);
 
-        let result = demuxer.probe().await.unwrap();
+        let result = demuxer.probe().await.expect("probe should succeed");
         assert_eq!(result.format, ContainerFormat::Srt);
         assert_eq!(result.confidence, 1.0);
     }
@@ -347,14 +356,26 @@ mod tests {
         let source = MemorySource::new(Bytes::from(content));
         let mut demuxer = SrtDemuxer::new(source);
 
-        demuxer.probe().await.unwrap();
+        demuxer.probe().await.expect("probe should succeed");
 
-        let packet1 = demuxer.read_packet().await.unwrap();
+        let packet1 = demuxer
+            .read_packet()
+            .await
+            .expect("operation should succeed");
         assert_eq!(packet1.stream_index, 0);
-        assert_eq!(String::from_utf8(packet1.data.to_vec()).unwrap(), "Hello");
+        assert_eq!(
+            String::from_utf8(packet1.data.to_vec()).expect("operation should succeed"),
+            "Hello"
+        );
 
-        let packet2 = demuxer.read_packet().await.unwrap();
-        assert_eq!(String::from_utf8(packet2.data.to_vec()).unwrap(), "World");
+        let packet2 = demuxer
+            .read_packet()
+            .await
+            .expect("operation should succeed");
+        assert_eq!(
+            String::from_utf8(packet2.data.to_vec()).expect("operation should succeed"),
+            "World"
+        );
 
         let result = demuxer.read_packet().await;
         assert!(matches!(result, Err(OxiError::Eof)));
@@ -366,10 +387,13 @@ mod tests {
         let source = MemorySource::new(Bytes::from(content));
         let mut demuxer = SrtDemuxer::new(source);
 
-        demuxer.probe().await.unwrap();
+        demuxer.probe().await.expect("probe should succeed");
 
-        let packet = demuxer.read_packet().await.unwrap();
-        let text = String::from_utf8(packet.data.to_vec()).unwrap();
+        let packet = demuxer
+            .read_packet()
+            .await
+            .expect("operation should succeed");
+        let text = String::from_utf8(packet.data.to_vec()).expect("operation should succeed");
         assert_eq!(text, "Line 1\nLine 2\nLine 3");
     }
 }

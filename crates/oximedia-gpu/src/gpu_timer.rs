@@ -445,7 +445,8 @@ mod tests {
             Duration::from_micros(400),
             Duration::from_micros(500),
         ];
-        let stats = TimingStats::from_durations(&durations).unwrap();
+        let stats = TimingStats::from_durations(&durations)
+            .expect("from_durations should succeed with valid durations");
         assert_eq!(stats.min, Duration::from_micros(100));
         assert_eq!(stats.max, Duration::from_micros(500));
         assert_eq!(stats.sample_count, 5);
@@ -461,7 +462,8 @@ mod tests {
     #[test]
     fn test_timing_stats_single() {
         let durations = vec![Duration::from_micros(1000)];
-        let stats = TimingStats::from_durations(&durations).unwrap();
+        let stats = TimingStats::from_durations(&durations)
+            .expect("from_durations should succeed with valid durations");
         assert_eq!(stats.min, stats.max);
         assert_eq!(stats.sample_count, 1);
         assert!((stats.std_dev_us - 0.0).abs() < 0.001);
@@ -470,7 +472,8 @@ mod tests {
     #[test]
     fn test_timing_stats_mean_fps() {
         let durations = vec![Duration::from_millis(16), Duration::from_millis(17)];
-        let stats = TimingStats::from_durations(&durations).unwrap();
+        let stats = TimingStats::from_durations(&durations)
+            .expect("from_durations should succeed with valid durations");
         let fps = stats.mean_fps();
         assert!(fps > 50.0 && fps < 70.0);
     }
@@ -595,7 +598,7 @@ mod tests {
         }
         let stats = timer.stats_for_label("compute");
         assert!(stats.is_some());
-        assert_eq!(stats.unwrap().sample_count, 5);
+        assert_eq!(stats.expect("stats should be available").sample_count, 5);
     }
 
     #[test]

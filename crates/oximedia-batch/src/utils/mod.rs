@@ -72,7 +72,7 @@ pub fn format_file_size(size_bytes: u64) -> String {
 /// ```
 /// use oximedia_batch::utils::parse_file_size;
 ///
-/// let bytes = parse_file_size("10MB").unwrap();
+/// let bytes = parse_file_size("10MB")?;
 /// assert_eq!(bytes, 10485760);
 /// ```
 pub fn parse_file_size(size_str: &str) -> Result<u64> {
@@ -407,9 +407,18 @@ mod tests {
 
     #[test]
     fn test_parse_file_size() {
-        assert_eq!(parse_file_size("10MB").unwrap(), 10485760);
-        assert_eq!(parse_file_size("1GB").unwrap(), 1073741824);
-        assert_eq!(parse_file_size("1024").unwrap(), 1024);
+        assert_eq!(
+            parse_file_size("10MB").expect("operation should succeed"),
+            10485760
+        );
+        assert_eq!(
+            parse_file_size("1GB").expect("operation should succeed"),
+            1073741824
+        );
+        assert_eq!(
+            parse_file_size("1024").expect("operation should succeed"),
+            1024
+        );
     }
 
     #[test]
@@ -421,9 +430,15 @@ mod tests {
 
     #[test]
     fn test_parse_duration() {
-        assert_eq!(parse_duration("1h30m").unwrap(), 5400);
-        assert_eq!(parse_duration("90s").unwrap(), 90);
-        assert_eq!(parse_duration("1h").unwrap(), 3600);
+        assert_eq!(
+            parse_duration("1h30m").expect("operation should succeed"),
+            5400
+        );
+        assert_eq!(parse_duration("90s").expect("operation should succeed"), 90);
+        assert_eq!(
+            parse_duration("1h").expect("operation should succeed"),
+            3600
+        );
     }
 
     #[test]

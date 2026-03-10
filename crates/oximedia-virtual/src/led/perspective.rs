@@ -4,8 +4,8 @@
 //! to create the illusion of depth on flat LED panels.
 
 use super::LedPanel;
+use crate::math::{Matrix4, Point3, Vector3};
 use crate::{tracking::CameraPose, Result};
-use nalgebra::{Matrix4, Point3, Vector3};
 use serde::{Deserialize, Serialize};
 
 /// Perspective correction configuration
@@ -83,13 +83,13 @@ impl PerspectiveCorrection {
         let f = 1.0 / (fov_rad / 2.0).tan();
 
         let mut proj = Matrix4::zeros();
-        proj[(0, 0)] = f / aspect;
-        proj[(1, 1)] = f;
-        proj[(2, 2)] = (self.config.far_plane + self.config.near_plane)
+        proj.data[0][0] = f / aspect;
+        proj.data[1][1] = f;
+        proj.data[2][2] = (self.config.far_plane + self.config.near_plane)
             / (self.config.near_plane - self.config.far_plane);
-        proj[(2, 3)] = (2.0 * self.config.far_plane * self.config.near_plane)
+        proj.data[2][3] = (2.0 * self.config.far_plane * self.config.near_plane)
             / (self.config.near_plane - self.config.far_plane);
-        proj[(3, 2)] = -1.0;
+        proj.data[3][2] = -1.0;
 
         proj
     }
@@ -101,18 +101,18 @@ impl PerspectiveCorrection {
         let u = s.cross(&f);
 
         let mut view = Matrix4::identity();
-        view[(0, 0)] = s.x;
-        view[(0, 1)] = s.y;
-        view[(0, 2)] = s.z;
-        view[(1, 0)] = u.x;
-        view[(1, 1)] = u.y;
-        view[(1, 2)] = u.z;
-        view[(2, 0)] = -f.x;
-        view[(2, 1)] = -f.y;
-        view[(2, 2)] = -f.z;
-        view[(0, 3)] = -s.dot(&eye.coords);
-        view[(1, 3)] = -u.dot(&eye.coords);
-        view[(2, 3)] = f.dot(&eye.coords);
+        view.data[0][0] = s.x;
+        view.data[0][1] = s.y;
+        view.data[0][2] = s.z;
+        view.data[1][0] = u.x;
+        view.data[1][1] = u.y;
+        view.data[1][2] = u.z;
+        view.data[2][0] = -f.x;
+        view.data[2][1] = -f.y;
+        view.data[2][2] = -f.z;
+        view.data[0][3] = -s.dot(&eye.coords());
+        view.data[1][3] = -u.dot(&eye.coords());
+        view.data[2][3] = f.dot(&eye.coords());
 
         view
     }
@@ -135,8 +135,13 @@ impl PerspectiveCorrection {
         let transformed = transform * world_pos.to_homogeneous();
 
         // Project to screen space
-        let screen_x = transformed.x / transformed.w;
-        let screen_y = transformed.y / transformed.w;
+        let w = if transformed[3].abs() > 1e-15 {
+            transformed[3]
+        } else {
+            1.0
+        };
+        let screen_x = transformed[0] / w;
+        let screen_y = transformed[1] / w;
 
         Ok((screen_x, screen_y))
     }
@@ -151,7 +156,7 @@ impl PerspectiveCorrection {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nalgebra::UnitQuaternion;
+    use crate::math::UnitQuaternion;
 
     #[test]
     fn test_perspective_correction_creation() {

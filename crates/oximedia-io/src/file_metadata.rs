@@ -140,8 +140,8 @@ mod tests {
     use std::io::Write;
 
     fn write_temp(content: &[u8]) -> (tempfile::NamedTempFile, PathBuf) {
-        let mut f = tempfile::NamedTempFile::new().unwrap();
-        f.write_all(content).unwrap();
+        let mut f = tempfile::NamedTempFile::new().expect("failed to create temp file");
+        f.write_all(content).expect("failed to write");
         let p = f.path().to_path_buf();
         (f, p)
     }
@@ -149,7 +149,7 @@ mod tests {
     #[test]
     fn test_probe_regular_file() {
         let (_f, path) = write_temp(b"hello");
-        let meta = FileMetadataReader::probe(&path).unwrap();
+        let meta = FileMetadataReader::probe(&path).expect("operation should succeed");
         assert_eq!(meta.kind, FileKind::Regular);
     }
 
@@ -157,56 +157,56 @@ mod tests {
     fn test_probe_size() {
         let data = b"0123456789";
         let (_f, path) = write_temp(data);
-        let meta = FileMetadataReader::probe(&path).unwrap();
+        let meta = FileMetadataReader::probe(&path).expect("operation should succeed");
         assert_eq!(meta.size_bytes, data.len() as u64);
     }
 
     #[test]
     fn test_probe_is_not_empty() {
         let (_f, path) = write_temp(b"x");
-        let meta = FileMetadataReader::probe(&path).unwrap();
+        let meta = FileMetadataReader::probe(&path).expect("operation should succeed");
         assert!(!meta.is_empty());
     }
 
     #[test]
     fn test_probe_empty_file() {
         let (_f, path) = write_temp(b"");
-        let meta = FileMetadataReader::probe(&path).unwrap();
+        let meta = FileMetadataReader::probe(&path).expect("operation should succeed");
         assert!(meta.is_empty());
     }
 
     #[test]
     fn test_probe_is_regular() {
         let (_f, path) = write_temp(b"data");
-        let meta = FileMetadataReader::probe(&path).unwrap();
+        let meta = FileMetadataReader::probe(&path).expect("operation should succeed");
         assert!(meta.is_regular());
     }
 
     #[test]
     fn test_probe_directory() {
-        let dir = tempfile::tempdir().unwrap();
-        let meta = FileMetadataReader::probe(dir.path()).unwrap();
+        let dir = tempfile::tempdir().expect("failed to create temp file");
+        let meta = FileMetadataReader::probe(dir.path()).expect("operation should succeed");
         assert_eq!(meta.kind, FileKind::Directory);
     }
 
     #[test]
     fn test_probe_readable() {
         let (_f, path) = write_temp(b"read me");
-        let meta = FileMetadataReader::probe(&path).unwrap();
+        let meta = FileMetadataReader::probe(&path).expect("operation should succeed");
         assert!(meta.readable);
     }
 
     #[test]
     fn test_probe_path_stored() {
         let (_f, path) = write_temp(b"path check");
-        let meta = FileMetadataReader::probe(&path).unwrap();
+        let meta = FileMetadataReader::probe(&path).expect("operation should succeed");
         assert_eq!(meta.path, path);
     }
 
     #[test]
     fn test_size_mib() {
         let (_f, path) = write_temp(&vec![0u8; 1024 * 1024]);
-        let meta = FileMetadataReader::probe(&path).unwrap();
+        let meta = FileMetadataReader::probe(&path).expect("operation should succeed");
         let mib = meta.size_mib();
         assert!((mib - 1.0).abs() < 0.001);
     }
@@ -214,7 +214,7 @@ mod tests {
     #[test]
     fn test_size_mib_small() {
         let (_f, path) = write_temp(b"small");
-        let meta = FileMetadataReader::probe(&path).unwrap();
+        let meta = FileMetadataReader::probe(&path).expect("operation should succeed");
         assert!(meta.size_mib() < 1.0);
     }
 
@@ -234,22 +234,22 @@ mod tests {
     #[test]
     fn test_probe_no_follow_regular_file() {
         let (_f, path) = write_temp(b"no follow");
-        let meta = FileMetadataReader::probe_no_follow(&path).unwrap();
+        let meta = FileMetadataReader::probe_no_follow(&path).expect("operation should succeed");
         assert_eq!(meta.kind, FileKind::Regular);
     }
 
     #[test]
     fn test_modified_timestamp_present() {
         let (_f, path) = write_temp(b"ts check");
-        let meta = FileMetadataReader::probe(&path).unwrap();
+        let meta = FileMetadataReader::probe(&path).expect("operation should succeed");
         // Most filesystems support mtime
         assert!(meta.modified.is_some());
     }
 
     #[test]
     fn test_probe_directory_size_zero_or_nonzero() {
-        let dir = tempfile::tempdir().unwrap();
-        let meta = FileMetadataReader::probe(dir.path()).unwrap();
+        let dir = tempfile::tempdir().expect("failed to create temp file");
+        let meta = FileMetadataReader::probe(dir.path()).expect("operation should succeed");
         // Just verify we get back a valid FileMetadata for a dir
         assert_eq!(meta.kind, FileKind::Directory);
     }

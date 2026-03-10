@@ -139,7 +139,7 @@ mod tests {
         for _ in 0..5 {
             let video = VideoFrame::new(PixelFormat::Yuv420p, 1920, 1080);
             let frame = FilterFrame::Video(video);
-            let result = sink.process(Some(frame)).unwrap();
+            let result = sink.process(Some(frame)).expect("process should succeed");
             // Sink should produce no output
             assert!(result.is_none());
         }
@@ -153,11 +153,12 @@ mod tests {
 
         // Process a frame
         let video = VideoFrame::new(PixelFormat::Yuv420p, 1920, 1080);
-        sink.process(Some(FilterFrame::Video(video))).unwrap();
+        sink.process(Some(FilterFrame::Video(video)))
+            .expect("operation should succeed");
         assert_eq!(sink.frames_received(), 1);
 
         // Reset
-        sink.reset().unwrap();
+        sink.reset().expect("reset should succeed");
         assert_eq!(sink.frames_received(), 0);
         assert_eq!(sink.state(), NodeState::Idle);
     }
@@ -166,7 +167,7 @@ mod tests {
     fn test_null_sink_no_input() {
         let mut sink = NullSink::new(NodeId(0), "null");
 
-        let result = sink.process(None).unwrap();
+        let result = sink.process(None).expect("process should succeed");
         assert!(result.is_none());
         assert_eq!(sink.frames_received(), 0);
     }

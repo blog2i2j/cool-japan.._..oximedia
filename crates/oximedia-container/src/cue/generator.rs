@@ -286,7 +286,7 @@ mod tests {
 
         let nearest = CueSeeker::find_nearest(&cues, 1500, 1);
         assert!(nearest.is_some());
-        assert_eq!(nearest.unwrap().timestamp, 1000);
+        assert_eq!(nearest.expect("operation should succeed").timestamp, 1000);
 
         let before = CueSeeker::find_before(&cues, 1500, 1);
         assert_eq!(before.len(), 2);

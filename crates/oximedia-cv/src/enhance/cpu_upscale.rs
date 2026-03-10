@@ -16,7 +16,7 @@
 //!
 //! let input = vec![128u8; 64 * 64 * 3];
 //! let enhancer = SuperResolutionEnhancer::new(UpscaleMode::Bicubic2x);
-//! let output = enhancer.upscale(&input, 64, 64).unwrap();
+//! let output = enhancer.upscale(&input, 64, 64)?;
 //! assert_eq!(output.len(), 128 * 128 * 3);
 //! ```
 
@@ -168,7 +168,7 @@ impl SuperResolutionEnhancer {
     ///
     /// let input = vec![128u8; 32 * 32 * 3];
     /// let enhancer = SuperResolutionEnhancer::new(UpscaleMode::Bicubic2x);
-    /// let output = enhancer.upscale(&input, 32, 32).unwrap();
+    /// let output = enhancer.upscale(&input, 32, 32)?;
     /// assert_eq!(output.len(), 64 * 64 * 3);
     /// ```
     pub fn upscale(&self, image: &[u8], width: u32, height: u32) -> CvResult<Vec<u8>> {
@@ -535,7 +535,7 @@ fn gaussian_blur_rgb(image: &[u8], width: u32, height: u32, sigma: f32) -> Vec<u
 ///
 /// let original = vec![100u8; 64 * 64 * 3];
 /// let identical = original.clone();
-/// let psnr = calculate_psnr(&original, &identical, 255.0).unwrap();
+/// let psnr = calculate_psnr(&original, &identical, 255.0)?;
 /// assert!(psnr.is_infinite());
 /// ```
 pub fn calculate_psnr(original: &[u8], upscaled: &[u8], max_value: f64) -> CvResult<f64> {
@@ -586,7 +586,7 @@ pub fn calculate_psnr(original: &[u8], upscaled: &[u8], max_value: f64) -> CvRes
 ///
 /// let a = vec![0u8; 100];
 /// let b = vec![0u8; 100];
-/// assert_eq!(calculate_mse(&a, &b).unwrap(), 0.0);
+/// assert_eq!(calculate_mse(&a, &b)?, 0.0);
 /// ```
 pub fn calculate_mse(a: &[u8], b: &[u8]) -> CvResult<f64> {
     if a.len() != b.len() {
@@ -826,7 +826,9 @@ mod tests {
     fn test_upscale_via_enhancer_bilinear() {
         let input = vec![100u8; 32 * 32 * 3];
         let enhancer = SuperResolutionEnhancer::new(UpscaleMode::Bilinear2x);
-        let output = enhancer.upscale(&input, 32, 32).unwrap();
+        let output = enhancer
+            .upscale(&input, 32, 32)
+            .expect("upscale should succeed");
         assert_eq!(output.len(), 64 * 64 * 3);
     }
 
@@ -834,7 +836,9 @@ mod tests {
     fn test_upscale_via_enhancer_bicubic() {
         let input = vec![100u8; 32 * 32 * 3];
         let enhancer = SuperResolutionEnhancer::new(UpscaleMode::Bicubic2x);
-        let output = enhancer.upscale(&input, 32, 32).unwrap();
+        let output = enhancer
+            .upscale(&input, 32, 32)
+            .expect("upscale should succeed");
         assert_eq!(output.len(), 64 * 64 * 3);
     }
 
@@ -842,7 +846,9 @@ mod tests {
     fn test_upscale_via_enhancer_bicubic_sharp() {
         let input = vec![100u8; 16 * 16 * 3];
         let enhancer = SuperResolutionEnhancer::new(UpscaleMode::BicubicSharp2x);
-        let output = enhancer.upscale(&input, 16, 16).unwrap();
+        let output = enhancer
+            .upscale(&input, 16, 16)
+            .expect("upscale should succeed");
         assert_eq!(output.len(), 32 * 32 * 3);
     }
 
@@ -850,7 +856,9 @@ mod tests {
     fn test_upscale_via_enhancer_4x() {
         let input = vec![50u8; 16 * 16 * 3];
         let enhancer = SuperResolutionEnhancer::new(UpscaleMode::Bicubic4x);
-        let output = enhancer.upscale(&input, 16, 16).unwrap();
+        let output = enhancer
+            .upscale(&input, 16, 16)
+            .expect("upscale should succeed");
         assert_eq!(output.len(), 64 * 64 * 3);
     }
 
@@ -891,7 +899,7 @@ mod tests {
     #[test]
     fn test_calculate_psnr_identical() {
         let image = vec![128u8; 64 * 64 * 3];
-        let psnr = calculate_psnr(&image, &image, 255.0).unwrap();
+        let psnr = calculate_psnr(&image, &image, 255.0).expect("calculate_psnr should succeed");
         assert!(
             psnr.is_infinite(),
             "PSNR of identical images should be infinite"
@@ -902,7 +910,7 @@ mod tests {
     fn test_calculate_psnr_different() {
         let original = vec![0u8; 100];
         let noisy = vec![10u8; 100];
-        let psnr = calculate_psnr(&original, &noisy, 255.0).unwrap();
+        let psnr = calculate_psnr(&original, &noisy, 255.0).expect("calculate_psnr should succeed");
         assert!(
             psnr > 0.0 && psnr.is_finite(),
             "PSNR should be finite and positive"
@@ -931,7 +939,7 @@ mod tests {
     #[test]
     fn test_calculate_mse_identical() {
         let image = vec![128u8; 100];
-        let mse = calculate_mse(&image, &image).unwrap();
+        let mse = calculate_mse(&image, &image).expect("calculate_mse should succeed");
         assert_eq!(mse, 0.0, "MSE of identical images should be 0");
     }
 
@@ -940,7 +948,7 @@ mod tests {
         // [0, 0, 0, 0] vs [2, 2, 2, 2]: MSE = 4.0
         let a = vec![0u8; 4];
         let b = vec![2u8; 4];
-        let mse = calculate_mse(&a, &b).unwrap();
+        let mse = calculate_mse(&a, &b).expect("calculate_mse should succeed");
         assert!((mse - 4.0).abs() < 1e-10, "Expected MSE=4.0, got {mse}");
     }
 
@@ -954,7 +962,7 @@ mod tests {
     #[test]
     fn test_calculate_ssim_identical() {
         let image = vec![128u8; 32 * 32];
-        let ssim = calculate_ssim(&image, &image, 32, 32).unwrap();
+        let ssim = calculate_ssim(&image, &image, 32, 32).expect("calculate_ssim should succeed");
         assert!(
             (ssim - 1.0).abs() < 1e-6,
             "SSIM of identical images should be ~1.0, got {ssim}"
@@ -965,7 +973,7 @@ mod tests {
     fn test_calculate_ssim_different() {
         let a = vec![0u8; 32 * 32];
         let b = vec![255u8; 32 * 32];
-        let ssim = calculate_ssim(&a, &b, 32, 32).unwrap();
+        let ssim = calculate_ssim(&a, &b, 32, 32).expect("calculate_ssim should succeed");
         assert!(
             ssim < 0.5,
             "SSIM of opposite images should be low, got {ssim}"
@@ -983,7 +991,9 @@ mod tests {
         let enhancer =
             SuperResolutionEnhancer::new(UpscaleMode::BicubicSharp2x).with_sharpness(1.0, 2.0);
         let input = vec![128u8; 16 * 16 * 3];
-        let output = enhancer.upscale(&input, 16, 16).unwrap();
+        let output = enhancer
+            .upscale(&input, 16, 16)
+            .expect("upscale should succeed");
         assert_eq!(output.len(), 32 * 32 * 3);
     }
 

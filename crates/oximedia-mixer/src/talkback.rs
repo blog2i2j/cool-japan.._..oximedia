@@ -284,7 +284,7 @@ mod tests {
         let idx = sys.add_zone("Studio A".into());
         assert_eq!(idx, Some(0));
         assert_eq!(sys.zone_count(), 1);
-        assert_eq!(sys.zone(0).unwrap().name, "Studio A");
+        assert_eq!(sys.zone(0).expect("zone should succeed").name, "Studio A");
     }
 
     #[test]

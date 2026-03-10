@@ -214,7 +214,9 @@ mod tests {
         let mut wf = ClearanceWorkflow::new();
         wf.submit(make_req("r1", false));
         assert!(wf.approve("r1"));
-        let req = wf.lookup("r1").unwrap();
+        let req = wf
+            .lookup("r1")
+            .expect("rights test operation should succeed");
         assert_eq!(req.status, ClearanceStatus::Approved);
     }
 
@@ -232,7 +234,12 @@ mod tests {
         let mut wf = ClearanceWorkflow::new();
         wf.submit(make_req("r1", false));
         assert!(wf.reject("r1"));
-        assert_eq!(wf.lookup("r1").unwrap().status, ClearanceStatus::Rejected);
+        assert_eq!(
+            wf.lookup("r1")
+                .expect("rights test operation should succeed")
+                .status,
+            ClearanceStatus::Rejected
+        );
     }
 
     #[test]
@@ -252,7 +259,12 @@ mod tests {
         let mut wf = ClearanceWorkflow::new();
         wf.submit(make_req("r1", false));
         assert!(wf.escalate("r1"));
-        assert_eq!(wf.lookup("r1").unwrap().status, ClearanceStatus::Escalated);
+        assert_eq!(
+            wf.lookup("r1")
+                .expect("rights test operation should succeed")
+                .status,
+            ClearanceStatus::Escalated
+        );
     }
 
     #[test]

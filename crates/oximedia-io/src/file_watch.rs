@@ -304,11 +304,11 @@ mod tests {
 
     #[test]
     fn test_modification_detected() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("failed to create temp file");
         let path = dir.path().join("test.rs");
         {
-            let mut f = std::fs::File::create(&path).unwrap();
-            f.write_all(b"hello").unwrap();
+            let mut f = std::fs::File::create(&path).expect("failed to create file");
+            f.write_all(b"hello").expect("failed to write");
         }
 
         let mut watcher = FileWatcher::with_defaults();
@@ -319,8 +319,8 @@ mod tests {
             let mut f = std::fs::OpenOptions::new()
                 .append(true)
                 .open(&path)
-                .unwrap();
-            f.write_all(b" world").unwrap();
+                .expect("operation should succeed");
+            f.write_all(b" world").expect("failed to write");
         }
 
         watcher.check_events();

@@ -372,7 +372,10 @@ mod tests {
             .with_param("threshold", "0.5");
         assert_eq!(step.depends_on, vec!["s1"]);
         assert!(step.optional);
-        assert_eq!(step.params.get("threshold").unwrap(), "0.5");
+        assert_eq!(
+            step.params.get("threshold").expect("get should succeed"),
+            "0.5"
+        );
     }
 
     #[test]

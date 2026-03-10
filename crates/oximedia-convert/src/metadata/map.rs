@@ -243,7 +243,7 @@ mod tests {
 
         let mappings = mapper.get_mappings("mp4", "mkv");
         assert!(mappings.is_some());
-        assert!(!mappings.unwrap().is_empty());
+        assert!(!mappings.expect("mp4→mkv mappings should exist").is_empty());
 
         let no_mappings = mapper.get_mappings("unknown1", "unknown2");
         assert!(no_mappings.is_none());

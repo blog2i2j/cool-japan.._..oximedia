@@ -96,13 +96,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_gpo_trigger() {
-        let mut device = GpoDevice::new("/dev/gpio0").await.unwrap();
-        device.connect().await.unwrap();
+        let mut device = GpoDevice::new("/dev/gpio0")
+            .await
+            .expect("new should succeed");
+        device.connect().await.expect("operation should succeed");
 
-        device.trigger(1).await.unwrap();
+        device.trigger(1).await.expect("operation should succeed");
         assert!(device.get_pin_state(1));
 
-        device.clear(1).await.unwrap();
+        device.clear(1).await.expect("operation should succeed");
         assert!(!device.get_pin_state(1));
     }
 }

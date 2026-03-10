@@ -374,7 +374,10 @@ mod tests {
         let lib = make_library();
         let result = lib.random_from_category(&SfxCategory::Ambience, 42);
         assert!(result.is_some());
-        assert_eq!(result.unwrap().category, SfxCategory::Ambience);
+        assert_eq!(
+            result.expect("result should be valid").category,
+            SfxCategory::Ambience
+        );
     }
 
     #[test]
@@ -389,7 +392,7 @@ mod tests {
         let lib = make_library();
         let sfx = lib.get_by_id("sfx-003");
         assert!(sfx.is_some());
-        assert_eq!(sfx.unwrap().name, "Door Knock");
+        assert_eq!(sfx.expect("sfx should be valid").name, "Door Knock");
     }
 
     #[test]

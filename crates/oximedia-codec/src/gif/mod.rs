@@ -430,10 +430,10 @@ mod tests {
     #[test]
     fn test_encoder_single_frame() {
         let config = GifEncoderConfig::default();
-        let mut encoder = GifEncoder::new(16, 16, config).unwrap();
+        let mut encoder = GifEncoder::new(16, 16, config).expect("should succeed");
 
         let frame = create_test_frame(16, 16, [255, 0, 0]);
-        let data = encoder.encode_single(&frame).unwrap();
+        let data = encoder.encode_single(&frame).expect("should succeed");
 
         assert!(is_gif(&data));
         assert!(data.len() > 100); // Should have header + data
@@ -446,7 +446,7 @@ mod tests {
             loop_count: 0,
             ..Default::default()
         };
-        let mut encoder = GifEncoder::new(16, 16, config).unwrap();
+        let mut encoder = GifEncoder::new(16, 16, config).expect("should succeed");
 
         let frames = vec![
             create_test_frame(16, 16, [255, 0, 0]),
@@ -454,12 +454,14 @@ mod tests {
             create_test_frame(16, 16, [0, 0, 255]),
         ];
 
-        let data = encoder.encode_animation(&frames, 100).unwrap();
+        let data = encoder
+            .encode_animation(&frames, 100)
+            .expect("should succeed");
 
         assert!(is_gif(&data));
 
         // Decode and verify
-        let decoder = GifDecoder::new(&data).unwrap();
+        let decoder = GifDecoder::new(&data).expect("should succeed");
         assert_eq!(decoder.frame_count(), 3);
         assert_eq!(decoder.width(), 16);
         assert_eq!(decoder.height(), 16);
@@ -472,17 +474,19 @@ mod tests {
             colors: 256,
             ..Default::default()
         };
-        let mut encoder = GifEncoder::new(8, 8, config).unwrap();
+        let mut encoder = GifEncoder::new(8, 8, config).expect("should succeed");
 
         let original_frame = create_test_frame(8, 8, [128, 64, 192]);
-        let data = encoder.encode_single(&original_frame).unwrap();
+        let data = encoder
+            .encode_single(&original_frame)
+            .expect("should succeed");
 
-        let decoder = GifDecoder::new(&data).unwrap();
+        let decoder = GifDecoder::new(&data).expect("should succeed");
         assert_eq!(decoder.frame_count(), 1);
         assert_eq!(decoder.width(), 8);
         assert_eq!(decoder.height(), 8);
 
-        let decoded_frame = decoder.decode_frame(0).unwrap();
+        let decoded_frame = decoder.decode_frame(0).expect("should succeed");
         assert_eq!(decoded_frame.format, PixelFormat::Rgba32);
         assert_eq!(decoded_frame.width, 8);
         assert_eq!(decoded_frame.height, 8);

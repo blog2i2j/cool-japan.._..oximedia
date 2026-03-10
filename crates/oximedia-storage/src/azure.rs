@@ -257,7 +257,7 @@ impl CloudStorage for AzureStorage {
         debug!("Uploading stream to blob: {}", key);
 
         // Use block blob upload for large files or unknown sizes
-        if size.is_none() || size.unwrap() > BLOCK_UPLOAD_THRESHOLD {
+        if size.map_or(true, |s| s > BLOCK_UPLOAD_THRESHOLD) {
             return self
                 .upload_blocks(key, stream, size.unwrap_or(0), &options)
                 .await;

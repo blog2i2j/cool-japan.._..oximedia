@@ -253,13 +253,17 @@ mod tests {
     #[test]
     fn test_json_serialization() {
         let library = TemplateLibrary::new();
-        let json = library.save_to_json().unwrap();
+        let json = library
+            .save_to_json()
+            .expect("JSON serialization should succeed");
         assert!(!json.is_empty());
 
         let mut new_library = TemplateLibrary {
             templates: HashMap::new(),
         };
-        new_library.load_from_json(&json).unwrap();
+        new_library
+            .load_from_json(&json)
+            .expect("JSON loading should succeed");
         assert!(!new_library.templates.is_empty());
     }
 }

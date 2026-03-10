@@ -62,8 +62,11 @@ impl DuplicateReport {
 
     /// Sort groups by similarity score (descending).
     pub fn sort_by_similarity(&mut self) {
-        self.groups
-            .sort_by(|a, b| b.max_similarity().partial_cmp(&a.max_similarity()).unwrap());
+        self.groups.sort_by(|a, b| {
+            b.max_similarity()
+                .partial_cmp(&a.max_similarity())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
     }
 
     /// Filter groups by minimum similarity.
@@ -251,7 +254,11 @@ impl DuplicateReport {
         }
 
         // Sort by priority (savings)
-        recommendations.sort_by(|a, b| b.priority.partial_cmp(&a.priority).unwrap());
+        recommendations.sort_by(|a, b| {
+            b.priority
+                .partial_cmp(&a.priority)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         recommendations
     }
@@ -461,7 +468,7 @@ pub enum RecommendationAction {
 fn current_timestamp() -> i64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
-        .unwrap()
+        .unwrap_or_default()
         .as_secs() as i64
 }
 
@@ -574,7 +581,7 @@ mod tests {
         let group = DuplicateGroup::new(vec!["file1.mp4".to_string(), "file2.mp4".to_string()]);
         report.add_group(group);
 
-        let json = report.to_json().unwrap();
+        let json = report.to_json().expect("operation should succeed");
         assert!(json.contains("file1.mp4"));
         assert!(json.contains("file2.mp4"));
     }

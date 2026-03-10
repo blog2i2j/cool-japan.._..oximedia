@@ -231,7 +231,7 @@ mod tests {
         data.extend_from_slice(&0u32.to_le_bytes()); // vendor length
         data.extend_from_slice(&0u32.to_le_bytes()); // comment count
 
-        let vc = VorbisComments::parse(&data).unwrap();
+        let vc = VorbisComments::parse(&data).expect("operation should succeed");
         assert!(vc.vendor.is_empty());
         assert!(vc.is_empty());
     }
@@ -258,7 +258,7 @@ mod tests {
         data.extend_from_slice(&(comment2.len() as u32).to_le_bytes());
         data.extend_from_slice(comment2);
 
-        let vc = VorbisComments::parse(&data).unwrap();
+        let vc = VorbisComments::parse(&data).expect("operation should succeed");
         assert_eq!(vc.vendor, "Test");
         assert_eq!(vc.len(), 2);
         assert_eq!(vc.tags.get_text("TITLE"), Some("Test Title"));
@@ -274,7 +274,7 @@ mod tests {
         let encoded = vc.encode();
 
         // Parse it back
-        let decoded = VorbisComments::parse(&encoded).unwrap();
+        let decoded = VorbisComments::parse(&encoded).expect("operation should succeed");
         assert_eq!(decoded.vendor, "TestVendor");
         assert_eq!(decoded.tags.get_text("TITLE"), Some("Test Title"));
         assert_eq!(decoded.tags.get_text("ARTIST"), Some("Test Artist"));
@@ -285,7 +285,7 @@ mod tests {
         let vc = VorbisComments::new();
         let encoded = vc.encode();
 
-        let decoded = VorbisComments::parse(&encoded).unwrap();
+        let decoded = VorbisComments::parse(&encoded).expect("operation should succeed");
         assert!(decoded.vendor.is_empty());
         assert!(decoded.is_empty());
     }

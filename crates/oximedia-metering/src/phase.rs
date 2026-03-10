@@ -333,7 +333,7 @@ mod tests {
     fn test_phase_correlation_mono() {
         // Use a short integration window (0.01 s at 1000 Hz) so buffer_size = 10
         // and we only need ~10 samples to fill it — keeping O(N*buffer_size) tiny.
-        let mut meter = PhaseCorrelationMeter::new(1000.0, 0.01).unwrap();
+        let mut meter = PhaseCorrelationMeter::new(1000.0, 0.01).expect("test expectation failed");
 
         // Feed identical varying signals (mono) - use sine wave; 200 samples is plenty.
         for i in 0..200 {
@@ -355,7 +355,7 @@ mod tests {
     #[test]
     fn test_phase_correlation_out_of_phase() {
         // Use a short integration window (0.01 s at 1000 Hz) so buffer_size = 10.
-        let mut meter = PhaseCorrelationMeter::new(1000.0, 0.01).unwrap();
+        let mut meter = PhaseCorrelationMeter::new(1000.0, 0.01).expect("test expectation failed");
 
         // Feed inverted varying signals (out of phase) - use sine wave; 200 samples is plenty.
         for i in 0..200 {
@@ -376,7 +376,7 @@ mod tests {
 
     #[test]
     fn test_phase_correlation_stereo() {
-        let mut meter = PhaseCorrelationMeter::new(48000.0, 0.1).unwrap();
+        let mut meter = PhaseCorrelationMeter::new(48000.0, 0.1).expect("test expectation failed");
 
         // Feed uncorrelated signals
         for i in 0..5000 {
@@ -405,7 +405,7 @@ mod tests {
 
     #[test]
     fn test_stereo_width_mono() {
-        let mut analyzer = StereoWidthAnalyzer::new(48000.0).unwrap();
+        let mut analyzer = StereoWidthAnalyzer::new(48000.0).expect("test expectation failed");
 
         // Feed mono signal
         for _ in 0..5000 {
@@ -418,7 +418,7 @@ mod tests {
 
     #[test]
     fn test_stereo_width_stereo() {
-        let mut analyzer = StereoWidthAnalyzer::new(48000.0).unwrap();
+        let mut analyzer = StereoWidthAnalyzer::new(48000.0).expect("test expectation failed");
 
         // Feed pure side signal (maximum stereo)
         for _ in 0..5000 {
@@ -431,7 +431,7 @@ mod tests {
 
     #[test]
     fn test_phase_meter_reset() {
-        let mut meter = PhaseCorrelationMeter::new(48000.0, 0.1).unwrap();
+        let mut meter = PhaseCorrelationMeter::new(48000.0, 0.1).expect("test expectation failed");
 
         for _ in 0..1000 {
             meter.process(0.5, 0.5);

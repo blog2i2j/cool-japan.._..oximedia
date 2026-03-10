@@ -18,10 +18,11 @@ use crate::error::{CodecError, CodecResult};
 /// use oximedia_codec::vp8::BoolDecoder;
 ///
 /// let data = [0x00, 0x01, 0x02, 0x03];
-/// let mut decoder = BoolDecoder::new(&data).unwrap();
+/// let mut decoder = BoolDecoder::new(&data)?;
 ///
 /// // Read a boolean with 50% probability
-/// let bit = decoder.read_bit().unwrap();
+/// let bit = decoder.read_bit()?;
+/// # Ok::<(), oximedia_codec::error::CodecError>(())
 /// ```
 pub struct BoolDecoder<'a> {
     /// Input data buffer.
@@ -53,8 +54,9 @@ impl<'a> BoolDecoder<'a> {
     /// use oximedia_codec::vp8::BoolDecoder;
     ///
     /// let data = [0x00, 0x01, 0x02];
-    /// let decoder = BoolDecoder::new(&data).unwrap();
+    /// let decoder = BoolDecoder::new(&data)?;
     /// assert!(decoder.bytes_consumed() > 0);
+    /// # Ok::<(), oximedia_codec::error::CodecError>(())
     /// ```
     pub fn new(data: &'a [u8]) -> CodecResult<Self> {
         if data.is_empty() {
@@ -112,10 +114,11 @@ impl<'a> BoolDecoder<'a> {
     /// use oximedia_codec::vp8::BoolDecoder;
     ///
     /// let data = [0x00, 0x01, 0x02, 0x03];
-    /// let mut decoder = BoolDecoder::new(&data).unwrap();
+    /// let mut decoder = BoolDecoder::new(&data)?;
     ///
     /// // Read with 128 (50%) probability
-    /// let bit = decoder.read_bool(128).unwrap();
+    /// let bit = decoder.read_bool(128)?;
+    /// # Ok::<(), oximedia_codec::error::CodecError>(())
     /// ```
     pub fn read_bool(&mut self, prob: u8) -> CodecResult<bool> {
         let split = 1 + (((self.range - 1) * u32::from(prob)) >> 8);
@@ -158,8 +161,9 @@ impl<'a> BoolDecoder<'a> {
     /// use oximedia_codec::vp8::BoolDecoder;
     ///
     /// let data = [0x00, 0x01, 0x02, 0x03];
-    /// let mut decoder = BoolDecoder::new(&data).unwrap();
-    /// let bit = decoder.read_bit().unwrap();
+    /// let mut decoder = BoolDecoder::new(&data)?;
+    /// let bit = decoder.read_bit()?;
+    /// # Ok::<(), oximedia_codec::error::CodecError>(())
     /// ```
     #[inline]
     pub fn read_bit(&mut self) -> CodecResult<bool> {
@@ -185,10 +189,11 @@ impl<'a> BoolDecoder<'a> {
     /// use oximedia_codec::vp8::BoolDecoder;
     ///
     /// let data = [0xFF, 0x00, 0xFF, 0x00];
-    /// let mut decoder = BoolDecoder::new(&data).unwrap();
+    /// let mut decoder = BoolDecoder::new(&data)?;
     ///
     /// // Read an 8-bit value
-    /// let value = decoder.read_literal(8).unwrap();
+    /// let value = decoder.read_literal(8)?;
+    /// # Ok::<(), oximedia_codec::error::CodecError>(())
     /// ```
     pub fn read_literal(&mut self, n: u8) -> CodecResult<u32> {
         let mut value = 0u32;
@@ -217,10 +222,11 @@ impl<'a> BoolDecoder<'a> {
     /// use oximedia_codec::vp8::BoolDecoder;
     ///
     /// let data = [0xFF, 0xFF, 0xFF, 0xFF];
-    /// let mut decoder = BoolDecoder::new(&data).unwrap();
+    /// let mut decoder = BoolDecoder::new(&data)?;
     ///
     /// // Read a signed 4-bit value
-    /// let value = decoder.read_signed_literal(4).unwrap();
+    /// let value = decoder.read_signed_literal(4)?;
+    /// # Ok::<(), oximedia_codec::error::CodecError>(())
     /// ```
     #[allow(clippy::cast_possible_wrap)]
     pub fn read_signed_literal(&mut self, n: u8) -> CodecResult<i32> {
@@ -241,8 +247,9 @@ impl<'a> BoolDecoder<'a> {
     /// use oximedia_codec::vp8::BoolDecoder;
     ///
     /// let data = [0x00, 0x01, 0x02];
-    /// let decoder = BoolDecoder::new(&data).unwrap();
+    /// let decoder = BoolDecoder::new(&data)?;
     /// assert!(decoder.bytes_consumed() > 0);
+    /// # Ok::<(), oximedia_codec::error::CodecError>(())
     /// ```
     #[must_use]
     pub const fn bytes_consumed(&self) -> usize {
@@ -257,7 +264,7 @@ mod tests {
     #[test]
     fn test_bool_decoder_new() {
         let data = [0x00, 0x01, 0x02];
-        let decoder = BoolDecoder::new(&data).unwrap();
+        let decoder = BoolDecoder::new(&data).expect("should succeed");
         // fill() consumes bytes until bits_left >= 8
         assert!(decoder.bytes_consumed() >= 1);
     }
@@ -271,7 +278,7 @@ mod tests {
     #[test]
     fn test_read_bit() {
         let data = [0x00, 0x00, 0x00, 0x00];
-        let mut decoder = BoolDecoder::new(&data).unwrap();
+        let mut decoder = BoolDecoder::new(&data).expect("should succeed");
 
         // Reading bits should not panic
         for _ in 0..16 {
@@ -282,7 +289,7 @@ mod tests {
     #[test]
     fn test_read_literal() {
         let data = [0xFF, 0xFF, 0xFF, 0xFF];
-        let mut decoder = BoolDecoder::new(&data).unwrap();
+        let mut decoder = BoolDecoder::new(&data).expect("should succeed");
 
         // Read some bits
         let _ = decoder.read_literal(8);
@@ -291,7 +298,7 @@ mod tests {
     #[test]
     fn test_read_signed_literal() {
         let data = [0xFF, 0xFF, 0xFF, 0xFF];
-        let mut decoder = BoolDecoder::new(&data).unwrap();
+        let mut decoder = BoolDecoder::new(&data).expect("should succeed");
 
         // Read a signed value
         let _ = decoder.read_signed_literal(4);

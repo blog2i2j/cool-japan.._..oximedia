@@ -203,7 +203,8 @@ impl CaptionGenerator {
 
         // Check duration
         let start = words[0].start;
-        let end = words.last().unwrap().end;
+        // words is non-empty (checked above), so last() always yields Some
+        let end = words[words.len() - 1].end;
         let duration_ms = end.duration_since(start).as_millis();
         if duration_ms > 5000 {
             // Too long
@@ -223,7 +224,8 @@ impl CaptionGenerator {
             return Err(CaptionError::Other("No words for caption".to_string()));
         }
 
-        let end = words.last().unwrap().end;
+        // words is non-empty (checked above), so last() always yields Some
+        let end = words[words.len() - 1].end;
         let text = words
             .iter()
             .map(|w| w.word.as_str())
@@ -290,7 +292,8 @@ impl CaptionGenerator {
             if !words.is_empty() {
                 // Update timing based on word boundaries
                 caption.start = words[0].start;
-                caption.end = words.last().unwrap().end;
+                // words is non-empty (checked above), so last index is valid
+                caption.end = words[words.len() - 1].end;
                 aligned_count += 1;
             }
         }
@@ -431,7 +434,9 @@ mod tests {
         });
 
         let generator = CaptionGenerator::new();
-        let track = generator.generate(&transcript).unwrap();
+        let track = generator
+            .generate(&transcript)
+            .expect("generation should succeed");
 
         assert_eq!(track.captions.len(), 1);
         assert!(track.captions[0].text.contains("Hello world"));
@@ -469,6 +474,9 @@ mod tests {
 
         let speaker = transcript.get_speaker_at(Timestamp::from_secs(2));
         assert!(speaker.is_some());
-        assert_eq!(speaker.unwrap().speaker_id, "Speaker 1");
+        assert_eq!(
+            speaker.expect("speaker should be present").speaker_id,
+            "Speaker 1"
+        );
     }
 }

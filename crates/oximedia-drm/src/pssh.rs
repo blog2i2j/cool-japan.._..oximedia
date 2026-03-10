@@ -290,7 +290,7 @@ mod tests {
     #[test]
     fn test_parse_v0_box() {
         let raw = build_v0_box(WIDEVINE_SYSTEM_ID, b"hello");
-        let boxes = PsshBox::parse(&raw).unwrap();
+        let boxes = PsshBox::parse(&raw).expect("operation should succeed");
         assert_eq!(boxes.len(), 1);
         assert_eq!(boxes[0].system_id, WIDEVINE_SYSTEM_ID);
         assert!(boxes[0].key_ids.is_empty());
@@ -301,7 +301,7 @@ mod tests {
     fn test_parse_v1_box() {
         let kids = vec![vec![1u8; 16], vec![2u8; 16]];
         let raw = build_v1_box(PLAYREADY_SYSTEM_ID, &kids, b"world");
-        let boxes = PsshBox::parse(&raw).unwrap();
+        let boxes = PsshBox::parse(&raw).expect("operation should succeed");
         assert_eq!(boxes.len(), 1);
         assert_eq!(boxes[0].system_id, PLAYREADY_SYSTEM_ID);
         assert_eq!(boxes[0].key_ids.len(), 2);
@@ -312,7 +312,7 @@ mod tests {
     fn test_parse_multiple_boxes() {
         let mut raw = build_v0_box(WIDEVINE_SYSTEM_ID, b"wv");
         raw.extend(build_v0_box(PLAYREADY_SYSTEM_ID, b"pr"));
-        let boxes = PsshBox::parse(&raw).unwrap();
+        let boxes = PsshBox::parse(&raw).expect("operation should succeed");
         assert_eq!(boxes.len(), 2);
         assert_eq!(boxes[0].system_id, WIDEVINE_SYSTEM_ID);
         assert_eq!(boxes[1].system_id, PLAYREADY_SYSTEM_ID);
@@ -326,7 +326,7 @@ mod tests {
             data: b"clear".to_vec(),
         };
         let bytes = pssh.serialize();
-        let parsed = PsshBox::parse(&bytes).unwrap();
+        let parsed = PsshBox::parse(&bytes).expect("operation should succeed");
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0], pssh);
     }
@@ -339,7 +339,7 @@ mod tests {
             data: b"drm-data".to_vec(),
         };
         let bytes = pssh.serialize();
-        let parsed = PsshBox::parse(&bytes).unwrap();
+        let parsed = PsshBox::parse(&bytes).expect("operation should succeed");
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0], pssh);
     }
@@ -407,7 +407,7 @@ mod tests {
     #[test]
     fn test_parse_empty_data_field() {
         let raw = build_v0_box(WIDEVINE_SYSTEM_ID, b"");
-        let boxes = PsshBox::parse(&raw).unwrap();
+        let boxes = PsshBox::parse(&raw).expect("operation should succeed");
         assert_eq!(boxes[0].data, b"");
     }
 

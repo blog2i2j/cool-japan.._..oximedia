@@ -343,7 +343,9 @@ mod tests {
     fn test_manager_active_job_count() {
         let mut mgr = UploadManager::with_chunk_size(100);
         let id = mgr.create_job("file.mp4", 100);
-        mgr.get_job_mut(id).unwrap().state = UploadState::Uploading;
+        mgr.get_job_mut(id)
+            .expect("get_job_mut should succeed")
+            .state = UploadState::Uploading;
         assert_eq!(mgr.active_job_count(), 1);
     }
 }

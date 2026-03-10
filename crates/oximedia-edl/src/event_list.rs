@@ -203,10 +203,10 @@ mod tests {
             reel.to_string(),
             TrackType::Video,
             EditType::Cut,
-            EdlTimecode::new(1, 0, rec_in_sec, 0, fr).unwrap(),
-            EdlTimecode::new(1, 0, rec_out_sec, 0, fr).unwrap(),
-            EdlTimecode::new(1, 0, rec_in_sec, 0, fr).unwrap(),
-            EdlTimecode::new(1, 0, rec_out_sec, 0, fr).unwrap(),
+            EdlTimecode::new(1, 0, rec_in_sec, 0, fr).expect("failed to create"),
+            EdlTimecode::new(1, 0, rec_out_sec, 0, fr).expect("failed to create"),
+            EdlTimecode::new(1, 0, rec_in_sec, 0, fr).expect("failed to create"),
+            EdlTimecode::new(1, 0, rec_out_sec, 0, fr).expect("failed to create"),
         )
     }
 
@@ -287,8 +287,8 @@ mod tests {
             make_event(1, "A001", 0, 5),
         ]);
         list.sort_by_record_in();
-        assert_eq!(list.get(0).unwrap().number, 1);
-        assert_eq!(list.get(1).unwrap().number, 2);
+        assert_eq!(list.get(0).expect("failed to get value").number, 1);
+        assert_eq!(list.get(1).expect("failed to get value").number, 2);
     }
 
     #[test]
@@ -298,8 +298,8 @@ mod tests {
             make_event(20, "A002", 5, 10),
         ]);
         list.renumber(1);
-        assert_eq!(list.get(0).unwrap().number, 1);
-        assert_eq!(list.get(1).unwrap().number, 2);
+        assert_eq!(list.get(0).expect("failed to get value").number, 1);
+        assert_eq!(list.get(1).expect("failed to get value").number, 2);
     }
 
     #[test]
@@ -352,20 +352,20 @@ mod tests {
             "A001".to_string(),
             TrackType::Video,
             EditType::Cut,
-            EdlTimecode::new(1, 0, 0, 0, fr).unwrap(),
-            EdlTimecode::new(1, 0, 10, 0, fr).unwrap(),
-            EdlTimecode::new(1, 0, 0, 0, fr).unwrap(),
-            EdlTimecode::new(1, 0, 10, 0, fr).unwrap(),
+            EdlTimecode::new(1, 0, 0, 0, fr).expect("failed to create"),
+            EdlTimecode::new(1, 0, 10, 0, fr).expect("failed to create"),
+            EdlTimecode::new(1, 0, 0, 0, fr).expect("failed to create"),
+            EdlTimecode::new(1, 0, 10, 0, fr).expect("failed to create"),
         );
         let e2 = EdlEvent::new(
             2,
             "A002".to_string(),
             TrackType::Video,
             EditType::Cut,
-            EdlTimecode::new(1, 0, 5, 0, fr).unwrap(),
-            EdlTimecode::new(1, 0, 15, 0, fr).unwrap(),
-            EdlTimecode::new(1, 0, 5, 0, fr).unwrap(),
-            EdlTimecode::new(1, 0, 15, 0, fr).unwrap(),
+            EdlTimecode::new(1, 0, 5, 0, fr).expect("failed to create"),
+            EdlTimecode::new(1, 0, 15, 0, fr).expect("failed to create"),
+            EdlTimecode::new(1, 0, 5, 0, fr).expect("failed to create"),
+            EdlTimecode::new(1, 0, 15, 0, fr).expect("failed to create"),
         );
         let list = EventList::from_events(vec![e1, e2]);
         let overlaps = list.find_overlaps();

@@ -227,7 +227,10 @@ impl QuotaManager {
         request: &ResourceRequest,
     ) -> Result<(), Vec<QuotaViolation>> {
         self.check(consumer_id, request)?;
-        let usage = self.usage.get_mut(consumer_id).unwrap();
+        let usage = self
+            .usage
+            .get_mut(consumer_id)
+            .ok_or_else(|| vec![QuotaViolation::TasksExceeded])?;
         usage.cpu_cores += request.cpu_cores;
         usage.memory_bytes += request.memory_bytes;
         usage.gpu_units += request.gpu_units;
@@ -417,12 +420,12 @@ mod tests {
         mgr.register("w1", ResourceLimits::default());
         let req = ResourceRequest::cpu_only(1.0);
         assert!(mgr.acquire("w1", &req).is_ok());
-        let usage = mgr.usage("w1").unwrap();
+        let usage = mgr.usage("w1").expect("usage should be available");
         assert!((usage.cpu_cores - 1.0).abs() < f64::EPSILON);
         assert_eq!(usage.active_tasks, 1);
 
         mgr.release("w1", &req);
-        let usage = mgr.usage("w1").unwrap();
+        let usage = mgr.usage("w1").expect("usage should be available");
         assert!((usage.cpu_cores - 0.0).abs() < f64::EPSILON);
         assert_eq!(usage.active_tasks, 0);
     }
@@ -447,8 +450,10 @@ mod tests {
         mgr.register("w1", ResourceLimits::default());
         mgr.register("w2", ResourceLimits::default());
         let req = ResourceRequest::cpu_only(1.0);
-        mgr.acquire("w1", &req).unwrap();
-        mgr.acquire("w2", &req).unwrap();
+        mgr.acquire("w1", &req)
+            .expect("resource acquisition should succeed");
+        mgr.acquire("w2", &req)
+            .expect("resource acquisition should succeed");
         assert!((mgr.global_usage().cpu_cores - 2.0).abs() < f64::EPSILON);
         assert_eq!(mgr.global_usage().active_tasks, 2);
     }
@@ -462,8 +467,11 @@ mod tests {
         };
         mgr.register("w1", limits);
         let req = ResourceRequest::cpu_only(2.0);
-        mgr.acquire("w1", &req).unwrap();
-        let util = mgr.cpu_utilisation("w1").unwrap();
+        mgr.acquire("w1", &req)
+            .expect("resource acquisition should succeed");
+        let util = mgr
+            .cpu_utilisation("w1")
+            .expect("utilisation should be available");
         assert!((util - 0.5).abs() < f64::EPSILON);
     }
 
@@ -476,8 +484,11 @@ mod tests {
         };
         mgr.register("w1", limits);
         let req = ResourceRequest::memory_only(250);
-        mgr.acquire("w1", &req).unwrap();
-        let util = mgr.memory_utilisation("w1").unwrap();
+        mgr.acquire("w1", &req)
+            .expect("resource acquisition should succeed");
+        let util = mgr
+            .memory_utilisation("w1")
+            .expect("utilisation should be available");
         assert!((util - 0.25).abs() < f64::EPSILON);
     }
 

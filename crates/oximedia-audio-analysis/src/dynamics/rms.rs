@@ -87,7 +87,10 @@ mod tests {
         assert!(!rms_track.is_empty());
 
         // RMS should generally increase
-        assert!(rms_track.last().unwrap() > rms_track.first().unwrap());
+        assert!(
+            rms_track.last().expect("expected last to be available")
+                > rms_track.first().expect("expected last to be available")
+        );
     }
 
     #[test]

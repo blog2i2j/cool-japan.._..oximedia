@@ -278,7 +278,7 @@ impl IncidentTracker {
         }
         let total: f64 = resolved
             .iter()
-            .map(|i| i.resolved_at.unwrap() - i.created_at)
+            .map(|i| i.resolved_at.unwrap_or(i.created_at) - i.created_at)
             .sum();
         Some(total / resolved.len() as f64)
     }
@@ -340,7 +340,9 @@ mod tests {
         inc.transition(IncidentState::Resolved, 1050.0);
         assert_eq!(inc.state, IncidentState::Resolved);
         assert!(!inc.is_active());
-        assert!((inc.resolved_at.unwrap() - 1050.0).abs() < f64::EPSILON);
+        assert!(
+            (inc.resolved_at.expect("resolved_at should be valid") - 1050.0).abs() < f64::EPSILON
+        );
     }
 
     #[test]
@@ -415,7 +417,9 @@ mod tests {
         tracker.transition(id1, IncidentState::Resolved, 1100.0); // 100s
         tracker.transition(id2, IncidentState::Resolved, 1200.0); // 200s
 
-        let mttr = tracker.mean_time_to_resolve().unwrap();
+        let mttr = tracker
+            .mean_time_to_resolve()
+            .expect("mean_time_to_resolve should succeed");
         assert!((mttr - 150.0).abs() < f64::EPSILON);
     }
 

@@ -23,9 +23,9 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-bench = "0.1.0"
+oximedia-bench = "0.1.1"
 # or without VMAF:
-oximedia-bench = { version = "0.1.0", default-features = false }
+oximedia-bench = { version = "0.1.1", default-features = false }
 ```
 
 ```rust

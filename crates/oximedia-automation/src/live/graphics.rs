@@ -143,7 +143,7 @@ mod tests {
         let mut graphics = GraphicsAutomation::new();
         let id = graphics
             .create_layer("Lower Third".to_string(), "lower_third.xml".to_string())
-            .unwrap();
+            .expect("operation should succeed");
         assert_eq!(id, 1);
     }
 
@@ -152,14 +152,14 @@ mod tests {
         let mut graphics = GraphicsAutomation::new();
         let id = graphics
             .create_layer("Lower Third".to_string(), "lower_third.xml".to_string())
-            .unwrap();
+            .expect("operation should succeed");
 
         assert_eq!(graphics.visible_layers().len(), 0);
 
-        graphics.show_layer(id).unwrap();
+        graphics.show_layer(id).expect("show_layer should succeed");
         assert_eq!(graphics.visible_layers().len(), 1);
 
-        graphics.hide_layer(id).unwrap();
+        graphics.hide_layer(id).expect("hide_layer should succeed");
         assert_eq!(graphics.visible_layers().len(), 0);
     }
 
@@ -168,12 +168,14 @@ mod tests {
         let mut graphics = GraphicsAutomation::new();
         let id = graphics
             .create_layer("Lower Third".to_string(), "lower_third.xml".to_string())
-            .unwrap();
+            .expect("operation should succeed");
 
         let mut data = HashMap::new();
         data.insert("name".to_string(), "John Doe".to_string());
         data.insert("title".to_string(), "Reporter".to_string());
 
-        graphics.update_layer(id, data).unwrap();
+        graphics
+            .update_layer(id, data)
+            .expect("update_layer should succeed");
     }
 }

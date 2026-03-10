@@ -332,7 +332,7 @@ mod tests {
     #[test]
     fn test_toc_parse() {
         // SILK narrowband, 10ms, mono, single frame
-        let toc = TocInfo::parse(0x00).unwrap();
+        let toc = TocInfo::parse(0x00).expect("should succeed");
         assert_eq!(toc.mode, OpusMode::Silk);
         assert_eq!(toc.bandwidth, OpusBandwidth::Narrowband);
         assert_eq!(toc.frame_size, 480);
@@ -342,7 +342,7 @@ mod tests {
     #[test]
     fn test_packet_parse_single() {
         let data = vec![0x00, 0x01, 0x02, 0x03];
-        let packet = OpusPacket::parse(&data).unwrap();
+        let packet = OpusPacket::parse(&data).expect("should succeed");
         assert_eq!(packet.frame_count(), 1);
         assert_eq!(packet.frames[0].len(), 3);
     }
@@ -350,7 +350,7 @@ mod tests {
     #[test]
     fn test_packet_parse_double() {
         let data = vec![0x01, 0xAA, 0xBB, 0xCC, 0xDD];
-        let packet = OpusPacket::parse(&data).unwrap();
+        let packet = OpusPacket::parse(&data).expect("should succeed");
         assert_eq!(packet.frame_count(), 2);
         assert_eq!(packet.frames[0].len(), 2);
         assert_eq!(packet.frames[1].len(), 2);

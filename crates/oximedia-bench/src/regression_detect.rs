@@ -212,7 +212,7 @@ mod tests {
         let t = RegressionThreshold::new("fps", 0.10);
         let excess = t.exceeded_by(0.20);
         assert!(excess.is_some());
-        let excess = excess.unwrap();
+        let excess = excess.expect("excess should be valid");
         assert!((excess - 0.10).abs() < 1e-9);
     }
 

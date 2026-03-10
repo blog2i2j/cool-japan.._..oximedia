@@ -231,7 +231,7 @@ mod tests {
     #[test]
     fn test_screen_capture_creation() {
         let config = CaptureConfig::default();
-        let capture = ScreenCapture::new(config).unwrap();
+        let capture = ScreenCapture::new(config).expect("valid screen capture");
         assert!(!capture.is_capturing());
     }
 
@@ -246,15 +246,15 @@ mod tests {
     #[test]
     fn test_capture_lifecycle() {
         let config = CaptureConfig::default();
-        let mut capture = ScreenCapture::new(config).unwrap();
+        let mut capture = ScreenCapture::new(config).expect("valid screen capture");
 
-        capture.start().unwrap();
+        capture.start().expect("start should succeed");
         assert!(capture.is_capturing());
 
-        capture.pause().unwrap();
+        capture.pause().expect("pause should succeed");
         assert!(!capture.is_capturing());
 
-        capture.resume().unwrap();
+        capture.resume().expect("resume should succeed");
         assert!(capture.is_capturing());
 
         capture.stop();
@@ -263,17 +263,19 @@ mod tests {
 
     #[test]
     fn test_list_monitors() {
-        let monitors = ScreenCapture::list_monitors().unwrap();
+        let monitors = ScreenCapture::list_monitors().expect("list monitors should succeed");
         assert!(!monitors.is_empty());
     }
 
     #[test]
     fn test_capture_frame() {
         let config = CaptureConfig::default();
-        let mut capture = ScreenCapture::new(config).unwrap();
+        let mut capture = ScreenCapture::new(config).expect("valid screen capture");
 
-        capture.start().unwrap();
-        let frame = capture.capture_frame().unwrap();
+        capture.start().expect("start should succeed");
+        let frame = capture
+            .capture_frame()
+            .expect("capture frame should succeed");
 
         assert!(frame.width > 0);
         assert!(frame.height > 0);
@@ -292,10 +294,12 @@ mod tests {
         let mut config = CaptureConfig::default();
         config.region = region;
 
-        let mut capture = ScreenCapture::new(config).unwrap();
-        capture.start().unwrap();
+        let mut capture = ScreenCapture::new(config).expect("valid screen capture");
+        capture.start().expect("start should succeed");
 
-        let frame = capture.capture_frame().unwrap();
+        let frame = capture
+            .capture_frame()
+            .expect("capture frame should succeed");
         assert_eq!(frame.width, 1280);
         assert_eq!(frame.height, 720);
     }

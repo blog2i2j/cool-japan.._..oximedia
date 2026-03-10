@@ -256,7 +256,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_eas_manager() {
-        let mut manager = EasManager::new().await.unwrap();
+        let mut manager = EasManager::new().await.expect("new should succeed");
 
         let alert = EasAlert::new(
             EasAlertType::RequiredWeeklyTest,
@@ -264,7 +264,10 @@ mod tests {
             Duration::from_secs(60),
         );
 
-        manager.handle_alert(alert).await.unwrap();
+        manager
+            .handle_alert(alert)
+            .await
+            .expect("operation should succeed");
 
         let active = manager.get_active_alerts().await;
         assert_eq!(active.len(), 1);

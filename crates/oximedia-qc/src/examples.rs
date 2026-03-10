@@ -16,7 +16,7 @@ pub fn example_basic_validation() {
     let _qc = QualityControl::with_preset(QcPreset::Basic);
 
     // In production:
-    // let report = qc.validate("video.mkv").unwrap();
+    // let report = qc.validate("video.mkv").expect("operation should succeed");
     // if report.overall_passed {
     //     println!("Validation passed!");
     // } else {
@@ -51,7 +51,7 @@ pub fn example_custom_rules() {
     qc.add_rule(Box::new(temporal::DuplicateFrameDetection::new()));
 
     // In production:
-    // let report = qc.validate("video.mkv").unwrap();
+    // let report = qc.validate("video.mkv").expect("operation should succeed");
 }
 
 /// Example: Broadcast delivery validation.
@@ -83,7 +83,7 @@ pub fn example_broadcast_validation() {
     qc.add_rule(Box::new(standards::SmpteValidator::new()));
 
     // In production:
-    // let report = qc.validate("broadcast.mxf").unwrap();
+    // let report = qc.validate("broadcast.mxf").expect("operation should succeed");
 }
 
 /// Example: Streaming platform validation.
@@ -93,11 +93,11 @@ pub fn example_streaming_validation() {
     let _qc = QualityControl::with_preset(QcPreset::YouTube);
 
     // In production:
-    // let report = qc.validate_streaming("upload.webm").unwrap();
+    // let report = qc.validate_streaming("upload.webm").expect("operation should succeed");
     //
     // // Export report as JSON
-    // let json = report.to_json().unwrap();
-    // std::fs::write("qc_report.json", json).unwrap();
+    // let json = report.to_json().expect("operation should succeed");
+    // std::fs::write("qc_report.json", json).expect("operation should succeed");
 }
 
 /// Example: Batch processing multiple files.
@@ -113,7 +113,7 @@ pub fn example_batch_processing() {
     // let results = processor.process_directory(
     //     Path::new("/media/videos"),
     //     "*.mkv"
-    // ).unwrap();
+    // ).expect("operation should succeed");
     //
     // println!("{}", results.summary());
     // println!("Passed: {}/{}", results.passed, results.total_files);
@@ -147,8 +147,8 @@ pub fn example_qc_profiles() {
         );
 
     // In production:
-    // let json = custom.to_json().unwrap();
-    // std::fs::write("custom_profile.json", json).unwrap();
+    // let json = custom.to_json().expect("operation should succeed");
+    // std::fs::write("custom_profile.json", json).expect("operation should succeed");
     let _ = custom;
 }
 
@@ -161,21 +161,21 @@ pub fn example_database_integration() {
     use std::path::Path; // Used in commented example code
 
     // Open database
-    // let mut db = QcDatabase::open("qc_results.db").unwrap();
+    // let mut db = QcDatabase::open("qc_results.db").expect("operation should succeed");
 
     // Run QC and store results
     // let _qc = QualityControl::with_preset(QcPreset::Comprehensive);
-    // let report = qc.validate("video.mkv").unwrap();
-    // let report_id = db.store_report(&report).unwrap();
+    // let report = qc.validate("video.mkv").expect("operation should succeed");
+    // let report_id = db.store_report(&report).expect("operation should succeed");
 
     // Retrieve historical results
-    // let reports = db.get_reports_for_file("video.mkv").unwrap();
+    // let reports = db.get_reports_for_file("video.mkv").expect("operation should succeed");
     // for report in reports {
     //     println!("Report from: {}", report.timestamp);
     // }
 
     // Get statistics
-    // let stats = db.get_file_statistics("video.mkv").unwrap();
+    // let stats = db.get_file_statistics("video.mkv").expect("operation should succeed");
     // println!("Total runs: {}", stats.total_runs);
     // println!("Pass rate: {:.1}%",
     //     100.0 * stats.passed_runs as f64 / stats.total_runs as f64
@@ -195,7 +195,7 @@ pub fn example_mp4_validation() {
     ));
 
     // In production:
-    // let report = qc.validate("video.mp4").unwrap();
+    // let report = qc.validate("video.mp4").expect("operation should succeed");
 }
 
 /// Example: Matroska/WebM validation.
@@ -211,7 +211,7 @@ pub fn example_matroska_validation() {
     ));
 
     // In production:
-    // let report = qc.validate("video.mkv").unwrap();
+    // let report = qc.validate("video.mkv").expect("operation should succeed");
 }
 
 /// Example: MXF validation.
@@ -227,7 +227,7 @@ pub fn example_mxf_validation() {
     ));
 
     // In production:
-    // let report = qc.validate("broadcast.mxf").unwrap();
+    // let report = qc.validate("broadcast.mxf").expect("operation should succeed");
 }
 
 /// Example: MPEG-TS validation.
@@ -244,7 +244,7 @@ pub fn example_mpegts_validation() {
     ));
 
     // In production:
-    // let report = qc.validate("stream.ts").unwrap();
+    // let report = qc.validate("stream.ts").expect("operation should succeed");
 }
 
 /// Example: Codec bitstream validation.
@@ -260,7 +260,7 @@ pub fn example_av1_validation() {
     ));
 
     // In production:
-    // let report = qc.validate("video.mkv").unwrap();
+    // let report = qc.validate("video.mkv").expect("operation should succeed");
 }
 
 /// Example: Professional standards validation.
@@ -283,7 +283,7 @@ pub fn example_professional_standards() {
     qc.add_rule(Box::new(standards::DppValidator::new()));
 
     // In production:
-    // let report = qc.validate("programme.mxf").unwrap();
+    // let report = qc.validate("programme.mxf").expect("operation should succeed");
 }
 
 /// Example: Temporal quality checks.
@@ -304,7 +304,7 @@ pub fn example_temporal_checks() {
     qc.add_rule(Box::new(temporal::DurationAccuracy::new()));
 
     // In production:
-    // let report = qc.validate("video.mkv").unwrap();
+    // let report = qc.validate("video.mkv").expect("operation should succeed");
 }
 
 /// Example: Report generation and export.
@@ -315,17 +315,17 @@ pub fn example_report_generation() {
     let _qc = QualityControl::with_preset(QcPreset::Comprehensive);
 
     // In production:
-    // let report = qc.validate("video.mkv").unwrap();
+    // let report = qc.validate("video.mkv").expect("operation should succeed");
     //
     // // Export as JSON
-    // let json = report.to_json().unwrap();
-    // std::fs::write("report.json", json).unwrap();
+    // let json = report.to_json().expect("operation should succeed");
+    // std::fs::write("report.json", json).expect("operation should succeed");
     //
     // // Export as XML
     // #[cfg(feature = "xml")]
     // {
-    //     let xml = report.to_xml().unwrap();
-    //     std::fs::write("report.xml", xml).unwrap();
+    //     let xml = report.to_xml().expect("operation should succeed");
+    //     std::fs::write("report.xml", xml).expect("operation should succeed");
     // }
     //
     // // Print text summary

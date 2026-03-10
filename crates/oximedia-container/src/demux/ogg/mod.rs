@@ -285,7 +285,9 @@ impl<R: MediaSource> OggDemuxer<R> {
         let mut packets_to_create = Vec::new();
 
         for (i, (data, complete)) in packets.into_iter().enumerate() {
-            let stream = self.logical_streams.get_mut(&serial).unwrap();
+            let Some(stream) = self.logical_streams.get_mut(&serial) else {
+                break; // Stream was removed concurrently — should not happen
+            };
 
             // Handle continuation from previous page
             let packet_data = if i == 0 && is_continuation {
@@ -332,12 +334,14 @@ impl<R: MediaSource> OggDemuxer<R> {
         // Create packets outside the mutable borrow scope
         for (stream_index, packet_data, sample_rate, last_granule) in packets_to_create {
             let timebase = Rational::new(1, i64::from(sample_rate.max(1)));
-            let pts = if has_granule {
-                let stream = self.logical_streams.get(&serial).unwrap();
-                stream.granule_to_timebase(granule_position, timebase)
+            let pts = if let Some(stream) = self.logical_streams.get(&serial) {
+                if has_granule {
+                    stream.granule_to_timebase(granule_position, timebase)
+                } else {
+                    stream.granule_to_timebase(last_granule, timebase)
+                }
             } else {
-                let stream = self.logical_streams.get(&serial).unwrap();
-                stream.granule_to_timebase(last_granule, timebase)
+                0i64
             };
 
             let packet = Packet::new(
@@ -837,7 +841,7 @@ mod tests {
         let result = demuxer.probe().await;
         assert!(result.is_ok());
 
-        let probe = result.unwrap();
+        let probe = result.expect("operation should succeed");
         assert_eq!(probe.format, ContainerFormat::Ogg);
 
         // Check stream info
@@ -866,13 +870,13 @@ mod tests {
         let mut demuxer = OggDemuxer::new(source);
 
         // Probe first
-        demuxer.probe().await.unwrap();
+        demuxer.probe().await.expect("probe should succeed");
 
         // Read packet
         let result = demuxer.read_packet().await;
         assert!(result.is_ok());
 
-        let packet = result.unwrap();
+        let packet = result.expect("operation should succeed");
         assert_eq!(packet.stream_index, 0);
         assert_eq!(packet.size(), 100);
     }
@@ -891,7 +895,7 @@ mod tests {
         let source = MemorySource::new(Bytes::from(data));
         let mut demuxer = OggDemuxer::new(source);
 
-        demuxer.probe().await.unwrap();
+        demuxer.probe().await.expect("probe should succeed");
 
         // Should return EOF when no more packets
         let result = demuxer.read_packet().await;

@@ -330,7 +330,10 @@ impl DriftCorrector {
         }
 
         let (first_time, first_frames) = self.history[0];
-        let (last_time, last_frames) = *self.history.last().unwrap();
+        let (last_time, last_frames) = match self.history.last() {
+            Some(v) => *v,
+            None => return,
+        };
 
         let time_diff_ms = last_time.saturating_sub(first_time);
         let frame_diff = last_frames.saturating_sub(first_frames);
@@ -558,7 +561,11 @@ impl TimecodeAggregator {
     fn highest_confidence(&self) -> Option<Timecode> {
         self.sources
             .iter()
-            .max_by(|a, b| a.confidence.partial_cmp(&b.confidence).unwrap())
+            .max_by(|a, b| {
+                a.confidence
+                    .partial_cmp(&b.confidence)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .map(|s| s.timecode)
     }
 
@@ -608,11 +615,13 @@ pub enum VotingStrategy {
     WeightedAverage,
 }
 
-/// Get current time in milliseconds (mock implementation)
+/// Get current time in milliseconds since the Unix epoch.
 fn current_time_ms() -> u64 {
-    // In a real implementation, this would use std::time::SystemTime
-    // For now, return a placeholder
-    0
+    use std::time::{SystemTime, UNIX_EPOCH};
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_millis() as u64)
+        .unwrap_or(0)
 }
 
 #[cfg(test)]
@@ -629,7 +638,7 @@ mod tests {
     fn test_jam_sync() {
         let mut sync =
             TimecodeSynchronizer::new(FrameRate::Fps25, ReconciliationStrategy::PreferLtc);
-        let tc = Timecode::new(1, 0, 0, 0, FrameRate::Fps25).unwrap();
+        let tc = Timecode::new(1, 0, 0, 0, FrameRate::Fps25).expect("valid timecode");
 
         sync.jam_sync(tc);
         assert!(sync.is_jam_synced());
@@ -640,7 +649,7 @@ mod tests {
         let mut genlock = GenlockSynchronizer::new(FrameRate::Fps25);
         genlock.update_reference(0.0);
 
-        let tc = Timecode::new(1, 0, 0, 0, FrameRate::Fps25).unwrap();
+        let tc = Timecode::new(1, 0, 0, 0, FrameRate::Fps25).expect("valid timecode");
         genlock.update_timecode(&tc);
 
         // Phase for frame 0 is 0.0, which matches reference 0.0, so it should be locked
@@ -648,7 +657,7 @@ mod tests {
 
         // Test with different phase
         genlock.update_reference(0.5);
-        let tc2 = Timecode::new(1, 0, 0, 0, FrameRate::Fps25).unwrap();
+        let tc2 = Timecode::new(1, 0, 0, 0, FrameRate::Fps25).expect("valid timecode");
         genlock.update_timecode(&tc2);
         // Phase error is now 0.5, so it should not be locked
         assert!(!genlock.is_locked());
@@ -658,8 +667,8 @@ mod tests {
     fn test_aggregator() {
         let mut agg = TimecodeAggregator::new(VotingStrategy::HighestConfidence);
 
-        let tc1 = Timecode::new(1, 0, 0, 0, FrameRate::Fps25).unwrap();
-        let tc2 = Timecode::new(1, 0, 0, 1, FrameRate::Fps25).unwrap();
+        let tc1 = Timecode::new(1, 0, 0, 0, FrameRate::Fps25).expect("valid timecode");
+        let tc2 = Timecode::new(1, 0, 0, 1, FrameRate::Fps25).expect("valid timecode");
 
         agg.add_source("LTC".to_string(), tc1, 0.8);
         agg.add_source("VITC".to_string(), tc2, 0.9);

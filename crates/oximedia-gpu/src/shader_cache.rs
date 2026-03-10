@@ -357,7 +357,13 @@ mod tests {
         cache.insert(shader);
         cache.get(&version);
         cache.get(&version);
-        assert_eq!(cache.get(&version).unwrap().hit_count, 3);
+        assert_eq!(
+            cache
+                .get(&version)
+                .expect("cache get should return stored data")
+                .hit_count,
+            3
+        );
     }
 
     #[test]

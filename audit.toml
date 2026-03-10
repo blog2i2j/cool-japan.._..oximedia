@@ -1,0 +1,19 @@
+[[advisories.ignore]]
+id = "RUSTSEC-2025-0134"
+reason = "Transitive dependency via tungstenite/reqwest. No direct usage by OxiMedia code. Upstream fix pending; will be resolved when reqwest/tungstenite update their deps."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0002"
+reason = "Transitive via tantivy/ratatui. The unsound IterMut is not used by any OxiMedia code paths. Will update when upstream fix lands."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2024-0437"
+reason = "Transitive via prometheus metrics library. User-controlled input is not parsed with protobuf in OxiMedia's usage pattern. Low risk."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2023-0071"
+reason = "Transitive via sqlx-mysql. OxiMedia uses PostgreSQL/SQLite exclusively, not MySQL. The affected code path is never reached."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2024-0384"
+reason = "Transitive via parking_lot/reed-solomon-erasure. No upstream fix available yet. Will resolve when reed-solomon-erasure updates its dependency tree."

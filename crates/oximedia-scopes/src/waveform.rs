@@ -74,7 +74,8 @@ pub fn generate_luma_waveform(
 
                 // Map to scope coordinates
                 let scope_x = (x * scope_width) / width;
-                let scope_y = scope_height - 1 - ((u32::from(luma) * scope_height) / 255);
+                let mapped = ((u32::from(luma) * scope_height) / 255).min(scope_height - 1);
+                let scope_y = scope_height - 1 - mapped;
 
                 let idx = (scope_y * scope_width + scope_x) as usize;
                 if idx < local_accum.len() {
@@ -170,7 +171,8 @@ pub fn generate_rgb_parade(
             let scope_x = (x * section_width) / width;
 
             for (channel, &value) in rgb.iter().enumerate() {
-                let scope_y = scope_height - 1 - ((u32::from(value) * scope_height) / 255);
+                let mapped = ((u32::from(value) * scope_height) / 255).min(scope_height - 1);
+                let scope_y = scope_height - 1 - mapped;
                 let idx = (scope_y * section_width + scope_x) as usize;
 
                 if idx < accumulators[channel].len() {
@@ -275,7 +277,8 @@ pub fn generate_rgb_overlay(
             let scope_x = (x * scope_width) / width;
 
             for (channel, &value) in rgb.iter().enumerate() {
-                let scope_y = scope_height - 1 - ((u32::from(value) * scope_height) / 255);
+                let mapped = ((u32::from(value) * scope_height) / 255).min(scope_height - 1);
+                let scope_y = scope_height - 1 - mapped;
                 let idx = (scope_y * scope_width + scope_x) as usize;
 
                 if idx < accumulators[channel].len() {
@@ -376,7 +379,8 @@ pub fn generate_ycbcr_waveform(
             let scope_x = (x * section_width) / width;
 
             for (channel, &value) in ycbcr.iter().enumerate() {
-                let scope_y = scope_height - 1 - ((u32::from(value) * scope_height) / 255);
+                let mapped = ((u32::from(value) * scope_height) / 255).min(scope_height - 1);
+                let scope_y = scope_height - 1 - mapped;
                 let idx = (scope_y * section_width + scope_x) as usize;
 
                 if idx < accumulators[channel].len() {

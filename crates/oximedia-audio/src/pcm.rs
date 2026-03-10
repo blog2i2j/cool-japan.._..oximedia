@@ -169,7 +169,7 @@ mod tests {
             codec: CodecId::Pcm,
             ..Default::default()
         };
-        let decoder = PcmDecoder::new(&config).unwrap();
+        let decoder = PcmDecoder::new(&config).expect("should succeed");
         assert_eq!(decoder.codec(), CodecId::Pcm);
     }
 
@@ -179,7 +179,7 @@ mod tests {
             codec: CodecId::Pcm,
             ..Default::default()
         };
-        let decoder = PcmDecoder::with_format(&config, SampleFormat::F32).unwrap();
+        let decoder = PcmDecoder::with_format(&config, SampleFormat::F32).expect("should succeed");
         assert_eq!(decoder.output_format(), Some(SampleFormat::F32));
     }
 
@@ -189,7 +189,7 @@ mod tests {
             codec: CodecId::Pcm,
             ..Default::default()
         };
-        let encoder = PcmEncoder::new(config).unwrap();
+        let encoder = PcmEncoder::new(config).expect("should succeed");
         assert_eq!(encoder.codec(), CodecId::Pcm);
     }
 
@@ -199,7 +199,7 @@ mod tests {
             codec: CodecId::Pcm,
             ..Default::default()
         };
-        let encoder = PcmEncoder::with_format(config, SampleFormat::F32).unwrap();
+        let encoder = PcmEncoder::with_format(config, SampleFormat::F32).expect("should succeed");
         assert_eq!(encoder.format(), SampleFormat::F32);
     }
 }

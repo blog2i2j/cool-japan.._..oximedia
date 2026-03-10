@@ -602,14 +602,14 @@ mod tests {
 
     #[test]
     fn test_additive_synth_creation() {
-        let synth = AdditiveSynth::new(48000, 8).unwrap();
+        let synth = AdditiveSynth::new(48000, 8).expect("failed to create");
         assert_eq!(synth.sample_rate, 48000);
         assert_eq!(synth.phase.len(), 8);
     }
 
     #[test]
     fn test_additive_synth_process() {
-        let mut synth = AdditiveSynth::new(48000, 8).unwrap();
+        let mut synth = AdditiveSynth::new(48000, 8).expect("failed to create");
         let mut buffer = vec![0.0_f32; 1024];
         synth.process(&mut buffer, 440.0);
         assert!(buffer.iter().any(|&x| x != 0.0));
@@ -617,8 +617,10 @@ mod tests {
 
     #[test]
     fn test_subtractive_synth() {
-        let mut synth = SubtractiveSynth::new(48000).unwrap();
-        synth.set_filter(1000.0, 0.707).unwrap();
+        let mut synth = SubtractiveSynth::new(48000).expect("failed to create");
+        synth
+            .set_filter(1000.0, 0.707)
+            .expect("set_filter should succeed");
         let mut buffer = vec![0.0_f32; 1024];
         synth.process(&mut buffer, 440.0);
         assert!(buffer.iter().any(|&x| x != 0.0));
@@ -626,7 +628,7 @@ mod tests {
 
     #[test]
     fn test_fm_synth() {
-        let mut synth = FmSynth::new(48000).unwrap();
+        let mut synth = FmSynth::new(48000).expect("failed to create");
         synth.set_modulation_index(2.0);
         let mut buffer = vec![0.0_f32; 1024];
         synth.process(&mut buffer, 440.0, 220.0);
@@ -670,7 +672,7 @@ mod tests {
 
     #[test]
     fn test_spatial_audio_stereo_gains() {
-        let spatial = SpatialAudio::new(PanningMode::Stereo, 48000).unwrap();
+        let spatial = SpatialAudio::new(PanningMode::Stereo, 48000).expect("failed to create");
         let (left, right) = spatial.calculate_stereo_gains(0.0);
         assert!((left - 0.707).abs() < 0.01);
         assert!((right - 0.707).abs() < 0.01);
@@ -678,7 +680,7 @@ mod tests {
 
     #[test]
     fn test_spatial_audio_51_gains() {
-        let spatial = SpatialAudio::new(PanningMode::Surround51, 48000).unwrap();
+        let spatial = SpatialAudio::new(PanningMode::Surround51, 48000).expect("failed to create");
         let pos = Position3D::new(0.0, 0.0, 1.0);
         let gains = spatial.calculate_51_gains(&pos);
         assert_eq!(gains.len(), 6);
@@ -686,33 +688,33 @@ mod tests {
 
     #[test]
     fn test_spatial_audio_channel_count() {
-        let spatial = SpatialAudio::new(PanningMode::Surround51, 48000).unwrap();
+        let spatial = SpatialAudio::new(PanningMode::Surround51, 48000).expect("failed to create");
         assert_eq!(spatial.channel_count(), 6);
     }
 
     #[test]
     fn test_distance_attenuation() {
-        let spatial = SpatialAudio::new(PanningMode::Stereo, 48000).unwrap();
+        let spatial = SpatialAudio::new(PanningMode::Stereo, 48000).expect("failed to create");
         let attenuation = spatial.calculate_distance_attenuation(0.0);
         assert_eq!(attenuation, 1.0);
     }
 
     #[test]
     fn test_doppler_shift() {
-        let spatial = SpatialAudio::new(PanningMode::Stereo, 48000).unwrap();
+        let spatial = SpatialAudio::new(PanningMode::Stereo, 48000).expect("failed to create");
         let shift = spatial.calculate_doppler_shift(0.0, 343.0);
         assert_eq!(shift, 1.0);
     }
 
     #[test]
     fn test_granular_synth() {
-        let synth = GranularSynth::new(48000, 1024).unwrap();
+        let synth = GranularSynth::new(48000, 1024).expect("failed to create");
         assert_eq!(synth.grain_size, 1024);
     }
 
     #[test]
     fn test_pitch_shifter() {
-        let shifter = PitchShifter::new(48000).unwrap();
+        let shifter = PitchShifter::new(48000).expect("failed to create");
         let input = vec![0.0_f32; 1024];
         let mut output = vec![0.0_f32; 1024];
         shifter.process(&input, &mut output, 1.5);
@@ -721,31 +723,31 @@ mod tests {
 
     #[test]
     fn test_wavetable_sine() {
-        let synth = WavetableSynth::sine(48000, 1024).unwrap();
+        let synth = WavetableSynth::sine(48000, 1024).expect("operation should succeed");
         assert_eq!(synth.wavetable.len(), 1024);
     }
 
     #[test]
     fn test_wavetable_square() {
-        let synth = WavetableSynth::square(48000, 1024).unwrap();
+        let synth = WavetableSynth::square(48000, 1024).expect("operation should succeed");
         assert_eq!(synth.wavetable.len(), 1024);
     }
 
     #[test]
     fn test_wavetable_sawtooth() {
-        let synth = WavetableSynth::sawtooth(48000, 1024).unwrap();
+        let synth = WavetableSynth::sawtooth(48000, 1024).expect("operation should succeed");
         assert_eq!(synth.wavetable.len(), 1024);
     }
 
     #[test]
     fn test_wavetable_triangle() {
-        let synth = WavetableSynth::triangle(48000, 1024).unwrap();
+        let synth = WavetableSynth::triangle(48000, 1024).expect("operation should succeed");
         assert_eq!(synth.wavetable.len(), 1024);
     }
 
     #[test]
     fn test_wavetable_process() {
-        let mut synth = WavetableSynth::sine(48000, 1024).unwrap();
+        let mut synth = WavetableSynth::sine(48000, 1024).expect("operation should succeed");
         let mut buffer = vec![0.0_f32; 100];
         synth.process(&mut buffer, 440.0);
         assert!(buffer.iter().any(|&x| x != 0.0));
@@ -758,7 +760,7 @@ mod tests {
 
     #[test]
     fn test_time_stretcher() {
-        let stretcher = TimeStretcher::new(48000, 1024).unwrap();
+        let stretcher = TimeStretcher::new(48000, 1024).expect("failed to create");
         assert_eq!(stretcher.window_size, 1024);
     }
 }

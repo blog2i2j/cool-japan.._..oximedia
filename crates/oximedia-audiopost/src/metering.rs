@@ -508,7 +508,7 @@ impl LoudnessRangeMeter {
         }
 
         let mut sorted = self.measurements.clone();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         // Calculate 10th and 95th percentiles
         let len = sorted.len();
@@ -601,13 +601,13 @@ mod tests {
 
     #[test]
     fn test_peak_meter_creation() {
-        let meter = PeakMeter::new(48000).unwrap();
+        let meter = PeakMeter::new(48000).expect("failed to create");
         assert!(meter.get_peak_db().is_finite());
     }
 
     #[test]
     fn test_peak_meter_process() {
-        let mut meter = PeakMeter::new(48000).unwrap();
+        let mut meter = PeakMeter::new(48000).expect("failed to create");
         let samples = vec![0.5_f32; 100];
         meter.process(&samples);
         assert!(meter.get_peak_db() > -100.0);
@@ -615,7 +615,7 @@ mod tests {
 
     #[test]
     fn test_peak_meter_reset() {
-        let mut meter = PeakMeter::new(48000).unwrap();
+        let mut meter = PeakMeter::new(48000).expect("failed to create");
         let samples = vec![0.5_f32; 100];
         meter.process(&samples);
         meter.reset();
@@ -624,13 +624,13 @@ mod tests {
 
     #[test]
     fn test_rms_meter_creation() {
-        let meter = RmsMeter::new(48000, 300.0).unwrap();
+        let meter = RmsMeter::new(48000, 300.0).expect("failed to create");
         assert!(meter.get_rms_db().is_infinite());
     }
 
     #[test]
     fn test_rms_meter_process() {
-        let mut meter = RmsMeter::new(48000, 300.0).unwrap();
+        let mut meter = RmsMeter::new(48000, 300.0).expect("failed to create");
         let samples = vec![0.5_f32; 1000];
         meter.process(&samples);
         assert!(meter.get_rms_db() > -100.0);
@@ -638,7 +638,7 @@ mod tests {
 
     #[test]
     fn test_rms_meter_reset() {
-        let mut meter = RmsMeter::new(48000, 300.0).unwrap();
+        let mut meter = RmsMeter::new(48000, 300.0).expect("failed to create");
         let samples = vec![0.5_f32; 1000];
         meter.process(&samples);
         meter.reset();
@@ -647,13 +647,13 @@ mod tests {
 
     #[test]
     fn test_vu_meter_creation() {
-        let meter = VuMeter::new(48000).unwrap();
+        let meter = VuMeter::new(48000).expect("failed to create");
         assert!(meter.get_vu_db() < -60.0);
     }
 
     #[test]
     fn test_vu_meter_process() {
-        let mut meter = VuMeter::new(48000).unwrap();
+        let mut meter = VuMeter::new(48000).expect("failed to create");
         let samples = vec![0.5_f32; 1000];
         meter.process(&samples);
         assert!(meter.get_vu_db() > -100.0);
@@ -661,7 +661,7 @@ mod tests {
 
     #[test]
     fn test_vu_meter_reset() {
-        let mut meter = VuMeter::new(48000).unwrap();
+        let mut meter = VuMeter::new(48000).expect("failed to create");
         let samples = vec![0.5_f32; 1000];
         meter.process(&samples);
         meter.reset();
@@ -670,13 +670,13 @@ mod tests {
 
     #[test]
     fn test_true_peak_meter_creation() {
-        let meter = TruePeakMeter::new(48000, 4).unwrap();
+        let meter = TruePeakMeter::new(48000, 4).expect("failed to create");
         assert!(meter.get_true_peak_dbtp().is_finite());
     }
 
     #[test]
     fn test_true_peak_meter_process() {
-        let mut meter = TruePeakMeter::new(48000, 4).unwrap();
+        let mut meter = TruePeakMeter::new(48000, 4).expect("failed to create");
         let samples = vec![0.8_f32; 100];
         meter.process(&samples);
         assert!(meter.get_true_peak_dbtp() > -10.0);
@@ -684,13 +684,13 @@ mod tests {
 
     #[test]
     fn test_phase_correlation_meter_creation() {
-        let meter = PhaseCorrelationMeter::new(48000).unwrap();
+        let meter = PhaseCorrelationMeter::new(48000).expect("failed to create");
         assert_eq!(meter.get_correlation(), 0.0);
     }
 
     #[test]
     fn test_phase_correlation_meter_process() {
-        let mut meter = PhaseCorrelationMeter::new(48000).unwrap();
+        let mut meter = PhaseCorrelationMeter::new(48000).expect("failed to create");
         let left = vec![1.0_f32; 100];
         let right = vec![1.0_f32; 100];
         meter.process(&left, &right);
@@ -699,13 +699,13 @@ mod tests {
 
     #[test]
     fn test_stereo_width_meter_creation() {
-        let meter = StereoWidthMeter::new(48000).unwrap();
+        let meter = StereoWidthMeter::new(48000).expect("failed to create");
         assert_eq!(meter.get_width(), 0.0);
     }
 
     #[test]
     fn test_stereo_width_meter_process() {
-        let mut meter = StereoWidthMeter::new(48000).unwrap();
+        let mut meter = StereoWidthMeter::new(48000).expect("failed to create");
         let left = vec![1.0_f32; 100];
         let right = vec![-1.0_f32; 100];
         meter.process(&left, &right);
@@ -714,33 +714,33 @@ mod tests {
 
     #[test]
     fn test_spectrum_analyzer_creation() {
-        let analyzer = SpectrumAnalyzer::new(48000, 1024).unwrap();
+        let analyzer = SpectrumAnalyzer::new(48000, 1024).expect("failed to create");
         assert_eq!(analyzer.bins.len(), 512);
     }
 
     #[test]
     fn test_spectrum_analyzer_bin_to_frequency() {
-        let analyzer = SpectrumAnalyzer::new(48000, 1024).unwrap();
+        let analyzer = SpectrumAnalyzer::new(48000, 1024).expect("failed to create");
         let freq = analyzer.bin_to_frequency(100);
         assert!((freq - 4687.5).abs() < 0.1);
     }
 
     #[test]
     fn test_spectrum_analyzer_frequency_to_bin() {
-        let analyzer = SpectrumAnalyzer::new(48000, 1024).unwrap();
+        let analyzer = SpectrumAnalyzer::new(48000, 1024).expect("failed to create");
         let bin = analyzer.frequency_to_bin(1000.0);
         assert_eq!(bin, 21);
     }
 
     #[test]
     fn test_goniometer_creation() {
-        let goniometer = Goniometer::new(48000, 100.0).unwrap();
+        let goniometer = Goniometer::new(48000, 100.0).expect("failed to create");
         assert_eq!(goniometer.get_points().len(), 0);
     }
 
     #[test]
     fn test_goniometer_process() {
-        let mut goniometer = Goniometer::new(48000, 100.0).unwrap();
+        let mut goniometer = Goniometer::new(48000, 100.0).expect("failed to create");
         let left = vec![1.0_f32; 100];
         let right = vec![0.5_f32; 100];
         goniometer.process(&left, &right);
@@ -749,7 +749,7 @@ mod tests {
 
     #[test]
     fn test_goniometer_clear() {
-        let mut goniometer = Goniometer::new(48000, 100.0).unwrap();
+        let mut goniometer = Goniometer::new(48000, 100.0).expect("failed to create");
         let left = vec![1.0_f32; 100];
         let right = vec![0.5_f32; 100];
         goniometer.process(&left, &right);
@@ -759,13 +759,13 @@ mod tests {
 
     #[test]
     fn test_loudness_range_meter_creation() {
-        let meter = LoudnessRangeMeter::new(48000).unwrap();
+        let meter = LoudnessRangeMeter::new(48000).expect("failed to create");
         assert_eq!(meter.calculate_lra(), 0.0);
     }
 
     #[test]
     fn test_loudness_range_meter_measurements() {
-        let mut meter = LoudnessRangeMeter::new(48000).unwrap();
+        let mut meter = LoudnessRangeMeter::new(48000).expect("failed to create");
         meter.add_measurement(-23.0);
         meter.add_measurement(-25.0);
         meter.add_measurement(-22.0);
@@ -775,7 +775,7 @@ mod tests {
 
     #[test]
     fn test_loudness_range_meter_reset() {
-        let mut meter = LoudnessRangeMeter::new(48000).unwrap();
+        let mut meter = LoudnessRangeMeter::new(48000).expect("failed to create");
         meter.add_measurement(-23.0);
         meter.reset();
         assert_eq!(meter.calculate_lra(), 0.0);
@@ -783,13 +783,13 @@ mod tests {
 
     #[test]
     fn test_multi_channel_meter_creation() {
-        let meter = MultiChannelMeter::new(48000, 8).unwrap();
+        let meter = MultiChannelMeter::new(48000, 8).expect("failed to create");
         assert_eq!(meter.channel_count, 8);
     }
 
     #[test]
     fn test_multi_channel_meter_process() {
-        let mut meter = MultiChannelMeter::new(48000, 2).unwrap();
+        let mut meter = MultiChannelMeter::new(48000, 2).expect("failed to create");
         let channels = vec![vec![0.5_f32; 100], vec![0.3_f32; 100]];
         meter.process(&channels);
         assert!(meter.get_channel_peak_db(0).is_some());
@@ -797,11 +797,16 @@ mod tests {
 
     #[test]
     fn test_multi_channel_meter_reset() {
-        let mut meter = MultiChannelMeter::new(48000, 2).unwrap();
+        let mut meter = MultiChannelMeter::new(48000, 2).expect("failed to create");
         let channels = vec![vec![0.5_f32; 100], vec![0.3_f32; 100]];
         meter.process(&channels);
         meter.reset();
-        assert!(meter.get_channel_peak_db(0).unwrap() < -60.0);
+        assert!(
+            meter
+                .get_channel_peak_db(0)
+                .expect("get_channel_peak_db should succeed")
+                < -60.0
+        );
     }
 
     #[test]

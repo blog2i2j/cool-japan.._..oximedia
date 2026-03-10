@@ -22,7 +22,7 @@ s3 = ["aws-sdk-s3", "aws-config"]
 [dependencies]
 oximedia-core.workspace = true
 oximedia-io.workspace = true
-oximedia-codec.workspace = true
+oximedia-codec = { workspace = true, default-features = true }
 oximedia-container.workspace = true
 bytes.workspace = true
 thiserror.workspace = true

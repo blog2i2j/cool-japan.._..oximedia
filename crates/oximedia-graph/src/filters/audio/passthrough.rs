@@ -190,9 +190,9 @@ mod tests {
         let frame = FilterFrame::Audio(audio);
 
         // Process should pass through
-        let result = filter.process(Some(frame)).unwrap();
+        let result = filter.process(Some(frame)).expect("process should succeed");
         assert!(result.is_some());
-        assert!(result.unwrap().is_audio());
+        assert!(result.expect("value should be valid").is_audio());
     }
 
     #[test]
@@ -204,7 +204,7 @@ mod tests {
         let frame = FilterFrame::Audio(audio);
 
         // Sink should consume frame and produce no output
-        let result = filter.process(Some(frame)).unwrap();
+        let result = filter.process(Some(frame)).expect("process should succeed");
         assert!(result.is_none());
     }
 
@@ -212,7 +212,7 @@ mod tests {
     fn test_audio_passthrough_no_input() {
         let mut filter = AudioPassthrough::new(NodeId(0), "test");
 
-        let result = filter.process(None).unwrap();
+        let result = filter.process(None).expect("process should succeed");
         assert!(result.is_none());
     }
 

@@ -1035,7 +1035,7 @@ mod tests {
 
         let range = config.band_range(0);
         assert!(range.is_some());
-        assert_eq!(range.unwrap(), (0, 1));
+        assert_eq!(range.expect("should succeed"), (0, 1));
     }
 
     #[test]

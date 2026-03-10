@@ -194,7 +194,7 @@
 //!     .expect("Failed to create luminance meter");
 //!
 //! # let luminance_frame = Array2::<f64>::zeros((1080, 1920));
-//! lum_meter.process(&luminance_frame).unwrap();
+//! lum_meter.process(&luminance_frame)?;
 //!
 //! println!("Peak: {:.1} nits", lum_meter.peak_nits());
 //! println!("Average: {:.1} nits", lum_meter.average_nits());
@@ -211,7 +211,7 @@
 //! # let r_channel = Array2::<f64>::zeros((1080, 1920));
 //! # let g_channel = Array2::<f64>::zeros((1080, 1920));
 //! # let b_channel = Array2::<f64>::zeros((1080, 1920));
-//! gamut_meter.process(&r_channel, &g_channel, &b_channel).unwrap();
+//! gamut_meter.process(&r_channel, &g_channel, &b_channel)?;
 //!
 //! println!("Rec.2020 coverage: {:.1}%", gamut_meter.gamut_coverage_percentage());
 //! println!("Max saturation: {:.2}", gamut_meter.max_saturation());
@@ -222,7 +222,7 @@
 //!
 //! # let reference_frame = Array2::<f64>::zeros((1080, 1920));
 //! # let distorted_frame = Array2::<f64>::zeros((1080, 1920));
-//! let metrics = quality.analyze(&reference_frame, &distorted_frame).unwrap();
+//! let metrics = quality.analyze(&reference_frame, &distorted_frame)?;
 //!
 //! println!("PSNR: {:.2} dB", metrics.psnr);
 //! println!("SSIM: {:.4}", metrics.ssim);

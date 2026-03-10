@@ -495,7 +495,7 @@ mod tests {
         let result = IoBenchResult::from_iterations(IoBenchConfig::default(), vec![])
             .with_tag("disk", "nvme")
             .with_tag("fs", "ext4");
-        assert_eq!(result.tags.get("disk").unwrap(), "nvme");
-        assert_eq!(result.tags.get("fs").unwrap(), "ext4");
+        assert_eq!(result.tags.get("disk").expect("get should succeed"), "nvme");
+        assert_eq!(result.tags.get("fs").expect("get should succeed"), "ext4");
     }
 }

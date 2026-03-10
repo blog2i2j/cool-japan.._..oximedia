@@ -75,7 +75,7 @@ mod tests {
                 Some("Test Video"),
                 Some("Test Creator"),
             )
-            .unwrap();
+            .expect("operation should succeed");
 
         assert!(doc.contains("Descriptive Metadata"));
         assert!(doc.contains("Test Video"));

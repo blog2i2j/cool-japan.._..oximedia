@@ -192,7 +192,9 @@ mod tests {
             }
         }
 
-        let result = detector.detect(&samples, 44100.0).unwrap();
+        let result = detector
+            .detect(&samples, 44100.0)
+            .expect("detection should succeed");
         assert!(result.num_transients > 0);
     }
 }

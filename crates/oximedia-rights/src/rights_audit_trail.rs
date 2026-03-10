@@ -353,8 +353,20 @@ mod tests {
             .with_metadata("from_owner", "Alice")
             .with_metadata("to_owner", "Bob");
 
-        assert_eq!(entry.metadata.get("from_owner").unwrap(), "Alice");
-        assert_eq!(entry.metadata.get("to_owner").unwrap(), "Bob");
+        assert_eq!(
+            entry
+                .metadata
+                .get("from_owner")
+                .expect("rights test operation should succeed"),
+            "Alice"
+        );
+        assert_eq!(
+            entry
+                .metadata
+                .get("to_owner")
+                .expect("rights test operation should succeed"),
+            "Bob"
+        );
     }
 
     #[test]
@@ -459,7 +471,17 @@ mod tests {
         trail.append(AuditEntry::new(0, AuditAction::Revoke, "a", "r3"));
 
         let counts = trail.count_by_action();
-        assert_eq!(*counts.get("grant").unwrap(), 2);
-        assert_eq!(*counts.get("revoke").unwrap(), 1);
+        assert_eq!(
+            *counts
+                .get("grant")
+                .expect("rights test operation should succeed"),
+            2
+        );
+        assert_eq!(
+            *counts
+                .get("revoke")
+                .expect("rights test operation should succeed"),
+            1
+        );
     }
 }

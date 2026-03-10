@@ -375,7 +375,7 @@ mod tests {
     fn test_buffer_region_intersection() {
         let a = BufferRegion::new(0, 10);
         let b = BufferRegion::new(5, 10);
-        let i = a.intersection(&b).unwrap();
+        let i = a.intersection(&b).expect("intersection should succeed");
         assert_eq!(i.offset, 5);
         assert_eq!(i.size, 5);
     }

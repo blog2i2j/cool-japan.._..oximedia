@@ -224,7 +224,8 @@ mod tests {
 
     #[test]
     fn test_seconds_to_timecode_25fps() {
-        let tc = seconds_to_timecode(3661.0, FrameRate::Fps25).unwrap();
+        let tc = seconds_to_timecode(3661.0, FrameRate::Fps25)
+            .expect("seconds to timecode should succeed");
         assert_eq!(tc.hours, 1);
         assert_eq!(tc.minutes, 1);
         assert_eq!(tc.seconds, 1);
@@ -233,14 +234,14 @@ mod tests {
 
     #[test]
     fn test_timecode_to_seconds() {
-        let tc = Timecode::new(1, 0, 0, 0, FrameRate::Fps25).unwrap();
+        let tc = Timecode::new(1, 0, 0, 0, FrameRate::Fps25).expect("valid timecode");
         let secs = timecode_to_seconds(&tc);
         assert!((secs - 3600.0).abs() < 0.01);
     }
 
     #[test]
     fn test_parse_smpte_ndf() {
-        let tc = parse_smpte_string("01:02:03:04", FrameRate::Fps25).unwrap();
+        let tc = parse_smpte_string("01:02:03:04", FrameRate::Fps25).expect("should succeed");
         assert_eq!(tc.hours, 1);
         assert_eq!(tc.minutes, 2);
         assert_eq!(tc.seconds, 3);
@@ -254,15 +255,17 @@ mod tests {
 
     #[test]
     fn test_frames_to_smpte_string() {
-        let s = frames_to_smpte_string(25, FrameRate::Fps25).unwrap();
+        let s =
+            frames_to_smpte_string(25, FrameRate::Fps25).expect("frames to SMPTE should succeed");
         assert_eq!(s, "00:00:01:00");
     }
 
     #[test]
     fn test_millis_roundtrip() {
-        let tc = Timecode::new(0, 1, 30, 0, FrameRate::Fps25).unwrap();
+        let tc = Timecode::new(0, 1, 30, 0, FrameRate::Fps25).expect("valid timecode");
         let ms = timecode_to_millis(&tc);
-        let tc2 = millis_to_timecode(ms, FrameRate::Fps25).unwrap();
+        let tc2 =
+            millis_to_timecode(ms, FrameRate::Fps25).expect("millis to timecode should succeed");
         assert_eq!(tc.hours, tc2.hours);
         assert_eq!(tc.minutes, tc2.minutes);
         assert_eq!(tc.seconds, tc2.seconds);
@@ -270,26 +273,26 @@ mod tests {
 
     #[test]
     fn test_convert_preserve_time_same_rate() {
-        let tc = Timecode::new(1, 0, 0, 0, FrameRate::Fps25).unwrap();
-        let result =
-            convert_frame_rate(&tc, FrameRate::Fps25, ConvertStrategy::PreserveTime).unwrap();
+        let tc = Timecode::new(1, 0, 0, 0, FrameRate::Fps25).expect("valid timecode");
+        let result = convert_frame_rate(&tc, FrameRate::Fps25, ConvertStrategy::PreserveTime)
+            .expect("conversion should succeed");
         assert!(result.rounding_error_secs.abs() < 0.001);
     }
 
     #[test]
     fn test_convert_preserve_time_25_to_30() {
-        let tc = Timecode::new(0, 0, 1, 0, FrameRate::Fps25).unwrap();
-        let result =
-            convert_frame_rate(&tc, FrameRate::Fps30, ConvertStrategy::PreserveTime).unwrap();
+        let tc = Timecode::new(0, 0, 1, 0, FrameRate::Fps25).expect("valid timecode");
+        let result = convert_frame_rate(&tc, FrameRate::Fps30, ConvertStrategy::PreserveTime)
+            .expect("conversion should succeed");
         assert_eq!(result.timecode.seconds, 1);
         assert_eq!(result.timecode.frames, 0);
     }
 
     #[test]
     fn test_convert_preserve_display() {
-        let tc = Timecode::new(1, 2, 3, 10, FrameRate::Fps30).unwrap();
-        let result =
-            convert_frame_rate(&tc, FrameRate::Fps25, ConvertStrategy::PreserveDisplay).unwrap();
+        let tc = Timecode::new(1, 2, 3, 10, FrameRate::Fps30).expect("valid timecode");
+        let result = convert_frame_rate(&tc, FrameRate::Fps25, ConvertStrategy::PreserveDisplay)
+            .expect("conversion should succeed");
         assert_eq!(result.timecode.hours, 1);
         assert_eq!(result.timecode.minutes, 2);
         assert_eq!(result.timecode.seconds, 3);
@@ -298,15 +301,15 @@ mod tests {
 
     #[test]
     fn test_convert_preserve_frame() {
-        let tc = Timecode::new(0, 0, 0, 10, FrameRate::Fps25).unwrap();
-        let result =
-            convert_frame_rate(&tc, FrameRate::Fps30, ConvertStrategy::PreserveFrame).unwrap();
+        let tc = Timecode::new(0, 0, 0, 10, FrameRate::Fps25).expect("valid timecode");
+        let result = convert_frame_rate(&tc, FrameRate::Fps30, ConvertStrategy::PreserveFrame)
+            .expect("conversion should succeed");
         assert_eq!(result.timecode.frames, 10);
     }
 
     #[test]
     fn test_audio_samples() {
-        let tc = Timecode::new(0, 0, 1, 0, FrameRate::Fps25).unwrap();
+        let tc = Timecode::new(0, 0, 1, 0, FrameRate::Fps25).expect("valid timecode");
         let samples = timecode_to_audio_samples(&tc, 48000);
         assert_eq!(samples, 48000);
     }

@@ -513,7 +513,8 @@ mod tests {
     #[test]
     fn test_gradient_energy() {
         let image = vec![128u8; 100];
-        let energy = compute_gradient_energy(&image, 10, 10).unwrap();
+        let energy = compute_gradient_energy(&image, 10, 10)
+            .expect("compute_gradient_energy should succeed");
         assert_eq!(energy.len(), 100);
         // Uniform image should have low energy
         for &e in &energy {
@@ -524,21 +525,24 @@ mod tests {
     #[test]
     fn test_forward_energy() {
         let image = vec![128u8; 100];
-        let energy = compute_forward_energy(&image, 10, 10).unwrap();
+        let energy =
+            compute_forward_energy(&image, 10, 10).expect("compute_forward_energy should succeed");
         assert_eq!(energy.len(), 100);
     }
 
     #[test]
     fn test_entropy_energy() {
         let image = vec![128u8; 100];
-        let energy = compute_entropy_energy(&image, 10, 10).unwrap();
+        let energy =
+            compute_entropy_energy(&image, 10, 10).expect("compute_entropy_energy should succeed");
         assert_eq!(energy.len(), 100);
     }
 
     #[test]
     fn test_hybrid_energy() {
         let image = vec![128u8; 100];
-        let energy = compute_hybrid_energy(&image, 10, 10).unwrap();
+        let energy =
+            compute_hybrid_energy(&image, 10, 10).expect("compute_hybrid_energy should succeed");
         assert_eq!(energy.len(), 100);
     }
 
@@ -572,7 +576,8 @@ mod tests {
     #[test]
     fn test_rgb_energy() {
         let image = vec![128u8; 300]; // 10x10 RGB
-        let energy = compute_rgb_energy(&image, 10, 10, EnergyFunction::Gradient).unwrap();
+        let energy = compute_rgb_energy(&image, 10, 10, EnergyFunction::Gradient)
+            .expect("compute_rgb_energy should succeed");
         assert_eq!(energy.len(), 100);
     }
 }

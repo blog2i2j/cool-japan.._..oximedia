@@ -137,10 +137,10 @@ mod tests {
         );
         job.set_priority(Priority::Normal);
 
-        queue.push(job).unwrap();
+        queue.push(job).expect("failed to push");
         assert_eq!(queue.len(), 1);
 
-        let popped = queue.pop().unwrap();
+        let popped = queue.pop().expect("failed to pop");
         assert!(popped.is_some());
         assert_eq!(queue.len(), 0);
     }
@@ -173,12 +173,12 @@ mod tests {
         );
         job_normal.set_priority(Priority::Normal);
 
-        queue.push(job_low).unwrap();
-        queue.push(job_high.clone()).unwrap();
-        queue.push(job_normal).unwrap();
+        queue.push(job_low).expect("failed to push");
+        queue.push(job_high.clone()).expect("failed to push");
+        queue.push(job_normal).expect("failed to push");
 
         // Should pop high priority first
-        let first = queue.pop().unwrap().unwrap();
+        let first = queue.pop().expect("failed to pop").expect("failed to pop");
         assert_eq!(first.name, "high");
     }
 
@@ -194,10 +194,10 @@ mod tests {
         );
 
         let job_id = job.id.clone();
-        queue.push(job).unwrap();
+        queue.push(job).expect("failed to push");
         assert_eq!(queue.len(), 1);
 
-        queue.remove(&job_id).unwrap();
+        queue.remove(&job_id).expect("failed to remove");
         assert_eq!(queue.len(), 0);
     }
 }

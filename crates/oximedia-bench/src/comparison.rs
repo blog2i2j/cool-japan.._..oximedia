@@ -539,7 +539,7 @@ mod extended_tests {
 
         ranking.sort_by_overall();
 
-        let top = ranking.top_codec().unwrap();
+        let top = ranking.top_codec().expect("top should be valid");
         assert_eq!(top.codec_id, CodecId::Av1);
         assert_eq!(top.overall_score, 85.0);
     }

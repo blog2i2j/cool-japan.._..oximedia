@@ -159,15 +159,19 @@ mod tests {
 
     #[test]
     fn test_create_tar_archive() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("operation should succeed");
         let archive_path = temp_dir.path().join("test.tar");
 
-        let mut file1 = NamedTempFile::new().unwrap();
-        let mut file2 = NamedTempFile::new().unwrap();
-        file1.write_all(b"File 1 content").unwrap();
-        file2.write_all(b"File 2 content").unwrap();
-        file1.flush().unwrap();
-        file2.flush().unwrap();
+        let mut file1 = NamedTempFile::new().expect("operation should succeed");
+        let mut file2 = NamedTempFile::new().expect("operation should succeed");
+        file1
+            .write_all(b"File 1 content")
+            .expect("operation should succeed");
+        file2
+            .write_all(b"File 2 content")
+            .expect("operation should succeed");
+        file1.flush().expect("operation should succeed");
+        file2.flush().expect("operation should succeed");
 
         let files = vec![
             (file1.path().to_path_buf(), PathBuf::from("file1.txt")),
@@ -175,7 +179,9 @@ mod tests {
         ];
 
         let archiver = TarArchiver::new();
-        let checksum = archiver.create_archive(&archive_path, &files).unwrap();
+        let checksum = archiver
+            .create_archive(&archive_path, &files)
+            .expect("operation should succeed");
 
         assert!(!checksum.is_empty());
         assert!(archive_path.exists());
@@ -183,57 +189,66 @@ mod tests {
 
     #[test]
     fn test_extract_tar_archive() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("operation should succeed");
         let archive_path = temp_dir.path().join("test.tar");
         let extract_dir = temp_dir.path().join("extracted");
 
-        let mut test_file = NamedTempFile::new().unwrap();
-        test_file.write_all(b"Extract test").unwrap();
-        test_file.flush().unwrap();
+        let mut test_file = NamedTempFile::new().expect("operation should succeed");
+        test_file
+            .write_all(b"Extract test")
+            .expect("operation should succeed");
+        test_file.flush().expect("operation should succeed");
 
         let files = vec![(test_file.path().to_path_buf(), PathBuf::from("test.txt"))];
 
         let archiver = TarArchiver::new();
-        archiver.create_archive(&archive_path, &files).unwrap();
+        archiver
+            .create_archive(&archive_path, &files)
+            .expect("operation should succeed");
 
-        TarArchiver::extract_archive(&archive_path, &extract_dir).unwrap();
+        TarArchiver::extract_archive(&archive_path, &extract_dir)
+            .expect("operation should succeed");
 
         assert!(extract_dir.join("test.txt").exists());
     }
 
     #[test]
     fn test_list_tar_contents() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("operation should succeed");
         let archive_path = temp_dir.path().join("test.tar");
 
-        let mut test_file = NamedTempFile::new().unwrap();
-        test_file.write_all(b"List test").unwrap();
-        test_file.flush().unwrap();
+        let mut test_file = NamedTempFile::new().expect("operation should succeed");
+        test_file
+            .write_all(b"List test")
+            .expect("operation should succeed");
+        test_file.flush().expect("operation should succeed");
 
         let files = vec![(test_file.path().to_path_buf(), PathBuf::from("listed.txt"))];
 
         let archiver = TarArchiver::new();
-        archiver.create_archive(&archive_path, &files).unwrap();
+        archiver
+            .create_archive(&archive_path, &files)
+            .expect("operation should succeed");
 
-        let contents = TarArchiver::list_contents(&archive_path).unwrap();
+        let contents = TarArchiver::list_contents(&archive_path).expect("operation should succeed");
         assert_eq!(contents.len(), 1);
         assert_eq!(contents[0], PathBuf::from("listed.txt"));
     }
 
     #[test]
     fn test_create_from_directory() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("operation should succeed");
         let source_dir = temp_dir.path().join("source");
-        fs::create_dir_all(&source_dir).unwrap();
+        fs::create_dir_all(&source_dir).expect("operation should succeed");
 
         let test_file = source_dir.join("test.txt");
-        fs::write(&test_file, b"Directory archive test").unwrap();
+        fs::write(&test_file, b"Directory archive test").expect("operation should succeed");
 
         let archive_path = temp_dir.path().join("dir.tar");
         let archiver = TarArchiver::new();
         let checksum = archiver
             .create_from_directory(&archive_path, &source_dir)
-            .unwrap();
+            .expect("operation should succeed");
 
         assert!(!checksum.is_empty());
         assert!(archive_path.exists());

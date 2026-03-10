@@ -314,7 +314,9 @@ mod tests {
     #[test]
     fn test_min_hold_time() {
         let mut switcher = AngleSwitcher::new(0, 25);
-        switcher.switch_to(1, 30, false).unwrap();
+        switcher
+            .switch_to(1, 30, false)
+            .expect("multicam test operation should succeed");
 
         // Try to switch too soon
         let result = switcher.switch_to(2, 40, false);
@@ -328,7 +330,9 @@ mod tests {
     #[test]
     fn test_force_switch() {
         let mut switcher = AngleSwitcher::new(0, 25);
-        switcher.switch_to(1, 30, false).unwrap();
+        switcher
+            .switch_to(1, 30, false)
+            .expect("multicam test operation should succeed");
 
         // Force switch ignores hold time
         let decision = switcher.force_switch(2, 40);
@@ -339,9 +343,15 @@ mod tests {
     #[test]
     fn test_switch_statistics() {
         let mut switcher = AngleSwitcher::new(0, 1);
-        switcher.switch_to(1, 10, true).unwrap();
-        switcher.switch_to(2, 20, false).unwrap();
-        switcher.switch_to(1, 30, false).unwrap();
+        switcher
+            .switch_to(1, 10, true)
+            .expect("multicam test operation should succeed");
+        switcher
+            .switch_to(2, 20, false)
+            .expect("multicam test operation should succeed");
+        switcher
+            .switch_to(1, 30, false)
+            .expect("multicam test operation should succeed");
 
         assert_eq!(switcher.switch_count(), 3);
         assert_eq!(switcher.manual_switch_count(), 1);
@@ -355,9 +365,15 @@ mod tests {
     #[test]
     fn test_average_interval() {
         let mut switcher = AngleSwitcher::new(0, 1);
-        switcher.switch_to(1, 10, false).unwrap();
-        switcher.switch_to(2, 20, false).unwrap();
-        switcher.switch_to(1, 30, false).unwrap();
+        switcher
+            .switch_to(1, 10, false)
+            .expect("multicam test operation should succeed");
+        switcher
+            .switch_to(2, 20, false)
+            .expect("multicam test operation should succeed");
+        switcher
+            .switch_to(1, 30, false)
+            .expect("multicam test operation should succeed");
 
         let avg = switcher.average_switch_interval();
         assert!((avg - 10.0).abs() < 0.01);

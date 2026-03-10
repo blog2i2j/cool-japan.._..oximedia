@@ -251,11 +251,17 @@ mod tests {
         let mut manager = PresetManager::new();
         importer.import_csv(csv_data(), &mut manager);
         assert_eq!(
-            manager.get("yt-1080p").unwrap().category,
+            manager
+                .get("yt-1080p")
+                .expect("get should succeed")
+                .category,
             ManagedPresetCategory::Platform
         );
         assert_eq!(
-            manager.get("hls-720p").unwrap().category,
+            manager
+                .get("hls-720p")
+                .expect("get should succeed")
+                .category,
             ManagedPresetCategory::Streaming
         );
     }

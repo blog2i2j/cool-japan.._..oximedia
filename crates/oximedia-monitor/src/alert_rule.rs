@@ -274,7 +274,7 @@ mod tests {
         let mut rs = AlertRuleSet::new();
         rs.add_rule(AlertRule::new("a", "x", AlertCondition::Always));
         rs.add_rule(AlertRule::new("b", "x", AlertCondition::Always));
-        rs.get_mut("b").unwrap().disable();
+        rs.get_mut("b").expect("get_mut should succeed").disable();
         assert_eq!(rs.rule_count(), 2);
         assert_eq!(rs.enabled_count(), 1);
     }
@@ -283,7 +283,7 @@ mod tests {
     fn ruleset_get_mut_modifies_rule() {
         let mut rs = AlertRuleSet::new();
         rs.add_rule(AlertRule::new("r", "cpu", AlertCondition::Above(50.0)));
-        rs.get_mut("r").unwrap().condition = AlertCondition::Above(90.0);
+        rs.get_mut("r").expect("get_mut should succeed").condition = AlertCondition::Above(90.0);
         assert!(!rs.evaluate_all("cpu", 60.0).is_empty() == false);
     }
 

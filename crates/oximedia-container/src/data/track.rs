@@ -241,7 +241,7 @@ mod tests {
 
         let found = track.get_sample_at(500);
         assert!(found.is_some());
-        assert_eq!(found.unwrap().timestamp, 0);
+        assert_eq!(found.expect("operation should succeed").timestamp, 0);
 
         assert!(track.validate().is_ok());
     }

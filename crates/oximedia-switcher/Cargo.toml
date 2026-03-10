@@ -11,7 +11,7 @@ repository.workspace = true
 
 [dependencies]
 oximedia-core = { workspace = true }
-oximedia-codec = { workspace = true }
+oximedia-codec = { workspace = true, default-features = true }
 oximedia-graph = { workspace = true }
 oximedia-mixer = { workspace = true }
 oximedia-timecode = { workspace = true }

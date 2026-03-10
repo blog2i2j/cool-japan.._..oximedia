@@ -221,7 +221,7 @@ mod tests {
     #[test]
     fn test_convolution_reverb_process() {
         let ir = vec![1.0; 100]; // Simple IR
-        let mut reverb = ConvolutionReverb::new(&ir, 48000.0).unwrap();
+        let mut reverb = ConvolutionReverb::new(&ir, 48000.0).expect("test expectation failed");
 
         // Process impulse
         let output = reverb.process_sample(1.0);
@@ -238,7 +238,7 @@ mod tests {
     #[test]
     fn test_convolution_wet_dry() {
         let ir = vec![0.5; 50];
-        let mut reverb = ConvolutionReverb::new(&ir, 48000.0).unwrap();
+        let mut reverb = ConvolutionReverb::new(&ir, 48000.0).expect("test expectation failed");
 
         reverb.set_wet(0.0);
         reverb.set_dry(1.0);

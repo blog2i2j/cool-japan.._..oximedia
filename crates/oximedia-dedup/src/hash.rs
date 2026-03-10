@@ -481,7 +481,7 @@ mod tests {
         let hex = hash.to_hex();
         assert_eq!(hex.len(), 64); // 32 bytes * 2 hex chars
 
-        let decoded = FileHash::from_hex(&hex).unwrap();
+        let decoded = FileHash::from_hex(&hex).expect("operation should succeed");
         assert_eq!(hash, decoded);
     }
 

@@ -6,6 +6,34 @@
 use crate::renderer::PixelBuffer;
 use crate::transition::{Transition, TransitionType, WipeDirection};
 
+/// Errors that can occur during transition application.
+#[derive(Debug, thiserror::Error)]
+pub enum TransitionError {
+    /// Outgoing and incoming frame dimensions do not match.
+    #[error(
+        "Frame dimension mismatch: outgoing={outgoing_width}x{outgoing_height}, \
+         incoming={incoming_width}x{incoming_height}"
+    )]
+    DimensionMismatch {
+        /// Outgoing frame width.
+        outgoing_width: u32,
+        /// Outgoing frame height.
+        outgoing_height: u32,
+        /// Incoming frame width.
+        incoming_width: u32,
+        /// Incoming frame height.
+        incoming_height: u32,
+    },
+    /// Audio buffer lengths do not match for crossfade.
+    #[error("Audio length mismatch: outgoing={outgoing_len}, incoming={incoming_len}")]
+    AudioLengthMismatch {
+        /// Outgoing buffer length.
+        outgoing_len: usize,
+        /// Incoming buffer length.
+        incoming_len: usize,
+    },
+}
+
 /// Progress of a transition (0.0 = fully outgoing, 1.0 = fully incoming).
 pub type TransitionProgress = f32;
 
@@ -33,21 +61,30 @@ impl TransitionEngine {
     /// Apply the given transition to produce a blended output frame.
     ///
     /// The `input.outgoing` and `input.incoming` buffers must have the same dimensions.
-    /// Returns a new buffer with the transition applied.
+    /// Returns a new buffer with the transition applied, or an error if dimensions mismatch.
     ///
-    /// # Panics
+    /// # Errors
     ///
-    /// Panics if frame dimensions don't match.
-    #[must_use]
-    pub fn apply(&self, transition: &Transition, input: &TransitionInput<'_>) -> PixelBuffer {
-        assert_eq!(
-            (input.outgoing.width, input.outgoing.height),
-            (input.incoming.width, input.incoming.height),
-            "Frame dimensions must match"
-        );
+    /// Returns `TransitionError::DimensionMismatch` if the outgoing and incoming
+    /// buffers have different dimensions.
+    pub fn apply(
+        &self,
+        transition: &Transition,
+        input: &TransitionInput<'_>,
+    ) -> Result<PixelBuffer, TransitionError> {
+        if (input.outgoing.width, input.outgoing.height)
+            != (input.incoming.width, input.incoming.height)
+        {
+            return Err(TransitionError::DimensionMismatch {
+                outgoing_width: input.outgoing.width,
+                outgoing_height: input.outgoing.height,
+                incoming_width: input.incoming.width,
+                incoming_height: input.incoming.height,
+            });
+        }
 
         let p = input.progress.clamp(0.0, 1.0);
-        match transition.transition_type {
+        let result = match transition.transition_type {
             TransitionType::Dissolve => self.cross_dissolve(input.outgoing, input.incoming, p),
             TransitionType::DipToBlack => {
                 self.dip_to_color(input.outgoing, input.incoming, p, [0, 0, 0, 255])
@@ -79,10 +116,62 @@ impl TransitionEngine {
                 self.slide(input.outgoing, input.incoming, p, dir)
             }
             TransitionType::AudioCrossfade => {
-                // Audio transitions don't affect video
+                // Audio transitions don't affect video; return outgoing unchanged.
                 self.cross_dissolve(input.outgoing, input.incoming, 0.0)
             }
+        };
+        Ok(result)
+    }
+
+    /// Apply the given transition, returning a fallback frame on error.
+    ///
+    /// This is a convenience wrapper around [`apply`](Self::apply) that
+    /// returns the outgoing frame when dimensions mismatch instead of an error.
+    #[must_use]
+    pub fn apply_or_fallback(
+        &self,
+        transition: &Transition,
+        input: &TransitionInput<'_>,
+    ) -> PixelBuffer {
+        match self.apply(transition, input) {
+            Ok(buf) => buf,
+            Err(_) => input.outgoing.clone(),
         }
+    }
+
+    /// Apply an audio crossfade between two sample buffers.
+    ///
+    /// `outgoing` and `incoming` must have the same length. The crossfade
+    /// applies equal-power (cosine) curves so the perceived loudness stays
+    /// constant across the transition.
+    ///
+    /// # Errors
+    ///
+    /// Returns `TransitionError::AudioLengthMismatch` if the buffers differ in length.
+    pub fn audio_crossfade(
+        &self,
+        outgoing: &[f32],
+        incoming: &[f32],
+        progress: f32,
+    ) -> Result<Vec<f32>, TransitionError> {
+        if outgoing.len() != incoming.len() {
+            return Err(TransitionError::AudioLengthMismatch {
+                outgoing_len: outgoing.len(),
+                incoming_len: incoming.len(),
+            });
+        }
+        let p = progress.clamp(0.0, 1.0);
+        // Equal-power crossfade: gain_out = cos(p * pi/2), gain_in = sin(p * pi/2)
+        let angle = p * std::f32::consts::FRAC_PI_2;
+        let gain_out = angle.cos();
+        let gain_in = angle.sin();
+
+        let mixed: Vec<f32> = outgoing
+            .iter()
+            .zip(incoming.iter())
+            .map(|(&o, &i)| (o * gain_out + i * gain_in).clamp(-1.0, 1.0))
+            .collect();
+        Ok(mixed)
     }
 
     /// Cross-dissolve: linear blend between outgoing and incoming.
@@ -337,7 +426,7 @@ mod tests {
             incoming: &inc,
             progress: 0.5,
         };
-        let result = engine.apply(&t, &input);
+        let result = engine.apply(&t, &input).expect("should succeed in test");
         assert_eq!(result.width, 4);
         assert_eq!(result.height, 4);
     }
@@ -417,7 +506,7 @@ mod tests {
             incoming: &inc,
             progress: 0.5,
         };
-        let result = engine.apply(&t, &input);
+        let result = engine.apply(&t, &input).expect("should succeed in test");
         assert_eq!(result.width, 4);
     }
 
@@ -434,7 +523,7 @@ mod tests {
             incoming: &inc,
             progress: 0.3,
         };
-        let result = engine.apply(&t, &input);
+        let result = engine.apply(&t, &input).expect("should succeed in test");
         assert_eq!(result.height, 4);
     }
 
@@ -457,5 +546,79 @@ mod tests {
     fn test_transition_alignment_field() {
         let t = Transition::dissolve(Duration(12));
         assert_eq!(t.alignment, TransitionAlignment::Center);
+    }
+
+    #[test]
+    fn test_apply_dimension_mismatch_error() {
+        let engine = TransitionEngine::new();
+        let t = make_dissolve(10);
+        let out = PixelBuffer::solid(4, 4, [255, 0, 0, 255]);
+        let inc = PixelBuffer::solid(8, 8, [0, 0, 255, 255]);
+        let input = TransitionInput {
+            outgoing: &out,
+            incoming: &inc,
+            progress: 0.5,
+        };
+        let result = engine.apply(&t, &input);
+        assert!(result.is_err());
+        let err = result.expect_err("should be an error");
+        assert!(
+            err.to_string().contains("dimension mismatch"),
+            "Error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_apply_or_fallback_returns_outgoing_on_mismatch() {
+        let engine = TransitionEngine::new();
+        let t = make_dissolve(10);
+        let out = PixelBuffer::solid(4, 4, [255, 0, 0, 255]);
+        let inc = PixelBuffer::solid(8, 8, [0, 0, 255, 255]);
+        let input = TransitionInput {
+            outgoing: &out,
+            incoming: &inc,
+            progress: 0.5,
+        };
+        let result = engine.apply_or_fallback(&t, &input);
+        assert_eq!(result.width, 4);
+        assert_eq!(result.height, 4);
+    }
+
+    #[test]
+    fn test_audio_crossfade_equal_power() {
+        let engine = TransitionEngine::new();
+        let outgoing = vec![1.0f32; 100];
+        let incoming = vec![0.0f32; 100];
+
+        // At progress=0, gain_out=1, gain_in=0 → output ≈ outgoing
+        let result = engine
+            .audio_crossfade(&outgoing, &incoming, 0.0)
+            .expect("should succeed in test");
+        assert!((result[0] - 1.0).abs() < 0.01);
+
+        // At progress=1, gain_out=0, gain_in=1 → output ≈ incoming
+        let result = engine
+            .audio_crossfade(&outgoing, &incoming, 1.0)
+            .expect("should succeed in test");
+        assert!(result[0].abs() < 0.01);
+
+        // At progress=0.5, equal power: cos(pi/4) ≈ 0.707
+        let result = engine
+            .audio_crossfade(&outgoing, &incoming, 0.5)
+            .expect("should succeed in test");
+        assert!(
+            (result[0] - 0.707).abs() < 0.01,
+            "Expected ~0.707, got {}",
+            result[0]
+        );
+    }
+
+    #[test]
+    fn test_audio_crossfade_length_mismatch() {
+        let engine = TransitionEngine::new();
+        let outgoing = vec![1.0f32; 100];
+        let incoming = vec![0.0f32; 50];
+        let result = engine.audio_crossfade(&outgoing, &incoming, 0.5);
+        assert!(result.is_err());
     }
 }

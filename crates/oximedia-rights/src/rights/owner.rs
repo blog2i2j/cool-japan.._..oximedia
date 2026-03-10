@@ -75,17 +75,26 @@ impl RightsOwner {
         .fetch_optional(db.pool())
         .await?;
 
-        Ok(row.map(|r| RightsOwner {
-            id: r.get("id"),
-            name: r.get("name"),
-            contact_info: r.get("contact_info"),
-            created_at: DateTime::parse_from_rfc3339(r.get("created_at"))
-                .unwrap()
-                .with_timezone(&Utc),
-            updated_at: DateTime::parse_from_rfc3339(r.get("updated_at"))
-                .unwrap()
-                .with_timezone(&Utc),
-        }))
+        row.map(|r| {
+            let created_at = DateTime::parse_from_rfc3339(r.get("created_at"))
+                .map_err(|e| {
+                    crate::RightsError::InvalidLicense(format!("Invalid created_at: {e}"))
+                })?
+                .with_timezone(&Utc);
+            let updated_at = DateTime::parse_from_rfc3339(r.get("updated_at"))
+                .map_err(|e| {
+                    crate::RightsError::InvalidLicense(format!("Invalid updated_at: {e}"))
+                })?
+                .with_timezone(&Utc);
+            Ok(RightsOwner {
+                id: r.get("id"),
+                name: r.get("name"),
+                contact_info: r.get("contact_info"),
+                created_at,
+                updated_at,
+            })
+        })
+        .transpose()
     }
 
     /// List all owners
@@ -100,20 +109,27 @@ impl RightsOwner {
         .fetch_all(db.pool())
         .await?;
 
-        Ok(rows
-            .into_iter()
-            .map(|r| RightsOwner {
-                id: r.get("id"),
-                name: r.get("name"),
-                contact_info: r.get("contact_info"),
-                created_at: DateTime::parse_from_rfc3339(r.get("created_at"))
-                    .unwrap()
-                    .with_timezone(&Utc),
-                updated_at: DateTime::parse_from_rfc3339(r.get("updated_at"))
-                    .unwrap()
-                    .with_timezone(&Utc),
+        rows.into_iter()
+            .map(|r| {
+                let created_at = DateTime::parse_from_rfc3339(r.get("created_at"))
+                    .map_err(|e| {
+                        crate::RightsError::InvalidLicense(format!("Invalid created_at: {e}"))
+                    })?
+                    .with_timezone(&Utc);
+                let updated_at = DateTime::parse_from_rfc3339(r.get("updated_at"))
+                    .map_err(|e| {
+                        crate::RightsError::InvalidLicense(format!("Invalid updated_at: {e}"))
+                    })?
+                    .with_timezone(&Utc);
+                Ok(RightsOwner {
+                    id: r.get("id"),
+                    name: r.get("name"),
+                    contact_info: r.get("contact_info"),
+                    created_at,
+                    updated_at,
+                })
             })
-            .collect())
+            .collect()
     }
 
     /// Delete owner from database
@@ -140,18 +156,25 @@ mod tests {
 
     #[tokio::test]
     async fn test_owner_save_and_load() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("rights test operation should succeed");
         let db_path = format!("sqlite://{}/test.db", temp_dir.path().display());
-        let db = RightsDatabase::new(&db_path).await.unwrap();
+        let db = RightsDatabase::new(&db_path)
+            .await
+            .expect("rights test operation should succeed");
 
         let owner = RightsOwner::new("Test Owner");
         let owner_id = owner.id.clone();
 
-        owner.save(&db).await.unwrap();
+        owner
+            .save(&db)
+            .await
+            .expect("rights test operation should succeed");
 
-        let loaded = RightsOwner::load(&db, &owner_id).await.unwrap();
+        let loaded = RightsOwner::load(&db, &owner_id)
+            .await
+            .expect("rights test operation should succeed");
         assert!(loaded.is_some());
-        let loaded = loaded.unwrap();
+        let loaded = loaded.expect("rights test operation should succeed");
         assert_eq!(loaded.name, "Test Owner");
     }
 }

@@ -660,7 +660,7 @@ mod tests {
         let result = encoder.encode_frame(&frame);
 
         assert!(result.is_ok());
-        assert!(result.unwrap().is_none()); // First pass returns no packets
+        assert!(result.expect("should succeed").is_none()); // First pass returns no packets
         assert_eq!(encoder.frame_count(), 1);
     }
 

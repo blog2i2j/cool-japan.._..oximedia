@@ -421,44 +421,68 @@ mod tests {
 
     #[test]
     fn test_track_type_parsing() {
-        assert_eq!("V".parse::<TrackType>().unwrap(), TrackType::Video);
         assert_eq!(
-            "A".parse::<TrackType>().unwrap(),
+            "V".parse::<TrackType>().expect("operation should succeed"),
+            TrackType::Video
+        );
+        assert_eq!(
+            "A".parse::<TrackType>().expect("operation should succeed"),
             TrackType::Audio(AudioChannel::A1)
         );
-        assert_eq!("AA".parse::<TrackType>().unwrap(), TrackType::AudioPair);
         assert_eq!(
-            "A/V".parse::<TrackType>().unwrap(),
+            "AA".parse::<TrackType>().expect("operation should succeed"),
+            TrackType::AudioPair
+        );
+        assert_eq!(
+            "A/V"
+                .parse::<TrackType>()
+                .expect("operation should succeed"),
             TrackType::AudioWithVideo
         );
     }
 
     #[test]
     fn test_edit_type_parsing() {
-        assert_eq!("C".parse::<EditType>().unwrap(), EditType::Cut);
-        assert_eq!("D".parse::<EditType>().unwrap(), EditType::Dissolve);
-        assert_eq!("W".parse::<EditType>().unwrap(), EditType::Wipe);
-        assert_eq!("K".parse::<EditType>().unwrap(), EditType::Key);
+        assert_eq!(
+            "C".parse::<EditType>().expect("operation should succeed"),
+            EditType::Cut
+        );
+        assert_eq!(
+            "D".parse::<EditType>().expect("operation should succeed"),
+            EditType::Dissolve
+        );
+        assert_eq!(
+            "W".parse::<EditType>().expect("operation should succeed"),
+            EditType::Wipe
+        );
+        assert_eq!(
+            "K".parse::<EditType>().expect("operation should succeed"),
+            EditType::Key
+        );
     }
 
     #[test]
     fn test_wipe_pattern_parsing() {
         assert_eq!(
-            "001".parse::<WipePattern>().unwrap(),
+            "001"
+                .parse::<WipePattern>()
+                .expect("operation should succeed"),
             WipePattern::Horizontal
         );
         assert_eq!(
-            "100".parse::<WipePattern>().unwrap(),
+            "100"
+                .parse::<WipePattern>()
+                .expect("operation should succeed"),
             WipePattern::Custom(100)
         );
     }
 
     #[test]
     fn test_event_validation() {
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 10, 0, EdlFrameRate::Fps25).unwrap();
-        let tc3 = EdlTimecode::new(1, 0, 20, 0, EdlFrameRate::Fps25).unwrap();
-        let tc4 = EdlTimecode::new(1, 0, 30, 0, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc2 = EdlTimecode::new(1, 0, 10, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc3 = EdlTimecode::new(1, 0, 20, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc4 = EdlTimecode::new(1, 0, 30, 0, EdlFrameRate::Fps25).expect("failed to create");
 
         let event = EdlEvent::new(
             1,
@@ -476,10 +500,10 @@ mod tests {
 
     #[test]
     fn test_event_overlap_detection() {
-        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(1, 0, 10, 0, EdlFrameRate::Fps25).unwrap();
-        let tc3 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).unwrap();
-        let tc4 = EdlTimecode::new(1, 0, 15, 0, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(1, 0, 0, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc2 = EdlTimecode::new(1, 0, 10, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc3 = EdlTimecode::new(1, 0, 5, 0, EdlFrameRate::Fps25).expect("failed to create");
+        let tc4 = EdlTimecode::new(1, 0, 15, 0, EdlFrameRate::Fps25).expect("failed to create");
 
         let event1 = EdlEvent::new(
             1,

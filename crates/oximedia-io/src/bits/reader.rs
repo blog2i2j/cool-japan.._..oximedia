@@ -23,13 +23,14 @@ use oximedia_core::{OxiError, OxiResult};
 /// let mut reader = BitReader::new(&data);
 ///
 /// // Read individual bits (from MSB to LSB)
-/// assert_eq!(reader.read_bit().unwrap(), 1);
-/// assert_eq!(reader.read_bit().unwrap(), 0);
-/// assert_eq!(reader.read_bit().unwrap(), 1);
-/// assert_eq!(reader.read_bit().unwrap(), 1);
+/// assert_eq!(reader.read_bit()?, 1);
+/// assert_eq!(reader.read_bit()?, 0);
+/// assert_eq!(reader.read_bit()?, 1);
+/// assert_eq!(reader.read_bit()?, 1);
 ///
 /// // Read multiple bits as a value
-/// assert_eq!(reader.read_bits(4).unwrap(), 0b0100);
+/// assert_eq!(reader.read_bits(4)?, 0b0100);
+/// # Ok::<(), oximedia_core::OxiError>(())
 /// ```
 #[derive(Debug, Clone)]
 pub struct BitReader<'a> {
@@ -79,8 +80,9 @@ impl<'a> BitReader<'a> {
     /// let data = [0b10000000];
     /// let mut reader = BitReader::new(&data);
     ///
-    /// assert_eq!(reader.read_bit().unwrap(), 1);
-    /// assert_eq!(reader.read_bit().unwrap(), 0);
+    /// assert_eq!(reader.read_bit()?, 1);
+    /// assert_eq!(reader.read_bit()?, 0);
+    /// # Ok::<(), oximedia_core::OxiError>(())
     /// ```
     pub fn read_bit(&mut self) -> OxiResult<u8> {
         if self.byte_pos >= self.data.len() {
@@ -118,9 +120,10 @@ impl<'a> BitReader<'a> {
     /// let data = [0b10110100, 0b11001010];
     /// let mut reader = BitReader::new(&data);
     ///
-    /// assert_eq!(reader.read_bits(4).unwrap(), 0b1011);
-    /// assert_eq!(reader.read_bits(4).unwrap(), 0b0100);
-    /// assert_eq!(reader.read_bits(8).unwrap(), 0b11001010);
+    /// assert_eq!(reader.read_bits(4)?, 0b1011);
+    /// assert_eq!(reader.read_bits(4)?, 0b0100);
+    /// assert_eq!(reader.read_bits(8)?, 0b11001010);
+    /// # Ok::<(), oximedia_core::OxiError>(())
     /// ```
     pub fn read_bits(&mut self, n: u8) -> OxiResult<u64> {
         if n > 64 {
@@ -155,8 +158,9 @@ impl<'a> BitReader<'a> {
     /// let data = [0x12, 0x34];
     /// let mut reader = BitReader::new(&data);
     ///
-    /// assert_eq!(reader.read_u8().unwrap(), 0x12);
-    /// assert_eq!(reader.read_u8().unwrap(), 0x34);
+    /// assert_eq!(reader.read_u8()?, 0x12);
+    /// assert_eq!(reader.read_u8()?, 0x34);
+    /// # Ok::<(), oximedia_core::OxiError>(())
     /// ```
     #[allow(clippy::cast_possible_truncation)]
     pub fn read_u8(&mut self) -> OxiResult<u8> {
@@ -177,7 +181,8 @@ impl<'a> BitReader<'a> {
     /// let data = [0x12, 0x34];
     /// let mut reader = BitReader::new(&data);
     ///
-    /// assert_eq!(reader.read_u16().unwrap(), 0x1234);
+    /// assert_eq!(reader.read_u16()?, 0x1234);
+    /// # Ok::<(), oximedia_core::OxiError>(())
     /// ```
     #[allow(clippy::cast_possible_truncation)]
     pub fn read_u16(&mut self) -> OxiResult<u16> {
@@ -198,7 +203,8 @@ impl<'a> BitReader<'a> {
     /// let data = [0x12, 0x34, 0x56, 0x78];
     /// let mut reader = BitReader::new(&data);
     ///
-    /// assert_eq!(reader.read_u32().unwrap(), 0x12345678);
+    /// assert_eq!(reader.read_u32()?, 0x12345678);
+    /// # Ok::<(), oximedia_core::OxiError>(())
     /// ```
     #[allow(clippy::cast_possible_truncation)]
     pub fn read_u32(&mut self) -> OxiResult<u32> {
@@ -219,7 +225,8 @@ impl<'a> BitReader<'a> {
     /// let data = [0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0];
     /// let mut reader = BitReader::new(&data);
     ///
-    /// assert_eq!(reader.read_u64().unwrap(), 0x123456789ABCDEF0);
+    /// assert_eq!(reader.read_u64()?, 0x123456789ABCDEF0);
+    /// # Ok::<(), oximedia_core::OxiError>(())
     /// ```
     pub fn read_u64(&mut self) -> OxiResult<u64> {
         self.read_bits(64)
@@ -241,8 +248,9 @@ impl<'a> BitReader<'a> {
     /// let data = [0b10000000];
     /// let mut reader = BitReader::new(&data);
     ///
-    /// assert!(reader.read_flag().unwrap());
-    /// assert!(!reader.read_flag().unwrap());
+    /// assert!(reader.read_flag()?);
+    /// assert!(!reader.read_flag()?);
+    /// # Ok::<(), oximedia_core::OxiError>(())
     /// ```
     pub fn read_flag(&mut self) -> OxiResult<bool> {
         Ok(self.read_bit()? != 0)
@@ -284,9 +292,10 @@ impl<'a> BitReader<'a> {
     /// let data = [0xFF, 0x00];
     /// let mut reader = BitReader::new(&data);
     ///
-    /// reader.read_bits(3).unwrap();  // Read 3 bits
+    /// reader.read_bits(3)?;  // Read 3 bits
     /// reader.byte_align();           // Skip remaining 5 bits
     /// assert_eq!(reader.bits_read(), 8);
+    /// # Ok::<(), oximedia_core::OxiError>(())
     /// ```
     pub fn byte_align(&mut self) {
         if self.bit_pos != 0 {
@@ -306,8 +315,9 @@ impl<'a> BitReader<'a> {
     /// let mut reader = BitReader::new(&data);
     ///
     /// assert!(reader.has_more_data());
-    /// reader.read_bits(8).unwrap();
+    /// reader.read_bits(8)?;
     /// assert!(!reader.has_more_data());
+    /// # Ok::<(), oximedia_core::OxiError>(())
     /// ```
     #[must_use]
     pub fn has_more_data(&self) -> bool {
@@ -327,8 +337,9 @@ impl<'a> BitReader<'a> {
     /// let mut reader = BitReader::new(&data);
     ///
     /// assert_eq!(reader.remaining_bytes(), 3);
-    /// reader.read_bits(4).unwrap();
+    /// reader.read_bits(4)?;
     /// assert_eq!(reader.remaining_bytes(), 2);  // Partial byte not counted
+    /// # Ok::<(), oximedia_core::OxiError>(())
     /// ```
     #[must_use]
     pub fn remaining_bytes(&self) -> usize {
@@ -350,10 +361,11 @@ impl<'a> BitReader<'a> {
     /// let mut reader = BitReader::new(&data);
     ///
     /// assert_eq!(reader.bits_read(), 0);
-    /// reader.read_bits(5).unwrap();
+    /// reader.read_bits(5)?;
     /// assert_eq!(reader.bits_read(), 5);
-    /// reader.read_bits(3).unwrap();
+    /// reader.read_bits(3)?;
     /// assert_eq!(reader.bits_read(), 8);
+    /// # Ok::<(), oximedia_core::OxiError>(())
     /// ```
     #[must_use]
     pub fn bits_read(&self) -> usize {
@@ -371,8 +383,9 @@ impl<'a> BitReader<'a> {
     /// let mut reader = BitReader::new(&data);
     ///
     /// assert_eq!(reader.remaining_bits(), 16);
-    /// reader.read_bits(5).unwrap();
+    /// reader.read_bits(5)?;
     /// assert_eq!(reader.remaining_bits(), 11);
+    /// # Ok::<(), oximedia_core::OxiError>(())
     /// ```
     #[must_use]
     pub fn remaining_bits(&self) -> usize {
@@ -397,10 +410,11 @@ impl<'a> BitReader<'a> {
     /// let data = [0b10000000];
     /// let mut reader = BitReader::new(&data);
     ///
-    /// assert_eq!(reader.peek_bit().unwrap(), 1);
-    /// assert_eq!(reader.peek_bit().unwrap(), 1);  // Still 1, not consumed
-    /// assert_eq!(reader.read_bit().unwrap(), 1);  // Now consumed
-    /// assert_eq!(reader.peek_bit().unwrap(), 0);  // Next bit
+    /// assert_eq!(reader.peek_bit()?, 1);
+    /// assert_eq!(reader.peek_bit()?, 1);  // Still 1, not consumed
+    /// assert_eq!(reader.read_bit()?, 1);  // Now consumed
+    /// assert_eq!(reader.peek_bit()?, 0);  // Next bit
+    /// # Ok::<(), oximedia_core::OxiError>(())
     /// ```
     pub fn peek_bit(&self) -> OxiResult<u8> {
         if self.byte_pos >= self.data.len() {
@@ -447,14 +461,14 @@ mod tests {
         let data = [0b10110100];
         let mut reader = BitReader::new(&data);
 
-        assert_eq!(reader.read_bit().unwrap(), 1);
-        assert_eq!(reader.read_bit().unwrap(), 0);
-        assert_eq!(reader.read_bit().unwrap(), 1);
-        assert_eq!(reader.read_bit().unwrap(), 1);
-        assert_eq!(reader.read_bit().unwrap(), 0);
-        assert_eq!(reader.read_bit().unwrap(), 1);
-        assert_eq!(reader.read_bit().unwrap(), 0);
-        assert_eq!(reader.read_bit().unwrap(), 0);
+        assert_eq!(reader.read_bit().expect("read_bit should succeed"), 1);
+        assert_eq!(reader.read_bit().expect("read_bit should succeed"), 0);
+        assert_eq!(reader.read_bit().expect("read_bit should succeed"), 1);
+        assert_eq!(reader.read_bit().expect("read_bit should succeed"), 1);
+        assert_eq!(reader.read_bit().expect("read_bit should succeed"), 0);
+        assert_eq!(reader.read_bit().expect("read_bit should succeed"), 1);
+        assert_eq!(reader.read_bit().expect("read_bit should succeed"), 0);
+        assert_eq!(reader.read_bit().expect("read_bit should succeed"), 0);
     }
 
     #[test]
@@ -462,9 +476,18 @@ mod tests {
         let data = [0b10110100, 0b11001010];
         let mut reader = BitReader::new(&data);
 
-        assert_eq!(reader.read_bits(4).unwrap(), 0b1011);
-        assert_eq!(reader.read_bits(4).unwrap(), 0b0100);
-        assert_eq!(reader.read_bits(8).unwrap(), 0b11001010);
+        assert_eq!(
+            reader.read_bits(4).expect("read_bits should succeed"),
+            0b1011
+        );
+        assert_eq!(
+            reader.read_bits(4).expect("read_bits should succeed"),
+            0b0100
+        );
+        assert_eq!(
+            reader.read_bits(8).expect("read_bits should succeed"),
+            0b11001010
+        );
     }
 
     #[test]
@@ -472,15 +495,21 @@ mod tests {
         let data = [0b10110100, 0b11001010];
         let mut reader = BitReader::new(&data);
 
-        assert_eq!(reader.read_bits(12).unwrap(), 0b101101001100);
-        assert_eq!(reader.read_bits(4).unwrap(), 0b1010);
+        assert_eq!(
+            reader.read_bits(12).expect("read_bits should succeed"),
+            0b101101001100
+        );
+        assert_eq!(
+            reader.read_bits(4).expect("read_bits should succeed"),
+            0b1010
+        );
     }
 
     #[test]
     fn test_read_bits_zero() {
         let data = [0xFF];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_bits(0).unwrap(), 0);
+        assert_eq!(reader.read_bits(0).expect("read_bits should succeed"), 0);
         assert_eq!(reader.bits_read(), 0);
     }
 
@@ -496,38 +525,44 @@ mod tests {
     fn test_read_u8() {
         let data = [0x12, 0x34];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_u8().unwrap(), 0x12);
-        assert_eq!(reader.read_u8().unwrap(), 0x34);
+        assert_eq!(reader.read_u8().expect("read_u8 should succeed"), 0x12);
+        assert_eq!(reader.read_u8().expect("read_u8 should succeed"), 0x34);
     }
 
     #[test]
     fn test_read_u16() {
         let data = [0x12, 0x34];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_u16().unwrap(), 0x1234);
+        assert_eq!(reader.read_u16().expect("read_u16 should succeed"), 0x1234);
     }
 
     #[test]
     fn test_read_u32() {
         let data = [0x12, 0x34, 0x56, 0x78];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_u32().unwrap(), 0x1234_5678);
+        assert_eq!(
+            reader.read_u32().expect("read_u32 should succeed"),
+            0x1234_5678
+        );
     }
 
     #[test]
     fn test_read_u64() {
         let data = [0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC, 0xDE, 0xF0];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.read_u64().unwrap(), 0x1234_5678_9ABC_DEF0);
+        assert_eq!(
+            reader.read_u64().expect("read_u64 should succeed"),
+            0x1234_5678_9ABC_DEF0
+        );
     }
 
     #[test]
     fn test_read_flag() {
         let data = [0b10100000];
         let mut reader = BitReader::new(&data);
-        assert!(reader.read_flag().unwrap());
-        assert!(!reader.read_flag().unwrap());
-        assert!(reader.read_flag().unwrap());
+        assert!(reader.read_flag().expect("read_flag should succeed"));
+        assert!(!reader.read_flag().expect("read_flag should succeed"));
+        assert!(reader.read_flag().expect("read_flag should succeed"));
     }
 
     #[test]
@@ -535,17 +570,17 @@ mod tests {
         let data = [0xFF, 0x12];
         let mut reader = BitReader::new(&data);
         reader.skip_bits(8);
-        assert_eq!(reader.read_u8().unwrap(), 0x12);
+        assert_eq!(reader.read_u8().expect("read_u8 should succeed"), 0x12);
     }
 
     #[test]
     fn test_byte_align() {
         let data = [0xFF, 0x12];
         let mut reader = BitReader::new(&data);
-        reader.read_bits(3).unwrap();
+        reader.read_bits(3).expect("read_bits should succeed");
         reader.byte_align();
         assert_eq!(reader.bits_read(), 8);
-        assert_eq!(reader.read_u8().unwrap(), 0x12);
+        assert_eq!(reader.read_u8().expect("read_u8 should succeed"), 0x12);
     }
 
     #[test]
@@ -561,7 +596,7 @@ mod tests {
         let data = [0xFF];
         let mut reader = BitReader::new(&data);
         assert!(reader.has_more_data());
-        reader.read_bits(8).unwrap();
+        reader.read_bits(8).expect("read_bits should succeed");
         assert!(!reader.has_more_data());
     }
 
@@ -570,9 +605,9 @@ mod tests {
         let data = [0xFF, 0x00, 0xFF];
         let mut reader = BitReader::new(&data);
         assert_eq!(reader.remaining_bytes(), 3);
-        reader.read_bits(4).unwrap();
+        reader.read_bits(4).expect("read_bits should succeed");
         assert_eq!(reader.remaining_bytes(), 2);
-        reader.read_bits(4).unwrap();
+        reader.read_bits(4).expect("read_bits should succeed");
         assert_eq!(reader.remaining_bytes(), 2);
     }
 
@@ -581,9 +616,9 @@ mod tests {
         let data = [0xFF, 0x00];
         let mut reader = BitReader::new(&data);
         assert_eq!(reader.bits_read(), 0);
-        reader.read_bits(5).unwrap();
+        reader.read_bits(5).expect("read_bits should succeed");
         assert_eq!(reader.bits_read(), 5);
-        reader.read_bits(3).unwrap();
+        reader.read_bits(3).expect("read_bits should succeed");
         assert_eq!(reader.bits_read(), 8);
     }
 
@@ -592,7 +627,7 @@ mod tests {
         let data = [0xFF, 0x00];
         let mut reader = BitReader::new(&data);
         assert_eq!(reader.remaining_bits(), 16);
-        reader.read_bits(5).unwrap();
+        reader.read_bits(5).expect("read_bits should succeed");
         assert_eq!(reader.remaining_bits(), 11);
     }
 
@@ -600,18 +635,18 @@ mod tests {
     fn test_peek_bit() {
         let data = [0b10000000];
         let mut reader = BitReader::new(&data);
-        assert_eq!(reader.peek_bit().unwrap(), 1);
-        assert_eq!(reader.peek_bit().unwrap(), 1);
+        assert_eq!(reader.peek_bit().expect("peek_bit should succeed"), 1);
+        assert_eq!(reader.peek_bit().expect("peek_bit should succeed"), 1);
         assert_eq!(reader.bits_read(), 0);
-        reader.read_bit().unwrap();
-        assert_eq!(reader.peek_bit().unwrap(), 0);
+        reader.read_bit().expect("read_bit should succeed");
+        assert_eq!(reader.peek_bit().expect("peek_bit should succeed"), 0);
     }
 
     #[test]
     fn test_eof() {
         let data = [0xFF];
         let mut reader = BitReader::new(&data);
-        reader.read_bits(8).unwrap();
+        reader.read_bits(8).expect("read_bits should succeed");
         assert!(reader.read_bit().is_err());
         assert!(reader.read_bits(1).is_err());
         assert!(reader.peek_bit().is_err());
@@ -632,7 +667,7 @@ mod tests {
     fn test_read_64_bits_max() {
         let data = [0xFF; 8];
         let mut reader = BitReader::new(&data);
-        let value = reader.read_bits(64).unwrap();
+        let value = reader.read_bits(64).expect("read_bits should succeed");
         assert_eq!(value, u64::MAX);
     }
 
@@ -642,9 +677,18 @@ mod tests {
         let data = [0b10101010, 0b11001100, 0b11110000];
         let mut reader = BitReader::new(&data);
 
-        assert_eq!(reader.read_bits(4).unwrap(), 0b1010);
-        assert_eq!(reader.read_bits(8).unwrap(), 0b1010_1100);
-        assert_eq!(reader.read_bits(12).unwrap(), 0b1100_1111_0000);
+        assert_eq!(
+            reader.read_bits(4).expect("read_bits should succeed"),
+            0b1010
+        );
+        assert_eq!(
+            reader.read_bits(8).expect("read_bits should succeed"),
+            0b1010_1100
+        );
+        assert_eq!(
+            reader.read_bits(12).expect("read_bits should succeed"),
+            0b1100_1111_0000
+        );
     }
 
     #[test]
@@ -652,11 +696,17 @@ mod tests {
         let data = [0b11010010, 0b10110100];
         let mut reader = BitReader::new(&data);
 
-        assert!(reader.read_flag().unwrap()); // 1
-        assert!(reader.read_flag().unwrap()); // 1
-        assert!(!reader.read_flag().unwrap()); // 0
-        assert_eq!(reader.read_bits(5).unwrap(), 0b10010); // 10010
-        assert_eq!(reader.read_u8().unwrap(), 0b10110100);
+        assert!(reader.read_flag().expect("read_flag should succeed")); // 1
+        assert!(reader.read_flag().expect("read_flag should succeed")); // 1
+        assert!(!reader.read_flag().expect("read_flag should succeed")); // 0
+        assert_eq!(
+            reader.read_bits(5).expect("read_bits should succeed"),
+            0b10010
+        ); // 10010
+        assert_eq!(
+            reader.read_u8().expect("read_u8 should succeed"),
+            0b10110100
+        );
     }
 
     #[test]
@@ -667,7 +717,7 @@ mod tests {
         reader.byte_align(); // Should do nothing
         assert_eq!(reader.bits_read(), 0);
 
-        reader.read_bits(8).unwrap();
+        reader.read_bits(8).expect("read_bits should succeed");
         reader.byte_align(); // Should still do nothing
         assert_eq!(reader.bits_read(), 8);
     }
@@ -678,8 +728,11 @@ mod tests {
         let mut reader = BitReader::new(&data);
 
         reader.skip_bits(3);
-        assert_eq!(reader.read_bits(5).unwrap(), 0b11111);
-        assert_eq!(reader.read_u8().unwrap(), 0x12);
+        assert_eq!(
+            reader.read_bits(5).expect("read_bits should succeed"),
+            0b11111
+        );
+        assert_eq!(reader.read_u8().expect("read_u8 should succeed"), 0x12);
     }
 
     #[test]
@@ -699,11 +752,11 @@ mod tests {
         assert_eq!(reader.remaining_bits(), 32);
         assert_eq!(reader.remaining_bytes(), 4);
 
-        reader.read_bits(5).unwrap();
+        reader.read_bits(5).expect("read_bits should succeed");
         assert_eq!(reader.remaining_bits(), 27);
         assert_eq!(reader.remaining_bytes(), 3);
 
-        reader.read_bits(11).unwrap(); // Total 16 bits = 2 bytes
+        reader.read_bits(11).expect("read_bits should succeed"); // Total 16 bits = 2 bytes
         assert_eq!(reader.remaining_bits(), 16);
         assert_eq!(reader.remaining_bytes(), 2);
     }
@@ -714,13 +767,13 @@ mod tests {
         let mut reader = BitReader::new(&data);
 
         for _ in 0..10 {
-            assert_eq!(reader.peek_bit().unwrap(), 1);
+            assert_eq!(reader.peek_bit().expect("peek_bit should succeed"), 1);
         }
         assert_eq!(reader.bits_read(), 0);
 
-        reader.read_bit().unwrap();
+        reader.read_bit().expect("read_bit should succeed");
         for _ in 0..10 {
-            assert_eq!(reader.peek_bit().unwrap(), 0);
+            assert_eq!(reader.peek_bit().expect("peek_bit should succeed"), 0);
         }
         assert_eq!(reader.bits_read(), 1);
     }
@@ -736,10 +789,16 @@ mod tests {
         ];
         let mut reader = BitReader::new(&data);
 
-        assert_eq!(reader.read_u8().unwrap(), 0x12);
-        assert_eq!(reader.read_u16().unwrap(), 0x3456);
-        assert_eq!(reader.read_u32().unwrap(), 0x789A_BCDE);
-        assert_eq!(reader.read_u64().unwrap(), 0xF011_2233_4455_6677);
+        assert_eq!(reader.read_u8().expect("read_u8 should succeed"), 0x12);
+        assert_eq!(reader.read_u16().expect("read_u16 should succeed"), 0x3456);
+        assert_eq!(
+            reader.read_u32().expect("read_u32 should succeed"),
+            0x789A_BCDE
+        );
+        assert_eq!(
+            reader.read_u64().expect("read_u64 should succeed"),
+            0xF011_2233_4455_6677
+        );
         assert!(!reader.has_more_data());
     }
 
@@ -748,12 +807,15 @@ mod tests {
         let data = [0xFF, 0x12, 0x34, 0x56, 0x78];
         let mut reader = BitReader::new(&data);
 
-        reader.read_bits(4).unwrap(); // Unalign by 4 bits
+        reader.read_bits(4).expect("read_bits should succeed"); // Unalign by 4 bits
 
         // Now all integer reads should work across byte boundaries
-        assert_eq!(reader.read_bits(8).unwrap(), 0xF1);
-        assert_eq!(reader.read_bits(16).unwrap(), 0x2345);
-        assert_eq!(reader.read_bits(8).unwrap(), 0x67);
+        assert_eq!(reader.read_bits(8).expect("read_bits should succeed"), 0xF1);
+        assert_eq!(
+            reader.read_bits(16).expect("read_bits should succeed"),
+            0x2345
+        );
+        assert_eq!(reader.read_bits(8).expect("read_bits should succeed"), 0x67);
     }
 
     #[test]
@@ -764,7 +826,7 @@ mod tests {
         assert_eq!(reader.byte_position(), 0);
         assert_eq!(reader.bit_position(), 0);
 
-        reader.read_bits(10).unwrap();
+        reader.read_bits(10).expect("read_bits should succeed");
         assert_eq!(reader.byte_position(), 1);
         assert_eq!(reader.bit_position(), 2);
 
@@ -790,7 +852,10 @@ mod tests {
 
         for i in 0..8 {
             let expected = if i % 2 == 0 { 1 } else { 0 };
-            assert_eq!(reader.read_bit().unwrap(), expected);
+            assert_eq!(
+                reader.read_bit().expect("read_bit should succeed"),
+                expected
+            );
         }
     }
 
@@ -799,7 +864,7 @@ mod tests {
         let data = [0xFF];
         let mut reader = BitReader::new(&data);
 
-        reader.read_bits(8).unwrap();
+        reader.read_bits(8).expect("read_bits should succeed");
         assert!(!reader.has_more_data());
         assert_eq!(reader.remaining_bits(), 0);
 

@@ -244,7 +244,10 @@ mod tests {
         h.push(EditAction::AddClip { clip_id: 42 });
         let action = h.undo();
         assert!(action.is_some());
-        assert_eq!(action.unwrap(), EditAction::AddClip { clip_id: 42 });
+        assert_eq!(
+            action.expect("test expectation failed"),
+            EditAction::AddClip { clip_id: 42 }
+        );
     }
 
     #[test]
@@ -263,7 +266,10 @@ mod tests {
         h.undo();
         let redone = h.redo();
         assert!(redone.is_some());
-        assert_eq!(redone.unwrap(), EditAction::RemoveClip { clip_id: 7 });
+        assert_eq!(
+            redone.expect("test expectation failed"),
+            EditAction::RemoveClip { clip_id: 7 }
+        );
     }
 
     #[test]
@@ -319,7 +325,7 @@ mod tests {
             old_pos: 100,
             new_pos: 200,
         });
-        let action = h.undo().unwrap();
+        let action = h.undo().expect("action should be valid");
         assert_eq!(
             action,
             EditAction::MoveClip {
@@ -398,15 +404,33 @@ mod tests {
         h.push(EditAction::AddClip { clip_id: 3 });
 
         // Undo all three
-        assert_eq!(h.undo().unwrap(), EditAction::AddClip { clip_id: 3 });
-        assert_eq!(h.undo().unwrap(), EditAction::AddClip { clip_id: 2 });
-        assert_eq!(h.undo().unwrap(), EditAction::AddClip { clip_id: 1 });
+        assert_eq!(
+            h.undo().expect("undo should succeed"),
+            EditAction::AddClip { clip_id: 3 }
+        );
+        assert_eq!(
+            h.undo().expect("undo should succeed"),
+            EditAction::AddClip { clip_id: 2 }
+        );
+        assert_eq!(
+            h.undo().expect("undo should succeed"),
+            EditAction::AddClip { clip_id: 1 }
+        );
         assert!(!h.can_undo());
 
         // Redo all three
-        assert_eq!(h.redo().unwrap(), EditAction::AddClip { clip_id: 1 });
-        assert_eq!(h.redo().unwrap(), EditAction::AddClip { clip_id: 2 });
-        assert_eq!(h.redo().unwrap(), EditAction::AddClip { clip_id: 3 });
+        assert_eq!(
+            h.redo().expect("redo should succeed"),
+            EditAction::AddClip { clip_id: 1 }
+        );
+        assert_eq!(
+            h.redo().expect("redo should succeed"),
+            EditAction::AddClip { clip_id: 2 }
+        );
+        assert_eq!(
+            h.redo().expect("redo should succeed"),
+            EditAction::AddClip { clip_id: 3 }
+        );
         assert!(!h.can_redo());
     }
 

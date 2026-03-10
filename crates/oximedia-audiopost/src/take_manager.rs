@@ -386,7 +386,7 @@ mod tests {
     fn test_take_rate_and_notes() {
         let mut t = Take::new("t1", 1, "cue-1");
         t.rate(4);
-        assert_eq!(t.rating.unwrap().stars(), 4);
+        assert_eq!(t.rating.expect("rating should be valid").stars(), 4);
         t.add_note("good timing");
         t.add_note("slightly off pitch");
         assert!(t.notes.contains("good timing"));
@@ -435,18 +435,24 @@ mod tests {
 
         assert!(mgr.select_take(&TakeId::new("t1")));
         assert_eq!(
-            mgr.get(&TakeId::new("t1")).unwrap().status,
+            mgr.get(&TakeId::new("t1"))
+                .expect("failed to get value")
+                .status,
             TakeStatus::Selected
         );
 
         // Selecting t2 should deselect t1
         assert!(mgr.select_take(&TakeId::new("t2")));
         assert_eq!(
-            mgr.get(&TakeId::new("t1")).unwrap().status,
+            mgr.get(&TakeId::new("t1"))
+                .expect("failed to get value")
+                .status,
             TakeStatus::Reviewed
         );
         assert_eq!(
-            mgr.get(&TakeId::new("t2")).unwrap().status,
+            mgr.get(&TakeId::new("t2"))
+                .expect("failed to get value")
+                .status,
             TakeStatus::Selected
         );
     }
@@ -476,8 +482,10 @@ mod tests {
         mgr.add_take(t1);
         mgr.add_take(t2);
 
-        let best = mgr.best_rated_take("cue-1").unwrap();
-        assert_eq!(best.rating.unwrap().stars(), 5);
+        let best = mgr
+            .best_rated_take("cue-1")
+            .expect("best_rated_take should succeed");
+        assert_eq!(best.rating.expect("rating should be valid").stars(), 5);
     }
 
     #[test]

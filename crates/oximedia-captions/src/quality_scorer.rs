@@ -311,7 +311,9 @@ mod tests {
 
     fn make_segment(text: &str, start_ms: u64, end_ms: u64) -> CaptionSegment {
         let word = CaptionWord::new(text, 0.9, start_ms, end_ms, None);
-        CaptionSegment::from_words(vec![word]).unwrap().finalized()
+        CaptionSegment::from_words(vec![word])
+            .expect("caption segment creation should succeed")
+            .finalized()
     }
 
     #[test]

@@ -491,7 +491,9 @@ mod tests {
     #[test]
     fn test_display_config_registry_find_closest_peak() {
         let reg = DisplayConfigRegistry::with_standard_profiles();
-        let closest = reg.find_closest_peak(900.0).unwrap();
+        let closest = reg
+            .find_closest_peak(900.0)
+            .expect("closest should be valid");
         assert_eq!(closest.name, "Consumer OLED");
     }
 

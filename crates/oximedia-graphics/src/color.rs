@@ -284,7 +284,7 @@ impl Gradient {
             prev = stop;
         }
 
-        stops.last().unwrap().1
+        stops.last().map_or(Color::BLACK, |(_, c)| *c)
     }
 
     fn lerp_color(&self, a: &Color, b: &Color, t: f32) -> Color {
@@ -318,13 +318,13 @@ mod tests {
 
     #[test]
     fn test_color_from_hex() {
-        let c = Color::from_hex("#FF8040").unwrap();
+        let c = Color::from_hex("#FF8040").expect("c should be valid");
         assert_eq!(c.r, 255);
         assert_eq!(c.g, 128);
         assert_eq!(c.b, 64);
         assert_eq!(c.a, 255);
 
-        let c = Color::from_hex("FF804080").unwrap();
+        let c = Color::from_hex("FF804080").expect("c should be valid");
         assert_eq!(c.a, 128);
     }
 

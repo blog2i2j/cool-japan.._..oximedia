@@ -635,10 +635,13 @@ mod tests {
         assert_eq!(HashAlgorithm::Md5.as_str(), "MD5");
 
         assert_eq!(
-            HashAlgorithm::from_str("SHA-1").unwrap(),
+            HashAlgorithm::from_str("SHA-1").expect("test expectation failed"),
             HashAlgorithm::Sha1
         );
-        assert_eq!(HashAlgorithm::from_str("MD5").unwrap(), HashAlgorithm::Md5);
+        assert_eq!(
+            HashAlgorithm::from_str("MD5").expect("test expectation failed"),
+            HashAlgorithm::Md5
+        );
     }
 
     #[test]

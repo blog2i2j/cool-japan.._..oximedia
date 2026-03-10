@@ -418,7 +418,7 @@ mod tests {
     #[test]
     fn test_longest_gap() {
         let spans = make_spans(&[(0, 1000, 10), (1100, 2000, 10), (5000, 6000, 10)]);
-        let (idx, gap) = longest_gap(&spans).unwrap();
+        let (idx, gap) = longest_gap(&spans).expect("longest gap should be found");
         assert_eq!(idx, 1);
         assert_eq!(gap, 3000);
     }
@@ -432,7 +432,7 @@ mod tests {
     #[test]
     fn test_average_gap() {
         let spans = make_spans(&[(0, 1000, 10), (2000, 3000, 10), (4000, 5000, 10)]);
-        let avg = average_gap(&spans).unwrap();
+        let avg = average_gap(&spans).expect("average gap should be computed");
         assert!((avg - 1000.0).abs() < f64::EPSILON);
     }
 

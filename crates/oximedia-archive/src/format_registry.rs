@@ -275,14 +275,18 @@ mod tests {
     #[test]
     fn capability_lookup_zip() {
         let r = FormatRegistry::with_defaults();
-        let cap = r.capability(ArchiveFormat::Zip).unwrap();
+        let cap = r
+            .capability(ArchiveFormat::Zip)
+            .expect("cap should be valid");
         assert!(cap.native_compression);
     }
 
     #[test]
     fn best_for_size_small_not_tape() {
         let r = FormatRegistry::with_defaults();
-        let fmt = r.best_for_size(100 * 1024 * 1024).unwrap(); // 100 MiB
+        let fmt = r
+            .best_for_size(100 * 1024 * 1024)
+            .expect("fmt should be valid"); // 100 MiB
         assert!(!fmt.is_tape_format());
     }
 
@@ -290,7 +294,7 @@ mod tests {
     fn best_for_size_large_prefers_tape() {
         let r = FormatRegistry::with_defaults();
         let one_tib: u64 = 1024 * 1024 * 1024 * 1024;
-        let fmt = r.best_for_size(one_tib).unwrap();
+        let fmt = r.best_for_size(one_tib).expect("fmt should be valid");
         assert!(fmt.is_tape_format());
     }
 
@@ -306,7 +310,9 @@ mod tests {
         let custom = FormatCapability::new(ArchiveFormat::Zip, 42, false, false, 1);
         r.register(custom);
         assert_eq!(
-            r.capability(ArchiveFormat::Zip).unwrap().max_size_bytes(),
+            r.capability(ArchiveFormat::Zip)
+                .expect("capability should succeed")
+                .max_size_bytes(),
             42
         );
     }

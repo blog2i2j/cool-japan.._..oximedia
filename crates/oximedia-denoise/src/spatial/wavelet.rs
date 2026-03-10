@@ -189,7 +189,7 @@ fn inverse_haar_transform_1d(data: &mut [f32]) {
 fn estimate_wavelet_threshold(coeffs: &[f32], strength: f32) -> f32 {
     // Estimate noise standard deviation using median absolute deviation
     let mut abs_coeffs: Vec<f32> = coeffs.iter().map(|&x| x.abs()).collect();
-    abs_coeffs.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    abs_coeffs.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
     let median = if abs_coeffs.is_empty() {
         0.0
@@ -255,7 +255,7 @@ mod tests {
         let result = wavelet_denoise(&frame, 0.5, ThresholdMethod::Soft);
         assert!(result.is_ok());
 
-        let filtered = result.unwrap();
+        let filtered = result.expect("filtered should be valid");
         assert_eq!(filtered.width, 64);
         assert_eq!(filtered.height, 64);
     }

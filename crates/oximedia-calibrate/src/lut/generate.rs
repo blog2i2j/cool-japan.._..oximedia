@@ -170,7 +170,7 @@ mod tests {
         let result = LutGenerator::gamma_lut(2.2, 256);
         assert!(result.is_ok());
 
-        let lut = result.unwrap();
+        let lut = result.expect("expected successful result");
         assert_eq!(lut.size(), 256);
     }
 
@@ -199,7 +199,7 @@ mod tests {
         let result = LutGenerator::from_matrix(&identity, LutSize::Size17);
         assert!(result.is_ok());
 
-        let lut = result.unwrap();
+        let lut = result.expect("expected successful result");
         assert_eq!(lut.size(), LutSize::Size17.as_usize());
     }
 
@@ -208,7 +208,7 @@ mod tests {
         let result = LutGenerator::neutral_axis_lut(LutSize::Size17);
         assert!(result.is_ok());
 
-        let lut = result.unwrap();
+        let lut = result.expect("expected successful result");
         assert_eq!(lut.size(), LutSize::Size17.as_usize());
     }
 

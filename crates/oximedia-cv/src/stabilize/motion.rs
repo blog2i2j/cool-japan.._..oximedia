@@ -367,7 +367,11 @@ impl MotionEstimator {
         }
 
         // Sort by response strength and take top features
-        features.sort_by(|a, b| b.response.partial_cmp(&a.response).unwrap());
+        features.sort_by(|a, b| {
+            b.response
+                .partial_cmp(&a.response)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         features.truncate(self.max_features);
 
         // Apply non-maximum suppression

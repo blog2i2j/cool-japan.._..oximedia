@@ -373,9 +373,13 @@ mod tests {
     #[test]
     fn test_edit_list_builder() {
         let mut builder = EditListBuilder::new(1000, 48000);
-        builder.add_clip(0, 1000, 1.0).unwrap();
-        builder.add_pause(500).unwrap();
-        builder.add_clip(48000, 2000, 0.5).unwrap();
+        builder
+            .add_clip(0, 1000, 1.0)
+            .expect("operation should succeed");
+        builder.add_pause(500).expect("operation should succeed");
+        builder
+            .add_clip(48000, 2000, 0.5)
+            .expect("operation should succeed");
 
         let list = builder.build();
         assert_eq!(list.len(), 3);

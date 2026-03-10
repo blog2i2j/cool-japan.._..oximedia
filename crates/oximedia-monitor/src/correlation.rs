@@ -302,7 +302,7 @@ mod tests {
     #[test]
     fn test_pearson_perfect_positive() {
         let x = linspace(0.0, 10.0, 11);
-        let r = pearson(&x, &x).unwrap();
+        let r = pearson(&x, &x).expect("operation should succeed");
         assert!((r - 1.0).abs() < 1e-9);
     }
 
@@ -310,7 +310,7 @@ mod tests {
     fn test_pearson_perfect_negative() {
         let x = linspace(0.0, 10.0, 11);
         let y: Vec<f64> = x.iter().map(|&v| -v).collect();
-        let r = pearson(&x, &y).unwrap();
+        let r = pearson(&x, &y).expect("operation should succeed");
         assert!((r + 1.0).abs() < 1e-9);
     }
 
@@ -336,7 +336,7 @@ mod tests {
     #[test]
     fn test_cross_correlate_lag_zero() {
         let x = linspace(0.0, 10.0, 20);
-        let result = cross_correlate(&x, &x, 5).unwrap();
+        let result = cross_correlate(&x, &x, 5).expect("operation should succeed");
         assert_eq!(result.best_lag, 0);
         assert!((result.best_r - 1.0).abs() < 1e-9);
     }
@@ -347,7 +347,7 @@ mod tests {
         let base: Vec<f64> = (0..30).map(|i| i as f64).collect();
         let x = base[0..25].to_vec();
         let y = base[2..27].to_vec();
-        let result = cross_correlate(&x, &y, 5).unwrap();
+        let result = cross_correlate(&x, &y, 5).expect("operation should succeed");
         assert!(result.best_r > 0.99);
     }
 
@@ -358,8 +358,8 @@ mod tests {
         series.insert("a".to_string(), v.clone());
         series.insert("b".to_string(), v);
         let matrix = CorrelationMatrix::compute(&series);
-        assert!((matrix.get("a", "a").unwrap() - 1.0).abs() < 1e-9);
-        assert!((matrix.get("b", "b").unwrap() - 1.0).abs() < 1e-9);
+        assert!((matrix.get("a", "a").expect("failed to get value") - 1.0).abs() < 1e-9);
+        assert!((matrix.get("b", "b").expect("failed to get value") - 1.0).abs() < 1e-9);
     }
 
     #[test]
@@ -410,7 +410,8 @@ mod tests {
     #[test]
     fn test_causal_hint_compute() {
         let x: Vec<f64> = (0..20).map(|i| i as f64).collect();
-        let hint = CausalHint::compute("cpu", "latency", &x, &x, 3).unwrap();
+        let hint =
+            CausalHint::compute("cpu", "latency", &x, &x, 3).expect("operation should succeed");
         assert_eq!(hint.strength, CausalStrength::Strong);
         assert!((hint.correlation - 1.0).abs() < 1e-9);
     }

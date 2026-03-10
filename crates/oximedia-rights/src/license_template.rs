@@ -364,11 +364,13 @@ mod tests {
     #[test]
     fn test_template_instantiate_success() {
         let reg = TemplateRegistry::with_defaults();
-        let tpl = reg.get("rf-standard").unwrap();
+        let tpl = reg
+            .get("rf-standard")
+            .expect("rights test operation should succeed");
         let vals = sample_values();
         let result = tpl.instantiate(&vals);
         assert!(result.is_ok());
-        let text = result.unwrap();
+        let text = result.expect("rights test operation should succeed");
         assert!(text.contains("Acme Corp"));
         assert!(text.contains("Widget Inc"));
         assert!(text.contains("VID-12345"));
@@ -379,7 +381,9 @@ mod tests {
     #[test]
     fn test_template_instantiate_missing_required() {
         let reg = TemplateRegistry::with_defaults();
-        let tpl = reg.get("rm-standard").unwrap();
+        let tpl = reg
+            .get("rm-standard")
+            .expect("rights test operation should succeed");
         // Missing "usage" and "fee"
         let vals = sample_values();
         let result = tpl.instantiate(&vals);
@@ -390,7 +394,9 @@ mod tests {
     #[test]
     fn test_template_missing_fields() {
         let reg = TemplateRegistry::with_defaults();
-        let tpl = reg.get("rm-standard").unwrap();
+        let tpl = reg
+            .get("rm-standard")
+            .expect("rights test operation should succeed");
         let vals = sample_values();
         let missing = tpl.missing_fields(&vals);
         assert!(missing.contains(&"usage".to_string()));
@@ -400,7 +406,9 @@ mod tests {
     #[test]
     fn test_template_field_count() {
         let reg = TemplateRegistry::with_defaults();
-        let tpl = reg.get("rf-standard").unwrap();
+        let tpl = reg
+            .get("rf-standard")
+            .expect("rights test operation should succeed");
         assert_eq!(tpl.field_count(), 4);
         assert_eq!(tpl.required_field_count(), 3);
     }

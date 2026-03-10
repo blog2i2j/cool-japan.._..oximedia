@@ -298,7 +298,7 @@ mod tests {
     #[test]
     fn test_parse_response_ok() {
         let xml = r#"<viz_state rendering="true" fps="25.0" frames="100" scene="/LOWER_THIRD"/>"#;
-        let state = VizProtocol::parse_response(xml).unwrap();
+        let state = VizProtocol::parse_response(xml).expect("parse_response should succeed");
         assert!(state.is_rendering);
         assert!((state.fps - 25.0).abs() < f32::EPSILON);
         assert_eq!(state.frame_count, 100);
@@ -308,7 +308,7 @@ mod tests {
     #[test]
     fn test_parse_response_not_rendering() {
         let xml = r#"<viz_state rendering="false" fps="25.0" frames="0"/>"#;
-        let state = VizProtocol::parse_response(xml).unwrap();
+        let state = VizProtocol::parse_response(xml).expect("parse_response should succeed");
         assert!(!state.is_rendering);
         assert!(state.active_scene.is_none());
     }

@@ -355,7 +355,7 @@ mod tests {
 
     #[test]
     fn test_timecode_parsing() {
-        let tc = Timecode::parse("01:23:45:12").unwrap();
+        let tc = Timecode::parse("01:23:45:12").expect("tc should be valid");
         assert_eq!(tc.hours, 1);
         assert_eq!(tc.minutes, 23);
         assert_eq!(tc.seconds, 45);

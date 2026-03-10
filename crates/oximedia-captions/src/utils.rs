@@ -391,7 +391,7 @@ mod tests {
     fn test_srt_to_timestamp_roundtrip() {
         let ts = Timestamp::from_hmsm(0, 1, 30, 500);
         let s = timestamp_to_srt(ts);
-        let parsed = srt_to_timestamp(&s).unwrap();
+        let parsed = srt_to_timestamp(&s).expect("timestamp parsing should succeed");
         assert_eq!(parsed.as_millis(), ts.as_millis());
     }
 
@@ -405,7 +405,7 @@ mod tests {
     fn test_webvtt_to_timestamp_roundtrip() {
         let ts = Timestamp::from_hmsm(2, 45, 10, 0);
         let s = timestamp_to_webvtt(ts);
-        let parsed = webvtt_to_timestamp(&s).unwrap();
+        let parsed = webvtt_to_timestamp(&s).expect("timestamp parsing should succeed");
         assert_eq!(parsed.as_millis(), ts.as_millis());
     }
 
@@ -495,7 +495,14 @@ mod tests {
         // First word starts at caption start
         assert_eq!(timings[0].start, start);
         // Last word ends at or before caption end (due to integer division)
-        assert!(timings.last().unwrap().end.as_micros() <= end.as_micros());
+        assert!(
+            timings
+                .last()
+                .expect("last element should exist")
+                .end
+                .as_micros()
+                <= end.as_micros()
+        );
     }
 
     #[test]
@@ -575,14 +582,14 @@ mod tests {
                 Timestamp::from_secs(5),
                 "Test caption one".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
         track
             .add_caption(Caption::new(
                 Timestamp::from_secs(10),
                 Timestamp::from_secs(15),
                 "Test caption two".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
         let stats = Statistics::calculate(&track);
         assert_eq!(stats.total_captions, 2);

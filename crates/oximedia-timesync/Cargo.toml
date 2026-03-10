@@ -25,7 +25,10 @@ serde_json.workspace = true
 chrono.workspace = true
 
 # For shared memory IPC
-memmap2 = "0.9"
+memmap2.workspace = true
+
+# For OS clock adjustment
+libc.workspace = true
 
 # For CRC calculation in PTP
 crc = "3"

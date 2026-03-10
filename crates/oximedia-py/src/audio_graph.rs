@@ -383,7 +383,7 @@ mod tests {
         let mut g = AudioGraph::new();
         let a = g.add_node(NodeKind::Source { label: "a".into() }, AudioSampleFmt::F32, 44100, ChannelLayout::Mono);
         let b = g.add_node(NodeKind::Sink { label: "b".into() }, AudioSampleFmt::F32, 44100, ChannelLayout::Mono);
-        g.connect(a, b).unwrap();
+        g.connect(a, b).expect("connect should succeed");
         let err = g.connect(a, b).unwrap_err();
         assert!(matches!(err, AudioGraphError::DuplicateEdge(_, _)));
     }
@@ -393,8 +393,8 @@ mod tests {
         let mut g = AudioGraph::new();
         let a = g.add_node(NodeKind::Source { label: "a".into() }, AudioSampleFmt::F32, 44100, ChannelLayout::Mono);
         let b = g.add_node(NodeKind::Gain { value: 0.5 }, AudioSampleFmt::F32, 44100, ChannelLayout::Mono);
-        g.connect(a, b).unwrap();
-        g.remove_node(b).unwrap();
+        g.connect(a, b).expect("connect should succeed");
+        g.remove_node(b).expect("remove_node should succeed");
         assert_eq!(g.node_count(), 1);
         assert_eq!(g.edge_count(), 0);
     }
@@ -405,8 +405,8 @@ mod tests {
         let a = g.add_node(NodeKind::Source { label: "in".into() }, AudioSampleFmt::F32, 44100, ChannelLayout::Mono);
         let b = g.add_node(NodeKind::Gain { value: 1.0 }, AudioSampleFmt::F32, 44100, ChannelLayout::Mono);
         let c = g.add_node(NodeKind::Sink { label: "out".into() }, AudioSampleFmt::F32, 44100, ChannelLayout::Mono);
-        g.connect(a, b).unwrap();
-        g.connect(b, c).unwrap();
+        g.connect(a, b).expect("connect should succeed");
+        g.connect(b, c).expect("connect should succeed");
         assert_eq!(g.source_nodes(), vec![a]);
         assert_eq!(g.sink_nodes(), vec![c]);
     }
@@ -417,9 +417,9 @@ mod tests {
         let a = g.add_node(NodeKind::Source { label: "in".into() }, AudioSampleFmt::F32, 44100, ChannelLayout::Mono);
         let b = g.add_node(NodeKind::Gain { value: 1.0 }, AudioSampleFmt::F32, 44100, ChannelLayout::Mono);
         let c = g.add_node(NodeKind::Sink { label: "out".into() }, AudioSampleFmt::F32, 44100, ChannelLayout::Mono);
-        g.connect(a, b).unwrap();
-        g.connect(b, c).unwrap();
-        let order = g.topological_order().unwrap();
+        g.connect(a, b).expect("connect should succeed");
+        g.connect(b, c).expect("connect should succeed");
+        let order = g.topological_order().expect("order should be valid");
         assert_eq!(order, vec![a, b, c]);
     }
 
@@ -435,7 +435,7 @@ mod tests {
         let mut g = AudioGraph::new();
         let a = g.add_node(NodeKind::Source { label: "in".into() }, AudioSampleFmt::F32, 44100, ChannelLayout::Mono);
         let b = g.add_node(NodeKind::Sink { label: "out".into() }, AudioSampleFmt::F32, 44100, ChannelLayout::Mono);
-        g.connect(a, b).unwrap();
+        g.connect(a, b).expect("connect should succeed");
         assert_eq!(g.validate(), GraphValidation::Ok);
     }
 

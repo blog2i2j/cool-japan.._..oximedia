@@ -156,15 +156,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_collector_creation() {
-        let collector = MetricsCollector::new(fast_test_config()).unwrap();
+        let collector = MetricsCollector::new(fast_test_config()).expect("failed to create");
         assert!(!collector.is_running().await);
     }
 
     #[tokio::test]
     async fn test_collector_start_stop() {
-        let collector = MetricsCollector::new(fast_test_config()).unwrap();
+        let collector = MetricsCollector::new(fast_test_config()).expect("failed to create");
 
-        collector.start().await.unwrap();
+        collector.start().await.expect("await should be valid");
         assert!(collector.is_running().await);
 
         collector.stop().await;
@@ -182,19 +182,22 @@ mod tests {
             collection_interval: Duration::from_millis(100),
             ..MetricsConfig::default()
         };
-        let collector = MetricsCollector::new(config).unwrap();
+        let collector = MetricsCollector::new(config).expect("failed to create");
 
-        let metrics = collector.collect_system_metrics().await.unwrap();
+        let metrics = collector
+            .collect_system_metrics()
+            .await
+            .expect("await should be valid");
         assert!(metrics.is_some());
 
-        let metrics = metrics.unwrap();
+        let metrics = metrics.expect("metrics should be valid");
         assert!(metrics.cpu.cpu_count > 0);
         assert!(metrics.memory.total > 0);
     }
 
     #[tokio::test]
     async fn test_application_metrics() {
-        let collector = MetricsCollector::new(fast_test_config()).unwrap();
+        let collector = MetricsCollector::new(fast_test_config()).expect("failed to create");
 
         let tracker = collector.application_tracker();
         tracker.record_frame_encoded(16.67);
@@ -207,7 +210,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_quality_metrics() {
-        let collector = MetricsCollector::new(fast_test_config()).unwrap();
+        let collector = MetricsCollector::new(fast_test_config()).expect("failed to create");
 
         let tracker = collector.quality_tracker();
         tracker.update_bitrate(5_000_000, 128_000);

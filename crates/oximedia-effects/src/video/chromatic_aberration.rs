@@ -181,7 +181,8 @@ mod tests {
             ..Default::default()
         };
         let ca = ChromaticAberration::new(cfg);
-        ca.apply(&mut buf, 32, 32, PixelFormat::Rgb).unwrap();
+        ca.apply(&mut buf, 32, 32, PixelFormat::Rgb)
+            .expect("apply should succeed");
         assert_eq!(buf, orig, "Zero offsets should leave image unchanged");
     }
 
@@ -192,12 +193,12 @@ mod tests {
         let mut buf_subtle = orig.clone();
         ChromaticAberration::new(ChromaticAberrationConfig::subtle())
             .apply(&mut buf_subtle, 64, 64, PixelFormat::Rgb)
-            .unwrap();
+            .expect("test expectation failed");
 
         let mut buf_strong = orig.clone();
         ChromaticAberration::new(ChromaticAberrationConfig::strong())
             .apply(&mut buf_strong, 64, 64, PixelFormat::Rgb)
-            .unwrap();
+            .expect("test expectation failed");
 
         let diff: u32 = buf_subtle
             .iter()

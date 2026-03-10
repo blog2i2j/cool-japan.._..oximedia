@@ -379,15 +379,17 @@ mod tests {
         );
         let _id = caption.id;
 
-        editor.add_caption(caption).unwrap();
+        editor
+            .add_caption(caption)
+            .expect("adding caption should succeed");
         assert_eq!(editor.track().count(), 1);
         assert!(editor.can_undo());
 
-        editor.undo().unwrap();
+        editor.undo().expect("undo should succeed");
         assert_eq!(editor.track().count(), 0);
         assert!(editor.can_redo());
 
-        editor.redo().unwrap();
+        editor.redo().expect("redo should succeed");
         assert_eq!(editor.track().count(), 1);
     }
 
@@ -399,7 +401,7 @@ mod tests {
             "Test".to_string(),
         );
 
-        TimingControl::snap_to_frames(&mut caption, 25.0).unwrap();
+        TimingControl::snap_to_frames(&mut caption, 25.0).expect("snap to frames should succeed");
 
         // Should be snapped to frame boundaries
         assert_eq!(caption.start.as_micros() % 40_000, 0); // 25 fps = 40ms per frame

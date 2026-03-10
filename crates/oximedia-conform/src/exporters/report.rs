@@ -213,7 +213,7 @@ mod tests {
     #[test]
     fn test_report_statistics() {
         let report = MatchReport::new(vec![], vec![], vec![]);
-        let json = report.to_json().unwrap();
+        let json = report.to_json().expect("json should be valid");
         assert!(json.contains("total_clips"));
     }
 

@@ -380,7 +380,7 @@ mod tests {
     fn test_store_insert_and_get() {
         let mut store = SignatureStore::new();
         store.insert("file1".to_string(), vec![0xAB, 0xCD], 2048);
-        let sig = store.get("file1").unwrap();
+        let sig = store.get("file1").expect("operation should succeed");
         assert_eq!(sig, &[0xAB, 0xCD]);
     }
 

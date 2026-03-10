@@ -446,8 +446,20 @@ mod tests {
         ];
         let result = engine.repair(&mut fields);
         assert_eq!(result.fields_repaired, 2);
-        assert_eq!(result.repaired_fields.get("sample_rate").unwrap(), "48000");
-        assert_eq!(result.repaired_fields.get("channels").unwrap(), "2");
+        assert_eq!(
+            result
+                .repaired_fields
+                .get("sample_rate")
+                .expect("expected key to exist"),
+            "48000"
+        );
+        assert_eq!(
+            result
+                .repaired_fields
+                .get("channels")
+                .expect("expected key to exist"),
+            "2"
+        );
     }
 
     #[test]
@@ -466,7 +478,13 @@ mod tests {
         let mut fields = vec![MetadataField::new("language", MetadataFieldKind::UserTag)];
         let result = engine.repair(&mut fields);
         assert_eq!(result.fields_repaired, 1);
-        assert_eq!(result.repaired_fields.get("language").unwrap(), "und");
+        assert_eq!(
+            result
+                .repaired_fields
+                .get("language")
+                .expect("expected key to exist"),
+            "und"
+        );
     }
 
     #[test]

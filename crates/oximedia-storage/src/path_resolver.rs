@@ -213,14 +213,15 @@ mod tests {
 
     #[test]
     fn test_resolve_simple() {
-        let p = ResolvedPath::resolve("media/video/clip.mp4").unwrap();
+        let p = ResolvedPath::resolve("media/video/clip.mp4").expect("valid resolved path");
         assert_eq!(p.depth(), 3);
         assert_eq!(p.as_str(), "media/video/clip.mp4");
     }
 
     #[test]
     fn test_resolve_strips_dots() {
-        let p = ResolvedPath::resolve("media/./video/../audio/track.ogg").unwrap();
+        let p =
+            ResolvedPath::resolve("media/./video/../audio/track.ogg").expect("valid resolved path");
         assert_eq!(p.as_str(), "media/audio/track.ogg");
     }
 
@@ -241,60 +242,62 @@ mod tests {
 
     #[test]
     fn test_join() {
-        let base = ResolvedPath::resolve("media/video").unwrap();
-        let joined = base.join("raw/clip.mp4").unwrap();
+        let base = ResolvedPath::resolve("media/video").expect("valid resolved path");
+        let joined = base.join("raw/clip.mp4").expect("join should succeed");
         assert_eq!(joined.as_str(), "media/video/raw/clip.mp4");
     }
 
     #[test]
     fn test_parent() {
-        let p = ResolvedPath::resolve("a/b/c").unwrap();
-        let par = p.parent().unwrap();
+        let p = ResolvedPath::resolve("a/b/c").expect("valid resolved path");
+        let par = p.parent().expect("parent should exist");
         assert_eq!(par.as_str(), "a/b");
     }
 
     #[test]
     fn test_parent_root_none() {
-        let p = ResolvedPath::resolve("single").unwrap();
+        let p = ResolvedPath::resolve("single").expect("valid resolved path");
         assert!(p.parent().is_none());
     }
 
     #[test]
     fn test_file_name() {
-        let p = ResolvedPath::resolve("dir/file.txt").unwrap();
+        let p = ResolvedPath::resolve("dir/file.txt").expect("valid resolved path");
         assert_eq!(p.file_name(), "file.txt");
     }
 
     #[test]
     fn test_extension() {
-        let p = ResolvedPath::resolve("dir/file.mp4").unwrap();
+        let p = ResolvedPath::resolve("dir/file.mp4").expect("valid resolved path");
         assert_eq!(p.extension(), Some("mp4"));
     }
 
     #[test]
     fn test_extension_none() {
-        let p = ResolvedPath::resolve("dir/noext").unwrap();
+        let p = ResolvedPath::resolve("dir/noext").expect("valid resolved path");
         assert!(p.extension().is_none());
     }
 
     #[test]
     fn test_starts_with() {
-        let p = ResolvedPath::resolve("a/b/c/d").unwrap();
-        let prefix = ResolvedPath::resolve("a/b").unwrap();
+        let p = ResolvedPath::resolve("a/b/c/d").expect("valid resolved path");
+        let prefix = ResolvedPath::resolve("a/b").expect("valid resolved path");
         assert!(p.starts_with(&prefix));
     }
 
     #[test]
     fn test_strip_prefix() {
-        let p = ResolvedPath::resolve("media/video/clip.mp4").unwrap();
-        let prefix = ResolvedPath::resolve("media").unwrap();
-        let rest = p.strip_prefix(&prefix).unwrap();
+        let p = ResolvedPath::resolve("media/video/clip.mp4").expect("valid resolved path");
+        let prefix = ResolvedPath::resolve("media").expect("valid resolved path");
+        let rest = p
+            .strip_prefix(&prefix)
+            .expect("strip prefix should succeed");
         assert_eq!(rest.as_str(), "video/clip.mp4");
     }
 
     #[test]
     fn test_display() {
-        let p = ResolvedPath::resolve("a/b").unwrap();
+        let p = ResolvedPath::resolve("a/b").expect("valid resolved path");
         assert_eq!(format!("{p}"), "a/b");
     }
 
@@ -303,44 +306,44 @@ mod tests {
     #[test]
     fn test_matcher_exact() {
         let m = PathMatcher::new("media/video");
-        let p = ResolvedPath::resolve("media/video").unwrap();
+        let p = ResolvedPath::resolve("media/video").expect("valid resolved path");
         assert!(m.matches(&p));
     }
 
     #[test]
     fn test_matcher_star_segment() {
         let m = PathMatcher::new("media/*/clip.mp4");
-        let p = ResolvedPath::resolve("media/video/clip.mp4").unwrap();
+        let p = ResolvedPath::resolve("media/video/clip.mp4").expect("valid resolved path");
         assert!(m.matches(&p));
     }
 
     #[test]
     fn test_matcher_double_star() {
         let m = PathMatcher::new("media/**/clip.mp4");
-        let p = ResolvedPath::resolve("media/a/b/c/clip.mp4").unwrap();
+        let p = ResolvedPath::resolve("media/a/b/c/clip.mp4").expect("valid resolved path");
         assert!(m.matches(&p));
     }
 
     #[test]
     fn test_matcher_double_star_zero_depth() {
         let m = PathMatcher::new("media/**/clip.mp4");
-        let p = ResolvedPath::resolve("media/clip.mp4").unwrap();
+        let p = ResolvedPath::resolve("media/clip.mp4").expect("valid resolved path");
         assert!(m.matches(&p));
     }
 
     #[test]
     fn test_matcher_ext_star() {
         let m = PathMatcher::new("media/*.mp4");
-        let p = ResolvedPath::resolve("media/clip.mp4").unwrap();
+        let p = ResolvedPath::resolve("media/clip.mp4").expect("valid resolved path");
         assert!(m.matches(&p));
-        let p2 = ResolvedPath::resolve("media/clip.mkv").unwrap();
+        let p2 = ResolvedPath::resolve("media/clip.mkv").expect("valid resolved path");
         assert!(!m.matches(&p2));
     }
 
     #[test]
     fn test_matcher_no_match() {
         let m = PathMatcher::new("archive/old");
-        let p = ResolvedPath::resolve("media/video").unwrap();
+        let p = ResolvedPath::resolve("media/video").expect("valid resolved path");
         assert!(!m.matches(&p));
     }
 

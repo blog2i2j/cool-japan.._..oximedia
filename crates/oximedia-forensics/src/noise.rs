@@ -562,7 +562,7 @@ mod tests {
         let img = RgbImage::new(64, 64);
         let result = extract_prnu_pattern(&img);
         assert!(result.is_ok());
-        let prnu = result.unwrap();
+        let prnu = result.expect("prnu should be valid");
         assert_eq!(prnu.pattern.dim(), (64, 64, 3));
     }
 

@@ -33,7 +33,7 @@
 //! let mut distorted = VideoFrame::new(PixelFormat::Yuv420p, 1920, 1080);
 //! distorted.allocate();
 //!
-//! let result = calculate_ssim(&reference, &distorted).unwrap();
+//! let result = calculate_ssim(&reference, &distorted).expect("ssim should succeed");
 //! println!("SSIM: {:.4}", result.overall);
 //! ```
 
@@ -111,7 +111,7 @@ impl SsimResult {
 /// let mut dist_frame = VideoFrame::new(PixelFormat::Yuv420p, 1280, 720);
 /// dist_frame.allocate();
 ///
-/// let result = calculate_ssim(&ref_frame, &dist_frame).unwrap();
+/// let result = calculate_ssim(&ref_frame, &dist_frame).expect("ssim should succeed");
 /// assert!(result.overall >= 0.0 && result.overall <= 1.0);
 /// ```
 pub fn calculate_ssim(reference: &VideoFrame, distorted: &VideoFrame) -> CvResult<SsimResult> {
@@ -340,7 +340,7 @@ fn generate_gaussian_window(size: usize, sigma: f64) -> Vec<Vec<f64>> {
 /// let mut distorted = VideoFrame::new(PixelFormat::Yuv420p, 1920, 1080);
 /// distorted.allocate();
 ///
-/// let ms_ssim = calculate_ms_ssim(&reference, &distorted).unwrap();
+/// let ms_ssim = calculate_ms_ssim(&reference, &distorted).expect("ms-ssim should succeed");
 /// assert!(ms_ssim >= 0.0 && ms_ssim <= 1.0);
 /// ```
 pub fn calculate_ms_ssim(reference: &VideoFrame, distorted: &VideoFrame) -> CvResult<f64> {

@@ -339,7 +339,9 @@ mod tests {
         router.add_mapping(TrackMapping::new(0, 5));
 
         let packet = create_test_packet(0);
-        let remapped = router.remap_packet(packet).unwrap();
+        let remapped = router
+            .remap_packet(packet)
+            .expect("operation should succeed");
 
         assert_eq!(remapped.stream_index, 5);
     }
@@ -375,9 +377,9 @@ mod tests {
 
         let mut builder = TrackRoutingBuilder::new();
         builder.with_input_streams(streams);
-        builder.map_stream(0, 1).unwrap();
-        builder.map_stream(1, 0).unwrap();
-        builder.skip_stream(2).unwrap();
+        builder.map_stream(0, 1).expect("operation should succeed");
+        builder.map_stream(1, 0).expect("operation should succeed");
+        builder.skip_stream(2).expect("operation should succeed");
 
         let router = builder.build();
         assert_eq!(router.map(0), Some(1));

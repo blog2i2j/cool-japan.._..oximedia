@@ -429,10 +429,13 @@ mod tests {
         let parent = reg.create("Parent", FrameRate::new(24, 1));
         let child = reg.create("Child", FrameRate::new(24, 1));
         reg.get_mut(parent)
-            .unwrap()
+            .expect("test expectation failed")
             .add_ref(NestedSequenceRef::new(child, 0, 0, 100));
         reg.remove(child);
-        assert!(!reg.get(parent).unwrap().references(child));
+        assert!(!reg
+            .get(parent)
+            .expect("get should succeed")
+            .references(child));
     }
 
     #[test]
@@ -449,10 +452,10 @@ mod tests {
         let b = reg.create("B", FrameRate::new(24, 1));
         let c = reg.create("C", FrameRate::new(24, 1));
         reg.get_mut(a)
-            .unwrap()
+            .expect("test expectation failed")
             .add_ref(NestedSequenceRef::new(b, 0, 0, 100));
         reg.get_mut(b)
-            .unwrap()
+            .expect("test expectation failed")
             .add_ref(NestedSequenceRef::new(c, 0, 0, 100));
         // c -> a would create a cycle
         assert!(reg.would_create_cycle(c, a));
@@ -466,7 +469,7 @@ mod tests {
         let a = reg.create("A", FrameRate::new(24, 1));
         let b = reg.create("B", FrameRate::new(24, 1));
         reg.get_mut(a)
-            .unwrap()
+            .expect("test expectation failed")
             .add_ref(NestedSequenceRef::new(b, 0, 0, 100));
         assert_eq!(reg.depth(a), 2);
         assert_eq!(reg.depth(b), 1);

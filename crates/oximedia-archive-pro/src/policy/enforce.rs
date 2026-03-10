@@ -156,13 +156,13 @@ mod tests {
         // Compliant file
         let violations = enforcer
             .check_compliance(&PathBuf::from("test.mkv"))
-            .unwrap();
+            .expect("operation should succeed");
         assert_eq!(violations.len(), 0);
 
         // Non-compliant file
         let violations = enforcer
             .check_compliance(&PathBuf::from("test.wmv"))
-            .unwrap();
+            .expect("operation should succeed");
         assert!(violations.len() > 0);
     }
 
@@ -182,7 +182,7 @@ mod tests {
         let enforcer = PolicyEnforcer::new(policy);
         let violations = enforcer
             .check_compliance(&PathBuf::from("test.mkv"))
-            .unwrap();
+            .expect("operation should succeed");
 
         // Should have violation for missing metadata
         assert!(violations.iter().any(|v| v.violation_type == "Metadata"));

@@ -472,7 +472,9 @@ mod tests {
         let mut group = make_group_with_offsets();
         let ref_id = group.select_reference(ReferenceStrategy::HighestConfidence);
         assert!(ref_id.is_some());
-        assert!(group.stream_ids.contains(&ref_id.unwrap()));
+        assert!(group
+            .stream_ids
+            .contains(&ref_id.expect("test expectation failed")));
     }
 
     #[test]

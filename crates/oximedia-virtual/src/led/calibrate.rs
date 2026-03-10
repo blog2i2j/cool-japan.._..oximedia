@@ -4,8 +4,8 @@
 //! and uniformity correction.
 
 use super::LedWall;
+use crate::math::{Point3, Vector3};
 use crate::{Result, VirtualProductionError};
-use nalgebra::{Point3, Vector3};
 use serde::{Deserialize, Serialize};
 
 /// Calibration pattern type
@@ -163,7 +163,7 @@ impl LedCalibrator {
         // Compute position offsets
         for (i, measured) in measured_positions.iter().enumerate() {
             let expected = wall.panels[i].position;
-            cal_data.geometric_correction[i] = measured - expected;
+            cal_data.geometric_correction[i] = measured - &expected;
         }
 
         Ok(())

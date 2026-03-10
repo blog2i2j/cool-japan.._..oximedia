@@ -197,7 +197,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_enqueue_item() {
-        let executor = PlaylistExecutor::new().await.unwrap();
+        let executor = PlaylistExecutor::new().await.expect("new should succeed");
 
         let item = ExecutableItem {
             id: "test1".to_string(),
@@ -208,7 +208,10 @@ mod tests {
             metadata: std::collections::HashMap::new(),
         };
 
-        executor.enqueue(item).await.unwrap();
+        executor
+            .enqueue(item)
+            .await
+            .expect("operation should succeed");
         assert_eq!(executor.queue_length().await, 1);
     }
 }

@@ -287,7 +287,7 @@ impl DvePath {
         let after = self.keyframes.iter().position(|kf| kf.t >= t);
         match after {
             None => {
-                let last = self.keyframes.last().expect("should succeed in test");
+                let last = self.keyframes.last()?;
                 Some((last.x, last.y, last.scale, last.rotation_deg))
             }
             Some(0) => {

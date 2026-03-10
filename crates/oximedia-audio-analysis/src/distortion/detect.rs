@@ -63,7 +63,9 @@ mod tests {
             .map(|i| (2.0 * std::f32::consts::PI * 440.0 * i as f32 / sample_rate).sin() * 0.5)
             .collect();
 
-        let result = detector.detect(&samples, sample_rate).unwrap();
+        let result = detector
+            .detect(&samples, sample_rate)
+            .expect("detection should succeed");
         assert!(!result.has_distortion || result.distortion_score < 0.1);
     }
 }

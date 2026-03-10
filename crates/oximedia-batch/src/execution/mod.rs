@@ -338,10 +338,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_execution_engine_creation() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
 
-        let database = Arc::new(Database::new(db_path).unwrap());
+        let database = Arc::new(Database::new(db_path).expect("failed to create database"));
         let queue = Arc::new(JobQueue::new());
 
         let engine = ExecutionEngine::new(4, queue, database);
@@ -350,36 +353,42 @@ mod tests {
 
     #[tokio::test]
     async fn test_start_stop_engine() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
 
-        let database = Arc::new(Database::new(db_path).unwrap());
+        let database = Arc::new(Database::new(db_path).expect("failed to create database"));
         let queue = Arc::new(JobQueue::new());
 
-        let engine = ExecutionEngine::new(2, queue, database).unwrap();
+        let engine = ExecutionEngine::new(2, queue, database).expect("failed to create");
 
         assert!(!engine.is_running());
 
-        engine.start().await.unwrap();
+        engine.start().await.expect("await should be valid");
         assert!(engine.is_running());
 
-        engine.stop().await.unwrap();
+        engine.stop().await.expect("await should be valid");
         assert!(!engine.is_running());
     }
 
     #[tokio::test]
     async fn test_worker_count() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
 
-        let database = Arc::new(Database::new(db_path).unwrap());
+        let database = Arc::new(Database::new(db_path).expect("failed to create database"));
         let queue = Arc::new(JobQueue::new());
 
-        let engine = ExecutionEngine::new(4, queue, database).unwrap();
-        engine.start().await.unwrap();
+        let engine = ExecutionEngine::new(4, queue, database).expect("failed to create");
+        engine.start().await.expect("await should be valid");
 
         assert_eq!(engine.worker_count(), 4);
 
-        engine.stop().await.unwrap();
+        engine.stop().await.expect("await should be valid");
     }
 }

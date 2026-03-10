@@ -716,6 +716,6 @@ mod tests {
         let image = vec![100u8; 300]; // 10x10 RGB
         let sharpened = sharpen_image(&image, 10, 10, 0.5);
         assert!(sharpened.is_ok());
-        assert_eq!(sharpened.unwrap().len(), 300);
+        assert_eq!(sharpened.expect("value should be valid").len(), 300);
     }
 }

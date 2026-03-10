@@ -301,7 +301,7 @@ mod tests {
         let imu = ImuData::new(1.0, 2.0, 3.0, 4.0, 5.0, 6.0);
 
         let bytes = imu.to_bytes();
-        let decoded = ImuData::from_bytes(&bytes).unwrap();
+        let decoded = ImuData::from_bytes(&bytes).expect("operation should succeed");
 
         assert_eq!(decoded.accel_x, 1.0);
         assert_eq!(decoded.gyro_z, 6.0);
@@ -321,7 +321,7 @@ mod tests {
         let exposure = ExposureData::new(800, 1000, 28, 5600);
 
         let bytes = exposure.to_bytes();
-        let decoded = ExposureData::from_bytes(&bytes).unwrap();
+        let decoded = ExposureData::from_bytes(&bytes).expect("operation should succeed");
 
         assert_eq!(decoded.iso, 800);
         assert_eq!(decoded.white_balance, 5600);
@@ -359,6 +359,6 @@ mod tests {
 
         let found = track.get_point_at(500);
         assert!(found.is_some());
-        assert_eq!(found.unwrap().temperature, 20.0);
+        assert_eq!(found.expect("operation should succeed").temperature, 20.0);
     }
 }

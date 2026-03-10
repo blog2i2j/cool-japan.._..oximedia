@@ -741,7 +741,7 @@ mod tests {
             .build();
 
         assert!(workflow.is_ok());
-        let workflow = workflow.unwrap();
+        let workflow = workflow.expect("workflow should be valid");
         assert_eq!(workflow.steps.len(), 4);
     }
 
@@ -764,7 +764,7 @@ mod tests {
             .play("content.mxf".to_string(), 60.0)
             .wait(10.0)
             .build()
-            .unwrap();
+            .expect("operation should succeed");
 
         let duration = workflow.estimate_duration();
         assert_eq!(duration.as_secs(), 70);
@@ -789,7 +789,7 @@ mod tests {
             .wait(0.1)
             .log("Test complete".to_string())
             .build()
-            .unwrap();
+            .expect("operation should succeed");
 
         let (mut executor, _rx) = WorkflowExecutor::new(workflow);
 

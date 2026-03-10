@@ -491,7 +491,7 @@ mod tests {
 
         let result = find_best_match_4x4(&src, 4, &ref_frame, 16, &candidates, 16, 16);
         assert!(result.is_some());
-        let (idx, sad) = result.unwrap();
+        let (idx, sad) = result.expect("should succeed");
         assert_eq!(idx, 3); // (4, 4) is at index 3
         assert_eq!(sad, 0); // Perfect match
     }

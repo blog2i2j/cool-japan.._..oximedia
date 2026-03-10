@@ -134,7 +134,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_send_writes_to_file() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("failed to create temp dir");
         let path = dir.path().join("alerts.log");
 
         let channel = FileChannel::new(path.clone());
@@ -146,9 +146,11 @@ mod tests {
             42.0,
         );
 
-        channel.send(&alert).await.unwrap();
+        channel.send(&alert).await.expect("failed to send");
 
-        let contents = tokio::fs::read_to_string(&path).await.unwrap();
+        let contents = tokio::fs::read_to_string(&path)
+            .await
+            .expect("formatting should succeed");
         assert!(contents.contains("[CRITICAL]"));
         assert!(contents.contains("test"));
         assert!(contents.contains("Critical error"));
@@ -156,7 +158,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_send_appends() {
-        let dir = tempfile::tempdir().unwrap();
+        let dir = tempfile::tempdir().expect("failed to create temp dir");
         let path = dir.path().join("alerts.log");
 
         let channel = FileChannel::new(path.clone());
@@ -169,10 +171,12 @@ mod tests {
                 "metric",
                 f64::from(i),
             );
-            channel.send(&alert).await.unwrap();
+            channel.send(&alert).await.expect("failed to send");
         }
 
-        let contents = tokio::fs::read_to_string(&path).await.unwrap();
+        let contents = tokio::fs::read_to_string(&path)
+            .await
+            .expect("formatting should succeed");
         assert_eq!(contents.lines().count(), 3);
     }
 }

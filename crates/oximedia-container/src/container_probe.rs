@@ -301,7 +301,9 @@ mod tests {
             .with_file_size(1_000_000)
             .with_duration_ms(1000);
         // 1 MB in 1 s = 8 Mbps = 8000 kbps
-        let kbps = info.estimated_bitrate_kbps().unwrap();
+        let kbps = info
+            .estimated_bitrate_kbps()
+            .expect("operation should succeed");
         assert!((kbps - 8000.0).abs() < 1.0);
     }
 

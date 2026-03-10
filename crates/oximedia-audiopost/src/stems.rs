@@ -389,14 +389,14 @@ mod tests {
 
     #[test]
     fn test_stem_manager_creation() {
-        let manager = StemManager::new(48000).unwrap();
+        let manager = StemManager::new(48000).expect("failed to create");
         assert_eq!(manager.sample_rate, 48000);
         assert_eq!(manager.stem_count(), 0);
     }
 
     #[test]
     fn test_add_stem() {
-        let mut manager = StemManager::new(48000).unwrap();
+        let mut manager = StemManager::new(48000).expect("failed to create");
         let stem = Stem::new("Dialogue", StemType::Dialogue);
         assert!(manager.add_stem(stem).is_ok());
         assert_eq!(manager.stem_count(), 1);
@@ -404,31 +404,31 @@ mod tests {
 
     #[test]
     fn test_get_stem() {
-        let mut manager = StemManager::new(48000).unwrap();
+        let mut manager = StemManager::new(48000).expect("failed to create");
         let stem = Stem::new("Dialogue", StemType::Dialogue);
-        manager.add_stem(stem).unwrap();
+        manager.add_stem(stem).expect("add_stem should succeed");
         assert!(manager.get_stem("Dialogue").is_ok());
     }
 
     #[test]
     fn test_remove_stem() {
-        let mut manager = StemManager::new(48000).unwrap();
+        let mut manager = StemManager::new(48000).expect("failed to create");
         let stem = Stem::new("Dialogue", StemType::Dialogue);
-        manager.add_stem(stem).unwrap();
+        manager.add_stem(stem).expect("add_stem should succeed");
         assert!(manager.remove_stem("Dialogue").is_ok());
         assert_eq!(manager.stem_count(), 0);
     }
 
     #[test]
     fn test_create_standard_stems() {
-        let mut manager = StemManager::new(48000).unwrap();
+        let mut manager = StemManager::new(48000).expect("failed to create");
         manager.create_standard_stems();
         assert_eq!(manager.stem_count(), 5);
     }
 
     #[test]
     fn test_get_stems_by_type() {
-        let mut manager = StemManager::new(48000).unwrap();
+        let mut manager = StemManager::new(48000).expect("failed to create");
         manager.create_standard_stems();
         let dialogue_stems = manager.get_stems_by_type(StemType::Dialogue);
         assert_eq!(dialogue_stems.len(), 1);
@@ -436,7 +436,8 @@ mod tests {
 
     #[test]
     fn test_stem_export_settings() {
-        let settings = StemExportSettings::new(PathBuf::from("/tmp"), 48000, 24).unwrap();
+        let settings =
+            StemExportSettings::new(PathBuf::from("/tmp"), 48000, 24).expect("failed to create");
         assert_eq!(settings.sample_rate, 48000);
         assert_eq!(settings.bit_depth, 24);
     }
@@ -454,7 +455,7 @@ mod tests {
 
     #[test]
     fn test_dcp_stem_package() {
-        let package = DcpStemPackage::new("Test Package", 48000, 24).unwrap();
+        let package = DcpStemPackage::new("Test Package", 48000, 24).expect("failed to create");
         assert_eq!(package.name, "Test Package");
     }
 
@@ -465,7 +466,7 @@ mod tests {
 
     #[test]
     fn test_dcp_validation() {
-        let package = DcpStemPackage::new("Test", 48000, 24).unwrap();
+        let package = DcpStemPackage::new("Test", 48000, 24).expect("failed to create");
         assert!(package.validate().is_err());
     }
 

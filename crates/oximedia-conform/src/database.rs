@@ -399,48 +399,72 @@ mod tests {
 
     #[test]
     fn test_database_creation() {
-        let db = Database::in_memory().unwrap();
-        assert_eq!(db.get_media_file_count().unwrap(), 0);
+        let db = Database::in_memory().expect("db should be valid");
+        assert_eq!(
+            db.get_media_file_count()
+                .expect("get_media_file_count should succeed"),
+            0
+        );
     }
 
     #[test]
     fn test_add_media_file() {
-        let db = Database::in_memory().unwrap();
+        let db = Database::in_memory().expect("db should be valid");
         let media = MediaFile::new(PathBuf::from("/test/file.mov"));
-        db.add_media_file(&media).unwrap();
-        assert_eq!(db.get_media_file_count().unwrap(), 1);
+        db.add_media_file(&media)
+            .expect("add_media_file should succeed");
+        assert_eq!(
+            db.get_media_file_count()
+                .expect("get_media_file_count should succeed"),
+            1
+        );
     }
 
     #[test]
     fn test_find_by_filename() {
-        let db = Database::in_memory().unwrap();
+        let db = Database::in_memory().expect("db should be valid");
         let media = MediaFile::new(PathBuf::from("/test/file.mov"));
-        db.add_media_file(&media).unwrap();
+        db.add_media_file(&media)
+            .expect("add_media_file should succeed");
 
-        let found = db.find_by_filename("file.mov").unwrap();
+        let found = db
+            .find_by_filename("file.mov")
+            .expect("found should be valid");
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].filename, "file.mov");
     }
 
     #[test]
     fn test_clear_media_files() {
-        let db = Database::in_memory().unwrap();
+        let db = Database::in_memory().expect("db should be valid");
         let media1 = MediaFile::new(PathBuf::from("/test/file1.mov"));
         let media2 = MediaFile::new(PathBuf::from("/test/file2.mov"));
-        db.add_media_file(&media1).unwrap();
-        db.add_media_file(&media2).unwrap();
-        assert_eq!(db.get_media_file_count().unwrap(), 2);
+        db.add_media_file(&media1)
+            .expect("add_media_file should succeed");
+        db.add_media_file(&media2)
+            .expect("add_media_file should succeed");
+        assert_eq!(
+            db.get_media_file_count()
+                .expect("get_media_file_count should succeed"),
+            2
+        );
 
-        db.clear_media_files().unwrap();
-        assert_eq!(db.get_media_file_count().unwrap(), 0);
+        db.clear_media_files()
+            .expect("clear_media_files should succeed");
+        assert_eq!(
+            db.get_media_file_count()
+                .expect("get_media_file_count should succeed"),
+            0
+        );
     }
 
     #[test]
     fn test_session_creation() {
-        let db = Database::in_memory().unwrap();
+        let db = Database::in_memory().expect("db should be valid");
         let session_id = uuid::Uuid::new_v4();
         db.create_session(session_id, "Test Session", None, "{}")
-            .unwrap();
-        db.update_session_status(&session_id, "completed").unwrap();
+            .expect("test expectation failed");
+        db.update_session_status(&session_id, "completed")
+            .expect("update_session_status should succeed");
     }
 }

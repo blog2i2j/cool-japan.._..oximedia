@@ -369,7 +369,7 @@ mod tests {
         let mut ranker = PresetRanker::new(p);
         ranker.add(a);
         ranker.add(b);
-        let best = ranker.best().unwrap();
+        let best = ranker.best().expect("best should be valid");
         assert_eq!(best.0, "preset-a");
     }
 
@@ -380,7 +380,7 @@ mod tests {
         let mut ranker = PresetRanker::new(p);
         ranker.add(a);
         ranker.add(b);
-        let best = ranker.best().unwrap();
+        let best = ranker.best().expect("best should be valid");
         assert_eq!(best.0, "preset-b");
     }
 

@@ -594,7 +594,7 @@ mod tests {
             channels: 1,
             extradata: None,
         };
-        OpusDecoder::new(&config).unwrap()
+        OpusDecoder::new(&config).expect("should succeed")
     }
 
     fn make_encoder(bitrate: u32, frame_size: u32, channels: u8) -> OpusEncoder {
@@ -605,7 +605,7 @@ mod tests {
             bitrate,
             frame_size,
         };
-        OpusEncoder::new(config).unwrap()
+        OpusEncoder::new(config).expect("should succeed")
     }
 
     // ── Basic construction ────────────────────────────────────────────────
@@ -616,7 +616,7 @@ mod tests {
             codec: CodecId::Opus,
             ..Default::default()
         };
-        let decoder = OpusDecoder::new(&config).unwrap();
+        let decoder = OpusDecoder::new(&config).expect("should succeed");
         assert_eq!(decoder.codec(), CodecId::Opus);
     }
 
@@ -626,7 +626,7 @@ mod tests {
             codec: CodecId::Opus,
             ..Default::default()
         };
-        let encoder = OpusEncoder::new(config).unwrap();
+        let encoder = OpusEncoder::new(config).expect("should succeed");
         assert_eq!(encoder.codec(), CodecId::Opus);
     }
 
@@ -636,7 +636,7 @@ mod tests {
             codec: CodecId::Opus,
             ..Default::default()
         };
-        let mut decoder = OpusDecoder::new(&config).unwrap();
+        let mut decoder = OpusDecoder::new(&config).expect("should succeed");
         decoder.reset();
         assert!(!decoder.flushing);
     }
@@ -645,7 +645,7 @@ mod tests {
     fn test_parse_packet() {
         // Single frame, SILK narrowband
         let data = vec![0x00, 0x01, 0x02, 0x03];
-        let config = OpusDecoder::parse_packet(&data).unwrap();
+        let config = OpusDecoder::parse_packet(&data).expect("should succeed");
         assert_eq!(config.frame_count, 1);
         assert_eq!(config.toc.mode, OpusMode::SilkOnly);
     }
@@ -678,7 +678,7 @@ mod tests {
     #[test]
     fn test_receive_frame_no_packet() {
         let mut decoder = make_decoder();
-        let frame = decoder.receive_frame().unwrap();
+        let frame = decoder.receive_frame().expect("should succeed");
         assert!(frame.is_none());
     }
 
@@ -704,8 +704,11 @@ mod tests {
             timestamp: Timestamp::new(0, Rational::new(1, 48000)),
         };
 
-        enc.send_frame(&frame).unwrap();
-        let pkt = enc.receive_packet().unwrap().expect("Expected packet");
+        enc.send_frame(&frame).expect("should succeed");
+        let pkt = enc
+            .receive_packet()
+            .expect("should succeed")
+            .expect("Expected packet");
         pkt.data
     }
 
@@ -716,8 +719,11 @@ mod tests {
         let packet = encode_celt_roundtrip(&samples, 1);
 
         let mut decoder = make_decoder();
-        decoder.send_packet(&packet, 0).unwrap();
-        let frame = decoder.receive_frame().unwrap().expect("Expected frame");
+        decoder.send_packet(&packet, 0).expect("should succeed");
+        let frame = decoder
+            .receive_frame()
+            .expect("should succeed")
+            .expect("Expected frame");
 
         assert_eq!(frame.format, SampleFormat::F32);
         assert_eq!(frame.sample_rate, 48000);
@@ -744,8 +750,11 @@ mod tests {
 
         let packet = encode_celt_roundtrip(&samples, 1);
         let mut decoder = make_decoder();
-        decoder.send_packet(&packet, 0).unwrap();
-        let frame = decoder.receive_frame().unwrap().expect("Expected frame");
+        decoder.send_packet(&packet, 0).expect("should succeed");
+        let frame = decoder
+            .receive_frame()
+            .expect("should succeed")
+            .expect("Expected frame");
 
         // Verify the decoded frame has the right format.
         assert_eq!(frame.format, SampleFormat::F32);
@@ -767,9 +776,12 @@ mod tests {
             channels: 2,
             extradata: None,
         };
-        let mut decoder = OpusDecoder::new(&config).unwrap();
-        decoder.send_packet(&packet, 100).unwrap();
-        let frame = decoder.receive_frame().unwrap().expect("Expected frame");
+        let mut decoder = OpusDecoder::new(&config).expect("should succeed");
+        decoder.send_packet(&packet, 100).expect("should succeed");
+        let frame = decoder
+            .receive_frame()
+            .expect("should succeed")
+            .expect("Expected frame");
 
         assert_eq!(frame.channels, ChannelLayout::Stereo);
         assert_eq!(frame.timestamp.pts, 100);
@@ -785,8 +797,11 @@ mod tests {
         let packet = encode_celt_roundtrip(&samples, 1);
 
         let mut decoder = make_decoder();
-        decoder.send_packet(&packet, 0).unwrap();
-        let frame = decoder.receive_frame().unwrap().expect("Expected frame");
+        decoder.send_packet(&packet, 0).expect("should succeed");
+        let frame = decoder
+            .receive_frame()
+            .expect("should succeed")
+            .expect("Expected frame");
 
         // The decoded frame should have a non-zero sample count.
         assert!(frame.sample_count() > 0);
@@ -797,7 +812,7 @@ mod tests {
     #[test]
     fn test_encoder_receive_packet_no_data() {
         let mut enc = make_encoder(128_000, 960, 1);
-        let pkt = enc.receive_packet().unwrap();
+        let pkt = enc.receive_packet().expect("should succeed");
         assert!(pkt.is_none());
     }
 
@@ -809,14 +824,14 @@ mod tests {
         let packet = encode_celt_roundtrip(&samples, 1);
 
         let mut decoder = make_decoder();
-        decoder.send_packet(&packet, 42).unwrap();
+        decoder.send_packet(&packet, 42).expect("should succeed");
 
         // First call: gets the frame.
-        let first = decoder.receive_frame().unwrap();
+        let first = decoder.receive_frame().expect("should succeed");
         assert!(first.is_some());
 
         // Second call: nothing pending.
-        let second = decoder.receive_frame().unwrap();
+        let second = decoder.receive_frame().expect("should succeed");
         assert!(second.is_none());
     }
 
@@ -845,8 +860,11 @@ mod tests {
 
         // Use low bitrate to trigger SILK path.
         let mut enc = make_encoder(16_000, n as u32, 1);
-        enc.send_frame(&frame).unwrap();
-        let pkt = enc.receive_packet().unwrap().expect("Expected SILK packet");
+        enc.send_frame(&frame).expect("should succeed");
+        let pkt = enc
+            .receive_packet()
+            .expect("should succeed")
+            .expect("Expected SILK packet");
 
         assert!(!pkt.data.is_empty());
         assert_eq!(pkt.pts, 0);
@@ -880,8 +898,11 @@ mod tests {
                 timestamp: Timestamp::new((frame_idx * n as u64) as i64, Rational::new(1, 48000)),
             };
 
-            enc.send_frame(&frame).unwrap();
-            let pkt = enc.receive_packet().unwrap().expect("Expected packet");
+            enc.send_frame(&frame).expect("should succeed");
+            let pkt = enc
+                .receive_packet()
+                .expect("should succeed")
+                .expect("Expected packet");
             assert_eq!(pkt.pts, (frame_idx * n as u64) as i64);
         }
     }
@@ -891,18 +912,18 @@ mod tests {
     #[test]
     fn test_decoder_flush_and_reset() {
         let mut decoder = make_decoder();
-        decoder.flush().unwrap();
+        decoder.flush().expect("should succeed");
         assert!(decoder.flushing);
         decoder.reset();
         assert!(!decoder.flushing);
         // After reset, receive_frame should return None.
-        assert!(decoder.receive_frame().unwrap().is_none());
+        assert!(decoder.receive_frame().expect("should succeed").is_none());
     }
 
     #[test]
     fn test_encoder_flush() {
         let mut enc = make_encoder(128_000, 960, 1);
-        enc.flush().unwrap();
+        enc.flush().expect("should succeed");
         assert!(enc.flushing);
     }
 
@@ -947,8 +968,8 @@ mod tests {
         };
 
         let mut enc = make_encoder(128_000, n as u32, 1);
-        enc.send_frame(&frame).unwrap();
-        let pkt = enc.receive_packet().unwrap();
+        enc.send_frame(&frame).expect("should succeed");
+        let pkt = enc.receive_packet().expect("should succeed");
         assert!(pkt.is_some());
     }
 

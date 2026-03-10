@@ -279,22 +279,25 @@ mod tests {
     fn test_workflow_state_with_notes() {
         let ws = WorkflowState::new("item-002").with_notes("Ingested from tape");
         assert!(ws.notes.is_some());
-        assert_eq!(ws.notes.unwrap(), "Ingested from tape");
+        assert_eq!(
+            ws.notes.expect("operation should succeed"),
+            "Ingested from tape"
+        );
     }
 
     #[test]
     fn test_manager_advance_full_cycle() {
         let mut mgr = WorkflowStateManager::new("item-003");
         assert_eq!(mgr.current(), WorkflowPhase::Ingest);
-        mgr.advance().unwrap();
+        mgr.advance().expect("operation should succeed");
         assert_eq!(mgr.current(), WorkflowPhase::Qc);
-        mgr.advance().unwrap();
+        mgr.advance().expect("operation should succeed");
         assert_eq!(mgr.current(), WorkflowPhase::Preservation);
-        mgr.advance().unwrap();
+        mgr.advance().expect("operation should succeed");
         assert_eq!(mgr.current(), WorkflowPhase::Catalog);
-        mgr.advance().unwrap();
+        mgr.advance().expect("operation should succeed");
         assert_eq!(mgr.current(), WorkflowPhase::Distribution);
-        mgr.advance().unwrap();
+        mgr.advance().expect("operation should succeed");
         assert_eq!(mgr.current(), WorkflowPhase::Complete);
     }
 
@@ -308,9 +311,9 @@ mod tests {
     #[test]
     fn test_manager_rollback() {
         let mut mgr = WorkflowStateManager::new("item-005");
-        mgr.advance().unwrap();
-        mgr.advance().unwrap();
-        let prev = mgr.rollback().unwrap();
+        mgr.advance().expect("operation should succeed");
+        mgr.advance().expect("operation should succeed");
+        let prev = mgr.rollback().expect("operation should succeed");
         assert_eq!(prev, WorkflowPhase::Qc);
         assert_eq!(mgr.current(), WorkflowPhase::Qc);
     }
@@ -324,7 +327,7 @@ mod tests {
     #[test]
     fn test_manager_fail_sets_terminal() {
         let mut mgr = WorkflowStateManager::new("item-007");
-        mgr.advance().unwrap();
+        mgr.advance().expect("operation should succeed");
         mgr.fail();
         assert_eq!(mgr.current(), WorkflowPhase::Failed);
         assert!(mgr.current().is_terminal());
@@ -333,8 +336,8 @@ mod tests {
     #[test]
     fn test_manager_history_length() {
         let mut mgr = WorkflowStateManager::new("item-008");
-        mgr.advance().unwrap();
-        mgr.advance().unwrap();
+        mgr.advance().expect("operation should succeed");
+        mgr.advance().expect("operation should succeed");
         assert_eq!(mgr.history().len(), 3); // Ingest, Qc, Preservation
     }
 

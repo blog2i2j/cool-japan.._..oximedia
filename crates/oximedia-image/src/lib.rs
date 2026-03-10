@@ -49,6 +49,7 @@ pub mod color_balance;
 pub mod color_science;
 pub mod convolution;
 pub mod depth_map;
+pub mod dng;
 pub mod dpx;
 pub mod edge_detect;
 pub mod exif_parser;

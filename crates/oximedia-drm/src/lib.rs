@@ -112,24 +112,30 @@ impl DrmSystem {
     pub fn system_id(&self) -> Uuid {
         match self {
             // Widevine: edef8ba9-79d6-4ace-a3c8-27dcd51d21ed
-            DrmSystem::Widevine => Uuid::parse_str("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed").unwrap(),
+            DrmSystem::Widevine => Uuid::parse_str("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed")
+                .expect("hardcoded Widevine system UUID is valid"),
             // PlayReady: 9a04f079-9840-4286-ab92-e65be0885f95
-            DrmSystem::PlayReady => {
-                Uuid::parse_str("9a04f079-9840-4286-ab92-e65be0885f95").unwrap()
-            }
+            DrmSystem::PlayReady => Uuid::parse_str("9a04f079-9840-4286-ab92-e65be0885f95")
+                .expect("hardcoded PlayReady system UUID is valid"),
             // FairPlay: 94ce86fb-07ff-4f43-adb8-93d2fa968ca2
-            DrmSystem::FairPlay => Uuid::parse_str("94ce86fb-07ff-4f43-adb8-93d2fa968ca2").unwrap(),
+            DrmSystem::FairPlay => Uuid::parse_str("94ce86fb-07ff-4f43-adb8-93d2fa968ca2")
+                .expect("hardcoded FairPlay system UUID is valid"),
             // ClearKey: 1077efec-c0b2-4d02-ace3-3c1e52e2fb4b
-            DrmSystem::ClearKey => Uuid::parse_str("1077efec-c0b2-4d02-ace3-3c1e52e2fb4b").unwrap(),
+            DrmSystem::ClearKey => Uuid::parse_str("1077efec-c0b2-4d02-ace3-3c1e52e2fb4b")
+                .expect("hardcoded ClearKey system UUID is valid"),
         }
     }
 
     /// Get DRM system from UUID
     pub fn from_uuid(uuid: &Uuid) -> Option<Self> {
-        let widevine = Uuid::parse_str("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed").unwrap();
-        let playready = Uuid::parse_str("9a04f079-9840-4286-ab92-e65be0885f95").unwrap();
-        let fairplay = Uuid::parse_str("94ce86fb-07ff-4f43-adb8-93d2fa968ca2").unwrap();
-        let clearkey = Uuid::parse_str("1077efec-c0b2-4d02-ace3-3c1e52e2fb4b").unwrap();
+        let widevine = Uuid::parse_str("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed")
+            .expect("hardcoded Widevine system UUID is valid");
+        let playready = Uuid::parse_str("9a04f079-9840-4286-ab92-e65be0885f95")
+            .expect("hardcoded PlayReady system UUID is valid");
+        let fairplay = Uuid::parse_str("94ce86fb-07ff-4f43-adb8-93d2fa968ca2")
+            .expect("hardcoded FairPlay system UUID is valid");
+        let clearkey = Uuid::parse_str("1077efec-c0b2-4d02-ace3-3c1e52e2fb4b")
+            .expect("hardcoded ClearKey system UUID is valid");
 
         if *uuid == widevine {
             Some(DrmSystem::Widevine)
@@ -280,28 +286,34 @@ mod tests {
 
     #[test]
     fn test_drm_system_uuid() {
-        let widevine_uuid = Uuid::parse_str("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed").unwrap();
+        let widevine_uuid =
+            Uuid::parse_str("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed").expect("UUID should parse");
         assert_eq!(DrmSystem::Widevine.system_id(), widevine_uuid);
 
-        let playready_uuid = Uuid::parse_str("9a04f079-9840-4286-ab92-e65be0885f95").unwrap();
+        let playready_uuid =
+            Uuid::parse_str("9a04f079-9840-4286-ab92-e65be0885f95").expect("UUID should parse");
         assert_eq!(DrmSystem::PlayReady.system_id(), playready_uuid);
 
-        let fairplay_uuid = Uuid::parse_str("94ce86fb-07ff-4f43-adb8-93d2fa968ca2").unwrap();
+        let fairplay_uuid =
+            Uuid::parse_str("94ce86fb-07ff-4f43-adb8-93d2fa968ca2").expect("UUID should parse");
         assert_eq!(DrmSystem::FairPlay.system_id(), fairplay_uuid);
 
-        let clearkey_uuid = Uuid::parse_str("1077efec-c0b2-4d02-ace3-3c1e52e2fb4b").unwrap();
+        let clearkey_uuid =
+            Uuid::parse_str("1077efec-c0b2-4d02-ace3-3c1e52e2fb4b").expect("UUID should parse");
         assert_eq!(DrmSystem::ClearKey.system_id(), clearkey_uuid);
     }
 
     #[test]
     fn test_drm_system_from_uuid() {
-        let widevine_uuid = Uuid::parse_str("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed").unwrap();
+        let widevine_uuid =
+            Uuid::parse_str("edef8ba9-79d6-4ace-a3c8-27dcd51d21ed").expect("UUID should parse");
         assert_eq!(
             DrmSystem::from_uuid(&widevine_uuid),
             Some(DrmSystem::Widevine)
         );
 
-        let unknown_uuid = Uuid::parse_str("00000000-0000-0000-0000-000000000000").unwrap();
+        let unknown_uuid =
+            Uuid::parse_str("00000000-0000-0000-0000-000000000000").expect("UUID should parse");
         assert_eq!(DrmSystem::from_uuid(&unknown_uuid), None);
     }
 
@@ -313,7 +325,10 @@ mod tests {
 
         provider.add_key(key_id.clone(), key.clone());
         assert!(provider.has_key(&key_id));
-        assert_eq!(provider.get_key(&key_id).unwrap(), key);
+        assert_eq!(
+            provider.get_key(&key_id).expect("get_key should succeed"),
+            key
+        );
 
         provider.remove_key(&key_id);
         assert!(!provider.has_key(&key_id));

@@ -195,7 +195,7 @@ mod tests {
         let mut p = IngestPipeline::new();
         p.submit(candidate("/first.mkv", 100));
         p.submit(candidate("/second.mkv", 200));
-        let c = p.start_next().unwrap();
+        let c = p.start_next().expect("operation should succeed");
         assert_eq!(c.path, "/first.mkv");
         assert_eq!(p.pending.len(), 1);
         assert_eq!(p.in_progress.len(), 1);

@@ -380,7 +380,7 @@ mod tests {
         let mut mgr = TimeoutManager::new(TimeoutConfig::default());
         mgr.register_default("x");
         assert!(mgr.update_progress("x", 0.75));
-        let state = mgr.get_state("x").unwrap();
+        let state = mgr.get_state("x").expect("state should be valid");
         assert!((state.last_progress - 0.75).abs() < f64::EPSILON);
     }
 

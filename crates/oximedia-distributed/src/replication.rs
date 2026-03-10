@@ -265,7 +265,7 @@ mod tests {
     fn test_replicated_log_get_entry() {
         let mut log = ReplicatedLog::new(10);
         log.append(1, "cmd", b"hello".to_vec());
-        let entry = log.get(1).unwrap();
+        let entry = log.get(1).expect("get should return a value");
         assert_eq!(entry.data, b"hello");
     }
 

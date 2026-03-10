@@ -234,7 +234,10 @@ mod tests {
         let mut reg = TypeRegistry::new();
         reg.register(TypeInfo::new("x", TypeKind::DataPacket, 0));
         reg.register(TypeInfo::new("x", TypeKind::Metadata, 1));
-        assert_eq!(reg.lookup("x").unwrap().kind, TypeKind::Metadata);
+        assert_eq!(
+            reg.lookup("x").expect("lookup should succeed").kind,
+            TypeKind::Metadata
+        );
         assert_eq!(reg.len(), 1);
     }
 

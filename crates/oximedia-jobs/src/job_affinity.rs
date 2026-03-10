@@ -332,7 +332,7 @@ mod tests {
                     .with_value("us-east")
                     .with_weight(10),
             );
-        let best = matcher.select_best(&spec).unwrap();
+        let best = matcher.select_best(&spec).expect("best should be valid");
         assert_eq!(best.id, "gpu-1");
     }
 

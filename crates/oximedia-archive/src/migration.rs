@@ -296,14 +296,14 @@ mod tests {
         let mpeg2 = FileFormat::mpeg2();
         let path = MigrationPlanner::plan_migration(&mpeg2);
         assert!(path.is_some());
-        let path = path.unwrap();
+        let path = path.expect("path should be valid");
         assert_eq!(path.target.risk, FormatRisk::Stable);
     }
 
     #[test]
     fn test_plan_migration_obsolete_to_dpx() {
         let betacam = FileFormat::betacam();
-        let path = MigrationPlanner::plan_migration(&betacam).unwrap();
+        let path = MigrationPlanner::plan_migration(&betacam).expect("path should be valid");
         assert_eq!(path.target.extension, "dpx");
     }
 
@@ -326,7 +326,7 @@ mod tests {
     fn test_migration_batch_add() {
         let mut batch = MigrationBatch::new();
         let dv = FileFormat::dv();
-        let path = MigrationPlanner::plan_migration(&dv).unwrap();
+        let path = MigrationPlanner::plan_migration(&dv).expect("path should be valid");
         batch.add("asset-001", path, 5.0);
         assert_eq!(batch.len(), 1);
         assert!((batch.total_size_gb - 5.0).abs() < 1e-9);

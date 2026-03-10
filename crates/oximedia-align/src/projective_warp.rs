@@ -365,7 +365,7 @@ mod tests {
     #[test]
     fn test_inverse_identity() {
         let h = HomographyMatrix::identity();
-        let inv = h.inverse().unwrap();
+        let inv = h.inverse().expect("inv should be valid");
         for i in 0..9 {
             assert!((h.data[i] - inv.data[i]).abs() < 1e-12);
         }
@@ -381,7 +381,7 @@ mod tests {
     fn test_warp_point_identity() {
         let h = HomographyMatrix::identity();
         let pt = WarpPoint::new(5.0, 10.0);
-        let warped = warp_point(&h, &pt).unwrap();
+        let warped = warp_point(&h, &pt).expect("warped should be valid");
         assert!((warped.x - 5.0).abs() < 1e-12);
         assert!((warped.y - 10.0).abs() < 1e-12);
     }
@@ -390,7 +390,7 @@ mod tests {
     fn test_warp_point_translation() {
         let h = HomographyMatrix::new([1.0, 0.0, 3.0, 0.0, 1.0, -2.0, 0.0, 0.0, 1.0]);
         let pt = WarpPoint::new(1.0, 1.0);
-        let warped = warp_point(&h, &pt).unwrap();
+        let warped = warp_point(&h, &pt).expect("warped should be valid");
         assert!((warped.x - 4.0).abs() < 1e-12);
         assert!((warped.y + 1.0).abs() < 1e-12);
     }
@@ -399,8 +399,8 @@ mod tests {
     fn test_inverse_warp_roundtrip() {
         let h = HomographyMatrix::new([1.0, 0.0, 3.0, 0.0, 1.0, -2.0, 0.0, 0.0, 1.0]);
         let pt = WarpPoint::new(7.0, 3.0);
-        let warped = warp_point(&h, &pt).unwrap();
-        let back = inverse_warp_point(&h, &warped).unwrap();
+        let warped = warp_point(&h, &pt).expect("warped should be valid");
+        let back = inverse_warp_point(&h, &warped).expect("back should be valid");
         assert!((back.x - pt.x).abs() < 1e-9);
         assert!((back.y - pt.y).abs() < 1e-9);
     }
@@ -427,7 +427,7 @@ mod tests {
     #[test]
     fn test_condition_number_identity() {
         let h = HomographyMatrix::identity();
-        let cond = h.condition_number_approx().unwrap();
+        let cond = h.condition_number_approx().expect("cond should be valid");
         assert!((cond - 3.0).abs() < 1e-9); // Frobenius of I_3 = sqrt(3), so cond = 3
     }
 

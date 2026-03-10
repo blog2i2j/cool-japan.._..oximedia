@@ -245,7 +245,7 @@ impl AudioGraph {
             values[id.0] = self.nodes[id.0].process_sample(acc);
         }
         // return last node value
-        values[order.last().unwrap().0]
+        order.last().map_or(0.0, |id| values[id.0])
     }
 
     /// Remove all edges from the graph.
@@ -403,7 +403,7 @@ mod tests {
     fn test_node_lookup() {
         let mut g = AudioGraph::new(48000.0);
         let id = g.add_node(AudioNode::new("lookup", NodeKind::Mixer));
-        let node = g.node(id).unwrap();
+        let node = g.node(id).expect("should succeed");
         assert_eq!(node.label, "lookup");
     }
 

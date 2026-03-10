@@ -370,7 +370,9 @@ mod tests {
         // Create test audio
         let samples = vec![0.5f32; 48000];
         let mut analyzer_mut = analyzer;
-        analyzer_mut.process_samples(&samples, 48000).unwrap();
+        analyzer_mut
+            .process_samples(&samples, 48000)
+            .expect("sample processing should succeed");
 
         let analysis = analyzer_mut.finalize();
         assert!(analysis.peak_dbfs < 0.0);
@@ -387,7 +389,9 @@ mod tests {
             samples[i] = 1.0; // Clipped
         }
 
-        analyzer.process_samples(&samples, 48000).unwrap();
+        analyzer
+            .process_samples(&samples, 48000)
+            .expect("sample processing should succeed");
         let analysis = analyzer.finalize();
 
         assert!(!analysis.clipping_events.is_empty());
@@ -456,7 +460,9 @@ mod tests {
 
         // Low dynamic range (constant level)
         let samples = vec![0.5f32; 48000];
-        analyzer.process_samples(&samples, 48000).unwrap();
+        analyzer
+            .process_samples(&samples, 48000)
+            .expect("sample processing should succeed");
         let analysis = analyzer.finalize();
 
         assert!(analysis.dynamic_range_db < 1.0); // Very low dynamic range

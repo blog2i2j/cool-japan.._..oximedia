@@ -111,7 +111,7 @@ impl LoadBalancer {
                         return Some(w.worker_id);
                     }
                 }
-                Some(self.workers.last().unwrap().worker_id)
+                self.workers.last().map(|w| w.worker_id)
             }
             LoadBalanceStrategy::ResourceAware => self
                 .workers
@@ -204,9 +204,9 @@ mod tests {
         let mut lb = LoadBalancer::new(LoadBalanceStrategy::RoundRobin);
         lb.add_worker(worker(1, 0, 0.0, 0.0, 1));
         lb.add_worker(worker(2, 0, 0.0, 0.0, 1));
-        let first = lb.select_worker().unwrap();
-        let second = lb.select_worker().unwrap();
-        let third = lb.select_worker().unwrap();
+        let first = lb.select_worker().expect("worker selection should succeed");
+        let second = lb.select_worker().expect("worker selection should succeed");
+        let third = lb.select_worker().expect("worker selection should succeed");
         assert_ne!(first, second);
         assert_eq!(first, third);
     }
@@ -217,7 +217,10 @@ mod tests {
         lb.add_worker(worker(1, 10, 0.0, 0.0, 1));
         lb.add_worker(worker(2, 2, 0.0, 0.0, 1));
         lb.add_worker(worker(3, 7, 0.0, 0.0, 1));
-        assert_eq!(lb.select_worker().unwrap(), 2);
+        assert_eq!(
+            lb.select_worker().expect("worker selection should succeed"),
+            2
+        );
     }
 
     #[test]
@@ -225,7 +228,10 @@ mod tests {
         let mut lb = LoadBalancer::new(LoadBalanceStrategy::ResourceAware);
         lb.add_worker(worker(1, 50, 80.0, 70.0, 1)); // high load
         lb.add_worker(worker(2, 0, 5.0, 5.0, 1)); // low load
-        assert_eq!(lb.select_worker().unwrap(), 2);
+        assert_eq!(
+            lb.select_worker().expect("worker selection should succeed"),
+            2
+        );
     }
 
     #[test]
@@ -254,7 +260,9 @@ mod tests {
         lb.add_worker(worker(1, 0, 0.0, 0.0, 3));
         lb.add_worker(worker(2, 0, 0.0, 0.0, 1));
         // Over 4 selections we should see worker 1 selected 3 times.
-        let results: Vec<u64> = (0..4).map(|_| lb.select_worker().unwrap()).collect();
+        let results: Vec<u64> = (0..4)
+            .map(|_| lb.select_worker().expect("worker selection should succeed"))
+            .collect();
         let count_1 = results.iter().filter(|&&id| id == 1).count();
         let count_2 = results.iter().filter(|&&id| id == 2).count();
         assert_eq!(count_1, 3);

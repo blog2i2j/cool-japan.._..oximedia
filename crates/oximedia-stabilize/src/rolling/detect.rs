@@ -42,7 +42,7 @@ impl Default for RollingShutterDetector {
 /// Advanced rolling shutter detection algorithms.
 pub mod advanced {
     use crate::Frame;
-    use ndarray::Array1;
+    use scirs2_core::ndarray::Array1;
 
     /// Detect rolling shutter using frequency analysis.
     pub struct FrequencyAnalyzer {
@@ -122,7 +122,12 @@ pub mod advanced {
         #[test]
         fn test_frequency_analyzer() {
             let analyzer = FrequencyAnalyzer::new(30.0);
-            let frame = Frame::new(640, 480, 0.0, ndarray::Array2::zeros((480, 640)));
+            let frame = Frame::new(
+                640,
+                480,
+                0.0,
+                scirs2_core::ndarray::Array2::zeros((480, 640)),
+            );
             let metrics = analyzer.analyze(&frame);
             assert!(metrics.severity >= 0.0);
         }

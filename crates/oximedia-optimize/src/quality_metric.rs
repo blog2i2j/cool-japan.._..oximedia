@@ -281,7 +281,7 @@ mod tests {
         let mut t = QualityMetricTracker::new();
         t.record(QualityMeasurement::new(MetricType::Vmaf, 60.0));
         t.record(QualityMeasurement::new(MetricType::Vmaf, 90.0));
-        let best = t.best().unwrap();
+        let best = t.best().expect("best value should exist");
         assert!((best.score - 90.0).abs() < 1e-9);
     }
 
@@ -290,7 +290,7 @@ mod tests {
         let mut t = QualityMetricTracker::new();
         t.record(QualityMeasurement::new(MetricType::Ssim, 0.7));
         t.record(QualityMeasurement::new(MetricType::Ssim, 0.95));
-        let worst = t.worst().unwrap();
+        let worst = t.worst().expect("worst value should exist");
         assert!((worst.score - 0.7).abs() < 1e-9);
     }
 
@@ -300,7 +300,7 @@ mod tests {
         // Both VMAF 60 and 80, each normalized to 0.6 and 0.8
         t.record(QualityMeasurement::new(MetricType::Vmaf, 60.0));
         t.record(QualityMeasurement::new(MetricType::Vmaf, 80.0));
-        let avg = t.avg().unwrap();
+        let avg = t.avg().expect("average should be computable");
         assert!((avg - 0.7).abs() < 1e-9);
     }
 

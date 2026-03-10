@@ -192,8 +192,8 @@ mod tests {
 
     #[test]
     fn test_schema_creation() {
-        let conn = Connection::open_in_memory().unwrap();
-        Schema::create_tables(&conn).unwrap();
+        let conn = Connection::open_in_memory().expect("operation should succeed");
+        Schema::create_tables(&conn).expect("operation should succeed");
 
         // Verify tables exist
         let table_count: i64 = conn
@@ -202,15 +202,15 @@ mod tests {
                 [],
                 |row| row.get(0),
             )
-            .unwrap();
+            .expect("operation should succeed");
 
         assert_eq!(table_count, 5); // jobs, tasks, workers, logs, metrics
     }
 
     #[test]
     fn test_jobs_table_exists() {
-        let conn = Connection::open_in_memory().unwrap();
-        Schema::create_tables(&conn).unwrap();
+        let conn = Connection::open_in_memory().expect("operation should succeed");
+        Schema::create_tables(&conn).expect("operation should succeed");
 
         let exists: i64 = conn
             .query_row(
@@ -218,15 +218,15 @@ mod tests {
                 [],
                 |row| row.get(0),
             )
-            .unwrap();
+            .expect("operation should succeed");
 
         assert_eq!(exists, 1);
     }
 
     #[test]
     fn test_tasks_table_exists() {
-        let conn = Connection::open_in_memory().unwrap();
-        Schema::create_tables(&conn).unwrap();
+        let conn = Connection::open_in_memory().expect("operation should succeed");
+        Schema::create_tables(&conn).expect("operation should succeed");
 
         let exists: i64 = conn
             .query_row(
@@ -234,15 +234,15 @@ mod tests {
                 [],
                 |row| row.get(0),
             )
-            .unwrap();
+            .expect("operation should succeed");
 
         assert_eq!(exists, 1);
     }
 
     #[test]
     fn test_workers_table_exists() {
-        let conn = Connection::open_in_memory().unwrap();
-        Schema::create_tables(&conn).unwrap();
+        let conn = Connection::open_in_memory().expect("operation should succeed");
+        Schema::create_tables(&conn).expect("operation should succeed");
 
         let exists: i64 = conn
             .query_row(
@@ -250,7 +250,7 @@ mod tests {
                 [],
                 |row| row.get(0),
             )
-            .unwrap();
+            .expect("operation should succeed");
 
         assert_eq!(exists, 1);
     }

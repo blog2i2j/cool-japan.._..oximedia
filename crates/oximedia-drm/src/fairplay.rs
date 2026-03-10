@@ -490,9 +490,9 @@ mod tests {
         let spc_data = vec![1, 2, 3, 4, 5];
 
         let request = FairPlayKeyRequest::new(asset_id, spc_data);
-        let json = request.to_json().unwrap();
+        let json = request.to_json().expect("operation should succeed");
 
-        let parsed = FairPlayKeyRequest::from_json(&json).unwrap();
+        let parsed = FairPlayKeyRequest::from_json(&json).expect("operation should succeed");
         assert_eq!(parsed.asset_id, request.asset_id);
         assert_eq!(parsed.spc_data, request.spc_data);
     }
@@ -531,7 +531,9 @@ mod tests {
         let asset_id = "test_asset";
         let certificate = vec![0u8; 32];
 
-        let spc = generator.generate_spc(asset_id, &certificate).unwrap();
+        let spc = generator
+            .generate_spc(asset_id, &certificate)
+            .expect("operation should succeed");
         assert!(!spc.is_empty());
         assert!(spc.starts_with(b"SPC\x00"));
     }
@@ -542,7 +544,9 @@ mod tests {
         let mut client = FairPlayClient::new(certificate);
 
         let asset_id = "test_asset".to_string();
-        let request = client.request_key(asset_id.clone()).unwrap();
+        let request = client
+            .request_key(asset_id.clone())
+            .expect("operation should succeed");
 
         assert_eq!(request.asset_id, asset_id);
         assert!(!request.spc_data.is_empty());
@@ -554,8 +558,8 @@ mod tests {
         let mut pssh_data = FairPlayPsshData::new(asset_id.clone());
         pssh_data.add_key_id(vec![1, 2, 3, 4]);
 
-        let bytes = pssh_data.to_bytes().unwrap();
-        let parsed = FairPlayPsshData::from_bytes(&bytes).unwrap();
+        let bytes = pssh_data.to_bytes().expect("operation should succeed");
+        let parsed = FairPlayPsshData::from_bytes(&bytes).expect("operation should succeed");
 
         assert_eq!(parsed.asset_id, asset_id);
         assert_eq!(parsed.key_ids.len(), 1);
@@ -569,7 +573,7 @@ mod tests {
         let uri = hls::generate_key_uri(license_url, asset_id);
         assert_eq!(uri, "skd://license.example.com?asset=test_asset");
 
-        let parsed_asset = hls::parse_asset_id_from_uri(&uri).unwrap();
+        let parsed_asset = hls::parse_asset_id_from_uri(&uri).expect("operation should succeed");
         assert_eq!(parsed_asset, asset_id);
     }
 

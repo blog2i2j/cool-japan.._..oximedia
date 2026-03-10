@@ -634,7 +634,7 @@ mod tests {
         );
         assert!(color.is_hdr());
 
-        let cll = color.to_cll().unwrap();
+        let cll = color.to_cll().expect("CLL extraction should succeed");
         assert_eq!(cll.max_cll, 1000);
         assert_eq!(cll.max_fall, 400);
     }
@@ -653,7 +653,7 @@ mod tests {
         color.luminance_max = Some(1000.0);
         color.luminance_min = Some(0.005);
 
-        let mdcv = color.to_mdcv().unwrap();
+        let mdcv = color.to_mdcv().expect("MDCV extraction should succeed");
         assert_eq!(mdcv.display_primaries.red, (0.708, 0.292));
         assert_eq!(mdcv.max_luminance, 1000.0);
         assert_eq!(mdcv.min_luminance, 0.005);

@@ -321,7 +321,7 @@ mod tests {
 
         let found = registry.lookup(&id);
         assert!(found.is_some());
-        assert_eq!(found.unwrap().id, id);
+        assert_eq!(found.expect("operation should succeed").id, id);
     }
 
     #[test]

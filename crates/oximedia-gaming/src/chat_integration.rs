@@ -262,14 +262,14 @@ mod tests {
 
     #[test]
     fn test_parse_command_basic() {
-        let cmd = parse_command("!uptime").unwrap();
+        let cmd = parse_command("!uptime").expect("valid command parse");
         assert_eq!(cmd.name, "uptime");
         assert!(cmd.args.is_empty());
     }
 
     #[test]
     fn test_parse_command_with_args() {
-        let cmd = parse_command("!ban user123 spamming").unwrap();
+        let cmd = parse_command("!ban user123 spamming").expect("valid command parse");
         assert_eq!(cmd.name, "ban");
         assert_eq!(cmd.args, vec!["user123", "spamming"]);
     }

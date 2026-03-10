@@ -14,7 +14,7 @@ workspace = true
 
 [dependencies]
 oximedia-core = { workspace = true }
-oximedia-codec = { workspace = true }
+oximedia-codec = { workspace = true, default-features = true }
 tokio = { workspace = true, features = ["net", "sync", "time", "io-util"] }
 thiserror = { workspace = true }
 bytes = { workspace = true }
@@ -26,5 +26,4 @@ serde_json = { workspace = true }
 parking_lot = { workspace = true }
 rand = { workspace = true }
 uuid = { workspace = true }
-flate2 = { workspace = true }
 chrono = { workspace = true }

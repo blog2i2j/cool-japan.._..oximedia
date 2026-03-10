@@ -790,7 +790,7 @@ mod tests {
         }
 
         // Reset
-        filter.reset().unwrap();
+        filter.reset().expect("reset should succeed");
 
         assert_eq!(filter.output_frame_idx, 0);
         assert!(filter.frame_buffer.is_empty());
@@ -806,7 +806,7 @@ mod tests {
         let _ = filter.process(Some(FilterFrame::Video(frame)));
 
         // Flush
-        let flushed = filter.flush().unwrap();
+        let flushed = filter.flush().expect("flush should succeed");
         assert!(!flushed.is_empty());
     }
 
@@ -819,7 +819,7 @@ mod tests {
             detector.add_timestamp(i * 33);
         }
 
-        let fps = detector.fps().unwrap();
+        let fps = detector.fps().expect("fps should succeed");
         assert!((fps - 30.0).abs() < 1.0);
     }
 
@@ -829,7 +829,9 @@ mod tests {
         let mut filter = FpsFilter::new(NodeId(0), "fps", config);
 
         assert_eq!(filter.state(), NodeState::Idle);
-        filter.set_state(NodeState::Processing).unwrap();
+        filter
+            .set_state(NodeState::Processing)
+            .expect("set_state should succeed");
         assert_eq!(filter.state(), NodeState::Processing);
     }
 
@@ -838,7 +840,7 @@ mod tests {
         let config = FpsConfig::fps_30();
         let mut filter = FpsFilter::new(NodeId(0), "fps", config);
 
-        let result = filter.process(None).unwrap();
+        let result = filter.process(None).expect("process should succeed");
         assert!(result.is_none());
     }
 
@@ -855,14 +857,14 @@ mod tests {
         let config = FpsConfig::fps_30().with_eof_action(EofAction::Pass);
         let mut filter = FpsFilter::new(NodeId(0), "fps", config);
         let _ = filter.process(Some(FilterFrame::Video(create_test_frame(0))));
-        let flushed = filter.flush().unwrap();
+        let flushed = filter.flush().expect("flush should succeed");
         assert!(!flushed.is_empty());
 
         // Test Discard action
         let config = FpsConfig::fps_30().with_eof_action(EofAction::Discard);
         let mut filter = FpsFilter::new(NodeId(0), "fps", config);
         let _ = filter.process(Some(FilterFrame::Video(create_test_frame(0))));
-        let flushed = filter.flush().unwrap();
+        let flushed = filter.flush().expect("flush should succeed");
         assert!(flushed.is_empty());
     }
 }

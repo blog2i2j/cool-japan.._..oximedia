@@ -377,7 +377,9 @@ mod tests {
     #[test]
     fn test_dynamic_contrast_hdr10() {
         let p = DisplayProfile::hdr10();
-        let cr = p.dynamic_contrast().unwrap();
+        let cr = p
+            .dynamic_contrast()
+            .expect("dynamic contrast should be available");
         assert!(cr > 1_000_000.0);
     }
 

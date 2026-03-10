@@ -49,24 +49,100 @@
 #![allow(clippy::needless_continue)]
 #![allow(clippy::single_char_pattern)]
 
+mod aaf_cmd;
+mod access_cmd;
+mod align_cmd;
+mod analyze;
+mod archive_cmd;
+mod archivepro_cmd;
+
+mod audio_cmd;
+mod audiopost_cmd;
+mod auto_cmd;
 mod batch;
 mod benchmark;
+mod calibrate_cmd;
+mod captions_cmd;
+mod clips_cmd;
+mod cloud_cmd;
+mod collab_cmd;
+mod color_cmd;
+mod commands;
 mod concat;
+mod conform_cmd;
+mod dedup_cmd;
+mod denoise_cmd;
+mod distributed_cmd;
+mod dolbyvision_cmd;
+mod drm_cmd;
+mod edl_cmd;
 mod extract;
+mod farm_cmd;
+mod ffcompat_cmd;
+mod filter_cmd;
+mod forensics_cmd;
+mod gaming_cmd;
+mod graphics_cmd;
+mod handlers;
+mod image_cmd;
+mod imf_cmd;
+mod lut_cmd;
+mod mam_cmd;
 mod metadata;
+mod mir_cmd;
+mod mixer_cmd;
+mod monitor_cmd;
+mod multicam_cmd;
+mod ndi_cmd;
+mod optimize_cmd;
+mod package_cmd;
+mod playlist_cmd;
+mod profiler_cmd;
+
+mod playout_cmd;
+mod plugin_cmd;
 mod presets;
 mod progress;
+mod proxy_cmd;
+mod qc_cmd;
+mod recommend_cmd;
+mod renderfarm_cmd;
+mod repair_cmd;
+mod restore_cmd;
+mod review_cmd;
+mod rights_cmd;
+mod routing_cmd;
+mod scaling_cmd;
+mod scene;
+mod scopes_cmd;
+mod search_cmd;
 mod sprite;
+mod stabilize_cmd;
+mod stream_cmd;
+mod subtitle_cmd;
+mod switcher_cmd;
 mod thumbnail;
+mod timecode_cmd;
+mod timeline_cmd;
+mod timesync_cmd;
 mod transcode;
+mod tui_cmd;
 mod validate;
+mod vfx_cmd;
+mod videoip_cmd;
+mod virtual_cmd;
+mod watermark_cmd;
+mod workflow_cmd;
 
-use anyhow::{Context, Result};
-use clap::{Parser, Subcommand};
+use anyhow::Result;
+use clap::Parser;
 use colored::Colorize;
-use std::path::PathBuf;
-use tracing::{info, Level};
-use tracing_subscriber::FmtSubscriber;
+
+use commands::Commands;
+use handlers::{
+    handle_captions_command, handle_monitor_command, handle_preset_command, handle_restore_command,
+    init_logging, probe_file, show_info,
+};
 
 /// Patent-free multimedia framework CLI
 #[derive(Parser)]
@@ -94,475 +170,6 @@ struct Cli {
     json: bool,
 }
 
-/// Available CLI commands.
-#[derive(Subcommand)]
-enum Commands {
-    /// Probe media file and show information
-    Probe {
-        /// Input file path
-        #[arg(short, long)]
-        input: PathBuf,
-
-        /// Show detailed information
-        #[arg(short = 'V', long)]
-        verbose: bool,
-
-        /// Show stream information
-        #[arg(short, long)]
-        streams: bool,
-    },
-
-    /// Show supported formats and codecs
-    Info,
-
-    /// Transcode media file
-    #[command(alias = "convert")]
-    Transcode {
-        /// Input file path (FFmpeg-compatible: -i)
-        #[arg(short, long)]
-        input: PathBuf,
-
-        /// Output file path
-        #[arg(short, long)]
-        output: PathBuf,
-
-        /// Use a preset (e.g., youtube-1080p, tv-4k)
-        #[arg(long = "preset-name", conflicts_with_all = &["video_codec", "audio_codec", "video_bitrate", "audio_bitrate"])]
-        preset_name: Option<String>,
-
-        /// Video codec: av1, vp9, vp8 (FFmpeg-compatible: -c:v)
-        #[arg(long = "codec", alias = "c:v")]
-        video_codec: Option<String>,
-
-        /// Audio codec: opus, vorbis, flac (FFmpeg-compatible: -c:a)
-        #[arg(long, alias = "c:a")]
-        audio_codec: Option<String>,
-
-        /// Video bitrate (e.g., "2M", "500k") (FFmpeg-compatible: -b:v)
-        #[arg(long = "bitrate", alias = "b:v")]
-        video_bitrate: Option<String>,
-
-        /// Audio bitrate (e.g., "128k") (FFmpeg-compatible: -b:a)
-        #[arg(long, alias = "b:a")]
-        audio_bitrate: Option<String>,
-
-        /// Scale video (e.g., "1280:720", "1920:-1") (FFmpeg-compatible: -vf scale=)
-        #[arg(long)]
-        scale: Option<String>,
-
-        /// Video filter chain (FFmpeg-compatible: -vf)
-        #[arg(long, alias = "vf")]
-        video_filter: Option<String>,
-
-        /// Start time (seek) (FFmpeg-compatible: -ss)
-        #[arg(long, alias = "ss")]
-        start_time: Option<String>,
-
-        /// Duration limit (FFmpeg-compatible: -t)
-        #[arg(short = 't', long)]
-        duration: Option<String>,
-
-        /// Frame rate (e.g., "30", "23.976") (FFmpeg-compatible: -r)
-        #[arg(short = 'r', long)]
-        framerate: Option<String>,
-
-        /// Encoder preset: ultrafast, superfast, veryfast, faster, fast, medium, slow, slower, veryslow
-        #[arg(long, default_value = "medium")]
-        preset: String,
-
-        /// Enable two-pass encoding
-        #[arg(long)]
-        two_pass: bool,
-
-        /// CRF quality (0-63 for VP9/VP8, 0-255 for AV1, lower is better)
-        #[arg(long)]
-        crf: Option<u32>,
-
-        /// Number of threads (0 = auto)
-        #[arg(long, default_value = "0")]
-        threads: usize,
-
-        /// Overwrite output file without asking
-        #[arg(short = 'y', long)]
-        overwrite: bool,
-
-        /// Resume from previous incomplete encode
-        #[arg(long)]
-        resume: bool,
-    },
-
-    /// Extract frames from video
-    Extract {
-        /// Input video file
-        #[arg(value_name = "INPUT")]
-        input: PathBuf,
-
-        /// Output pattern (e.g., "frame_%04d.png")
-        #[arg(value_name = "OUTPUT_PATTERN")]
-        output_pattern: String,
-
-        /// Output format: png, jpg, ppm
-        #[arg(short, long)]
-        format: Option<String>,
-
-        /// Start time (seek)
-        #[arg(long, alias = "ss")]
-        start_time: Option<String>,
-
-        /// Number of frames to extract
-        #[arg(short = 'n', long)]
-        frames: Option<usize>,
-
-        /// Extract every Nth frame
-        #[arg(long, default_value = "1")]
-        every: usize,
-
-        /// Quality for JPEG output (0-100)
-        #[arg(long, default_value = "90")]
-        quality: u8,
-    },
-
-    /// Batch process multiple files
-    Batch {
-        /// Input directory
-        #[arg(value_name = "INPUT_DIR")]
-        input_dir: PathBuf,
-
-        /// Output directory
-        #[arg(value_name = "OUTPUT_DIR")]
-        output_dir: PathBuf,
-
-        /// Configuration file (TOML)
-        #[arg(value_name = "CONFIG")]
-        config: PathBuf,
-
-        /// Number of parallel jobs (0 = auto)
-        #[arg(short, long, default_value = "0")]
-        jobs: usize,
-
-        /// Continue on errors
-        #[arg(long)]
-        continue_on_error: bool,
-
-        /// Dry run (show what would be done)
-        #[arg(long)]
-        dry_run: bool,
-    },
-
-    /// Concatenate multiple videos
-    Concat {
-        /// Input files to concatenate
-        #[arg(value_name = "INPUTS", required = true, num_args = 2..)]
-        inputs: Vec<PathBuf>,
-
-        /// Output file path
-        #[arg(short, long)]
-        output: PathBuf,
-
-        /// Concatenation method: simple, reencode, remux
-        #[arg(long, default_value = "remux")]
-        method: String,
-
-        /// Validate input compatibility
-        #[arg(long)]
-        validate: bool,
-
-        /// Overwrite output file without asking
-        #[arg(short = 'y', long)]
-        overwrite: bool,
-    },
-
-    /// Generate video thumbnails
-    Thumbnail {
-        /// Input video file
-        #[arg(short, long)]
-        input: PathBuf,
-
-        /// Output file path
-        #[arg(short, long)]
-        output: PathBuf,
-
-        /// Thumbnail mode: single, multiple, grid, auto
-        #[arg(long, default_value = "auto")]
-        mode: String,
-
-        /// Timestamp for single mode (e.g., "30", "1:30", "1:01:30")
-        #[arg(long)]
-        timestamp: Option<String>,
-
-        /// Number of thumbnails for multiple mode
-        #[arg(long, default_value = "9")]
-        count: usize,
-
-        /// Grid rows for grid mode
-        #[arg(long, default_value = "3")]
-        rows: usize,
-
-        /// Grid columns for grid mode
-        #[arg(long, default_value = "3")]
-        cols: usize,
-
-        /// Thumbnail width (pixels)
-        #[arg(long)]
-        width: Option<u32>,
-
-        /// Thumbnail height (pixels)
-        #[arg(long)]
-        height: Option<u32>,
-
-        /// Output format: png, jpeg, webp
-        #[arg(short, long, default_value = "png")]
-        format: String,
-
-        /// Quality for JPEG/WebP (0-100)
-        #[arg(long, default_value = "90")]
-        quality: u8,
-    },
-
-    /// Generate video thumbnail sprite sheet
-    Sprite {
-        /// Input video file
-        #[arg(short, long)]
-        input: PathBuf,
-
-        /// Output sprite sheet file path
-        #[arg(short, long)]
-        output: PathBuf,
-
-        /// Time interval between thumbnails in seconds (e.g., "10", "30")
-        #[arg(long, conflicts_with = "count")]
-        interval: Option<String>,
-
-        /// Total number of thumbnails to generate
-        #[arg(long, conflicts_with = "interval")]
-        count: Option<usize>,
-
-        /// Number of columns in grid
-        #[arg(long, default_value = "5")]
-        cols: usize,
-
-        /// Number of rows in grid
-        #[arg(long, default_value = "5")]
-        rows: usize,
-
-        /// Thumbnail width in pixels
-        #[arg(long, default_value = "160")]
-        width: u32,
-
-        /// Thumbnail height in pixels
-        #[arg(long, default_value = "90")]
-        height: u32,
-
-        /// Output format: png, jpeg, webp
-        #[arg(short, long, default_value = "png")]
-        format: String,
-
-        /// Quality for JPEG/WebP (0-100)
-        #[arg(long, default_value = "90")]
-        quality: u8,
-
-        /// Compression level (0-9)
-        #[arg(long, default_value = "6")]
-        compression: u8,
-
-        /// Sampling strategy: uniform, scene-based, keyframe-only, smart
-        #[arg(long, default_value = "uniform")]
-        strategy: String,
-
-        /// Layout mode: grid, vertical, horizontal, auto
-        #[arg(long, default_value = "grid")]
-        layout: String,
-
-        /// Spacing between thumbnails in pixels
-        #[arg(long, default_value = "2")]
-        spacing: u32,
-
-        /// Margin around sprite sheet in pixels
-        #[arg(long, default_value = "0")]
-        margin: u32,
-
-        /// Generate WebVTT file for seeking
-        #[arg(long)]
-        vtt: bool,
-
-        /// WebVTT output file path (default: `<output>`.vtt)
-        #[arg(long, requires = "vtt")]
-        vtt_output: Option<PathBuf>,
-
-        /// Generate JSON manifest
-        #[arg(long)]
-        manifest: bool,
-
-        /// JSON manifest output path (default: `<output>`.json)
-        #[arg(long, requires = "manifest")]
-        manifest_output: Option<PathBuf>,
-
-        /// Show timestamps on thumbnails
-        #[arg(long)]
-        timestamps: bool,
-
-        /// Maintain aspect ratio when scaling
-        #[arg(long, default_value = "true")]
-        aspect: bool,
-    },
-
-    /// Edit media metadata/tags
-    Metadata {
-        /// Input file
-        #[arg(short, long)]
-        input: PathBuf,
-
-        /// Output file (defaults to input if not specified)
-        #[arg(short, long)]
-        output: Option<PathBuf>,
-
-        /// Show current metadata
-        #[arg(long)]
-        show: bool,
-
-        /// Set metadata field (can be used multiple times: --set title="My Title")
-        #[arg(long, value_parser = parse_key_val)]
-        set: Vec<(String, String)>,
-
-        /// Remove metadata field (can be used multiple times)
-        #[arg(long)]
-        remove: Vec<String>,
-
-        /// Clear all metadata
-        #[arg(long)]
-        clear: bool,
-
-        /// Copy metadata from another file
-        #[arg(long)]
-        copy_from: Option<PathBuf>,
-    },
-
-    /// Run encoding benchmarks
-    Benchmark {
-        /// Input file for benchmarking
-        #[arg(short, long)]
-        input: PathBuf,
-
-        /// Codecs to test (e.g., av1, vp9, vp8)
-        #[arg(long, default_values = &["av1", "vp9"])]
-        codecs: Vec<String>,
-
-        /// Presets to test (e.g., fast, medium, slow)
-        #[arg(long, default_values = &["fast", "medium", "slow"])]
-        presets: Vec<String>,
-
-        /// Duration to encode in seconds (0 = full file)
-        #[arg(long)]
-        duration: Option<u64>,
-
-        /// Number of iterations per configuration
-        #[arg(long, default_value = "1")]
-        iterations: usize,
-
-        /// Output directory for benchmark files
-        #[arg(long)]
-        output_dir: Option<PathBuf>,
-    },
-
-    /// Validate file integrity
-    Validate {
-        /// Input files to validate
-        #[arg(value_name = "INPUTS", required = true)]
-        inputs: Vec<PathBuf>,
-
-        /// Validation checks: format, codec, stream, corruption, metadata, all
-        #[arg(long, default_values = &["all"])]
-        checks: Vec<String>,
-
-        /// Strict mode (fail on warnings)
-        #[arg(long)]
-        strict: bool,
-
-        /// Attempt to fix issues
-        #[arg(long)]
-        fix: bool,
-    },
-
-    /// Manage transcoding presets
-    Preset {
-        #[command(subcommand)]
-        command: PresetCommand,
-    },
-}
-
-/// Preset management subcommands.
-#[derive(Subcommand)]
-enum PresetCommand {
-    /// List all available presets
-    List {
-        /// Filter by category (web, device, quality, archival, streaming, custom)
-        #[arg(short, long)]
-        category: Option<String>,
-
-        /// Show detailed information
-        #[arg(short, long)]
-        verbose: bool,
-    },
-
-    /// Show detailed information about a preset
-    Show {
-        /// Preset name
-        #[arg(value_name = "NAME")]
-        name: String,
-
-        /// Output as TOML
-        #[arg(long)]
-        toml: bool,
-    },
-
-    /// Create a new custom preset interactively
-    Create {
-        /// Output directory for custom presets
-        #[arg(short, long)]
-        output: Option<PathBuf>,
-    },
-
-    /// Generate a preset template file
-    Template {
-        /// Output file path
-        #[arg(value_name = "OUTPUT")]
-        output: PathBuf,
-    },
-
-    /// Import a preset from a TOML file
-    Import {
-        /// Input TOML file
-        #[arg(value_name = "FILE")]
-        file: PathBuf,
-    },
-
-    /// Export a preset to a TOML file
-    Export {
-        /// Preset name
-        #[arg(value_name = "NAME")]
-        name: String,
-
-        /// Output file path
-        #[arg(value_name = "OUTPUT")]
-        output: PathBuf,
-    },
-
-    /// Remove a custom preset
-    Remove {
-        /// Preset name
-        #[arg(value_name = "NAME")]
-        name: String,
-    },
-}
-
-/// Parse key=value pairs for metadata setting.
-fn parse_key_val(s: &str) -> Result<(String, String), String> {
-    let pos = s
-        .find('=')
-        .ok_or_else(|| format!("Invalid KEY=value: no `=` found in `{}`", s))?;
-    Ok((s[..pos].to_string(), s[pos + 1..].to_string()))
-}
-
 /// Main entry point for the OxiMedia CLI.
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -582,6 +189,8 @@ async fn main() -> Result<()> {
             input,
             verbose,
             streams,
+            hash: _hash,
+            quality_snapshot: _quality_snapshot,
         } => probe_file(&input, verbose, streams).await,
 
         Commands::Info => {
@@ -608,6 +217,9 @@ async fn main() -> Result<()> {
             threads,
             overwrite,
             resume,
+            audio_filter: _audio_filter,
+            map: _map,
+            normalize_audio: _normalize_audio,
         } => {
             let options = transcode::TranscodeOptions {
                 input,
@@ -619,6 +231,7 @@ async fn main() -> Result<()> {
                 audio_bitrate,
                 scale,
                 video_filter,
+                audio_filter: _audio_filter,
                 start_time,
                 duration,
                 framerate,
@@ -888,6 +501,8 @@ async fn main() -> Result<()> {
             checks,
             strict,
             fix,
+            loudness_check: _loudness_check,
+            gamut_check: _gamut_check,
         } => {
             let validation_checks: Result<Vec<validate::ValidationCheck>> = checks
                 .iter()
@@ -904,7 +519,231 @@ async fn main() -> Result<()> {
             validate::validate_files(options).await
         }
 
+        Commands::Analyze {
+            input,
+            reference,
+            metrics,
+            output_format,
+            per_frame,
+            summary,
+        } => {
+            let options = analyze::AnalyzeOptions {
+                input,
+                reference,
+                metrics,
+                output_format,
+                per_frame,
+                summary,
+                json_output: cli.json,
+            };
+            analyze::analyze_quality(options).await
+        }
+
+        Commands::Scene { command } => scene::handle_scene_command(command, cli.json).await,
+
+        Commands::Scopes { command } => scopes_cmd::handle_scopes_command(command, cli.json).await,
+
+        Commands::Audio { command } => audio_cmd::handle_audio_command(command, cli.json).await,
+
+        Commands::Subtitle { command } => {
+            subtitle_cmd::handle_subtitle_command(command, cli.json).await
+        }
+
+        Commands::Filter { command } => filter_cmd::handle_filter_command(command, cli.json).await,
+
+        Commands::Lut { command } => lut_cmd::handle_lut_command(command, cli.json).await,
+
+        Commands::Denoise {
+            input,
+            output,
+            mode,
+            strength,
+            spatial,
+            temporal,
+            preserve_grain,
+        } => {
+            let opts = denoise_cmd::DenoiseOptions {
+                input,
+                output,
+                mode,
+                strength,
+                spatial,
+                temporal,
+                preserve_grain,
+            };
+            denoise_cmd::run_denoise(opts, cli.json).await
+        }
+
+        Commands::Stabilize {
+            input,
+            output,
+            mode,
+            quality,
+            smoothing,
+            zoom,
+        } => {
+            let opts = stabilize_cmd::StabilizeOptions {
+                input,
+                output,
+                mode,
+                quality,
+                smoothing,
+                zoom,
+            };
+            stabilize_cmd::run_stabilize(opts, cli.json).await
+        }
+
+        Commands::Edl { command } => edl_cmd::handle_edl_command(command, cli.json).await,
+
+        Commands::Package {
+            input,
+            output,
+            format,
+            segments,
+            ladders,
+            encrypt,
+            low_latency,
+        } => {
+            let opts = package_cmd::PackageOptions {
+                input,
+                output,
+                format,
+                segments,
+                ladders,
+                encrypt,
+                low_latency,
+            };
+            package_cmd::run_package(opts, cli.json).await
+        }
+
+        Commands::Forensics {
+            input,
+            all,
+            tests,
+            output_format,
+            report,
+        } => {
+            let opts = forensics_cmd::ForensicsOptions {
+                input,
+                all,
+                tests,
+                output_format,
+                report,
+            };
+            forensics_cmd::run_forensics(opts, cli.json).await
+        }
+
+        Commands::Monitor { command } => handle_monitor_command(command, cli.json).await,
+        Commands::Restore { command } => handle_restore_command(command, cli.json).await,
+        Commands::Captions { command } => handle_captions_command(command, cli.json).await,
+
         Commands::Preset { command } => handle_preset_command(command, cli.json).await,
+
+        Commands::Stream { command } => stream_cmd::run_stream(command, cli.json).await,
+        Commands::Search { command } => search_cmd::run_search(command, cli.json).await,
+        Commands::Timecode { command } => timecode_cmd::run_timecode(command, cli.json).await,
+        Commands::Repair { command } => repair_cmd::run_repair(command, cli.json).await,
+        Commands::Color { command } => color_cmd::run_color(command, cli.json).await,
+        Commands::Playlist { command } => {
+            playlist_cmd::handle_playlist_command(command, cli.json).await
+        }
+        Commands::Conform { command } => {
+            conform_cmd::handle_conform_command(command, cli.json).await
+        }
+        Commands::Archive { command } => {
+            archive_cmd::handle_archive_command(command, cli.json).await
+        }
+        Commands::Watermark { command } => {
+            watermark_cmd::handle_watermark_command(command, cli.json).await
+        }
+        Commands::Image { command } => image_cmd::handle_image_command(command, cli.json).await,
+        Commands::Graphics { command } => {
+            graphics_cmd::handle_graphics_command(command, cli.json).await
+        }
+        Commands::Multicam { command } => {
+            multicam_cmd::handle_multicam_command(command, cli.json).await
+        }
+        Commands::Timeline { command } => {
+            timeline_cmd::handle_timeline_command(command, cli.json).await
+        }
+        Commands::Vfx { command } => vfx_cmd::handle_vfx_command(command, cli.json).await,
+        Commands::Ffcompat { args } => ffcompat_cmd::run(args).await,
+        Commands::Tui => {
+            tui_cmd::run_tui()?;
+            Ok(())
+        }
+        Commands::Optimize { command } => {
+            optimize_cmd::handle_optimize_command(command, cli.json).await
+        }
+        Commands::Mixer { command } => mixer_cmd::handle_mixer_command(command, cli.json).await,
+        Commands::Audiopost { command } => {
+            audiopost_cmd::handle_audiopost_command(command, cli.json).await
+        }
+        Commands::Distributed { command } => {
+            distributed_cmd::handle_distributed_command(command, cli.json).await
+        }
+        Commands::Farm { command } => farm_cmd::handle_farm_command(command, cli.json).await,
+        Commands::Ndi { command } => ndi_cmd::handle_ndi_command(command, cli.json).await,
+        Commands::Videoip { command } => {
+            videoip_cmd::handle_videoip_command(command, cli.json).await
+        }
+        Commands::Gaming { command } => gaming_cmd::handle_gaming_command(command, cli.json).await,
+        Commands::Mam { command } => mam_cmd::handle_mam_command(command, cli.json).await,
+        Commands::Cloud { command } => cloud_cmd::handle_cloud_command(command, cli.json).await,
+        Commands::Plugin { command } => plugin_cmd::handle_plugin_command(command, cli.json).await,
+        Commands::Mir { command } => mir_cmd::handle_mir_command(command, cli.json).await,
+        Commands::Qc { command } => qc_cmd::handle_qc_command(command, cli.json).await,
+        Commands::Imf { command } => imf_cmd::handle_imf_command(command, cli.json).await,
+        Commands::Aaf { command } => aaf_cmd::handle_aaf_command(command, cli.json).await,
+        Commands::Playout { command } => {
+            playout_cmd::handle_playout_command(command, cli.json).await
+        }
+        Commands::Switcher { command } => {
+            switcher_cmd::handle_switcher_command(command, cli.json).await
+        }
+        Commands::Workflow { command } => {
+            workflow_cmd::handle_workflow_command(command, cli.json).await
+        }
+        Commands::Collab { command } => collab_cmd::handle_collab_command(command, cli.json).await,
+        Commands::Proxy { command } => proxy_cmd::handle_proxy_command(command, cli.json).await,
+        Commands::Clips { command } => clips_cmd::handle_clips_command(command, cli.json).await,
+        Commands::Review { command } => review_cmd::handle_review_command(command, cli.json).await,
+        Commands::Drm { command } => drm_cmd::handle_drm_command(command, cli.json).await,
+        Commands::Dedup { command } => dedup_cmd::handle_dedup_command(command, cli.json).await,
+        Commands::ArchivePro { command } => {
+            archivepro_cmd::handle_archivepro_command(command, cli.json).await
+        }
+        Commands::DolbyVision { command } => {
+            dolbyvision_cmd::handle_dolbyvision_command(command, cli.json).await
+        }
+        Commands::TimeSync { command } => {
+            timesync_cmd::handle_timesync_command(command, cli.json).await
+        }
+        Commands::Align { command } => align_cmd::handle_align_command(command, cli.json).await,
+        Commands::Routing { command } => {
+            routing_cmd::handle_routing_command(command, cli.json).await
+        }
+        Commands::Calibrate { command } => {
+            calibrate_cmd::handle_calibrate_command(command, cli.json).await
+        }
+        Commands::Virtual { command } => {
+            virtual_cmd::handle_virtual_command(command, cli.json).await
+        }
+        Commands::Profiler { command } => {
+            profiler_cmd::handle_profiler_command(command, cli.json).await
+        }
+        Commands::Recommend { command } => {
+            recommend_cmd::handle_recommend_command(command, cli.json).await
+        }
+        Commands::Scaling { command } => {
+            scaling_cmd::handle_scaling_command(command, cli.json).await
+        }
+        Commands::Renderfarm { command } => {
+            renderfarm_cmd::handle_renderfarm_command(command, cli.json).await
+        }
+        Commands::Access { command } => access_cmd::handle_access_command(command, cli.json).await,
+        Commands::Rights { command } => rights_cmd::handle_rights_command(command, cli.json).await,
+        Commands::Auto { command } => auto_cmd::handle_auto_command(command, cli.json).await,
     };
 
     // Handle errors with colored output
@@ -917,437 +756,4 @@ async fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-/// Initialize logging based on verbosity level
-fn init_logging(verbose: u8, quiet: bool) -> Result<()> {
-    if quiet {
-        // No logging in quiet mode
-        return Ok(());
-    }
-
-    let level = match verbose {
-        0 => Level::INFO,
-        1 => Level::DEBUG,
-        _ => Level::TRACE,
-    };
-
-    let subscriber = FmtSubscriber::builder()
-        .with_max_level(level)
-        .with_target(false)
-        .with_thread_ids(false)
-        .with_file(false)
-        .with_line_number(false)
-        .compact()
-        .finish();
-
-    tracing::subscriber::set_global_default(subscriber)
-        .context("Failed to set tracing subscriber")?;
-
-    Ok(())
-}
-
-/// Probe a media file and display format information.
-async fn probe_file(path: &PathBuf, verbose: bool, show_streams: bool) -> Result<()> {
-    use tokio::io::AsyncReadExt;
-
-    info!("Probing file: {}", path.display());
-
-    // Read first 4KB for probing
-    let mut file = tokio::fs::File::open(path)
-        .await
-        .context("Failed to open input file")?;
-
-    let mut buffer = vec![0u8; 4096];
-    let bytes_read = file
-        .read(&mut buffer)
-        .await
-        .context("Failed to read file")?;
-    buffer.truncate(bytes_read);
-
-    match oximedia_container::probe_format(&buffer) {
-        Ok(result) => {
-            println!("{}", "Format Information".green().bold());
-            println!("{}", "=".repeat(50));
-            println!("{:20} {:?}", "Container:", result.format);
-            println!("{:20} {:.1}%", "Confidence:", result.confidence * 100.0);
-
-            if verbose {
-                println!("\n{}", "Technical Details".cyan().bold());
-                println!("{}", "-".repeat(50));
-                println!(
-                    "{:20} {} bytes",
-                    "File size:",
-                    tokio::fs::metadata(path).await?.len()
-                );
-                println!(
-                    "{:20} {:02X?}",
-                    "Magic bytes:",
-                    &buffer[..16.min(buffer.len())]
-                );
-            }
-
-            if show_streams {
-                println!("\n{}", "Stream Information".cyan().bold());
-                println!("{}", "-".repeat(50));
-                println!("(Stream parsing not yet implemented)");
-            }
-
-            Ok(())
-        }
-        Err(e) => {
-            eprintln!("{} {}", "Error:".red().bold(), e);
-            Err(anyhow::anyhow!("Could not detect format: {}", e))
-        }
-    }
-}
-
-/// Handle preset subcommands.
-async fn handle_preset_command(command: PresetCommand, json_output: bool) -> Result<()> {
-    use presets::{PresetCategory, PresetManager};
-
-    let custom_dir = PresetManager::default_custom_dir()?;
-    let manager = PresetManager::with_custom_dir(&custom_dir)?;
-
-    match command {
-        PresetCommand::List { category, verbose } => {
-            let presets = if let Some(cat_str) = category {
-                let cat = PresetCategory::from_str(&cat_str)?;
-                manager.list_presets_by_category(cat)
-            } else {
-                manager.list_presets()
-            };
-
-            if json_output {
-                let json = serde_json::to_string_pretty(&presets)?;
-                println!("{}", json);
-            } else {
-                println!("{}", "Available Presets".green().bold());
-                println!("{}", "=".repeat(80));
-                println!();
-
-                let mut current_category = None;
-                for preset in presets {
-                    if current_category != Some(preset.category) {
-                        current_category = Some(preset.category);
-                        println!("{}", preset.category.name().cyan().bold());
-                        println!("{}", preset.category.description().dimmed());
-                        println!();
-                    }
-
-                    let builtin_badge = if preset.builtin {
-                        "[built-in]".dimmed()
-                    } else {
-                        "[custom]".yellow()
-                    };
-
-                    println!("  {} {}", preset.name.green(), builtin_badge);
-
-                    if verbose {
-                        println!("    {}", preset.description);
-                        println!(
-                            "    Video: {} @ {}",
-                            preset.video.codec,
-                            preset
-                                .video
-                                .bitrate
-                                .as_ref()
-                                .map(|s| s.as_str())
-                                .unwrap_or("CRF")
-                        );
-                        println!(
-                            "    Audio: {} @ {}",
-                            preset.audio.codec,
-                            preset
-                                .audio
-                                .bitrate
-                                .as_ref()
-                                .map(|s| s.as_str())
-                                .unwrap_or("default")
-                        );
-                        println!("    Container: {}", preset.container);
-                        if !preset.tags.is_empty() {
-                            println!("    Tags: {}", preset.tags.join(", "));
-                        }
-                        println!();
-                    }
-                }
-
-                println!();
-                println!("Total: {} presets", manager.preset_names().len());
-                println!();
-                println!(
-                    "Use {} to see detailed information",
-                    "oximedia preset show <name>".yellow()
-                );
-            }
-
-            Ok(())
-        }
-
-        PresetCommand::Show { name, toml } => {
-            let preset = manager.get_preset(&name)?;
-
-            if json_output {
-                let json = serde_json::to_string_pretty(preset)?;
-                println!("{}", json);
-            } else if toml {
-                // Save to temp and read back
-                let temp_dir = std::env::temp_dir();
-                presets::custom::save_preset_to_file(preset, &temp_dir)?;
-                let toml_path = temp_dir.join(format!("{}.toml", preset.name));
-                let toml_content = std::fs::read_to_string(&toml_path)?;
-                println!("{}", toml_content);
-                let _ignore = std::fs::remove_file(&toml_path);
-            } else {
-                println!("{}", format!("Preset: {}", preset.name).green().bold());
-                println!("{}", "=".repeat(80));
-                println!();
-
-                println!("{}: {}", "Description".cyan().bold(), preset.description);
-                println!("{}: {}", "Category".cyan().bold(), preset.category.name());
-                println!("{}: {}", "Container".cyan().bold(), preset.container);
-                println!(
-                    "{}: {}",
-                    "Type".cyan().bold(),
-                    if preset.builtin { "Built-in" } else { "Custom" }
-                );
-
-                if !preset.tags.is_empty() {
-                    println!("{}: {}", "Tags".cyan().bold(), preset.tags.join(", "));
-                }
-
-                println!();
-                println!("{}", "Video Configuration".yellow().bold());
-                println!("{}", "-".repeat(40));
-                println!("  Codec: {}", preset.video.codec);
-                if let Some(ref bitrate) = preset.video.bitrate {
-                    println!("  Bitrate: {}", bitrate);
-                }
-                if let Some(crf) = preset.video.crf {
-                    println!("  CRF: {}", crf);
-                }
-                if let Some(width) = preset.video.width {
-                    println!(
-                        "  Resolution: {}x{}",
-                        width,
-                        preset.video.height.unwrap_or(0)
-                    );
-                }
-                if let Some(fps) = preset.video.fps {
-                    println!("  Frame rate: {}", fps);
-                }
-                if let Some(ref preset_name) = preset.video.preset {
-                    println!("  Encoder preset: {}", preset_name);
-                }
-                if let Some(ref pix_fmt) = preset.video.pixel_format {
-                    println!("  Pixel format: {}", pix_fmt);
-                }
-                println!("  Two-pass: {}", preset.video.two_pass);
-
-                println!();
-                println!("{}", "Audio Configuration".yellow().bold());
-                println!("{}", "-".repeat(40));
-                println!("  Codec: {}", preset.audio.codec);
-                if let Some(ref bitrate) = preset.audio.bitrate {
-                    println!("  Bitrate: {}", bitrate);
-                }
-                if let Some(sample_rate) = preset.audio.sample_rate {
-                    println!("  Sample rate: {} Hz", sample_rate);
-                }
-                if let Some(channels) = preset.audio.channels {
-                    println!("  Channels: {}", channels);
-                }
-
-                println!();
-                println!(
-                    "{}",
-                    format!(
-                        "oximedia transcode -i input.mkv -o output.{} --preset-name {}",
-                        preset.container, preset.name
-                    )
-                    .yellow()
-                );
-            }
-
-            Ok(())
-        }
-
-        PresetCommand::Create { output } => {
-            let preset = presets::custom::create_preset_interactive()?;
-
-            let out_dir = output.unwrap_or(custom_dir);
-            if !out_dir.exists() {
-                std::fs::create_dir_all(&out_dir)?;
-            }
-
-            presets::custom::save_preset_to_file(&preset, &out_dir)?;
-
-            println!(
-                "{} Preset '{}' created successfully!",
-                "✓".green(),
-                preset.name
-            );
-            println!(
-                "Saved to: {}",
-                out_dir.join(format!("{}.toml", preset.name)).display()
-            );
-
-            Ok(())
-        }
-
-        PresetCommand::Template { output } => {
-            presets::custom::generate_template(&output)?;
-            println!("{} Template generated: {}", "✓".green(), output.display());
-            println!(
-                "Edit the template and import it with: oximedia preset import {}",
-                output.display()
-            );
-            Ok(())
-        }
-
-        PresetCommand::Import { file } => {
-            let preset = presets::custom::load_preset_from_file(&file)?;
-
-            if !custom_dir.exists() {
-                std::fs::create_dir_all(&custom_dir)?;
-            }
-
-            presets::custom::save_preset_to_file(&preset, &custom_dir)?;
-
-            println!(
-                "{} Preset '{}' imported successfully!",
-                "✓".green(),
-                preset.name
-            );
-
-            Ok(())
-        }
-
-        PresetCommand::Export { name, output } => {
-            let preset = manager.get_preset(&name)?;
-
-            if preset.builtin {
-                println!(
-                    "{} Cannot export built-in preset '{}'. Use 'oximedia preset show {} --toml' instead.",
-                    "!".yellow(),
-                    name,
-                    name
-                );
-                return Ok(());
-            }
-
-            let output_dir = output.parent().unwrap_or_else(|| std::path::Path::new("."));
-            presets::custom::save_preset_to_file(preset, output_dir)?;
-
-            println!("{} Preset exported to: {}", "✓".green(), output.display());
-
-            Ok(())
-        }
-
-        PresetCommand::Remove { name } => {
-            let preset = manager.get_preset(&name)?;
-
-            if preset.builtin {
-                return Err(anyhow::anyhow!("Cannot remove built-in preset '{}'", name));
-            }
-
-            let preset_path = custom_dir.join(format!("{}.toml", name));
-            if preset_path.exists() {
-                std::fs::remove_file(&preset_path)?;
-                println!("{} Preset '{}' removed successfully!", "✓".green(), name);
-            } else {
-                println!(
-                    "{} Preset '{}' not found in custom directory",
-                    "!".yellow(),
-                    name
-                );
-            }
-
-            Ok(())
-        }
-    }
-}
-
-/// Display information about supported formats and codecs.
-fn show_info() {
-    println!(
-        "{}",
-        "OxiMedia - Patent-Free Multimedia Framework".green().bold()
-    );
-    println!();
-
-    println!("{}", "Supported Containers:".cyan().bold());
-    println!("  {} Matroska (.mkv)", "✓".green());
-    println!("  {} WebM (.webm)", "✓".green());
-    println!("  {} Ogg (.ogg, .opus, .oga)", "✓".green());
-    println!("  {} FLAC (.flac)", "✓".green());
-    println!("  {} WAV (.wav)", "✓".green());
-    println!();
-
-    println!("{}", "Supported Video Codecs (Green List):".cyan().bold());
-    println!("  {} AV1 (Primary codec, best compression)", "✓".green());
-    println!("  {} VP9 (Excellent quality/size ratio)", "✓".green());
-    println!("  {} VP8 (Legacy support)", "✓".green());
-    println!("  {} Theora (Legacy support)", "✓".green());
-    println!();
-
-    println!("{}", "Supported Audio Codecs (Green List):".cyan().bold());
-    println!("  {} Opus (Primary codec, versatile)", "✓".green());
-    println!("  {} Vorbis (High quality)", "✓".green());
-    println!("  {} FLAC (Lossless)", "✓".green());
-    println!("  {} PCM (Uncompressed)", "✓".green());
-    println!();
-
-    println!("{}", "Rejected Codecs (Patent-Encumbered):".red().bold());
-    println!("  {} H.264/AVC", "✗".red());
-    println!("  {} H.265/HEVC", "✗".red());
-    println!("  {} AAC", "✗".red());
-    println!("  {} AC-3/E-AC-3", "✗".red());
-    println!("  {} DTS", "✗".red());
-    println!();
-
-    println!("{}", "FFmpeg-Compatible Options:".yellow().bold());
-    println!("  -i <file>          Input file");
-    println!("  -c:v <codec>       Video codec (av1, vp9, vp8)");
-    println!("  -c:a <codec>       Audio codec (opus, vorbis, flac)");
-    println!("  -b:v <bitrate>     Video bitrate (e.g., 2M, 500k)");
-    println!("  -vf <filter>       Video filter chain");
-    println!("  -ss <time>         Seek to start time");
-    println!("  -t <duration>      Duration limit");
-    println!("  -r <fps>           Frame rate");
-    println!();
-
-    println!("{}", "Examples:".yellow().bold());
-    println!("  oximedia transcode -i input.mp4 -o output.webm -c:v vp9 -b:v 2M");
-    println!("  oximedia transcode -i input.mp4 -o output.webm --preset-name youtube-1080p");
-    println!("  oximedia extract video.mkv frames_%04d.png --every 30");
-    println!("  oximedia batch input/ output/ config.toml -j 4");
-    println!("  oximedia concat video1.mkv video2.mkv -o output.mkv --method remux");
-    println!("  oximedia thumbnail -i video.mkv -o thumb.png --mode auto");
-    println!("  oximedia sprite -i video.mkv -o sprite.png --interval 10 --cols 5 --rows 5");
-    println!("  oximedia sprite -i video.mkv -o sprite.png --count 100 --vtt --manifest");
-    println!("  oximedia metadata -i video.mkv --show");
-    println!("  oximedia benchmark -i test.mkv --codecs av1 vp9 --presets fast medium");
-    println!("  oximedia validate video1.mkv video2.mkv --checks all --strict");
-    println!("  oximedia preset list --category web");
-    println!("  oximedia preset show youtube-1080p");
-    println!();
-
-    println!("{}", "Available Commands:".cyan().bold());
-    println!(
-        "  {} Probe media files and show format information",
-        "probe".green()
-    );
-    println!("  {} Show supported formats and codecs", "info".green());
-    println!("  {} Transcode media files", "transcode".green());
-    println!("  {} Extract frames to images", "extract".green());
-    println!("  {} Batch process multiple files", "batch".green());
-    println!("  {} Concatenate multiple videos", "concat".green());
-    println!("  {} Generate video thumbnails", "thumbnail".green());
-    println!("  {} Generate video sprite sheets", "sprite".green());
-    println!("  {} Edit media metadata/tags", "metadata".green());
-    println!("  {} Run encoding benchmarks", "benchmark".green());
-    println!("  {} Validate file integrity", "validate".green());
-    println!("  {} Manage transcoding presets", "preset".green());
 }

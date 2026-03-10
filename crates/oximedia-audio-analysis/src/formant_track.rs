@@ -153,7 +153,15 @@ impl FormantTrack {
         if self.frames.len() < 2 {
             return 0.0;
         }
-        self.frames.last().unwrap().time_s - self.frames.first().unwrap().time_s
+        self.frames
+            .last()
+            .expect("frames non-empty: len < 2 check returned above")
+            .time_s
+            - self
+                .frames
+                .first()
+                .expect("frames non-empty: len < 2 check returned above")
+                .time_s
     }
 }
 

@@ -532,9 +532,10 @@ fn find_min_vertical_seam(energy: &EnergyMap) -> Seam {
     let (min_x, min_energy) = cumulative.data[last_row_start..last_row_start + w]
         .iter()
         .enumerate()
-        .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
+        .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
         .map(|(i, &e)| (i, e))
-        .unwrap();
+        // Safety: the slice has width `w` elements and `w` >= 1 (validated by EnergyMap construction)
+        .expect("energy slice is non-empty (width >= 1 guaranteed by EnergyMap)");
 
     // Backtrack to find the seam path
     let mut path = vec![0u32; h];
@@ -577,8 +578,9 @@ fn find_min_horizontal_seam(energy: &EnergyMap) -> Seam {
     // Find minimum in last column
     let (min_y, min_energy) = (0..h)
         .map(|y| (y, cumulative.data[y * w + w - 1]))
-        .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-        .unwrap();
+        .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+        // Safety: the iterator produces `h` elements and `h` >= 1 (validated by EnergyMap construction)
+        .expect("energy column iterator is non-empty (height >= 1 guaranteed by EnergyMap)");
 
     // Backtrack to find the seam path
     let mut path = vec![0u32; w];
@@ -628,7 +630,9 @@ mod tests {
     fn test_find_vertical_seam() {
         let image = vec![128u8; 100];
         let carver = SeamCarver::new(EnergyFunction::Gradient);
-        let seam = carver.find_vertical_seam(&image, 10, 10).unwrap();
+        let seam = carver
+            .find_vertical_seam(&image, 10, 10)
+            .expect("find_vertical_seam should succeed");
         assert_eq!(seam.len(), 10);
         assert!(seam.vertical);
     }
@@ -637,8 +641,12 @@ mod tests {
     fn test_remove_vertical_seam() {
         let image = vec![128u8; 100];
         let carver = SeamCarver::new(EnergyFunction::Gradient);
-        let seam = carver.find_vertical_seam(&image, 10, 10).unwrap();
-        let result = carver.remove_vertical_seam(&image, 10, 10, &seam).unwrap();
+        let seam = carver
+            .find_vertical_seam(&image, 10, 10)
+            .expect("find_vertical_seam should succeed");
+        let result = carver
+            .remove_vertical_seam(&image, 10, 10, &seam)
+            .expect("remove_vertical_seam should succeed");
         assert_eq!(result.len(), 90); // 9 x 10
     }
 
@@ -646,8 +654,12 @@ mod tests {
     fn test_insert_vertical_seam() {
         let image = vec![128u8; 100];
         let carver = SeamCarver::new(EnergyFunction::Gradient);
-        let seam = carver.find_vertical_seam(&image, 10, 10).unwrap();
-        let result = carver.insert_vertical_seam(&image, 10, 10, &seam).unwrap();
+        let seam = carver
+            .find_vertical_seam(&image, 10, 10)
+            .expect("find_vertical_seam should succeed");
+        let result = carver
+            .insert_vertical_seam(&image, 10, 10, &seam)
+            .expect("insert_vertical_seam should succeed");
         assert_eq!(result.len(), 110); // 11 x 10
     }
 
@@ -655,7 +667,9 @@ mod tests {
     fn test_reduce_width() {
         let image = vec![128u8; 100];
         let carver = SeamCarver::new(EnergyFunction::Gradient);
-        let result = carver.reduce_width(&image, 10, 10, 8).unwrap();
+        let result = carver
+            .reduce_width(&image, 10, 10, 8)
+            .expect("reduce_width should succeed");
         assert_eq!(result.len(), 80); // 8 x 10
     }
 
@@ -663,7 +677,9 @@ mod tests {
     fn test_reduce_height() {
         let image = vec![128u8; 100];
         let carver = SeamCarver::new(EnergyFunction::Gradient);
-        let result = carver.reduce_height(&image, 10, 10, 8).unwrap();
+        let result = carver
+            .reduce_height(&image, 10, 10, 8)
+            .expect("reduce_height should succeed");
         assert_eq!(result.len(), 80); // 10 x 8
     }
 }

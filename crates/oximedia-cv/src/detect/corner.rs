@@ -615,7 +615,11 @@ fn find_corners_nms(response: &[f64], width: u32, height: u32, threshold: f64) -
     }
 
     // Sort by response (descending)
-    corners.sort_by(|a, b| b.response.partial_cmp(&a.response).unwrap());
+    corners.sort_by(|a, b| {
+        b.response
+            .partial_cmp(&a.response)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     corners
 }
@@ -749,7 +753,9 @@ mod tests {
         let detector = HarrisDetector::new();
         let image = vec![100u8; 100];
 
-        let corners = detector.detect(&image, 10, 10).unwrap();
+        let corners = detector
+            .detect(&image, 10, 10)
+            .expect("detect should succeed");
         // Uniform image should have no corners
         assert!(corners.is_empty() || corners.len() < 5);
     }
@@ -766,7 +772,9 @@ mod tests {
         let detector = ShiTomasiDetector::new();
         let image = vec![100u8; 100];
 
-        let corners = detector.detect(&image, 10, 10).unwrap();
+        let corners = detector
+            .detect(&image, 10, 10)
+            .expect("detect should succeed");
         assert!(corners.is_empty() || corners.len() < 5);
     }
 
@@ -790,7 +798,9 @@ mod tests {
         let detector = FastDetector::new();
         let image = vec![100u8; 100];
 
-        let corners = detector.detect(&image, 10, 10).unwrap();
+        let corners = detector
+            .detect(&image, 10, 10)
+            .expect("detect should succeed");
         // Uniform image should have no FAST corners
         assert!(corners.is_empty());
     }

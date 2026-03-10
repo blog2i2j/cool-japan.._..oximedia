@@ -218,7 +218,7 @@ mod tests {
         let mut buf = PacketBuffer::new(16);
         buf.push(make_pkt(0, 100, true));
         buf.push(make_pkt(0, 200, false));
-        let p = buf.pop_stream(0).unwrap();
+        let p = buf.pop_stream(0).expect("operation should succeed");
         assert_eq!(p.pts, 100);
         assert_eq!(buf.stream_depth(0), 1);
     }
@@ -236,7 +236,7 @@ mod tests {
         buf.push(make_pkt(1, 100, true));
         buf.push(make_pkt(1, 200, false));
 
-        let p = buf.pop_lowest_pts().unwrap();
+        let p = buf.pop_lowest_pts().expect("operation should succeed");
         assert_eq!(p.pts, 100);
         assert_eq!(p.stream_index, 1);
     }
@@ -260,7 +260,7 @@ mod tests {
         buf.push(make_pkt(0, 250, false));
         buf.seek_to_pts(100);
         // Packet at 50 should be discarded
-        let p = buf.pop_stream(0).unwrap();
+        let p = buf.pop_stream(0).expect("operation should succeed");
         assert_eq!(p.pts, 150);
     }
 
@@ -273,7 +273,7 @@ mod tests {
         // This push should evict pts=10
         let evicted = buf.push(make_pkt(0, 40, false));
         assert!(evicted.is_some());
-        assert_eq!(evicted.unwrap().pts, 10);
+        assert_eq!(evicted.expect("operation should succeed").pts, 10);
         assert_eq!(buf.stream_depth(0), 3);
     }
 

@@ -147,7 +147,7 @@ impl ResizeConfig {
 /// // Create a simple 2x2 grayscale image
 /// let src = vec![0u8, 64, 128, 255];
 /// let config = ResizeConfig::new(4, 4, ResizeMethod::Bilinear, 1);
-/// let result = resize_image(&src, 2, 2, &config).unwrap();
+/// let result = resize_image(&src, 2, 2, &config)?;
 /// assert_eq!(result.len(), 16);
 /// ```
 pub fn resize_image(
@@ -743,7 +743,7 @@ mod tests {
     fn test_resize_nearest() {
         let src = vec![0u8, 64, 128, 255];
         let config = ResizeConfig::new(4, 4, ResizeMethod::Nearest, 1);
-        let result = resize_image(&src, 2, 2, &config).unwrap();
+        let result = resize_image(&src, 2, 2, &config).expect("resize_image should succeed");
         assert_eq!(result.len(), 16);
     }
 
@@ -751,7 +751,7 @@ mod tests {
     fn test_resize_bilinear() {
         let src = vec![0u8, 255, 255, 0];
         let config = ResizeConfig::new(4, 4, ResizeMethod::Bilinear, 1);
-        let result = resize_image(&src, 2, 2, &config).unwrap();
+        let result = resize_image(&src, 2, 2, &config).expect("resize_image should succeed");
         assert_eq!(result.len(), 16);
     }
 
@@ -759,7 +759,7 @@ mod tests {
     fn test_resize_bicubic() {
         let src = vec![0u8; 16];
         let config = ResizeConfig::new(4, 4, ResizeMethod::Bicubic, 1);
-        let result = resize_image(&src, 4, 4, &config).unwrap();
+        let result = resize_image(&src, 4, 4, &config).expect("resize_image should succeed");
         assert_eq!(result.len(), 16);
     }
 
@@ -767,7 +767,7 @@ mod tests {
     fn test_resize_lanczos() {
         let src = vec![128u8; 16];
         let config = ResizeConfig::new(4, 4, ResizeMethod::Lanczos, 1);
-        let result = resize_image(&src, 4, 4, &config).unwrap();
+        let result = resize_image(&src, 4, 4, &config).expect("resize_image should succeed");
         assert_eq!(result.len(), 16);
     }
 
@@ -775,7 +775,7 @@ mod tests {
     fn test_resize_area() {
         let src = vec![100u8; 64];
         let config = ResizeConfig::new(4, 4, ResizeMethod::Area, 1);
-        let result = resize_image(&src, 8, 8, &config).unwrap();
+        let result = resize_image(&src, 8, 8, &config).expect("resize_image should succeed");
         assert_eq!(result.len(), 16);
         // Area averaging should produce similar values
         for &v in &result {
@@ -801,7 +801,7 @@ mod tests {
     fn test_separable_convolution() {
         let src = vec![128u8; 25];
         let conv = SeparableConvolution::gaussian(1.0, 3);
-        let result = conv.apply(&src, 5, 5).unwrap();
+        let result = conv.apply(&src, 5, 5).expect("apply should succeed");
         assert_eq!(result.len(), 25);
     }
 
@@ -822,12 +822,12 @@ mod tests {
     #[test]
     fn test_image_pyramid() {
         let src = vec![100u8; 64];
-        let pyramid = ImagePyramid::gaussian(&src, 8, 8, 1, 3).unwrap();
+        let pyramid = ImagePyramid::gaussian(&src, 8, 8, 1, 3).expect("gaussian should succeed");
 
         assert_eq!(pyramid.num_levels(), 3);
-        assert_eq!(pyramid.level(0).unwrap().width, 8);
-        assert_eq!(pyramid.level(1).unwrap().width, 4);
-        assert_eq!(pyramid.level(2).unwrap().width, 2);
+        assert_eq!(pyramid.level(0).expect("level should succeed").width, 8);
+        assert_eq!(pyramid.level(1).expect("level should succeed").width, 4);
+        assert_eq!(pyramid.level(2).expect("level should succeed").width, 2);
     }
 
     #[test]

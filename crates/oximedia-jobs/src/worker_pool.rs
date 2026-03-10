@@ -192,7 +192,11 @@ impl WorkerPool {
             .workers
             .values()
             .filter(|w| w.can_accept())
-            .min_by(|a, b| a.utilization().partial_cmp(&b.utilization()).unwrap())
+            .min_by(|a, b| {
+                a.utilization()
+                    .partial_cmp(&b.utilization())
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .map(|w| w.id.clone());
 
         if let Some(id) = best_id {

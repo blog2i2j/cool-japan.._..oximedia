@@ -434,7 +434,7 @@ mod tests {
     #[test]
     fn test_find_patch_by_name() {
         let target = ColorCheckerTarget::classic_24();
-        let white = target.find_patch("White").unwrap();
+        let white = target.find_patch("White").expect("unexpected None/Err");
         assert!(white.is_neutral);
         assert!(white.lightness() > 90.0);
     }
@@ -448,7 +448,7 @@ mod tests {
     #[test]
     fn test_patch_at_position() {
         let target = ColorCheckerTarget::classic_24();
-        let patch = target.patch_at(0, 0).unwrap();
+        let patch = target.patch_at(0, 0).expect("unexpected None/Err");
         assert_eq!(patch.name, "Dark Skin");
     }
 

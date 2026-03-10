@@ -545,8 +545,11 @@ mod tests {
 
     #[test]
     fn test_database_creation() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
 
         let result = Database::new(db_path);
         assert!(result.is_ok());
@@ -554,9 +557,12 @@ mod tests {
 
     #[test]
     fn test_save_job() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
-        let db = Database::new(db_path).unwrap();
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
+        let db = Database::new(db_path).expect("failed to create database");
 
         let job = BatchJob::new(
             "test-job".to_string(),
@@ -571,9 +577,12 @@ mod tests {
 
     #[test]
     fn test_update_job_status() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
-        let db = Database::new(db_path).unwrap();
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
+        let db = Database::new(db_path).expect("failed to create database");
 
         let job = BatchJob::new(
             "test-job".to_string(),
@@ -582,16 +591,19 @@ mod tests {
             },
         );
 
-        db.save_job(&job).unwrap();
+        db.save_job(&job).expect("failed to save job");
         let result = db.update_job_status(&job.id, JobState::Running);
         assert!(result.is_ok());
     }
 
     #[test]
     fn test_get_job() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
-        let db = Database::new(db_path).unwrap();
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
+        let db = Database::new(db_path).expect("failed to create database");
 
         let job = BatchJob::new(
             "test-job".to_string(),
@@ -600,17 +612,23 @@ mod tests {
             },
         );
 
-        db.save_job(&job).unwrap();
+        db.save_job(&job).expect("failed to save job");
         let retrieved = db.get_job(&job.id);
         assert!(retrieved.is_ok());
-        assert_eq!(retrieved.unwrap().name, "test-job");
+        assert_eq!(
+            retrieved.expect("retrieved should be valid").name,
+            "test-job"
+        );
     }
 
     #[test]
     fn test_list_jobs() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
-        let db = Database::new(db_path).unwrap();
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
+        let db = Database::new(db_path).expect("failed to create database");
 
         let job1 = BatchJob::new(
             "job1".to_string(),
@@ -626,23 +644,26 @@ mod tests {
             },
         );
 
-        db.save_job(&job1).unwrap();
-        db.save_job(&job2).unwrap();
+        db.save_job(&job1).expect("failed to save job");
+        db.save_job(&job2).expect("failed to save job");
 
-        let jobs = db.list_jobs().unwrap();
+        let jobs = db.list_jobs().expect("failed to list jobs");
         assert_eq!(jobs.len(), 2);
     }
 
     #[test]
     fn test_get_statistics() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
-        let db = Database::new(db_path).unwrap();
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
+        let db = Database::new(db_path).expect("failed to create database");
 
         let stats = db.get_statistics();
         assert!(stats.is_ok());
 
-        let stats = stats.unwrap();
+        let stats = stats.expect("stats should be valid");
         assert_eq!(stats.total, 0);
     }
 }

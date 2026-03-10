@@ -206,7 +206,9 @@ mod tests {
     #[tokio::test]
     async fn test_channel_lifecycle() {
         let config = ChannelConfig::default();
-        let mut channel = ChannelAutomation::new(config).await.unwrap();
+        let mut channel = ChannelAutomation::new(config)
+            .await
+            .expect("new should succeed");
 
         assert_eq!(channel.get_state().await, ChannelState::Stopped);
         assert!(channel.start().await.is_ok());

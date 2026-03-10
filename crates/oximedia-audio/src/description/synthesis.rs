@@ -616,7 +616,7 @@ mod tests {
         let processor = SsmlProcessor::new(config);
 
         let ssml = "<speak>Hello world</speak>";
-        let segments = processor.parse(ssml).unwrap();
+        let segments = processor.parse(ssml).expect("parse should succeed");
         assert!(!segments.is_empty());
         assert_eq!(segments[0].text, "Hello world");
     }
@@ -633,7 +633,9 @@ mod tests {
         let mut engine = MockTtsEngine::new(48000);
         let config = SynthesisConfig::default();
 
-        let samples = engine.synthesize("Hello world", &config).unwrap();
+        let samples = engine
+            .synthesize("Hello world", &config)
+            .expect("should succeed");
         assert!(!samples.is_empty());
 
         let duration = engine.estimate_duration("Hello world", &config);
@@ -646,11 +648,11 @@ mod tests {
         let config = SynthesisConfig::default();
         let mut synthesizer = TtsSynthesizer::new(engine, config);
 
-        let samples1 = synthesizer.synthesize("Hello").unwrap();
+        let samples1 = synthesizer.synthesize("Hello").expect("should succeed");
         assert!(!samples1.is_empty());
         assert_eq!(synthesizer.cache_size(), 1);
 
-        let samples2 = synthesizer.synthesize("Hello").unwrap();
+        let samples2 = synthesizer.synthesize("Hello").expect("should succeed");
         assert_eq!(samples1.len(), samples2.len());
     }
 }

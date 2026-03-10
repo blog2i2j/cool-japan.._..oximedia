@@ -425,7 +425,7 @@ mod tests {
     #[test]
     fn test_corner_rects_unchanged() {
         let layout =
-            NineSliceLayout::new(100, 100, 300, 300, SliceInsets::uniform(20)).unwrap();
+            NineSliceLayout::new(100, 100, 300, 300, SliceInsets::uniform(20)).expect("test expectation failed");
         let src = layout.source_rect(SliceRegion::TopLeft);
         let dst = layout.dest_rect(SliceRegion::TopLeft);
         // Corners should have the same size in source and dest
@@ -436,7 +436,7 @@ mod tests {
     #[test]
     fn test_center_scales() {
         let layout =
-            NineSliceLayout::new(100, 100, 300, 300, SliceInsets::uniform(20)).unwrap();
+            NineSliceLayout::new(100, 100, 300, 300, SliceInsets::uniform(20)).expect("test expectation failed");
         let h_scale = layout.horizontal_scale(SliceRegion::MiddleCenter);
         let v_scale = layout.vertical_scale(SliceRegion::MiddleCenter);
         // Source center is 60x60, dest center is 260x260
@@ -447,7 +447,7 @@ mod tests {
     #[test]
     fn test_all_mappings_count() {
         let layout =
-            NineSliceLayout::new(100, 100, 200, 200, SliceInsets::uniform(10)).unwrap();
+            NineSliceLayout::new(100, 100, 200, 200, SliceInsets::uniform(10)).expect("test expectation failed");
         let mappings = layout.all_mappings();
         assert_eq!(mappings.len(), 9);
     }
@@ -455,7 +455,7 @@ mod tests {
     #[test]
     fn test_dest_rects_tile_output() {
         let layout =
-            NineSliceLayout::new(100, 100, 200, 200, SliceInsets::uniform(10)).unwrap();
+            NineSliceLayout::new(100, 100, 200, 200, SliceInsets::uniform(10)).expect("test expectation failed");
         // Verify that all dest rects cover the entire output without overlap
         let mut covered = vec![vec![false; 200]; 200];
         for region in SliceRegion::all() {

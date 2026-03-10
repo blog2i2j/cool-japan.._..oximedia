@@ -3,7 +3,9 @@
 //! A forensic watermark embeds a unique identifier (customer ID, session,
 //! timestamp) into the content so that leaks can be traced back to the
 //! responsible party.  This module provides payload encoding/decoding,
-//! a DCT-domain embedding stub, and a simple traitor-tracing structure.
+//! a DCT-domain embedding implementation using real 2D DCT-II/III transforms
+//! with Quantization Index Modulation (QIM), and a simple traitor-tracing
+//! structure.
 
 // ── ForensicPayload ───────────────────────────────────────────────────────────
 
@@ -72,64 +74,245 @@ impl WatermarkVariant {
     }
 }
 
+// ── DCT helpers ───────────────────────────────────────────────────────────────
+
+/// Cosine scaling factor `C(k)` as defined in the JPEG/DCT-II standard.
+/// `C(0) = 1/√2`, `C(k) = 1` for k > 0.
+#[inline]
+fn dct_scale(k: usize) -> f64 {
+    if k == 0 {
+        std::f64::consts::FRAC_1_SQRT_2
+    } else {
+        1.0
+    }
+}
+
+/// Forward 2D DCT-II on an 8×8 block of `f64` values.
+///
+/// The input `block` is in row-major order (64 elements).
+/// Output coefficients `F[u][v]` occupy the same row-major layout.
+///
+/// Formula:
+/// `F[u][v] = (1/4) C(u) C(v)
+///            Σ_{x=0}^{7} Σ_{y=0}^{7} f[x][y]
+///            · cos((2x+1)uπ/16) · cos((2y+1)vπ/16)`
+#[must_use]
+fn dct2d_forward(block: &[f64; 64]) -> [f64; 64] {
+    use std::f64::consts::PI;
+    let mut out = [0.0_f64; 64];
+    for u in 0..8_usize {
+        for v in 0..8_usize {
+            let cu = dct_scale(u);
+            let cv = dct_scale(v);
+            let mut sum = 0.0_f64;
+            for x in 0..8_usize {
+                let cos_u = ((2 * x + 1) as f64 * u as f64 * PI / 16.0).cos();
+                for y in 0..8_usize {
+                    let cos_v = ((2 * y + 1) as f64 * v as f64 * PI / 16.0).cos();
+                    sum += block[x * 8 + y] * cos_u * cos_v;
+                }
+            }
+            out[u * 8 + v] = 0.25 * cu * cv * sum;
+        }
+    }
+    out
+}
+
+/// Inverse 2D DCT-III (reconstruction) on an 8×8 coefficient block.
+///
+/// Formula (inverse of DCT-II):
+/// `f[x][y] = (1/4) Σ_{u=0}^{7} Σ_{v=0}^{7} C(u) C(v) F[u][v]
+///            · cos((2x+1)uπ/16) · cos((2y+1)vπ/16)`
+#[must_use]
+fn dct2d_inverse(coeffs: &[f64; 64]) -> [f64; 64] {
+    use std::f64::consts::PI;
+    let mut out = [0.0_f64; 64];
+    for x in 0..8_usize {
+        for y in 0..8_usize {
+            let mut sum = 0.0_f64;
+            for u in 0..8_usize {
+                let cu = dct_scale(u);
+                let cos_u = ((2 * x + 1) as f64 * u as f64 * PI / 16.0).cos();
+                for v in 0..8_usize {
+                    let cv = dct_scale(v);
+                    let cos_v = ((2 * y + 1) as f64 * v as f64 * PI / 16.0).cos();
+                    sum += cu * cv * coeffs[u * 8 + v] * cos_u * cos_v;
+                }
+            }
+            out[x * 8 + y] = 0.25 * sum;
+        }
+    }
+    out
+}
+
+/// Mid-frequency DCT coefficient positions (u, v) used for QIM embedding.
+///
+/// These are zig-zag mid-band positions that avoid:
+/// - DC component [0,0] (carries mean luminance — visually very sensitive)
+/// - High-frequency noise zone (u+v >= 10 is too noisy)
+/// The chosen positions are in the range where u+v ∈ [4, 8], giving a
+/// good balance of robustness and imperceptibility.
+const MID_FREQ_POSITIONS: [(usize, usize); 8] = [
+    (2, 2), // u+v = 4
+    (1, 3), // u+v = 4
+    (3, 1), // u+v = 4
+    (2, 3), // u+v = 5
+    (3, 2), // u+v = 5
+    (1, 4), // u+v = 5
+    (4, 1), // u+v = 5
+    (3, 3), // u+v = 6
+];
+
+/// QIM quantization step size for DCT coefficient embedding.
+///
+/// Must be large enough to survive u8 pixel round-tripping through the DCT.
+/// For an 8×8 block, rounding each pixel by ±0.5 can perturb a mid-frequency
+/// DCT coefficient by up to ~8.0 (sum of 64 basis products × 0.25 × 0.5).
+/// The QIM decision boundary sits at `step/4` from the embedded value, so we
+/// need `step/4 > 8`, i.e. `step > 32`.  We use 40.0 to provide comfortable
+/// margin while keeping visible distortion acceptable for forensic use.
+const QIM_STEP: f64 = 40.0;
+
+/// Embed a single bit into a DCT coefficient array using QIM.
+///
+/// Quantization Index Modulation:
+/// - bit `0` → round to nearest **even** multiple of `step/2`
+/// - bit `1` → round to nearest **odd** multiple of `step/2`
+///
+/// This gives two interleaved quantization grids separated by `step/2`.
+fn qim_embed_bit(coeff: f64, bit: bool, step: f64) -> f64 {
+    let half = step / 2.0;
+    // Index in the quantization lattice of spacing `half`.
+    let index = (coeff / half).round() as i64;
+    // We want even index for bit=0, odd for bit=1.
+    let parity = index.rem_euclid(2) as i64;
+    let target_parity = i64::from(bit);
+    let adjusted_index = if parity == target_parity {
+        index
+    } else {
+        // Shift by ±1 to fix parity — pick whichever is closer.
+        let plus = index + 1;
+        let minus = index - 1;
+        let d_plus = ((plus as f64 * half) - coeff).abs();
+        let d_minus = ((minus as f64 * half) - coeff).abs();
+        if d_plus <= d_minus {
+            plus
+        } else {
+            minus
+        }
+    };
+    adjusted_index as f64 * half
+}
+
+/// Extract a single bit from a DCT coefficient using QIM decision.
+///
+/// The parity of `round(coeff / (step/2))` encodes the bit.
+fn qim_extract_bit(coeff: f64, step: f64) -> bool {
+    let half = step / 2.0;
+    let index = (coeff / half).round() as i64;
+    index.rem_euclid(2) == 1
+}
+
 // ── ForensicEmbedder ──────────────────────────────────────────────────────────
 
-/// Embeds a forensic payload into pixel data using a DCT-domain strength
-/// modulation approach (stub implementation).
+/// Embeds a forensic payload into pixel data using real DCT-domain QIM embedding.
+///
+/// The image is processed in non-overlapping `block_size × block_size` pixel
+/// blocks (standard convention is 8×8).  For each selected block:
+/// 1. Extract the luma 8×8 sub-block.
+/// 2. Apply forward 2D DCT-II.
+/// 3. Embed one payload bit via QIM into a mid-frequency coefficient.
+/// 4. Apply inverse DCT-III.
+/// 5. Write the reconstructed pixels back, clamped to `[0, 255]`.
 pub struct ForensicEmbedder {
-    /// Block size for DCT processing (e.g. 8 for 8×8 DCT).
+    /// Block size for DCT processing (8 for 8×8 DCT).
     pub block_size: usize,
-    /// Embedding strength (0.0 – 1.0).
+    /// Embedding strength scalar applied to the QIM step size.
+    /// Range: 0.0–1.0 mapped to 0.25×–4.0× the base step.
     pub strength: f32,
 }
 
 impl ForensicEmbedder {
     /// Create a new embedder.
+    ///
+    /// `block_size` is clamped to at least 8 (required for 8×8 DCT).
+    /// `strength` is clamped to `[0.0, 1.0]`.
     #[must_use]
     pub fn new(block_size: usize, strength: f32) -> Self {
         Self {
-            block_size: block_size.max(1),
+            block_size: block_size.max(8),
             strength: strength.clamp(0.0, 1.0),
         }
     }
 
-    /// Embed `payload` into `pixels`.
-    ///
-    /// This is a DCT-domain stub: the 64 payload bits are written into the
-    /// LSBs of selected DCT blocks using a deterministic block-selection
-    /// strategy.  In a production system the actual DCT transform would be
-    /// applied; here we modify pixel values directly as a placeholder.
+    /// Embed `payload` into `pixels` using real DCT-domain QIM.
     ///
     /// # Arguments
     /// * `pixels`  – mutable flat 8-bit luma buffer (`width * height` bytes).
-    /// * `width`   – image width.
-    /// * `height`  – image height.
+    /// * `width`   – image width in pixels.
+    /// * `height`  – image height in pixels.
     /// * `payload` – the forensic payload to embed.
     pub fn embed(&self, pixels: &mut [u8], width: usize, height: usize, payload: &ForensicPayload) {
         let bits = payload_to_bits(payload.encode());
         let bs = self.block_size;
         let blocks_x = width / bs;
         let blocks_y = height / bs;
-        let total_blocks = blocks_x * blocks_y;
-        if total_blocks == 0 {
+
+        // We need at least 64 blocks to embed the 64-bit payload.
+        if blocks_x == 0 || blocks_y == 0 {
             return;
         }
 
-        // Embed one bit per block (wrapping if more blocks than bits)
-        for (block_idx, &bit) in bits.iter().enumerate() {
-            let bx = (block_idx % blocks_x) * bs;
-            let by = (block_idx / blocks_x.max(1)) * bs;
-            if by + bs > height || bx + bs > width {
+        // Scale the QIM step by strength: strength=0.5 → 1× base step.
+        let step = QIM_STEP * (0.5 + f64::from(self.strength) * 1.5);
+
+        for (bit_idx, &bit) in bits.iter().enumerate() {
+            let block_col = bit_idx % blocks_x;
+            let block_row = bit_idx / blocks_x;
+            if block_row >= blocks_y {
                 break;
             }
-            // Modify the top-left pixel of the block (DCT DC coefficient stub)
-            let px_idx = by * width + bx;
-            if px_idx < pixels.len() {
-                let delta = (self.strength * 4.0).round() as u8;
-                if bit {
-                    pixels[px_idx] = pixels[px_idx].saturating_add(delta);
-                } else {
-                    pixels[px_idx] = pixels[px_idx].saturating_sub(delta);
+            let origin_x = block_col * bs;
+            let origin_y = block_row * bs;
+
+            // Extract the top-left 8×8 sub-region of the block into a flat array.
+            let mut dct_in = [0.0_f64; 64];
+            for r in 0..8_usize {
+                for c in 0..8_usize {
+                    let px = origin_x + c;
+                    let py = origin_y + r;
+                    if px < width && py < height {
+                        let idx = py * width + px;
+                        if idx < pixels.len() {
+                            dct_in[r * 8 + c] = f64::from(pixels[idx]);
+                        }
+                    }
+                }
+            }
+
+            // Forward DCT-II.
+            let mut coeffs = dct2d_forward(&dct_in);
+
+            // Embed the bit into one mid-frequency coefficient (cycle through positions).
+            let pos = MID_FREQ_POSITIONS[bit_idx % MID_FREQ_POSITIONS.len()];
+            let coeff_idx = pos.0 * 8 + pos.1;
+            coeffs[coeff_idx] = qim_embed_bit(coeffs[coeff_idx], bit, step);
+
+            // Inverse DCT-III.
+            let reconstructed = dct2d_inverse(&coeffs);
+
+            // Write back, clamped to [0, 255].
+            for r in 0..8_usize {
+                for c in 0..8_usize {
+                    let px = origin_x + c;
+                    let py = origin_y + r;
+                    if px < width && py < height {
+                        let idx = py * width + px;
+                        if idx < pixels.len() {
+                            let val = reconstructed[r * 8 + c].round();
+                            pixels[idx] = val.clamp(0.0, 255.0) as u8;
+                        }
+                    }
                 }
             }
         }
@@ -138,18 +321,32 @@ impl ForensicEmbedder {
 
 // ── ForensicDetector ─────────────────────────────────────────────────────────
 
-/// Extracts a forensic payload from pixel data.
+/// Extracts a forensic payload from pixel data using DCT-domain QIM detection.
 pub struct ForensicDetector {
     /// Block size (must match the embedder).
     pub block_size: usize,
+    /// Embedding strength (must match the embedder).
+    pub strength: f32,
 }
 
 impl ForensicDetector {
     /// Create a new detector.
+    ///
+    /// `block_size` and `strength` must match the values used during embedding.
     #[must_use]
     pub fn new(block_size: usize) -> Self {
         Self {
-            block_size: block_size.max(1),
+            block_size: block_size.max(8),
+            strength: 0.5,
+        }
+    }
+
+    /// Create a new detector with an explicit strength matching the embedder.
+    #[must_use]
+    pub fn with_strength(block_size: usize, strength: f32) -> Self {
+        Self {
+            block_size: block_size.max(8),
+            strength: strength.clamp(0.0, 1.0),
         }
     }
 
@@ -164,20 +361,42 @@ impl ForensicDetector {
         let blocks_y = height / bs;
         let total_blocks = blocks_x * blocks_y;
 
-        // We need at least 64 blocks to read the full 64-bit payload
+        // We need at least 64 blocks to read the full 64-bit payload.
         if total_blocks < 64 {
             return None;
         }
 
-        // Read the LSB of the DC coefficient (top-left pixel) from each block
+        let step = QIM_STEP * (0.5 + f64::from(self.strength) * 1.5);
+
         let mut bits = [false; 64];
-        for i in 0..64 {
-            let bx = (i % blocks_x) * bs;
-            let by = (i / blocks_x) * bs;
-            let px_idx = by * width + bx;
-            if px_idx < pixels.len() {
-                bits[i] = (pixels[px_idx] & 1) == 1;
+        for i in 0..64_usize {
+            let block_col = i % blocks_x;
+            let block_row = i / blocks_x;
+            let origin_x = block_col * bs;
+            let origin_y = block_row * bs;
+
+            // Extract 8×8 sub-block.
+            let mut dct_in = [0.0_f64; 64];
+            for r in 0..8_usize {
+                for c in 0..8_usize {
+                    let px = origin_x + c;
+                    let py = origin_y + r;
+                    if px < width && py < height {
+                        let idx = py * width + px;
+                        if idx < pixels.len() {
+                            dct_in[r * 8 + c] = f64::from(pixels[idx]);
+                        }
+                    }
+                }
             }
+
+            // Forward DCT-II.
+            let coeffs = dct2d_forward(&dct_in);
+
+            // Read QIM decision from the same mid-frequency coefficient.
+            let pos = MID_FREQ_POSITIONS[i % MID_FREQ_POSITIONS.len()];
+            let coeff_idx = pos.0 * 8 + pos.1;
+            bits[i] = qim_extract_bit(coeffs[coeff_idx], step);
         }
 
         let value = bits_to_u64(&bits);
@@ -365,6 +584,62 @@ mod tests {
         assert_eq!(trace.suspects.len(), 2);
     }
 
+    // ── DCT helpers ───────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_dct_forward_inverse_roundtrip() {
+        // A flat block should survive a forward+inverse DCT cycle.
+        let mut block = [128.0_f64; 64];
+        // Add some variety.
+        for i in 0..64 {
+            block[i] = (i as f64 * 3.7).sin() * 50.0 + 128.0;
+        }
+        let coeffs = dct2d_forward(&block);
+        let reconstructed = dct2d_inverse(&coeffs);
+        for (orig, rec) in block.iter().zip(reconstructed.iter()) {
+            assert!(
+                (orig - rec).abs() < 1e-6,
+                "DCT roundtrip error: {} vs {}",
+                orig,
+                rec
+            );
+        }
+    }
+
+    #[test]
+    fn test_qim_embed_extract_roundtrip_true() {
+        let coeff = 37.5_f64;
+        let embedded = qim_embed_bit(coeff, true, QIM_STEP);
+        assert!(qim_extract_bit(embedded, QIM_STEP));
+    }
+
+    #[test]
+    fn test_qim_embed_extract_roundtrip_false() {
+        let coeff = 37.5_f64;
+        let embedded = qim_embed_bit(coeff, false, QIM_STEP);
+        assert!(!qim_extract_bit(embedded, QIM_STEP));
+    }
+
+    #[test]
+    fn test_qim_distortion_bounded() {
+        // Distortion should be at most step/2.
+        let step = QIM_STEP;
+        for i in 0..100_i32 {
+            let coeff = i as f64 * 1.73 - 50.0;
+            for &bit in &[true, false] {
+                let embedded = qim_embed_bit(coeff, bit, step);
+                let distortion = (embedded - coeff).abs();
+                assert!(
+                    distortion <= step / 2.0 + 1e-9,
+                    "distortion {} exceeds step/2 for coeff={} bit={}",
+                    distortion,
+                    coeff,
+                    bit
+                );
+            }
+        }
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────
 
     #[test]
@@ -393,7 +668,7 @@ mod tests {
             session_id: 2,
             timestamp_sec: 3,
         };
-        // Image smaller than one block — should not panic
+        // Image smaller than one block — should not panic, should be a no-op.
         embedder.embed(&mut pixels, 4, 4, &p);
     }
 
@@ -406,15 +681,84 @@ mod tests {
 
     #[test]
     fn test_embedder_modifies_pixels() {
-        let original = vec![128_u8; 32 * 32];
+        // Image large enough for 64 blocks of 8×8: 8 blocks × 8 per row = 64px wide,
+        // 8 blocks tall = 64px, but we need 64 blocks total so 8×8 grid = 64×64.
+        let size = 64_usize;
+        let original = vec![128_u8; size * size];
         let mut pixels = original.clone();
-        let embedder = ForensicEmbedder::new(4, 0.5);
+        let embedder = ForensicEmbedder::new(8, 0.5);
         let p = ForensicPayload {
             customer_id: 0xABCD,
             session_id: 0x1234,
             timestamp_sec: 100,
         };
-        embedder.embed(&mut pixels, 32, 32, &p);
+        embedder.embed(&mut pixels, size, size, &p);
         assert_ne!(pixels, original, "embed should modify at least one pixel");
+    }
+
+    #[test]
+    fn test_embed_extract_roundtrip() {
+        // 8×8 grid of 8×8 blocks = 64×64 luma image.
+        let size = 64_usize;
+        let mut pixels: Vec<u8> = (0..size * size)
+            .map(|i| ((i as f64 * 1.234).sin() * 50.0 + 128.0) as u8)
+            .collect();
+        let payload = ForensicPayload {
+            customer_id: 42,
+            session_id: 7,
+            timestamp_sec: 999,
+        };
+
+        let strength = 0.5;
+        let embedder = ForensicEmbedder::new(8, strength);
+        embedder.embed(&mut pixels, size, size, &payload);
+
+        let detector = ForensicDetector::with_strength(8, strength);
+        let extracted = detector
+            .detect(&pixels, size, size)
+            .expect("payload should be detectable after embedding");
+
+        assert_eq!(extracted.customer_id, payload.customer_id);
+        assert_eq!(extracted.session_id, payload.session_id & 0xFFFF);
+        assert_eq!(extracted.timestamp_sec, payload.timestamp_sec & 0xFFFF);
+    }
+
+    #[test]
+    fn test_embed_extract_high_strength() {
+        let size = 64_usize;
+        let mut pixels = vec![200_u8; size * size];
+        let payload = ForensicPayload {
+            customer_id: 0xDEAD,
+            session_id: 0xBEEF,
+            timestamp_sec: 0x1234,
+        };
+
+        let strength = 1.0;
+        let embedder = ForensicEmbedder::new(8, strength);
+        embedder.embed(&mut pixels, size, size, &payload);
+
+        let detector = ForensicDetector::with_strength(8, strength);
+        let extracted = detector
+            .detect(&pixels, size, size)
+            .expect("payload should be detectable");
+
+        assert_eq!(extracted.customer_id, payload.customer_id);
+    }
+
+    #[test]
+    fn test_pixels_clamped_to_valid_range() {
+        // Use extreme pixel values to test clamping.
+        let size = 64_usize;
+        let mut pixels = vec![255_u8; size * size];
+        let payload = ForensicPayload {
+            customer_id: 1,
+            session_id: 1,
+            timestamp_sec: 1,
+        };
+        let embedder = ForensicEmbedder::new(8, 1.0);
+        embedder.embed(&mut pixels, size, size, &payload);
+        // All values must remain in [0, 255] — enforced by u8.
+        // Just verify no panic occurred.
+        assert_eq!(pixels.len(), size * size);
     }
 }

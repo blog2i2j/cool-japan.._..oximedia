@@ -130,7 +130,9 @@ impl LzwDecoder {
                 // Add new entry to the table
                 if let Some(prev) = self.prev_code {
                     if self.next_code < MAX_CODES as u16 {
-                        let mut new_entry = self.get_sequence(prev)?.unwrap();
+                        let mut new_entry = self.get_sequence(prev)?.ok_or_else(|| {
+                            CodecError::InvalidData(format!("LZW prev_code {} not in table", prev))
+                        })?;
                         new_entry.push(sequence[0]);
                         self.table.push(new_entry);
                         self.next_code += 1;
@@ -432,12 +434,14 @@ mod tests {
     #[test]
     fn test_lzw_roundtrip() {
         let min_code_size = 8;
-        let mut encoder = LzwEncoder::new(min_code_size).unwrap();
-        let mut decoder = LzwDecoder::new(min_code_size).unwrap();
+        let mut encoder = LzwEncoder::new(min_code_size).expect("should succeed");
+        let mut decoder = LzwDecoder::new(min_code_size).expect("should succeed");
 
         let original = b"TOBEORNOTTOBEORTOBEORNOT";
-        let compressed = encoder.compress(original).unwrap();
-        let decompressed = decoder.decompress(&compressed, original.len()).unwrap();
+        let compressed = encoder.compress(original).expect("should succeed");
+        let decompressed = decoder
+            .decompress(&compressed, original.len())
+            .expect("should succeed");
 
         assert_eq!(original, decompressed.as_slice());
     }
@@ -445,12 +449,14 @@ mod tests {
     #[test]
     fn test_lzw_simple() {
         let min_code_size = 2;
-        let mut encoder = LzwEncoder::new(min_code_size).unwrap();
-        let mut decoder = LzwDecoder::new(min_code_size).unwrap();
+        let mut encoder = LzwEncoder::new(min_code_size).expect("should succeed");
+        let mut decoder = LzwDecoder::new(min_code_size).expect("should succeed");
 
         let original = vec![0, 1, 2, 3, 0, 1, 2, 3];
-        let compressed = encoder.compress(&original).unwrap();
-        let decompressed = decoder.decompress(&compressed, original.len()).unwrap();
+        let compressed = encoder.compress(&original).expect("should succeed");
+        let decompressed = decoder
+            .decompress(&compressed, original.len())
+            .expect("should succeed");
 
         assert_eq!(original, decompressed);
     }
@@ -458,12 +464,14 @@ mod tests {
     #[test]
     fn test_lzw_repeated_pattern() {
         let min_code_size = 8;
-        let mut encoder = LzwEncoder::new(min_code_size).unwrap();
-        let mut decoder = LzwDecoder::new(min_code_size).unwrap();
+        let mut encoder = LzwEncoder::new(min_code_size).expect("should succeed");
+        let mut decoder = LzwDecoder::new(min_code_size).expect("should succeed");
 
         let original = vec![1; 1000];
-        let compressed = encoder.compress(&original).unwrap();
-        let decompressed = decoder.decompress(&compressed, original.len()).unwrap();
+        let compressed = encoder.compress(&original).expect("should succeed");
+        let decompressed = decoder
+            .decompress(&compressed, original.len())
+            .expect("should succeed");
 
         assert_eq!(original, decompressed);
         assert!(compressed.len() < original.len());

@@ -786,7 +786,7 @@ mod tests {
     #[test]
     fn test_decoder_pipeline_process_frame() {
         let config = PipelineConfig::new(64, 64).without_filters();
-        let mut pipeline = DecoderPipeline::new(config).unwrap();
+        let mut pipeline = DecoderPipeline::new(config).expect("should succeed");
 
         let context = FrameContext::new(64, 64);
         let result = pipeline.process_frame(&[], &context);
@@ -798,7 +798,7 @@ mod tests {
     #[test]
     fn test_decoder_pipeline_reset() {
         let config = PipelineConfig::new(64, 64).without_filters();
-        let mut pipeline = DecoderPipeline::new(config).unwrap();
+        let mut pipeline = DecoderPipeline::new(config).expect("should succeed");
 
         let context = FrameContext::new(64, 64);
         let _ = pipeline.process_frame(&[], &context);
@@ -810,7 +810,7 @@ mod tests {
     #[test]
     fn test_decoder_pipeline_reconfigure() {
         let config = PipelineConfig::new(64, 64);
-        let mut pipeline = DecoderPipeline::new(config).unwrap();
+        let mut pipeline = DecoderPipeline::new(config).expect("should succeed");
 
         let new_config = PipelineConfig::new(128, 128);
         assert!(pipeline.reconfigure(new_config).is_ok());
@@ -821,7 +821,7 @@ mod tests {
     #[test]
     fn test_stage_results() {
         let config = PipelineConfig::new(64, 64).without_filters();
-        let mut pipeline = DecoderPipeline::new(config).unwrap();
+        let mut pipeline = DecoderPipeline::new(config).expect("should succeed");
 
         let context = FrameContext::new(64, 64);
         let _ = pipeline.process_frame(&[], &context);

@@ -640,7 +640,7 @@ mod tests {
         let calibrator = ColorCheckerCalibrator::new();
         assert_eq!(calibrator.reference.len(), 24);
 
-        let white = calibrator.get_reference(18).unwrap();
+        let white = calibrator.get_reference(18).expect("white should be valid");
         assert!(white.r > 0.95);
         assert!(white.g > 0.95);
         assert!(white.b > 0.95);

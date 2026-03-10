@@ -245,7 +245,8 @@ mod tests {
         let base = solid(4, 4, [255, 0, 0, 255]);
         let overlay = solid(4, 4, [0, 0, 255, 255]);
         let mut out = vec![0u8; 4 * 4 * 4];
-        blend_frames(&base, &overlay, &mut out, 4, 4, BlendMode::Normal, 1.0).unwrap();
+        blend_frames(&base, &overlay, &mut out, 4, 4, BlendMode::Normal, 1.0)
+            .expect("test expectation failed");
         // Full opacity Normal → overlay replaces base
         assert!(out[2] > 200, "Blue channel should dominate");
     }
@@ -255,7 +256,8 @@ mod tests {
         let base = solid(4, 4, [255, 0, 0, 255]);
         let overlay = solid(4, 4, [0, 0, 255, 255]);
         let mut out = vec![0u8; 4 * 4 * 4];
-        blend_frames(&base, &overlay, &mut out, 4, 4, BlendMode::Normal, 0.0).unwrap();
+        blend_frames(&base, &overlay, &mut out, 4, 4, BlendMode::Normal, 0.0)
+            .expect("test expectation failed");
         // Zero opacity → base unchanged
         assert_eq!(out[0], 255);
         assert_eq!(out[2], 0);
@@ -266,7 +268,8 @@ mod tests {
         let base = solid(2, 2, [200, 200, 200, 255]);
         let overlay = solid(2, 2, [128, 128, 128, 255]);
         let mut out = vec![0u8; 2 * 2 * 4];
-        blend_frames(&base, &overlay, &mut out, 2, 2, BlendMode::Multiply, 1.0).unwrap();
+        blend_frames(&base, &overlay, &mut out, 2, 2, BlendMode::Multiply, 1.0)
+            .expect("test expectation failed");
         assert!(out[0] < 200, "Multiply should darken");
     }
 
@@ -275,7 +278,8 @@ mod tests {
         let base = solid(2, 2, [100, 100, 100, 255]);
         let overlay = solid(2, 2, [100, 100, 100, 255]);
         let mut out = vec![0u8; 2 * 2 * 4];
-        blend_frames(&base, &overlay, &mut out, 2, 2, BlendMode::Screen, 1.0).unwrap();
+        blend_frames(&base, &overlay, &mut out, 2, 2, BlendMode::Screen, 1.0)
+            .expect("test expectation failed");
         assert!(out[0] >= 100, "Screen should lighten or preserve");
     }
 
@@ -284,7 +288,8 @@ mod tests {
         let base = solid(2, 2, [200, 200, 200, 255]);
         let overlay = solid(2, 2, [200, 200, 200, 255]);
         let mut out = vec![0u8; 2 * 2 * 4];
-        blend_frames(&base, &overlay, &mut out, 2, 2, BlendMode::Add, 1.0).unwrap();
+        blend_frames(&base, &overlay, &mut out, 2, 2, BlendMode::Add, 1.0)
+            .expect("test expectation failed");
         assert_eq!(out[0], 255, "Add should clamp to 255");
     }
 
@@ -292,7 +297,8 @@ mod tests {
     fn test_difference_identical_is_black() {
         let frame = solid(2, 2, [120, 80, 40, 255]);
         let mut out = vec![0u8; 2 * 2 * 4];
-        blend_frames(&frame, &frame, &mut out, 2, 2, BlendMode::Difference, 1.0).unwrap();
+        blend_frames(&frame, &frame, &mut out, 2, 2, BlendMode::Difference, 1.0)
+            .expect("test expectation failed");
         assert!(out[0] < 10, "Difference of identical frames should be ~0");
     }
 

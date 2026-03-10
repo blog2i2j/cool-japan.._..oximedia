@@ -308,7 +308,9 @@ mod tests {
         let concealer = DropoutConcealer::new(ConcealmentMethod::Interpolate)
             .with_fallback(ConcealmentMethod::Freeze);
         let dropout = make_dropout(0, 3, 0.5);
-        let method = concealer.conceal_frame(&dropout, false).unwrap();
+        let method = concealer
+            .conceal_frame(&dropout, false)
+            .expect("unexpected None/Err");
         assert_eq!(method, ConcealmentMethod::Freeze);
     }
 

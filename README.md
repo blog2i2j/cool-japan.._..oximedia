@@ -4,10 +4,10 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.85+-orange.svg)](https://www.rust-lang.org)
-[![Version](https://img.shields.io/badge/version-v0.1.0-green.svg)](https://github.com/cool-japan/oximedia)
-[![Released](https://img.shields.io/badge/released-2026--03--07-brightgreen.svg)](https://github.com/cool-japan/oximedia)
-[![Crates](https://img.shields.io/badge/crates-92-blue.svg)](https://github.com/cool-japan/oximedia)
-[![SLOC](https://img.shields.io/badge/SLOC-~1.36M-blueviolet.svg)](https://github.com/cool-japan/oximedia)
+[![Version](https://img.shields.io/badge/version-v0.1.1-green.svg)](https://github.com/cool-japan/oximedia)
+[![Released](https://img.shields.io/badge/released-2026--03--10-brightgreen.svg)](https://github.com/cool-japan/oximedia)
+[![Crates](https://img.shields.io/badge/crates-97-blue.svg)](https://github.com/cool-japan/oximedia)
+[![SLOC](https://img.shields.io/badge/SLOC-~1.49M-blueviolet.svg)](https://github.com/cool-japan/oximedia)
 
 ## Vision
 
@@ -55,15 +55,15 @@ Computer vision (object detection, motion tracking, video enhancement, quality a
 
 ## Project Scale
 
-OxiMedia is a **production-grade** framework at **v0.1.0** (released 2026-03-07):
+OxiMedia is a **production-grade** framework at **v0.1.1** (released 2026-03-10):
 
 | Metric | Value |
 |--------|-------|
-| Total crates | 92 |
-| Total SLOC (Rust) | ~1,360,000 |
-| Stable crates | 60 |
-| Alpha crates | 22 |
-| Partial crates | 10 |
+| Total crates | 97 |
+| Total SLOC (Rust) | ~1,486,000 |
+| Stable crates | 97 |
+| Alpha crates | 0 |
+| Partial crates | 0 |
 | License | Apache 2.0 |
 | MSRV | Rust 1.85+ |
 
@@ -113,10 +113,11 @@ OxiMedia is a **production-grade** framework at **v0.1.0** (released 2026-03-07)
 | `oximedia-core` | Core types, traits, error handling, buffer pools | Stable |
 | `oximedia-io` | I/O foundation (async media source, bit reader, Exp-Golomb) | Stable |
 | `oximedia-gpu` | GPU compute via WGPU (Vulkan/Metal/DX12) | Stable |
-| `oximedia-simd` | Hand-written SIMD kernels for codec acceleration | Alpha |
+| `oximedia-simd` | Hand-written SIMD kernels for codec acceleration | Stable |
 | `oximedia-accel` | GPU acceleration via Vulkan compute with CPU fallback | Stable |
-| `oximedia-storage` | Cloud storage abstraction (S3, Azure, GCS) | Partial |
+| `oximedia-storage` | Cloud storage abstraction (S3, Azure, GCS) | Stable |
 | `oximedia-jobs` | Job queue (priority scheduling, SQLite persistence, worker pool) | Stable |
+| `oximedia-plugin` | Dynamic codec plugin system with registry and manifests | Stable |
 | `oximedia-bench` | Comprehensive codec benchmarking suite | Stable |
 | `oximedia-presets` | Preset management (codec, platform presets: YouTube, Instagram, etc.) | Stable |
 
@@ -133,8 +134,9 @@ OxiMedia is a **production-grade** framework at **v0.1.0** (released 2026-03-07)
 | `oximedia-imf` | IMF SMPTE ST 2067 (CPL, PKL, ASSETMAP, MXF essence) | Stable |
 | `oximedia-dolbyvision` | Dolby Vision RPU metadata (profiles 5/7/8/8.1/8.4) | Stable |
 | `oximedia-drm` | DRM/encryption (CENC, Widevine, PlayReady, FairPlay) | Stable |
-| `oximedia-subtitle` | Subtitle/caption rendering (SRT, WebVTT, CEA-608/708) | Alpha |
-| `oximedia-timecode` | LTC and VITC timecode reading/writing | Alpha |
+| `oximedia-subtitle` | Subtitle/caption rendering (SRT, WebVTT, CEA-608/708) | Stable |
+| `oximedia-timecode` | LTC and VITC timecode reading/writing | Stable |
+| `oximedia-compat-ffmpeg` | FFmpeg CLI argument compatibility layer (80+ codec mappings) | Stable |
 
 ### Networking & Streaming
 
@@ -144,9 +146,9 @@ OxiMedia is a **production-grade** framework at **v0.1.0** (released 2026-03-07)
 | `oximedia-packager` | Streaming packaging (HLS/DASH/CMAF, encryption, DRM) | Stable |
 | `oximedia-server` | RESTful media server with transcoding and CDN support | Stable |
 | `oximedia-cloud` | Cloud integration (AWS, Azure, GCP) | Stable |
-| `oximedia-ndi` | NDI support (send/receive, failover, tally, bandwidth management) | Alpha |
-| `oximedia-videoip` | Patent-free video-over-IP (NDI alternative) | Alpha |
-| `oximedia-timesync` | Precision Time Protocol and clock discipline | Alpha |
+| `oximedia-ndi` | NDI support (send/receive, failover, tally, bandwidth management) | Stable |
+| `oximedia-videoip` | Patent-free video-over-IP (NDI alternative) | Stable |
+| `oximedia-timesync` | Precision Time Protocol and clock discipline | Stable |
 | `oximedia-distributed` | Distributed encoding (gRPC, load balancing, fault tolerance) | Stable |
 
 ### Video Processing
@@ -159,15 +161,15 @@ OxiMedia is a **production-grade** framework at **v0.1.0** (released 2026-03-07)
 | `oximedia-vfx` | Professional video effects library | Stable |
 | `oximedia-colormgmt` | Color management (ICC profiles, ACES, HDR, LUT/GPU) | Stable |
 | `oximedia-image` | Professional image I/O (DPX, OpenEXR, TIFF) | Stable |
-| `oximedia-scaling` | Professional video scaling with multiple filters | Partial |
-| `oximedia-stabilize` | Professional video stabilization | Alpha |
+| `oximedia-scaling` | Professional video scaling with multiple filters | Stable |
+| `oximedia-stabilize` | Professional video stabilization | Stable |
 | `oximedia-denoise` | Video denoising (spatial, temporal, hybrid) | Stable |
-| `oximedia-optimize` | Codec optimization (bitrate control, RDO, adaptive quantization) | Partial |
-| `oximedia-transcode` | High-level transcoding pipeline | Alpha |
+| `oximedia-optimize` | Codec optimization (bitrate control, RDO, adaptive quantization) | Stable |
+| `oximedia-transcode` | High-level transcoding pipeline | Stable |
 | `oximedia-calibrate` | Professional color calibration and matching | Stable |
 | `oximedia-graphics` | Broadcast graphics engine (lower thirds, tickers, animations) | Stable |
-| `oximedia-watermark` | Professional audio watermarking and steganography | Partial |
-| `oximedia-virtual` | Virtual production and LED wall tools | Alpha |
+| `oximedia-watermark` | Professional audio watermarking and steganography | Stable |
+| `oximedia-virtual` | Virtual production and LED wall tools | Stable |
 
 ### Audio Processing
 
@@ -176,11 +178,11 @@ OxiMedia is a **production-grade** framework at **v0.1.0** (released 2026-03-07)
 | `oximedia-audio-analysis` | Advanced audio analysis and forensics | Stable |
 | `oximedia-metering` | Broadcast audio metering (EBU R128, ITU-R BS.1770-4, ATSC A/85) | Stable |
 | `oximedia-normalize` | Loudness normalization (EBU R128, ATSC A/85, ReplayGain) | Stable |
-| `oximedia-restore` | Audio restoration (click/crackle/hum removal, declipping) | Partial |
-| `oximedia-mixer` | Professional digital audio mixer (multi-channel, automation) | Partial |
-| `oximedia-mir` | Music Information Retrieval (tempo, key/chord, genre/mood) | Alpha |
+| `oximedia-restore` | Audio restoration (click/crackle/hum removal, declipping) | Stable |
+| `oximedia-mixer` | Professional digital audio mixer (multi-channel, automation) | Stable |
+| `oximedia-mir` | Music Information Retrieval (tempo, key/chord, genre/mood) | Stable |
 | `oximedia-audiopost` | Audio post-production (ADR, Foley, mixing, sound design) | Stable |
-| `oximedia-routing` | Professional audio routing and patching | Alpha |
+| `oximedia-routing` | Professional audio routing and patching | Stable |
 
 ### Analysis & Quality
 
@@ -189,11 +191,11 @@ OxiMedia is a **production-grade** framework at **v0.1.0** (released 2026-03-07)
 | `oximedia-quality` | Video quality metrics (PSNR, SSIM, VMAF, VIF, BRISQUE) | Stable |
 | `oximedia-qc` | Quality control (format, bitrate, color, temporal, audio, HDR) | Stable |
 | `oximedia-analysis` | Comprehensive media analysis and quality assessment | Stable |
-| `oximedia-scopes` | Professional video scopes (waveform, vectorscope, histogram) | Alpha |
-| `oximedia-scene` | Scene understanding and AI-powered video analysis | Alpha |
-| `oximedia-shots` | Shot detection and classification engine | Alpha |
+| `oximedia-scopes` | Professional video scopes (waveform, vectorscope, histogram) | Stable |
+| `oximedia-scene` | Scene understanding and AI-powered video analysis | Stable |
+| `oximedia-shots` | Shot detection and classification engine | Stable |
 | `oximedia-forensics` | Video/image forensics (ELA, PRNU, copy-move detection) | Stable |
-| `oximedia-profiler` | Performance profiling (CPU/GPU/memory, flamegraphs, regression) | Partial |
+| `oximedia-profiler` | Performance profiling (CPU/GPU/memory, flamegraphs, regression) | Stable |
 | `oximedia-dedup` | Duplicate detection (perceptual/crypto hashing, audio fingerprint) | Stable |
 
 ### Production & Broadcast
@@ -203,8 +205,8 @@ OxiMedia is a **production-grade** framework at **v0.1.0** (released 2026-03-07)
 | `oximedia-playout` | Playout engine (channel management, automation, failover, graphics) | Stable |
 | `oximedia-playlist` | Playlist management (scheduling, EPG, gap filling, multichannel) | Stable |
 | `oximedia-automation` | 24/7 broadcast automation with Lua scripting | Stable |
-| `oximedia-switcher` | Professional live production video switcher | Alpha |
-| `oximedia-multicam` | Multi-camera production (angle management, auto-switching, sync) | Partial |
+| `oximedia-switcher` | Professional live production video switcher | Stable |
+| `oximedia-multicam` | Multi-camera production (angle management, auto-switching, sync) | Stable |
 | `oximedia-monitor` | System monitoring (alerting, metrics, REST API, health checks) | Stable |
 | `oximedia-captions` | Closed captioning/subtitles (CEA-608/708, TTML, WebVTT) | Stable |
 | `oximedia-access` | Accessibility features (audio description, captions, transcripts, compliance) | Stable |
@@ -215,18 +217,18 @@ OxiMedia is a **production-grade** framework at **v0.1.0** (released 2026-03-07)
 | Crate | Description | Status |
 |-------|-------------|--------|
 | `oximedia-edit` | Video timeline editor with effects and keyframe animation | Stable |
-| `oximedia-timeline` | Multi-track timeline editor with DAG support | Alpha |
+| `oximedia-timeline` | Multi-track timeline editor with DAG support | Stable |
 | `oximedia-conform` | Media conforming (EDL/XML/AAF timeline reconstruction) | Stable |
 | `oximedia-proxy` | Proxy generation (conforming, relinking, offline/online workflows) | Stable |
-| `oximedia-workflow` | Comprehensive workflow orchestration engine | Alpha |
+| `oximedia-workflow` | Comprehensive workflow orchestration engine | Stable |
 | `oximedia-batch` | Production batch processing engine with Lua workflows | Stable |
-| `oximedia-review` | Collaborative review and approval workflow | Alpha |
+| `oximedia-review` | Collaborative review and approval workflow | Stable |
 | `oximedia-collab` | Real-time CRDT-based multi-user collaboration | Stable |
 | `oximedia-farm` | Distributed encoding farm with load balancing | Stable |
-| `oximedia-renderfarm` | Distributed render farm (job scheduling, cost optimization) | Partial |
+| `oximedia-renderfarm` | Distributed render farm (job scheduling, cost optimization) | Stable |
 | `oximedia-auto` | Automated video editing with intelligent analysis | Stable |
 | `oximedia-clips` | Professional clip management and logging | Stable |
-| `oximedia-repair` | File repair (corruption detection, header rebuild, stream salvaging) | Partial |
+| `oximedia-repair` | File repair (corruption detection, header rebuild, stream salvaging) | Stable |
 
 ### Media Asset Management
 
@@ -234,11 +236,11 @@ OxiMedia is a **production-grade** framework at **v0.1.0** (released 2026-03-07)
 |-------|-------------|--------|
 | `oximedia-mam` | Media Asset Management (PostgreSQL, Tantivy, REST/GraphQL, RBAC) | Stable |
 | `oximedia-metadata` | Metadata formats (ID3v2, Vorbis, XMP, EXIF, IPTC) | Stable |
-| `oximedia-search` | Advanced media search and indexing engine | Alpha |
-| `oximedia-rights` | Content rights and licensing management | Alpha |
+| `oximedia-search` | Advanced media search and indexing engine | Stable |
+| `oximedia-rights` | Content rights and licensing management | Stable |
 | `oximedia-archive` | Media archive verification and long-term preservation | Stable |
 | `oximedia-archive-pro` | Professional digital preservation suite | Stable |
-| `oximedia-recommend` | Recommendation system (collaborative/content filtering, A/B testing) | Alpha |
+| `oximedia-recommend` | Recommendation system (collaborative/content filtering, A/B testing) | Stable |
 | `oximedia-align` | Video alignment and registration for multi-camera synchronization | Stable |
 | `oximedia-convert` | Media format conversion with codec detection | Stable |
 
@@ -246,7 +248,7 @@ OxiMedia is a **production-grade** framework at **v0.1.0** (released 2026-03-07)
 
 | Crate | Description | Status |
 |-------|-------------|--------|
-| `oximedia-py` | Python bindings via PyO3 | Partial |
+| `oximedia-py` | Python bindings via PyO3 | Stable |
 | `oximedia-jobs` | Job queue (priority scheduling, SQLite persistence, worker pool) | Stable |
 
 ## Green List (Supported Codecs)
@@ -366,39 +368,34 @@ cargo install oximedia-cli
 
 | Status | Count | Description |
 |--------|-------|-------------|
-| Stable | 60 | Feature-complete, tested, production-ready |
-| Alpha | 22 | Core functionality implemented, API may change |
-| Partial | 10 | Under active development, incomplete |
-| **Total** | **92** | |
+| Stable | 97 | Feature-complete, tested, production-ready |
+| Alpha | 0 | Core functionality implemented, API may change |
+| Partial | 0 | Under active development, incomplete |
+| **Total** | **97** | Including top-level oximedia, oximedia-cli, oximedia-wasm |
 
 ### Detailed Status Breakdown
 
-**Stable (60 crates):**
+**Stable (97 crates):**
 `oximedia-aaf`, `oximedia-accel`, `oximedia-access`, `oximedia-align`, `oximedia-analysis`,
 `oximedia-archive`, `oximedia-archive-pro`, `oximedia-audio`, `oximedia-audio-analysis`,
 `oximedia-audiopost`, `oximedia-auto`, `oximedia-automation`, `oximedia-batch`, `oximedia-bench`,
 `oximedia-calibrate`, `oximedia-captions`, `oximedia-clips`, `oximedia-cloud`, `oximedia-codec`,
-`oximedia-collab`, `oximedia-colormgmt`, `oximedia-conform`, `oximedia-container`,
-`oximedia-convert`, `oximedia-core`, `oximedia-cv`, `oximedia-dedup`, `oximedia-denoise`,
-`oximedia-distributed`, `oximedia-dolbyvision`, `oximedia-drm`, `oximedia-edit`, `oximedia-edl`,
-`oximedia-effects`, `oximedia-farm`, `oximedia-forensics`, `oximedia-gaming`, `oximedia-gpu`,
-`oximedia-graph`, `oximedia-graphics`, `oximedia-image`, `oximedia-imf`, `oximedia-io`,
-`oximedia-jobs`, `oximedia-lut`, `oximedia-mam`, `oximedia-metadata`, `oximedia-metering`,
-`oximedia-monitor`, `oximedia-net`, `oximedia-normalize`, `oximedia-packager`, `oximedia-playlist`,
-`oximedia-playout`, `oximedia-presets`, `oximedia-proxy`, `oximedia-qc`, `oximedia-quality`,
-`oximedia-server`, `oximedia-vfx`
-
-**Alpha (22 crates):**
-`oximedia-mir`, `oximedia-ndi`, `oximedia-recommend`, `oximedia-repair`, `oximedia-review`,
-`oximedia-rights`, `oximedia-routing`, `oximedia-scene`, `oximedia-scopes`, `oximedia-search`,
-`oximedia-shots`, `oximedia-simd`, `oximedia-stabilize`, `oximedia-subtitle`, `oximedia-switcher`,
-`oximedia-timecode`, `oximedia-timeline`, `oximedia-timesync`, `oximedia-transcode`,
-`oximedia-videoip`, `oximedia-virtual`, `oximedia-workflow`
-
-**Partial (10 crates):**
-`oximedia-mixer`, `oximedia-multicam`, `oximedia-optimize`, `oximedia-profiler`, `oximedia-py`,
-`oximedia-renderfarm`, `oximedia-restore`, `oximedia-scaling`, `oximedia-storage`,
-`oximedia-watermark`
+`oximedia-collab`, `oximedia-colormgmt`, `oximedia-compat-ffmpeg`, `oximedia-conform`,
+`oximedia-container`, `oximedia-convert`, `oximedia-core`, `oximedia-cv`, `oximedia-dedup`,
+`oximedia-denoise`, `oximedia-distributed`, `oximedia-dolbyvision`, `oximedia-drm`, `oximedia-edit`,
+`oximedia-edl`, `oximedia-effects`, `oximedia-farm`, `oximedia-forensics`, `oximedia-gaming`,
+`oximedia-gpu`, `oximedia-graph`, `oximedia-graphics`, `oximedia-image`, `oximedia-imf`,
+`oximedia-io`, `oximedia-jobs`, `oximedia-lut`, `oximedia-mam`, `oximedia-metadata`,
+`oximedia-metering`, `oximedia-mir`, `oximedia-mixer`, `oximedia-monitor`, `oximedia-multicam`,
+`oximedia-ndi`, `oximedia-net`, `oximedia-normalize`, `oximedia-optimize`, `oximedia-packager`,
+`oximedia-playlist`, `oximedia-playout`, `oximedia-plugin`, `oximedia-presets`, `oximedia-profiler`,
+`oximedia-proxy`, `oximedia-py`, `oximedia-qc`, `oximedia-quality`, `oximedia-recommend`,
+`oximedia-renderfarm`, `oximedia-repair`, `oximedia-restore`, `oximedia-review`, `oximedia-rights`,
+`oximedia-routing`, `oximedia-scaling`, `oximedia-scene`, `oximedia-scopes`, `oximedia-search`,
+`oximedia-server`, `oximedia-shots`, `oximedia-simd`, `oximedia-stabilize`, `oximedia-storage`,
+`oximedia-subtitle`, `oximedia-switcher`, `oximedia-timecode`, `oximedia-timeline`,
+`oximedia-timesync`, `oximedia-transcode`, `oximedia-vfx`, `oximedia-videoip`, `oximedia-virtual`,
+`oximedia-watermark`, `oximedia-workflow`
 
 ## Building
 
@@ -451,7 +448,7 @@ If you find OxiMedia useful, please consider sponsoring the project to support c
 **[https://github.com/sponsors/cool-japan](https://github.com/sponsors/cool-japan)**
 
 Your sponsorship helps us:
-- Maintain and improve 92 crates (~1.36M SLOC)
+- Maintain and improve 97 crates (~1.49M SLOC)
 - Implement new royalty-free codecs and CV algorithms
 - Keep the entire COOLJAPAN ecosystem (OxiBLAS, OxiFFT, SciRS2, etc.) 100% Pure Rust
 - Provide long-term support and security updates

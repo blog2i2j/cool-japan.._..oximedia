@@ -434,11 +434,11 @@ mod tests {
         q.enqueue("normal", Priority::Normal);
 
         // Highest priority should come out first
-        let first = q.dequeue().unwrap();
+        let first = q.dequeue().expect("first should be valid");
         assert_eq!(first.priority, Priority::High);
-        let second = q.dequeue().unwrap();
+        let second = q.dequeue().expect("second should be valid");
         assert_eq!(second.priority, Priority::Normal);
-        let third = q.dequeue().unwrap();
+        let third = q.dequeue().expect("third should be valid");
         assert_eq!(third.priority, Priority::Low);
         assert!(q.dequeue().is_none());
     }
@@ -484,7 +484,7 @@ mod tests {
         q.enqueue(10, Priority::Low);
         q.enqueue(20, Priority::High);
 
-        let peeked = q.peek().unwrap();
+        let peeked = q.peek().expect("peeked should be valid");
         assert_eq!(peeked.priority, Priority::High);
         // peek must not remove the job
         assert_eq!(q.len(), 2);
@@ -538,7 +538,7 @@ mod tests {
 
         // dequeue() applies aging before picking; the Low job should have been
         // promoted to Normal (or higher), but we only care it comes out.
-        let job = q.dequeue().unwrap();
+        let job = q.dequeue().expect("job should be valid");
         assert_eq!(job.job, 99);
         // Its priority should have been promoted at least once
         assert!(job.priority > Priority::Low);

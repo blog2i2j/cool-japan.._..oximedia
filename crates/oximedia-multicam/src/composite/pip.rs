@@ -327,7 +327,7 @@ mod tests {
     fn test_swap_angles() {
         let mut pip = PictureInPicture::new(1920, 1080);
         pip.set_layout(Layout::PictureInPicture { main: 0, inset: 1 })
-            .unwrap();
+            .expect("multicam test operation should succeed");
 
         pip.swap_angles();
         assert_eq!(pip.main_angle(), Some(1));

@@ -148,9 +148,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_create_router() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
-        let engine = Arc::new(BatchEngine::new(db_path, 2).unwrap());
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
+        let engine = Arc::new(BatchEngine::new(db_path, 2).expect("failed to create"));
 
         let router = create_router(engine);
         assert!(std::mem::size_of_val(&router) > 0);

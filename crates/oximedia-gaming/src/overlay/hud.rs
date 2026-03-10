@@ -459,7 +459,7 @@ mod tests {
             BannerPriority::Critical,
             Duration::from_secs(5),
         );
-        let first = queue.pop().unwrap();
+        let first = queue.pop().expect("queue should have element");
         assert_eq!(first.priority, BannerPriority::Critical);
     }
 

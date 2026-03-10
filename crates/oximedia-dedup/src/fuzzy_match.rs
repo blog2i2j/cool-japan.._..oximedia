@@ -452,10 +452,10 @@ mod tests {
 
     #[test]
     fn test_hamming_similarity() {
-        let s = hamming_similarity(b"abcd", b"abcd").unwrap();
+        let s = hamming_similarity(b"abcd", b"abcd").expect("operation should succeed");
         assert!(s.is_exact());
 
-        let s2 = hamming_similarity(b"abcd", b"axyd").unwrap();
+        let s2 = hamming_similarity(b"abcd", b"axyd").expect("operation should succeed");
         assert!((s2.value() - 0.5).abs() < f64::EPSILON);
     }
 }

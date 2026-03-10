@@ -18,13 +18,13 @@
 //! ```no_run
 //! use oximedia_gpu::accelerator::{AcceleratorBuilder, GpuAccelerator};
 //!
-//! let acc = AcceleratorBuilder::new().build().unwrap();
+//! let acc = AcceleratorBuilder::new().build()?;
 //! let name = acc.name();
 //! println!("Using backend: {name}");
 //!
 //! let rgb  = vec![0u8; 1920 * 1080 * 4];
 //! let mut yuv = vec![0u8; 1920 * 1080 * 4];
-//! acc.rgb_to_yuv(&rgb, &mut yuv, 1920, 1080).unwrap();
+//! acc.rgb_to_yuv(&rgb, &mut yuv, 1920, 1080)?;
 //! ```
 
 #![allow(clippy::cast_possible_truncation)]
@@ -851,7 +851,7 @@ impl GpuAccelerator for WgpuAccelerator {
 /// let acc = AcceleratorBuilder::new()
 ///     .prefer_gpu(true)
 ///     .build()
-///     .unwrap();
+///     ?;
 ///
 /// println!("Active backend: {}", acc.name());
 /// ```
@@ -948,8 +948,10 @@ mod tests {
         let mut rgb = vec![0u8; 4];
 
         let acc = CpuAccelerator::new();
-        acc.rgb_to_yuv(&input, &mut yuv, 1, 1).unwrap();
-        acc.yuv_to_rgb(&yuv, &mut rgb, 1, 1).unwrap();
+        acc.rgb_to_yuv(&input, &mut yuv, 1, 1)
+            .expect("RGB to YUV conversion should succeed");
+        acc.yuv_to_rgb(&yuv, &mut rgb, 1, 1)
+            .expect("YUV to RGB conversion should succeed");
 
         // Grey channel should be ≈ 128
         assert!(
@@ -987,7 +989,7 @@ mod tests {
 
         let acc = CpuAccelerator::new();
         acc.scale_bilinear(&input, w as u32, h as u32, &mut output, w as u32, h as u32)
-            .unwrap();
+            .expect("operation should succeed in test");
 
         // All output pixels should still be white.
         for &v in &output {
@@ -1001,7 +1003,8 @@ mod tests {
         let mut output = make_rgba(4, 4, 0);
 
         let acc = CpuAccelerator::new();
-        acc.scale_bilinear(&input, 2, 2, &mut output, 4, 4).unwrap();
+        acc.scale_bilinear(&input, 2, 2, &mut output, 4, 4)
+            .expect("bilinear scaling should succeed");
 
         // All output pixels should be white (source was all-white).
         for &v in &output {
@@ -1015,7 +1018,8 @@ mod tests {
         let mut output = make_rgba(8, 8, 0);
 
         let acc = CpuAccelerator::new();
-        acc.gaussian_blur(&input, &mut output, 8, 8, 1.0).unwrap();
+        acc.gaussian_blur(&input, &mut output, 8, 8, 1.0)
+            .expect("gaussian blur should succeed");
         assert_eq!(output.len(), input.len());
     }
 
@@ -1027,7 +1031,8 @@ mod tests {
         let mut output = make_rgba(16, 16, 0);
 
         let acc = CpuAccelerator::new();
-        acc.edge_detect(&input, &mut output, 16, 16).unwrap();
+        acc.edge_detect(&input, &mut output, 16, 16)
+            .expect("edge detection should succeed");
 
         // Interior pixels should be near zero.
         for row in 1..15usize {
@@ -1049,7 +1054,8 @@ mod tests {
         let mut output = make_rgba(8, 8, 0);
 
         let acc = CpuAccelerator::new();
-        acc.sharpen(&input, &mut output, 8, 8, 1.0).unwrap();
+        acc.sharpen(&input, &mut output, 8, 8, 1.0)
+            .expect("sharpen should succeed");
 
         // Allow ±2 LSB for accumulation of float rounding.
         for (&o, &i) in output.iter().zip(input.iter()) {
@@ -1069,8 +1075,10 @@ mod tests {
         let mut rec = vec![0.0f32; (w * h) as usize];
 
         let acc = CpuAccelerator::new();
-        acc.dct_2d(&input, &mut dct_out, w, h).unwrap();
-        acc.idct_2d(&dct_out, &mut rec, w, h).unwrap();
+        acc.dct_2d(&input, &mut dct_out, w, h)
+            .expect("DCT should succeed");
+        acc.idct_2d(&dct_out, &mut rec, w, h)
+            .expect("DCT should succeed");
 
         for (a, b) in input.iter().zip(rec.iter()) {
             assert!((a - b).abs() < 1e-3, "DCT round-trip error: {a} vs {b}");
@@ -1092,7 +1100,8 @@ mod tests {
         let mut diff = make_rgba(4, 4, 255);
 
         let acc = CpuAccelerator::new();
-        acc.pixel_diff(&img, &img, &mut diff, 4, 4).unwrap();
+        acc.pixel_diff(&img, &img, &mut diff, 4, 4)
+            .expect("pixel diff should succeed");
 
         for &v in &diff {
             assert_eq!(v, 0, "self-diff should be zero");
@@ -1103,7 +1112,9 @@ mod tests {
     fn test_cpu_mse_identical() {
         let img = make_rgba(8, 8, 128);
         let acc = CpuAccelerator::new();
-        let mse = acc.mse(&img, &img, 8, 8).unwrap();
+        let mse = acc
+            .mse(&img, &img, 8, 8)
+            .expect("MSE computation should succeed");
         assert!(
             mse.abs() < 1e-10,
             "MSE of identical images should be 0, got {mse}"
@@ -1116,7 +1127,9 @@ mod tests {
         let a = make_rgba(4, 4, 0);
         let b = make_rgba(4, 4, 255);
         let acc = CpuAccelerator::new();
-        let mse = acc.mse(&a, &b, 4, 4).unwrap();
+        let mse = acc
+            .mse(&a, &b, 4, 4)
+            .expect("MSE computation should succeed");
         assert!(
             (mse - 65025.0).abs() < 1.0,
             "max MSE should be 65025, got {mse}"
@@ -1127,7 +1140,10 @@ mod tests {
 
     #[test]
     fn test_builder_force_cpu() {
-        let acc = AcceleratorBuilder::new().force_cpu(true).build().unwrap();
+        let acc = AcceleratorBuilder::new()
+            .force_cpu(true)
+            .build()
+            .expect("accelerator build should succeed");
         assert_eq!(acc.name(), "CPU SIMD");
         assert!(!acc.is_gpu());
     }
@@ -1142,7 +1158,9 @@ mod tests {
     #[ignore] // Requires GPU hardware probe; run with --ignored
     fn test_builder_default_builds() {
         // Should never panic even without a GPU.
-        let acc = AcceleratorBuilder::new().build().unwrap();
+        let acc = AcceleratorBuilder::new()
+            .build()
+            .expect("accelerator build should succeed");
         assert!(!acc.name().is_empty());
     }
 
@@ -1152,7 +1170,8 @@ mod tests {
         let input = vec![255u8, 0, 0, 255];
         let mut yuv = vec![0u8; 4];
         let acc = CpuAccelerator::new();
-        acc.rgb_to_yuv(&input, &mut yuv, 1, 1).unwrap();
+        acc.rgb_to_yuv(&input, &mut yuv, 1, 1)
+            .expect("RGB to YUV conversion should succeed");
         assert!(
             (yuv[0] as i32 - 76).abs() <= 2,
             "Y for red should be ~76, got {}",

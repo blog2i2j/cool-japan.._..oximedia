@@ -132,7 +132,7 @@ mod tests {
     #[test]
     fn test_buffer_creation() {
         let config = BufferConfig::default();
-        let buffer: FrameBuffer<u32> = FrameBuffer::new(config).unwrap();
+        let buffer: FrameBuffer<u32> = FrameBuffer::new(config).expect("valid frame buffer");
         assert!(buffer.is_empty());
     }
 
@@ -150,11 +150,11 @@ mod tests {
     #[test]
     fn test_push_pop() {
         let config = BufferConfig::default();
-        let mut buffer: FrameBuffer<u32> = FrameBuffer::new(config).unwrap();
+        let mut buffer: FrameBuffer<u32> = FrameBuffer::new(config).expect("valid frame buffer");
 
-        buffer.push(1).unwrap();
-        buffer.push(2).unwrap();
-        buffer.push(3).unwrap();
+        buffer.push(1).expect("push should succeed");
+        buffer.push(2).expect("push should succeed");
+        buffer.push(3).expect("push should succeed");
 
         assert_eq!(buffer.len(), 3);
         assert_eq!(buffer.pop(), Some(1));
@@ -170,11 +170,11 @@ mod tests {
             max_size: 3,
             target_size: 2,
         };
-        let mut buffer: FrameBuffer<u32> = FrameBuffer::new(config).unwrap();
+        let mut buffer: FrameBuffer<u32> = FrameBuffer::new(config).expect("valid frame buffer");
 
-        buffer.push(1).unwrap();
-        buffer.push(2).unwrap();
-        buffer.push(3).unwrap();
+        buffer.push(1).expect("push should succeed");
+        buffer.push(2).expect("push should succeed");
+        buffer.push(3).expect("push should succeed");
 
         assert!(buffer.is_full());
 
@@ -189,15 +189,15 @@ mod tests {
             max_size: 10,
             target_size: 5,
         };
-        let mut buffer: FrameBuffer<u32> = FrameBuffer::new(config).unwrap();
+        let mut buffer: FrameBuffer<u32> = FrameBuffer::new(config).expect("valid frame buffer");
 
         assert!(buffer.is_underrunning());
 
-        buffer.push(1).unwrap();
-        buffer.push(2).unwrap();
+        buffer.push(1).expect("push should succeed");
+        buffer.push(2).expect("push should succeed");
         assert!(buffer.is_underrunning());
 
-        buffer.push(3).unwrap();
+        buffer.push(3).expect("push should succeed");
         assert!(!buffer.is_underrunning());
     }
 
@@ -208,12 +208,12 @@ mod tests {
             max_size: 10,
             target_size: 5,
         };
-        let mut buffer: FrameBuffer<u32> = FrameBuffer::new(config).unwrap();
+        let mut buffer: FrameBuffer<u32> = FrameBuffer::new(config).expect("valid frame buffer");
 
         assert_eq!(buffer.utilization(), 0.0);
 
         for i in 0..5 {
-            buffer.push(i).unwrap();
+            buffer.push(i).expect("push should succeed");
         }
 
         assert_eq!(buffer.utilization(), 0.5);
@@ -222,9 +222,9 @@ mod tests {
     #[test]
     fn test_peek() {
         let config = BufferConfig::default();
-        let mut buffer: FrameBuffer<u32> = FrameBuffer::new(config).unwrap();
+        let mut buffer: FrameBuffer<u32> = FrameBuffer::new(config).expect("valid frame buffer");
 
-        buffer.push(42).unwrap();
+        buffer.push(42).expect("push should succeed");
         assert_eq!(buffer.peek(), Some(&42));
         assert_eq!(buffer.len(), 1);
     }
@@ -232,11 +232,11 @@ mod tests {
     #[test]
     fn test_clear() {
         let config = BufferConfig::default();
-        let mut buffer: FrameBuffer<u32> = FrameBuffer::new(config).unwrap();
+        let mut buffer: FrameBuffer<u32> = FrameBuffer::new(config).expect("valid frame buffer");
 
-        buffer.push(1).unwrap();
-        buffer.push(2).unwrap();
-        buffer.push(3).unwrap();
+        buffer.push(1).expect("push should succeed");
+        buffer.push(2).expect("push should succeed");
+        buffer.push(3).expect("push should succeed");
 
         buffer.clear();
         assert!(buffer.is_empty());

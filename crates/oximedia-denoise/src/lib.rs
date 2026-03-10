@@ -44,7 +44,7 @@
 //! frame.allocate();
 //!
 //! // Process frame
-//! let denoised = denoiser.process(&frame).unwrap();
+//! let denoised = denoiser.process(&frame)?;
 //! ```
 
 #![forbid(unsafe_code)]

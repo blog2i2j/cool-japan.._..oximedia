@@ -203,12 +203,12 @@ impl TaskGraph {
 
         self.tasks
             .get_mut(&task)
-            .unwrap()
+            .expect("task guaranteed to exist after contains_key check")
             .dependencies
             .insert(dependency);
         self.tasks
             .get_mut(&dependency)
-            .unwrap()
+            .expect("dependency guaranteed to exist after contains_key check")
             .dependents
             .insert(task);
         Ok(())
@@ -451,7 +451,7 @@ mod tests {
         let mut g = TaskGraph::new();
         let id = g.add_task("resize", TaskBackend::Gpu);
         assert_eq!(g.task_count(), 1);
-        let task = g.get_task(id).unwrap();
+        let task = g.get_task(id).expect("task should be valid");
         assert_eq!(task.label, "resize");
         assert_eq!(task.backend, TaskBackend::Gpu);
         assert_eq!(task.state, TaskState::Pending);
@@ -461,7 +461,12 @@ mod tests {
     fn test_add_task_with_cost() {
         let mut g = TaskGraph::new();
         let id = g.add_task_with_cost("heavy", TaskBackend::Cpu, 100);
-        assert_eq!(g.get_task(id).unwrap().estimated_cost, 100);
+        assert_eq!(
+            g.get_task(id)
+                .expect("get_task should succeed")
+                .estimated_cost,
+            100
+        );
     }
 
     #[test]
@@ -469,11 +474,12 @@ mod tests {
         let mut g = TaskGraph::new();
         let a = g.add_task("a", TaskBackend::Auto);
         let b = g.add_task("b", TaskBackend::Auto);
-        g.add_dependency(b, a).unwrap();
+        g.add_dependency(b, a)
+            .expect("add_dependency should succeed");
 
-        let node_b = g.get_task(b).unwrap();
+        let node_b = g.get_task(b).expect("node_b should be valid");
         assert!(node_b.dependencies.contains(&a));
-        let node_a = g.get_task(a).unwrap();
+        let node_a = g.get_task(a).expect("node_a should be valid");
         assert!(node_a.dependents.contains(&b));
     }
 
@@ -491,8 +497,10 @@ mod tests {
         let a = g.add_task("a", TaskBackend::Auto);
         let b = g.add_task("b", TaskBackend::Auto);
         let c = g.add_task("c", TaskBackend::Auto);
-        g.add_dependency(b, a).unwrap();
-        g.add_dependency(c, b).unwrap();
+        g.add_dependency(b, a)
+            .expect("add_dependency should succeed");
+        g.add_dependency(c, b)
+            .expect("add_dependency should succeed");
         let result = g.add_dependency(a, c);
         assert_eq!(result, Err(TaskGraphError::CycleDetected));
     }
@@ -512,14 +520,15 @@ mod tests {
         let mut g = TaskGraph::new();
         let a = g.add_task("a", TaskBackend::Auto);
         let b = g.add_task("b", TaskBackend::Auto);
-        g.add_dependency(b, a).unwrap();
+        g.add_dependency(b, a)
+            .expect("add_dependency should succeed");
 
         let ready = g.ready_tasks();
         assert!(ready.contains(&a));
         assert!(!ready.contains(&b)); // b depends on a
 
-        g.start_task(a).unwrap();
-        g.complete_task(a).unwrap();
+        g.start_task(a).expect("start_task should succeed");
+        g.complete_task(a).expect("complete_task should succeed");
 
         let ready2 = g.ready_tasks();
         assert!(ready2.contains(&b));
@@ -529,18 +538,27 @@ mod tests {
     fn test_start_and_complete_task() {
         let mut g = TaskGraph::new();
         let a = g.add_task("a", TaskBackend::Auto);
-        g.start_task(a).unwrap();
-        assert_eq!(g.get_task(a).unwrap().state, TaskState::Running);
-        g.complete_task(a).unwrap();
-        assert_eq!(g.get_task(a).unwrap().state, TaskState::Completed);
+        g.start_task(a).expect("start_task should succeed");
+        assert_eq!(
+            g.get_task(a).expect("get_task should succeed").state,
+            TaskState::Running
+        );
+        g.complete_task(a).expect("complete_task should succeed");
+        assert_eq!(
+            g.get_task(a).expect("get_task should succeed").state,
+            TaskState::Completed
+        );
     }
 
     #[test]
     fn test_fail_task() {
         let mut g = TaskGraph::new();
         let a = g.add_task("a", TaskBackend::Auto);
-        g.fail_task(a).unwrap();
-        assert_eq!(g.get_task(a).unwrap().state, TaskState::Failed);
+        g.fail_task(a).expect("fail_task should succeed");
+        assert_eq!(
+            g.get_task(a).expect("get_task should succeed").state,
+            TaskState::Failed
+        );
         assert!(g.has_failures());
     }
 
@@ -549,8 +567,8 @@ mod tests {
         let mut g = TaskGraph::new();
         let a = g.add_task("a", TaskBackend::Auto);
         assert!(!g.is_complete());
-        g.start_task(a).unwrap();
-        g.complete_task(a).unwrap();
+        g.start_task(a).expect("start_task should succeed");
+        g.complete_task(a).expect("complete_task should succeed");
         assert!(g.is_complete());
     }
 
@@ -568,13 +586,24 @@ mod tests {
         let a = g.add_task("a", TaskBackend::Auto);
         let b = g.add_task("b", TaskBackend::Auto);
         let c = g.add_task("c", TaskBackend::Auto);
-        g.add_dependency(b, a).unwrap();
-        g.add_dependency(c, b).unwrap();
+        g.add_dependency(b, a)
+            .expect("add_dependency should succeed");
+        g.add_dependency(c, b)
+            .expect("add_dependency should succeed");
 
-        let sorted = g.topological_sort().unwrap();
-        let pos_a = sorted.iter().position(|&x| x == a).unwrap();
-        let pos_b = sorted.iter().position(|&x| x == b).unwrap();
-        let pos_c = sorted.iter().position(|&x| x == c).unwrap();
+        let sorted = g.topological_sort().expect("sorted should be valid");
+        let pos_a = sorted
+            .iter()
+            .position(|&x| x == a)
+            .expect("pos_a should be valid");
+        let pos_b = sorted
+            .iter()
+            .position(|&x| x == b)
+            .expect("pos_b should be valid");
+        let pos_c = sorted
+            .iter()
+            .position(|&x| x == c)
+            .expect("pos_c should be valid");
         assert!(pos_a < pos_b);
         assert!(pos_b < pos_c);
     }
@@ -585,8 +614,10 @@ mod tests {
         let a = g.add_task_with_cost("a", TaskBackend::Auto, 5);
         let b = g.add_task_with_cost("b", TaskBackend::Auto, 10);
         let c = g.add_task_with_cost("c", TaskBackend::Auto, 3);
-        g.add_dependency(b, a).unwrap();
-        g.add_dependency(c, a).unwrap();
+        g.add_dependency(b, a)
+            .expect("add_dependency should succeed");
+        g.add_dependency(c, a)
+            .expect("add_dependency should succeed");
         // Paths: a->b = 15, a->c = 8
         assert_eq!(g.critical_path_cost(), 15);
     }

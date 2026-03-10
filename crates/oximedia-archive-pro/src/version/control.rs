@@ -202,60 +202,74 @@ mod tests {
 
     #[test]
     fn test_add_version() {
-        let repo_dir = TempDir::new().unwrap();
-        let vc = VersionControl::new(repo_dir.path().to_path_buf()).unwrap();
+        let repo_dir = TempDir::new().expect("operation should succeed");
+        let vc =
+            VersionControl::new(repo_dir.path().to_path_buf()).expect("operation should succeed");
 
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"Version 1").unwrap();
-        file.flush().unwrap();
+        let mut file = NamedTempFile::new().expect("operation should succeed");
+        file.write_all(b"Version 1")
+            .expect("operation should succeed");
+        file.flush().expect("operation should succeed");
 
         let version = vc
             .add_version(file.path(), Some("Initial version".to_string()))
-            .unwrap();
+            .expect("operation should succeed");
         assert_eq!(version.version, 1);
         assert_eq!(version.comment, Some("Initial version".to_string()));
     }
 
     #[test]
     fn test_multiple_versions() {
-        let repo_dir = TempDir::new().unwrap();
-        let vc = VersionControl::new(repo_dir.path().to_path_buf()).unwrap();
+        let repo_dir = TempDir::new().expect("operation should succeed");
+        let vc =
+            VersionControl::new(repo_dir.path().to_path_buf()).expect("operation should succeed");
 
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"Version 1").unwrap();
-        file.flush().unwrap();
+        let mut file = NamedTempFile::new().expect("operation should succeed");
+        file.write_all(b"Version 1")
+            .expect("operation should succeed");
+        file.flush().expect("operation should succeed");
 
-        vc.add_version(file.path(), None).unwrap();
+        vc.add_version(file.path(), None)
+            .expect("operation should succeed");
 
-        file.write_all(b" - Updated").unwrap();
-        file.flush().unwrap();
+        file.write_all(b" - Updated")
+            .expect("operation should succeed");
+        file.flush().expect("operation should succeed");
 
         let v2 = vc
             .add_version(file.path(), Some("Update".to_string()))
-            .unwrap();
+            .expect("operation should succeed");
         assert_eq!(v2.version, 2);
 
-        let versions = vc.list_versions(file.path()).unwrap();
+        let versions = vc
+            .list_versions(file.path())
+            .expect("operation should succeed");
         assert_eq!(versions.len(), 2);
     }
 
     #[test]
     fn test_prune_versions() {
-        let repo_dir = TempDir::new().unwrap();
-        let vc = VersionControl::new(repo_dir.path().to_path_buf()).unwrap();
+        let repo_dir = TempDir::new().expect("operation should succeed");
+        let vc =
+            VersionControl::new(repo_dir.path().to_path_buf()).expect("operation should succeed");
 
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"Test").unwrap();
-        file.flush().unwrap();
+        let mut file = NamedTempFile::new().expect("operation should succeed");
+        file.write_all(b"Test").expect("operation should succeed");
+        file.flush().expect("operation should succeed");
 
         for i in 1..=5 {
-            file.write_all(format!(" v{}", i).as_bytes()).unwrap();
-            file.flush().unwrap();
-            vc.add_version(file.path(), None).unwrap();
+            file.write_all(format!(" v{}", i).as_bytes())
+                .expect("operation should succeed");
+            file.flush().expect("operation should succeed");
+            vc.add_version(file.path(), None)
+                .expect("operation should succeed");
         }
 
-        vc.prune_versions(file.path(), 2).unwrap();
-        let versions = vc.list_versions(file.path()).unwrap();
+        vc.prune_versions(file.path(), 2)
+            .expect("operation should succeed");
+        let versions = vc
+            .list_versions(file.path())
+            .expect("operation should succeed");
         assert_eq!(versions.len(), 2);
     }
 }

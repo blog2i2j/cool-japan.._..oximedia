@@ -14,8 +14,8 @@ use crate::transforms::lut::{Lut1D, Lut3D};
 /// use oximedia_colormgmt::pipeline::{ColorPipeline, ColorTransform};
 /// use oximedia_colormgmt::colorspaces::ColorSpace;
 ///
-/// let srgb = ColorSpace::srgb().unwrap();
-/// let rec2020 = ColorSpace::rec2020().unwrap();
+/// let srgb = ColorSpace::srgb()?;
+/// let rec2020 = ColorSpace::rec2020()?;
 ///
 /// let mut pipeline = ColorPipeline::new();
 /// pipeline.add_transform(ColorTransform::Linearize(srgb.clone()));
@@ -355,8 +355,8 @@ mod tests {
 
     #[test]
     fn test_pipeline_builder() {
-        let srgb = ColorSpace::srgb().unwrap();
-        let rec2020 = ColorSpace::rec2020().unwrap();
+        let srgb = ColorSpace::srgb().expect("sRGB color space creation should succeed");
+        let rec2020 = ColorSpace::rec2020().expect("Rec.2020 color space creation should succeed");
 
         let pipeline = PipelineBuilder::new()
             .with_name("sRGB to Rec.2020".to_string())

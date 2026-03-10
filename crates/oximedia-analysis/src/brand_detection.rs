@@ -403,7 +403,7 @@ mod tests {
         db.add_template(BrandTemplate::new("Brand", 0, sig));
         let result = BrandMatcher::match_region(&sig, &db);
         assert!(result.is_some());
-        let m = result.unwrap();
+        let m = result.expect("expected successful result");
         assert_eq!(m.brand_name, "Brand");
         assert!((m.confidence - 1.0).abs() < 1e-5);
     }
@@ -433,7 +433,7 @@ mod tests {
         db.add_template(BrandTemplate::new("TestBrand", 0, sig));
         let result = BrandMatcher::match_region_at(&sig, &db, (10, 20, 50, 50), 42);
         assert!(result.is_some());
-        let m = result.unwrap();
+        let m = result.expect("expected successful result");
         assert_eq!(m.frame_idx, 42);
         assert_eq!(m.region, (10, 20, 50, 50));
     }

@@ -523,7 +523,8 @@ mod tests {
     #[test]
     fn test_extract_fingerprint() {
         let samples = create_test_audio(1.0, 11025, 440.0);
-        let fp = extract_fingerprint(&samples, 11025, 4096, 1024).unwrap();
+        let fp = extract_fingerprint(&samples, 11025, 4096, 1024)
+            .expect("extract_fingerprint should succeed");
         assert!(!fp.is_empty());
     }
 

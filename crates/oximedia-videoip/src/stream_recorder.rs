@@ -266,8 +266,7 @@ impl StreamRecorder {
 
     /// Compute the average frame rate from video frame entries.
     pub fn estimated_frame_rate(&self) -> f64 {
-        let video_entries: Vec<&RecordEntry> =
-            self.entries_by_type(RecordEventType::VideoFrame);
+        let video_entries: Vec<&RecordEntry> = self.entries_by_type(RecordEventType::VideoFrame);
         if video_entries.len() < 2 {
             return 0.0;
         }
@@ -358,7 +357,13 @@ mod tests {
         }
         assert_eq!(r.len(), 5);
         // Oldest should be evicted: first entry should be seq 5
-        assert_eq!(r.entries().front().expect("should succeed in test").sequence, 5);
+        assert_eq!(
+            r.entries()
+                .front()
+                .expect("should succeed in test")
+                .sequence,
+            5
+        );
     }
 
     #[test]

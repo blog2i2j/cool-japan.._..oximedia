@@ -192,6 +192,10 @@ pub mod png;
 // GIF codec
 pub mod gif;
 
+// JPEG-XL codec
+#[cfg(feature = "jpegxl")]
+pub mod jpegxl;
+
 // Image I/O support
 #[cfg(feature = "image-io")]
 pub mod image;
@@ -213,6 +217,9 @@ pub mod h263;
 
 #[cfg(feature = "opus")]
 pub mod opus;
+
+#[cfg(feature = "ffv1")]
+pub mod ffv1;
 
 // Re-exports
 pub use audio::{AudioFrame, ChannelLayout, SampleFormat};
@@ -269,6 +276,9 @@ pub use h263::{H263Decoder, H263Encoder, PictureFormat};
 #[cfg(feature = "opus")]
 pub use opus::{OpusDecoder, OpusEncoder, OpusEncoderConfig};
 
+#[cfg(feature = "ffv1")]
+pub use ffv1::{Ffv1Decoder, Ffv1Encoder};
+
 #[cfg(feature = "image-io")]
 pub use image::{
     convert_rgb_to_yuv420p, convert_yuv420p_to_rgb, rgb_to_yuv, yuv_to_rgb,
@@ -292,4 +302,11 @@ pub use gif::{
     is_gif, DisposalMethod, DitheringMethod, GifDecoder, GifEncoder, GifEncoderConfig, GifFrame,
     GifFrameConfig, GraphicsControlExtension, ImageDescriptor, LogicalScreenDescriptor,
     QuantizationMethod,
+};
+
+#[cfg(feature = "jpegxl")]
+pub use jpegxl::{
+    AnsDecoder, AnsDistribution, AnsEncoder, BitReader as JxlBitReader, BitWriter as JxlBitWriter,
+    DecodedImage as JxlImage, JxlColorSpace, JxlConfig, JxlDecoder, JxlEncoder, JxlFrameEncoding,
+    JxlHeader, ModularDecoder, ModularEncoder,
 };

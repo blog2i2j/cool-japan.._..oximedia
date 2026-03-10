@@ -135,7 +135,9 @@ mod tests {
             }
         }
 
-        let result = detector.detect(&samples, sample_rate).unwrap();
+        let result = detector
+            .detect(&samples, sample_rate)
+            .expect("detection should succeed");
         assert!(result.has_echo || result.reverb_amount > 0.0);
     }
 }

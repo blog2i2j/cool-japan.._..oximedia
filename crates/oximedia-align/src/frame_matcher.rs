@@ -302,7 +302,7 @@ mod tests {
         matcher.add_reference(FrameDescriptor::new(near, 1000));
         matcher.add_reference(FrameDescriptor::new(far, 2000));
         let query = FrameDescriptor::new(zeros(), 0);
-        let best = matcher.best_match(&query).unwrap();
+        let best = matcher.best_match(&query).expect("best should be valid");
         assert_eq!(best.hamming, 1);
         assert_eq!(best.ref_pts_ms, 1000);
     }

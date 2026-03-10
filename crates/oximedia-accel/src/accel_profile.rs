@@ -158,7 +158,7 @@ impl ProfileSelector {
                         .partial_cmp(&b.throughput_score)
                         .unwrap_or(std::cmp::Ordering::Equal)
                 })
-                .unwrap(),
+                .unwrap_or(available[0]),
             SelectionCriteria::PowerEfficient => available
                 .iter()
                 .copied()
@@ -167,7 +167,7 @@ impl ProfileSelector {
                         .partial_cmp(&b.efficiency())
                         .unwrap_or(std::cmp::Ordering::Equal)
                 })
-                .unwrap(),
+                .unwrap_or(available[0]),
             SelectionCriteria::ForceCpu => available
                 .iter()
                 .copied()

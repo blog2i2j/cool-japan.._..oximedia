@@ -224,22 +224,26 @@ mod tests {
 
     #[test]
     fn test_calculate_md5() {
-        let mut temp_file = NamedTempFile::new().unwrap();
-        temp_file.write_all(b"test content").unwrap();
-        temp_file.flush().unwrap();
+        let mut temp_file = NamedTempFile::new().expect("test expectation failed");
+        temp_file
+            .write_all(b"test content")
+            .expect("write_all should succeed");
+        temp_file.flush().expect("flush should succeed");
 
-        let md5 = calculate_md5(temp_file.path()).unwrap();
+        let md5 = calculate_md5(temp_file.path()).expect("md5 should be valid");
         assert!(!md5.is_empty());
         assert_eq!(md5.len(), 32); // MD5 is 128 bits = 32 hex chars
     }
 
     #[test]
     fn test_calculate_xxhash() {
-        let mut temp_file = NamedTempFile::new().unwrap();
-        temp_file.write_all(b"test content").unwrap();
-        temp_file.flush().unwrap();
+        let mut temp_file = NamedTempFile::new().expect("test expectation failed");
+        temp_file
+            .write_all(b"test content")
+            .expect("write_all should succeed");
+        temp_file.flush().expect("flush should succeed");
 
-        let xxhash = calculate_xxhash(temp_file.path()).unwrap();
+        let xxhash = calculate_xxhash(temp_file.path()).expect("xxhash should be valid");
         assert!(!xxhash.is_empty());
     }
 

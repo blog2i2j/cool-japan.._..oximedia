@@ -479,7 +479,7 @@ mod tests {
         // Make primary fail
         group
             .get_source_mut("primary")
-            .unwrap()
+            .expect("unexpected None/Err")
             .mark_unreachable(now);
 
         let decision = group.evaluate();

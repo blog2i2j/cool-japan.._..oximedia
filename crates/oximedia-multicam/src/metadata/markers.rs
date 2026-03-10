@@ -338,7 +338,9 @@ mod tests {
         let id = manager.add_sync_point(100, vec![0, 1], "Sync 1".to_string());
 
         assert_eq!(id, 1);
-        let marker = manager.get_marker(id).unwrap();
+        let marker = manager
+            .get_marker(id)
+            .expect("multicam test operation should succeed");
         assert_eq!(marker.marker_type, MarkerType::SyncPoint);
         assert_eq!(marker.label, "Sync 1");
     }
@@ -408,10 +410,16 @@ mod tests {
         manager.add_sync_point(300, vec![0], "Third".to_string());
 
         let next = manager.next_marker_after(150);
-        assert_eq!(next.unwrap().frame, 200);
+        assert_eq!(
+            next.expect("multicam test operation should succeed").frame,
+            200
+        );
 
         let prev = manager.previous_marker_before(250);
-        assert_eq!(prev.unwrap().frame, 200);
+        assert_eq!(
+            prev.expect("multicam test operation should succeed").frame,
+            200
+        );
     }
 
     #[test]

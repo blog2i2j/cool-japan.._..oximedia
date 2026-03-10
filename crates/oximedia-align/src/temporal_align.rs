@@ -263,7 +263,7 @@ mod tests {
         let mut aligner = StreamAligner::default_aligner();
         let offsets = [AlignmentOffset::new(0, 8.0, 0.95)];
         aligner.align_streams(&offsets);
-        let al = aligner.get_alignment(0).unwrap();
+        let al = aligner.get_alignment(0).expect("al should be valid");
         assert!((al.applied_offset_ms - 8.0).abs() < f64::EPSILON);
         assert!(al.aligned);
     }
@@ -273,7 +273,7 @@ mod tests {
         let mut aligner = StreamAligner::default_aligner();
         let offsets = [AlignmentOffset::new(0, 15.0, 0.2)];
         aligner.align_streams(&offsets);
-        let al = aligner.get_alignment(0).unwrap();
+        let al = aligner.get_alignment(0).expect("al should be valid");
         assert!((al.applied_offset_ms).abs() < f64::EPSILON);
         assert!(!al.aligned);
     }

@@ -72,7 +72,11 @@ impl ReferenceSelection {
             .collect();
 
         // Sort by total score (descending)
-        scores.sort_by(|a, b| b.total_score.partial_cmp(&a.total_score).unwrap());
+        scores.sort_by(|a, b| {
+            b.total_score
+                .partial_cmp(&a.total_score)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         // Return top N references
         scores

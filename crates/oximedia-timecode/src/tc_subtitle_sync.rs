@@ -150,7 +150,7 @@ mod tests {
     use super::*;
 
     fn tc(h: u8, m: u8, s: u8, f: u8) -> Timecode {
-        Timecode::new(h, m, s, f, FrameRate::Fps25).unwrap()
+        Timecode::new(h, m, s, f, FrameRate::Fps25).expect("valid timecode")
     }
 
     fn make_cue(id: u32, s_in: u8, f_in: u8, s_out: u8, f_out: u8) -> SubtitleCue {
@@ -187,7 +187,7 @@ mod tests {
     #[test]
     fn test_apply_frame_offset_positive() {
         let cues = vec![make_cue(1, 0, 0, 1, 0)];
-        let shifted = apply_frame_offset(&cues, 10, FrameRate::Fps25).unwrap();
+        let shifted = apply_frame_offset(&cues, 10, FrameRate::Fps25).expect("frame offset should succeed");
         assert_eq!(shifted[0].tc_in.to_frames(), 10);
         assert_eq!(shifted[0].tc_out.to_frames(), 35);
     }
@@ -202,7 +202,7 @@ mod tests {
     #[test]
     fn test_linear_stretch_identity() {
         let cues = vec![make_cue(1, 1, 0, 2, 0)];
-        let stretched = apply_linear_stretch(&cues, 0, 1.0, FrameRate::Fps25).unwrap();
+        let stretched = apply_linear_stretch(&cues, 0, 1.0, FrameRate::Fps25).expect("linear stretch should succeed");
         assert_eq!(stretched[0].tc_in.to_frames(), cues[0].tc_in.to_frames());
         assert_eq!(stretched[0].tc_out.to_frames(), cues[0].tc_out.to_frames());
     }
@@ -210,7 +210,7 @@ mod tests {
     #[test]
     fn test_linear_stretch_double() {
         let cues = vec![make_cue(1, 1, 0, 2, 0)]; // frames 25..50
-        let stretched = apply_linear_stretch(&cues, 0, 2.0, FrameRate::Fps25).unwrap();
+        let stretched = apply_linear_stretch(&cues, 0, 2.0, FrameRate::Fps25).expect("linear stretch should succeed");
         assert_eq!(stretched[0].tc_in.to_frames(), 50);
         assert_eq!(stretched[0].tc_out.to_frames(), 100);
     }
@@ -219,7 +219,7 @@ mod tests {
     fn test_compute_average_drift_zero() {
         let cues = vec![make_cue(1, 1, 0, 2, 0)];
         let refs = vec![25];
-        let drift = compute_average_drift(&cues, &refs).unwrap();
+        let drift = compute_average_drift(&cues, &refs).expect("drift computation should succeed");
         assert!((drift).abs() < 1e-9);
     }
 
@@ -227,7 +227,7 @@ mod tests {
     fn test_compute_average_drift_some() {
         let cues = vec![make_cue(1, 1, 0, 2, 0), make_cue(2, 2, 0, 3, 0)];
         let refs = vec![20, 45];
-        let drift = compute_average_drift(&cues, &refs).unwrap();
+        let drift = compute_average_drift(&cues, &refs).expect("drift computation should succeed");
         // cue1: 25-20=5, cue2: 50-45=5, avg=5
         assert!((drift - 5.0).abs() < 1e-9);
     }

@@ -452,7 +452,11 @@ pub fn nms(detections: &[Detection], iou_threshold: f32) -> Vec<Detection> {
 
     // Sort by confidence (descending)
     let mut sorted: Vec<_> = detections.iter().enumerate().collect();
-    sorted.sort_by(|a, b| b.1.confidence.partial_cmp(&a.1.confidence).unwrap());
+    sorted.sort_by(|a, b| {
+        b.1.confidence
+            .partial_cmp(&a.1.confidence)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
 
     let mut keep = vec![true; detections.len()];
     let mut result = Vec::new();
@@ -515,12 +519,17 @@ pub fn soft_nms(
 
     while !detections.is_empty() {
         // Find detection with highest confidence
+        // detections is non-empty (loop condition), so max_by always yields Some
         let max_idx = detections
             .iter()
             .enumerate()
-            .max_by(|a, b| a.1.confidence.partial_cmp(&b.1.confidence).unwrap())
+            .max_by(|a, b| {
+                a.1.confidence
+                    .partial_cmp(&b.1.confidence)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .map(|(i, _)| i)
-            .unwrap();
+            .unwrap_or(0);
 
         let best = detections.remove(max_idx);
         result.push(best.clone());
@@ -629,7 +638,7 @@ mod tests {
         let a = BoundingBox::new(0.0, 0.0, 100.0, 100.0);
         let b = BoundingBox::new(50.0, 50.0, 100.0, 100.0);
 
-        let inter = a.intersection(&b).unwrap();
+        let inter = a.intersection(&b).expect("intersection should succeed");
         assert_eq!(inter.x, 50.0);
         assert_eq!(inter.y, 50.0);
         assert_eq!(inter.width, 50.0);

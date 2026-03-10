@@ -221,8 +221,15 @@ impl GraphLayout {
                 for j in (i + 1)..n {
                     let u = node_ids[i];
                     let v = node_ids[j];
-                    let pu = *positions.get(&u).unwrap();
-                    let pv = *positions.get(&v).unwrap();
+                    // SAFETY: positions is populated for every node in node_ids above
+                    let pu = match positions.get(&u) {
+                        Some(p) => *p,
+                        None => continue,
+                    };
+                    let pv = match positions.get(&v) {
+                        Some(p) => *p,
+                        None => continue,
+                    };
                     let dx = pu.x - pv.x;
                     let dy = pu.y - pv.y;
                     let dist2 = (dx * dx + dy * dy).max(0.001);
@@ -270,7 +277,11 @@ impl GraphLayout {
             // Apply displacements with cooling (temperature = k / 10)
             let temp = k / 10.0;
             for &id in node_ids {
-                let (dx, dy) = *displacements.get(&id).unwrap();
+                // SAFETY: displacements is populated for every node in node_ids above
+                let (dx, dy) = match displacements.get(&id) {
+                    Some(&d) => d,
+                    None => continue,
+                };
                 let disp_len = (dx * dx + dy * dy).sqrt().max(0.001);
                 let clamped = disp_len.min(temp);
                 if let Some(pos) = positions.get_mut(&id) {

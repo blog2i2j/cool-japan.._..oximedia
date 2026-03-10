@@ -614,7 +614,7 @@ mod tests {
         let b = make_clip_b();
         let comparer = ClipComparer::new();
         let result = comparer.compare(&a, &b);
-        let max = result.max_severity().unwrap();
+        let max = result.max_severity().expect("max_severity should succeed");
         assert_eq!(max, DiffSeverity::Critical);
     }
 

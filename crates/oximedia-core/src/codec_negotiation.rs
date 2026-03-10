@@ -27,7 +27,7 @@
 //! ];
 //! let result = negotiate(&local, &remote);
 //! assert!(result.is_some());
-//! assert_eq!(result.unwrap().selected_codec, "av1");
+//! assert_eq!(result?.selected_codec, "av1");
 //! ```
 
 #![allow(dead_code)]
@@ -287,7 +287,7 @@ mod tests {
     fn test_negotiate_success() {
         let local = vec![av1_cap(false)];
         let remote = vec![av1_cap(false)];
-        let result = negotiate(&local, &remote).unwrap();
+        let result = negotiate(&local, &remote).expect("negotiation should succeed");
         assert_eq!(result.selected_codec, "av1");
         assert!(result.profile == "main" || result.profile == "high");
         assert_eq!(result.level, 40);
@@ -299,7 +299,7 @@ mod tests {
     fn test_negotiate_prefers_hw() {
         let local = vec![vp9_cap(), av1_cap(true)];
         let remote = vec![vp9_cap(), av1_cap(true)];
-        let result = negotiate(&local, &remote).unwrap();
+        let result = negotiate(&local, &remote).expect("negotiation should succeed");
         assert_eq!(result.selected_codec, "av1");
         assert!(result.is_hardware());
     }
@@ -319,7 +319,7 @@ mod tests {
             30,
             false,
         )];
-        let result = negotiate(&local, &remote).unwrap();
+        let result = negotiate(&local, &remote).expect("negotiation should succeed");
         assert_eq!(result.level, 30);
     }
 

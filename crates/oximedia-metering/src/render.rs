@@ -331,7 +331,7 @@ mod tests {
 
     #[test]
     fn test_color_from_hex() {
-        let color = Color::from_hex("#FF8040").unwrap();
+        let color = Color::from_hex("#FF8040").expect("color should be valid");
         assert_eq!(color.r, 255);
         assert_eq!(color.g, 128);
         assert_eq!(color.b, 64);

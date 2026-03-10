@@ -622,8 +622,9 @@ mod tests {
     #[test]
     fn test_serde_config() {
         let config = MonitorConfig::default();
-        let json = serde_json::to_string(&config).unwrap();
-        let deserialized: MonitorConfig = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&config).expect("failed to serialize to JSON");
+        let deserialized: MonitorConfig =
+            serde_json::from_str(&json).expect("failed to deserialize from JSON");
         assert_eq!(
             config.metrics.collection_interval,
             deserialized.metrics.collection_interval

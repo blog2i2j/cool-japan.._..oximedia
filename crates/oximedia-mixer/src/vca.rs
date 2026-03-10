@@ -219,7 +219,7 @@ mod tests {
         let mut mgr = VcaManager::new();
         let id = mgr.create_group("Synth", vec![3]);
         mgr.set_gain(id, -3.0);
-        let g = mgr.get_group(id).unwrap();
+        let g = mgr.get_group(id).expect("g should be valid");
         assert!((g.gain_db - (-3.0)).abs() < f32::EPSILON);
     }
 
@@ -227,9 +227,9 @@ mod tests {
     fn test_vca_manager_mute() {
         let mut mgr = VcaManager::new();
         let id = mgr.create_group("Vocals", vec![5]);
-        assert!(!mgr.get_group(id).unwrap().muted);
+        assert!(!mgr.get_group(id).expect("get_group should succeed").muted);
         mgr.mute(id, true);
-        assert!(mgr.get_group(id).unwrap().muted);
+        assert!(mgr.get_group(id).expect("get_group should succeed").muted);
     }
 
     #[test]
@@ -273,7 +273,10 @@ mod tests {
         // Change then restore
         mgr.set_gain(id, 0.0);
         mgr.restore_snapshot(&snap);
-        assert!((mgr.get_group(id).unwrap().gain_db - (-12.0)).abs() < f32::EPSILON);
+        assert!(
+            (mgr.get_group(id).expect("get_group should succeed").gain_db - (-12.0)).abs()
+                < f32::EPSILON
+        );
     }
 
     #[test]

@@ -596,7 +596,7 @@ mod tests {
         let mut field = MotionField::new(64, 64, 16);
         let mv = MotionVector::new(5.0, -3.0, 50.0);
         field.set(1, 2, mv);
-        let retrieved = field.get(1, 2).unwrap();
+        let retrieved = field.get(1, 2).expect("retrieved should be valid");
         assert!((retrieved.dx - 5.0).abs() < f64::EPSILON);
         assert!((retrieved.dy - (-3.0)).abs() < f64::EPSILON);
     }
@@ -641,7 +641,9 @@ mod tests {
 
         // Both frames identical => all zero motion
         let frame = vec![128u8; 32 * 32];
-        let field = comp.estimate(&frame, &frame).unwrap();
+        let field = comp
+            .estimate(&frame, &frame)
+            .expect("field should be valid");
 
         for mv in &field.vectors {
             assert!((mv.dx).abs() < f64::EPSILON);

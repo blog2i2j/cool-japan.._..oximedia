@@ -4,8 +4,8 @@
 //! perspective correction and multi-panel support.
 
 use super::{perspective::PerspectiveCorrection, LedPanel, LedWall};
+use crate::math::{Matrix4, Point3, Vector3};
 use crate::{tracking::CameraPose, Result, VirtualProductionError};
-use nalgebra::{Matrix4, Point3, Vector3};
 use serde::{Deserialize, Serialize};
 
 /// LED renderer configuration

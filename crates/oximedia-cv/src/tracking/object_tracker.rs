@@ -137,7 +137,7 @@ impl ObjectTracker {
     /// let mut tracker = ObjectTracker::new(TrackerType::Mosse, bbox);
     ///
     /// let frame = vec![100u8; 10000];
-    /// let new_bbox = tracker.update(&frame, 100, 100).unwrap();
+    /// let new_bbox = tracker.update(&frame, 100, 100)?;
     /// ```
     pub fn update(&mut self, frame: &[u8], w: u32, h: u32) -> CvResult<BoundingBox> {
         if w == 0 || h == 0 {
@@ -225,7 +225,10 @@ impl ObjectTracker {
         let search_patch = extract_patch(frame, w, h, &search_bbox, (64, 64))?;
 
         // Correlate with template
-        let template = self.template.as_ref().unwrap();
+        let template = self
+            .template
+            .as_ref()
+            .expect("template initialized before tracking");
         let response = compute_correlation(&search_patch, template, (64, 64), self.template_size);
 
         // Find peak
@@ -270,7 +273,10 @@ impl ObjectTracker {
         let search_bbox = self.bbox.expand(self.bbox.width * 0.2);
         let search_patch = extract_patch(frame, w, h, &search_bbox, (48, 48))?;
 
-        let template = self.template.as_ref().unwrap();
+        let template = self
+            .template
+            .as_ref()
+            .expect("template initialized before tracking");
         let response = compute_correlation(&search_patch, template, (48, 48), self.template_size);
 
         let (max_idx, _max_val, psr) = find_peak_with_psr(&response, (48, 48));
@@ -330,8 +336,8 @@ impl ObjectTracker {
         }
 
         // Compute median displacement
-        displacements_x.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        displacements_y.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        displacements_x.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+        displacements_y.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         let median_dx = displacements_x[displacements_x.len() / 2];
         let median_dy = displacements_y[displacements_y.len() / 2];
@@ -355,7 +361,10 @@ impl ObjectTracker {
         let search_bbox = self.bbox.expand(self.bbox.width * 0.3);
         let search_patch = extract_patch(frame, w, h, &search_bbox, (64, 64))?;
 
-        let template = self.template.as_ref().unwrap();
+        let template = self
+            .template
+            .as_ref()
+            .expect("template initialized before tracking");
         let response = compute_correlation(&search_patch, template, (64, 64), self.template_size);
 
         let (max_idx, _max_val, psr) = find_peak_with_psr(&response, (64, 64));
@@ -685,7 +694,7 @@ mod tests {
         let patch = extract_patch(&frame, 100, 100, &bbox, (32, 32));
         assert!(patch.is_ok());
 
-        let p = patch.unwrap();
+        let p = patch.expect("p should be valid");
         assert_eq!(p.len(), 32 * 32);
     }
 

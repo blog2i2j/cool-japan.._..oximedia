@@ -302,9 +302,18 @@ mod tests {
         q.enqueue(msg(2, MessagePriority::Critical));
         q.enqueue(msg(3, MessagePriority::Normal));
 
-        assert_eq!(q.dequeue().unwrap().priority, MessagePriority::Critical);
-        assert_eq!(q.dequeue().unwrap().priority, MessagePriority::Normal);
-        assert_eq!(q.dequeue().unwrap().priority, MessagePriority::Low);
+        assert_eq!(
+            q.dequeue().expect("dequeue should return a task").priority,
+            MessagePriority::Critical
+        );
+        assert_eq!(
+            q.dequeue().expect("dequeue should return a task").priority,
+            MessagePriority::Normal
+        );
+        assert_eq!(
+            q.dequeue().expect("dequeue should return a task").priority,
+            MessagePriority::Low
+        );
         assert!(q.dequeue().is_none());
     }
 

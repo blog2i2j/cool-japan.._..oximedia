@@ -329,11 +329,12 @@ mod tests {
     #[test]
     fn test_add_remove_worker() {
         let mut pool = WorkerPool::new("p1", "Pool 1").with_max_workers(2);
-        pool.add_worker("w1").unwrap();
-        pool.add_worker("w2").unwrap();
+        pool.add_worker("w1").expect("add_worker should succeed");
+        pool.add_worker("w2").expect("add_worker should succeed");
         assert_eq!(pool.worker_count(), 2);
         assert!(!pool.has_capacity());
-        pool.remove_worker("w1").unwrap();
+        pool.remove_worker("w1")
+            .expect("remove_worker should succeed");
         assert_eq!(pool.worker_count(), 1);
         assert!(pool.has_capacity());
     }
@@ -341,7 +342,7 @@ mod tests {
     #[test]
     fn test_add_worker_duplicate() {
         let mut pool = WorkerPool::new("p1", "Pool 1");
-        pool.add_worker("w1").unwrap();
+        pool.add_worker("w1").expect("add_worker should succeed");
         let err = pool.add_worker("w1").unwrap_err();
         assert_eq!(err, PoolError::WorkerAlreadyInPool("w1".to_string()));
     }
@@ -349,7 +350,7 @@ mod tests {
     #[test]
     fn test_add_worker_capacity_exceeded() {
         let mut pool = WorkerPool::new("p1", "Pool 1").with_max_workers(1);
-        pool.add_worker("w1").unwrap();
+        pool.add_worker("w1").expect("add_worker should succeed");
         let err = pool.add_worker("w2").unwrap_err();
         assert_eq!(
             err,
@@ -395,7 +396,8 @@ mod tests {
     #[test]
     fn test_pool_manager_add_and_get() {
         let mut mgr = PoolManager::new();
-        mgr.add_pool(WorkerPool::new("p1", "Pool 1")).unwrap();
+        mgr.add_pool(WorkerPool::new("p1", "Pool 1"))
+            .expect("failed to create");
         assert_eq!(mgr.pool_count(), 1);
         assert!(mgr.get_pool("p1").is_some());
         assert!(mgr.get_pool("p2").is_none());
@@ -404,7 +406,8 @@ mod tests {
     #[test]
     fn test_pool_manager_duplicate() {
         let mut mgr = PoolManager::new();
-        mgr.add_pool(WorkerPool::new("p1", "Pool 1")).unwrap();
+        mgr.add_pool(WorkerPool::new("p1", "Pool 1"))
+            .expect("failed to create");
         let err = mgr
             .add_pool(WorkerPool::new("p1", "Pool 1 dup"))
             .unwrap_err();
@@ -415,9 +418,9 @@ mod tests {
     fn test_pool_manager_find_by_tags() {
         let mut mgr = PoolManager::new();
         mgr.add_pool(WorkerPool::new("gpu", "GPU").with_tag("gpu"))
-            .unwrap();
+            .expect("operation should succeed");
         mgr.add_pool(WorkerPool::new("cpu", "CPU").with_tag("cpu"))
-            .unwrap();
+            .expect("operation should succeed");
         let found = mgr.find_pools_by_tags(&["gpu".to_string()]);
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].id.as_str(), "gpu");
@@ -427,21 +430,26 @@ mod tests {
     fn test_pool_manager_total_workers() {
         let mut mgr = PoolManager::new();
         let mut p1 = WorkerPool::new("p1", "P1");
-        p1.add_worker("w1").unwrap();
-        p1.add_worker("w2").unwrap();
+        p1.add_worker("w1").expect("add_worker should succeed");
+        p1.add_worker("w2").expect("add_worker should succeed");
         let mut p2 = WorkerPool::new("p2", "P2");
-        p2.add_worker("w3").unwrap();
-        mgr.add_pool(p1).unwrap();
-        mgr.add_pool(p2).unwrap();
+        p2.add_worker("w3").expect("add_worker should succeed");
+        mgr.add_pool(p1).expect("add_pool should succeed");
+        mgr.add_pool(p2).expect("add_pool should succeed");
         assert_eq!(mgr.total_workers(), 3);
     }
 
     #[test]
     fn test_pool_manager_set_status() {
         let mut mgr = PoolManager::new();
-        mgr.add_pool(WorkerPool::new("p1", "P1")).unwrap();
-        mgr.set_pool_status("p1", PoolStatus::Draining).unwrap();
-        assert_eq!(mgr.get_pool("p1").unwrap().status, PoolStatus::Draining);
+        mgr.add_pool(WorkerPool::new("p1", "P1"))
+            .expect("failed to create");
+        mgr.set_pool_status("p1", PoolStatus::Draining)
+            .expect("set_pool_status should succeed");
+        assert_eq!(
+            mgr.get_pool("p1").expect("get_pool should succeed").status,
+            PoolStatus::Draining
+        );
     }
 
     #[test]

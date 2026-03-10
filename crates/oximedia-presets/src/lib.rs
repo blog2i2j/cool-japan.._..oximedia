@@ -26,7 +26,7 @@
 //! let youtube_presets = library.find_by_category(PresetCategory::Platform("YouTube".to_string()));
 //!
 //! // Get a specific preset
-//! let preset = library.get("youtube-1080p-60fps").unwrap();
+//! let preset = library.get("youtube-1080p-60fps")?;
 //! ```
 //!
 //! # Platform-Specific Presets
@@ -908,7 +908,10 @@ mod tests {
 
         let found = registry.lookup("test-id");
         assert!(found.is_some());
-        assert_eq!(found.unwrap().metadata.id, "test-id");
+        assert_eq!(
+            found.expect("test expectation failed").metadata.id,
+            "test-id"
+        );
     }
 
     #[test]
@@ -937,7 +940,10 @@ mod tests {
 
         let found = registry.lookup("alias-name");
         assert!(found.is_some());
-        assert_eq!(found.unwrap().metadata.id, "original-id");
+        assert_eq!(
+            found.expect("test expectation failed").metadata.id,
+            "original-id"
+        );
     }
 
     #[test]
@@ -955,7 +961,7 @@ mod tests {
         // Target 5Mbps: should find the best preset not exceeding that
         let preset = OptimalPreset::select(&library, 5_000_000);
         assert!(preset.is_some());
-        let p = preset.unwrap();
+        let p = preset.expect("p should be valid");
         assert!(p.config.video_bitrate.unwrap_or(0) <= 5_000_000);
     }
 
@@ -964,7 +970,7 @@ mod tests {
         let library = PresetLibrary::new();
         let preset = OptimalPreset::select_for_protocol(&library, 4_000_000, "hls");
         assert!(preset.is_some());
-        let p = preset.unwrap();
+        let p = preset.expect("p should be valid");
         assert!(p.has_tag("hls"));
         assert!(p.config.video_bitrate.unwrap_or(0) <= 4_000_000);
     }
@@ -974,7 +980,7 @@ mod tests {
         let library = PresetLibrary::new();
         let preset = OptimalPreset::select_for_protocol(&library, 3_500_000, "rtmp");
         assert!(preset.is_some());
-        let p = preset.unwrap();
+        let p = preset.expect("p should be valid");
         assert!(p.has_tag("rtmp"));
     }
 
@@ -983,7 +989,7 @@ mod tests {
         let library = PresetLibrary::new();
         let preset = OptimalPreset::select_for_protocol(&library, 10_000_000, "srt");
         assert!(preset.is_some());
-        let p = preset.unwrap();
+        let p = preset.expect("p should be valid");
         assert!(p.has_tag("srt"));
     }
 

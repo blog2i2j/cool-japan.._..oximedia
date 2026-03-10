@@ -240,7 +240,7 @@ fn resize_tensor(tensor: &Tensor, width: usize, height: usize) -> CvResult<Tenso
 /// use oximedia_cv::ml::{Tensor, preprocessing::normalize};
 ///
 /// let mut tensor = Tensor::zeros(&[1, 3, 224, 224]);
-/// normalize(&mut tensor, &[0.5, 0.5, 0.5], &[0.5, 0.5, 0.5]).unwrap();
+/// normalize(&mut tensor, &[0.5, 0.5, 0.5], &[0.5, 0.5, 0.5])?;
 /// ```
 pub fn normalize(tensor: &mut Tensor, mean: &[f32], std: &[f32]) -> CvResult<()> {
     tensor.normalize(mean, std)
@@ -264,7 +264,7 @@ pub fn normalize(tensor: &mut Tensor, mean: &[f32], std: &[f32]) -> CvResult<()>
 /// use oximedia_cv::ml::{Tensor, preprocessing::normalize_imagenet};
 ///
 /// let mut tensor = Tensor::zeros(&[1, 3, 224, 224]);
-/// normalize_imagenet(&mut tensor).unwrap();
+/// normalize_imagenet(&mut tensor)?;
 /// ```
 pub fn normalize_imagenet(tensor: &mut Tensor) -> CvResult<()> {
     tensor.normalize(&IMAGENET_MEAN, &IMAGENET_STD)
@@ -403,7 +403,7 @@ pub fn pad_to_size(
 /// use oximedia_cv::ml::{Tensor, preprocessing::scale_to_unit};
 ///
 /// let mut tensor = Tensor::zeros(&[1, 3, 224, 224]);
-/// scale_to_unit(&mut tensor).unwrap();
+/// scale_to_unit(&mut tensor)?;
 /// ```
 pub fn scale_to_unit(tensor: &mut Tensor) -> CvResult<()> {
     let mut data_f32 = tensor.data().to_f32()?;
@@ -464,7 +464,10 @@ mod tests {
         let preprocessor = ImagePreprocessor::new().normalize_imagenet();
         assert!(preprocessor.normalize_mean.is_some());
         assert_eq!(
-            preprocessor.normalize_mean.as_ref().unwrap(),
+            preprocessor
+                .normalize_mean
+                .as_ref()
+                .expect("as_ref should succeed"),
             &IMAGENET_MEAN
         );
     }
@@ -488,7 +491,10 @@ mod tests {
         let tensor = Tensor::zeros(&[1, 3, 4, 4]);
         let result = pad_to_size(&tensor, 8, 8, 0.0);
         assert!(result.is_ok());
-        assert_eq!(result.unwrap().shape(), &[1, 3, 8, 8]);
+        assert_eq!(
+            result.expect("value should be valid").shape(),
+            &[1, 3, 8, 8]
+        );
     }
 
     #[test]

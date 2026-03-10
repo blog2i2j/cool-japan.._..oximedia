@@ -294,7 +294,9 @@ mod tests {
         let mut db = ClearanceDatabase::new();
         db.submit(make_request(11));
         db.submit(make_request(12));
-        let rec = db.get_mut(11).unwrap();
+        let rec = db
+            .get_mut(11)
+            .expect("rights test operation should succeed");
         rec.approve(999, "ok");
         assert_eq!(db.pending_count(), 1);
     }
@@ -304,7 +306,9 @@ mod tests {
         let mut db = ClearanceDatabase::new();
         db.submit(make_request(13));
         db.submit(make_request(14));
-        let rec = db.get_mut(13).unwrap();
+        let rec = db
+            .get_mut(13)
+            .expect("rights test operation should succeed");
         rec.approve(999, "ok");
         let cleared = db.cleared_content();
         assert_eq!(cleared.len(), 1);

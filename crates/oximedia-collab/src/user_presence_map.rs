@@ -357,7 +357,9 @@ mod tests {
         let mut map = UserPresenceMap::new(PresenceMapConfig::default());
         map.upsert(make_presence("bob", 0, 0));
         map.update_cursor("bob", TimelinePosition::new(500, 2));
-        let p = map.get("bob").unwrap();
+        let p = map
+            .get("bob")
+            .expect("collab test operation should succeed");
         assert_eq!(p.cursor.frame, 500);
         assert_eq!(p.cursor.track, 2);
     }
@@ -367,7 +369,7 @@ mod tests {
         let mut map = UserPresenceMap::new(PresenceMapConfig::default());
         map.upsert(make_presence("c", 0, 0));
         map.update_viewport("c", ViewportRange::new(200, 800, 2.0));
-        let p = map.get("c").unwrap();
+        let p = map.get("c").expect("collab test operation should succeed");
         assert_eq!(p.viewport.start_frame, 200);
     }
 
@@ -381,7 +383,7 @@ mod tests {
                 clip_ids: vec!["clip1".to_string()],
             },
         );
-        let p = map.get("d").unwrap();
+        let p = map.get("d").expect("collab test operation should succeed");
         assert!(p.selection.is_active());
     }
 
@@ -433,7 +435,11 @@ mod tests {
         let mut map = UserPresenceMap::new(PresenceMapConfig::default());
         map.upsert(make_presence("x", 0, 0));
         map.set_editing("x", true);
-        assert!(map.get("x").unwrap().is_editing);
+        assert!(
+            map.get("x")
+                .expect("collab test operation should succeed")
+                .is_editing
+        );
     }
 
     #[test]

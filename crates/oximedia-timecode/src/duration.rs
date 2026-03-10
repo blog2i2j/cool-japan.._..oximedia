@@ -160,14 +160,14 @@ mod tests {
     fn test_subtract_positive() {
         let result = dur(30).subtract(&dur(10));
         assert!(result.is_some());
-        assert_eq!(result.unwrap().frames, 20);
+        assert_eq!(result.expect("result should be ok").frames, 20);
     }
 
     #[test]
     fn test_subtract_to_zero() {
         let result = dur(10).subtract(&dur(10));
         assert!(result.is_some());
-        assert_eq!(result.unwrap().frames, 0);
+        assert_eq!(result.expect("result should be ok").frames, 0);
     }
 
     #[test]

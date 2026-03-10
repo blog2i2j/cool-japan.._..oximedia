@@ -5,7 +5,7 @@
 use crate::error::{StabilizeError, StabilizeResult};
 use crate::motion::trajectory::Trajectory;
 use crate::smooth::filter::{GaussianFilter, KalmanFilter};
-use ndarray::Array1;
+use scirs2_core::ndarray::Array1;
 
 /// Adaptive smoother that adjusts filtering based on motion characteristics.
 pub struct AdaptiveSmoother {
@@ -243,10 +243,22 @@ impl AdaptiveSmoother {
     fn extract_segment(&self, trajectory: &Trajectory, start: usize, end: usize) -> Trajectory {
         let len = end - start;
         Trajectory {
-            x: trajectory.x.slice(ndarray::s![start..end]).to_owned(),
-            y: trajectory.y.slice(ndarray::s![start..end]).to_owned(),
-            angle: trajectory.angle.slice(ndarray::s![start..end]).to_owned(),
-            scale: trajectory.scale.slice(ndarray::s![start..end]).to_owned(),
+            x: trajectory
+                .x
+                .slice(scirs2_core::ndarray::s![start..end])
+                .to_owned(),
+            y: trajectory
+                .y
+                .slice(scirs2_core::ndarray::s![start..end])
+                .to_owned(),
+            angle: trajectory
+                .angle
+                .slice(scirs2_core::ndarray::s![start..end])
+                .to_owned(),
+            scale: trajectory
+                .scale
+                .slice(scirs2_core::ndarray::s![start..end])
+                .to_owned(),
             frame_count: len,
         }
     }

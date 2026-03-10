@@ -116,18 +116,27 @@ impl ExpirationAlert {
         .fetch_optional(db.pool())
         .await?;
 
-        Ok(row.map(|r| ExpirationAlert {
-            id: r.get("id"),
-            grant_id: r.get("grant_id"),
-            alert_type: AlertType::from_str(r.get("alert_type")),
-            alert_date: DateTime::parse_from_rfc3339(r.get("alert_date"))
-                .unwrap()
-                .with_timezone(&Utc),
-            notification_sent: r.get::<i32, _>("notification_sent") != 0,
-            created_at: DateTime::parse_from_rfc3339(r.get("created_at"))
-                .unwrap()
-                .with_timezone(&Utc),
-        }))
+        let alert = match row {
+            None => return Ok(None),
+            Some(r) => {
+                let alert_date = DateTime::parse_from_rfc3339(r.get("alert_date"))
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .map_err(|e| crate::RightsError::Serialization(e.to_string()))?;
+                let created_at = DateTime::parse_from_rfc3339(r.get("created_at"))
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .map_err(|e| crate::RightsError::Serialization(e.to_string()))?;
+                ExpirationAlert {
+                    id: r.get("id"),
+                    grant_id: r.get("grant_id"),
+                    alert_type: AlertType::from_str(r.get("alert_type")),
+                    alert_date,
+                    notification_sent: r.get::<i32, _>("notification_sent") != 0,
+                    created_at,
+                }
+            }
+        };
+
+        Ok(Some(alert))
     }
 
     /// Get pending alerts (not yet sent and alert date has passed)
@@ -146,21 +155,24 @@ impl ExpirationAlert {
         .fetch_all(db.pool())
         .await?;
 
-        Ok(rows
-            .into_iter()
-            .map(|r| ExpirationAlert {
-                id: r.get("id"),
-                grant_id: r.get("grant_id"),
-                alert_type: AlertType::from_str(r.get("alert_type")),
-                alert_date: DateTime::parse_from_rfc3339(r.get("alert_date"))
-                    .unwrap()
-                    .with_timezone(&Utc),
-                notification_sent: r.get::<i32, _>("notification_sent") != 0,
-                created_at: DateTime::parse_from_rfc3339(r.get("created_at"))
-                    .unwrap()
-                    .with_timezone(&Utc),
+        rows.into_iter()
+            .map(|r| {
+                let alert_date = DateTime::parse_from_rfc3339(r.get("alert_date"))
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .map_err(|e| crate::RightsError::Serialization(e.to_string()))?;
+                let created_at = DateTime::parse_from_rfc3339(r.get("created_at"))
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .map_err(|e| crate::RightsError::Serialization(e.to_string()))?;
+                Ok(ExpirationAlert {
+                    id: r.get("id"),
+                    grant_id: r.get("grant_id"),
+                    alert_type: AlertType::from_str(r.get("alert_type")),
+                    alert_date,
+                    notification_sent: r.get::<i32, _>("notification_sent") != 0,
+                    created_at,
+                })
             })
-            .collect())
+            .collect()
     }
 
     /// Get all alerts for a grant
@@ -176,21 +188,24 @@ impl ExpirationAlert {
         .fetch_all(db.pool())
         .await?;
 
-        Ok(rows
-            .into_iter()
-            .map(|r| ExpirationAlert {
-                id: r.get("id"),
-                grant_id: r.get("grant_id"),
-                alert_type: AlertType::from_str(r.get("alert_type")),
-                alert_date: DateTime::parse_from_rfc3339(r.get("alert_date"))
-                    .unwrap()
-                    .with_timezone(&Utc),
-                notification_sent: r.get::<i32, _>("notification_sent") != 0,
-                created_at: DateTime::parse_from_rfc3339(r.get("created_at"))
-                    .unwrap()
-                    .with_timezone(&Utc),
+        rows.into_iter()
+            .map(|r| {
+                let alert_date = DateTime::parse_from_rfc3339(r.get("alert_date"))
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .map_err(|e| crate::RightsError::Serialization(e.to_string()))?;
+                let created_at = DateTime::parse_from_rfc3339(r.get("created_at"))
+                    .map(|dt| dt.with_timezone(&Utc))
+                    .map_err(|e| crate::RightsError::Serialization(e.to_string()))?;
+                Ok(ExpirationAlert {
+                    id: r.get("id"),
+                    grant_id: r.get("grant_id"),
+                    alert_type: AlertType::from_str(r.get("alert_type")),
+                    alert_date,
+                    notification_sent: r.get::<i32, _>("notification_sent") != 0,
+                    created_at,
+                })
             })
-            .collect())
+            .collect()
     }
 
     /// Delete alert from database
@@ -228,15 +243,23 @@ mod tests {
 
     #[tokio::test]
     async fn test_alert_save_and_load() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("rights test operation should succeed");
         let db_path = format!("sqlite://{}/test.db", temp_dir.path().display());
-        let db = RightsDatabase::new(&db_path).await.unwrap();
+        let db = RightsDatabase::new(&db_path)
+            .await
+            .expect("rights test operation should succeed");
 
         // Create asset and owner first
         let asset = crate::rights::Asset::new("Test Asset", crate::rights::AssetType::Video);
-        asset.save(&db).await.unwrap();
+        asset
+            .save(&db)
+            .await
+            .expect("rights test operation should succeed");
         let owner = crate::rights::RightsOwner::new("Test Owner");
-        owner.save(&db).await.unwrap();
+        owner
+            .save(&db)
+            .await
+            .expect("rights test operation should succeed");
 
         // Create grant
         let grant = crate::rights::RightsGrant::new(
@@ -248,16 +271,24 @@ mod tests {
             true,
         );
         let grant_id = grant.id.clone();
-        grant.save(&db).await.unwrap();
+        grant
+            .save(&db)
+            .await
+            .expect("rights test operation should succeed");
 
         let alert = ExpirationAlert::new(&grant_id, AlertType::Critical, Utc::now());
         let alert_id = alert.id.clone();
 
-        alert.save(&db).await.unwrap();
+        alert
+            .save(&db)
+            .await
+            .expect("rights test operation should succeed");
 
-        let loaded = ExpirationAlert::load(&db, &alert_id).await.unwrap();
+        let loaded = ExpirationAlert::load(&db, &alert_id)
+            .await
+            .expect("rights test operation should succeed");
         assert!(loaded.is_some());
-        let loaded = loaded.unwrap();
+        let loaded = loaded.expect("rights test operation should succeed");
         assert_eq!(loaded.alert_type, AlertType::Critical);
     }
 }

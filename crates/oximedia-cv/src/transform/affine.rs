@@ -333,7 +333,7 @@ pub enum Interpolation {
 ///
 /// let src = vec![100u8; 100];
 /// let transform = AffineTransform::rotation(std::f64::consts::PI / 4.0);
-/// let result = transform_image(&src, 10, 10, &transform, 10, 10, Interpolation::Bilinear).unwrap();
+/// let result = transform_image(&src, 10, 10, &transform, 10, 10, Interpolation::Bilinear)?;
 /// ```
 pub fn transform_image(
     src: &[u8],
@@ -622,6 +622,103 @@ fn solve_6x6(a: &[[f64; 6]; 6], b: &[f64; 6]) -> CvResult<[f64; 6]> {
     Ok(x)
 }
 
+/// Apply an affine warp to a multi-channel image using inverse mapping with bilinear interpolation.
+///
+/// `m` is a 2×3 matrix `[[a, b, c], [d, e, f]]` where each destination pixel `(dx, dy)` is
+/// mapped back to the source position `(a*dx + b*dy + c, d*dx + e*dy + f)`.  Out-of-bounds
+/// source positions are filled with zeros (black / transparent border).
+///
+/// # Arguments
+///
+/// * `src` - Source image data (interleaved, `src_w * src_h * channels` bytes)
+/// * `src_w` - Source image width in pixels
+/// * `src_h` - Source image height in pixels
+/// * `channels` - Number of channels per pixel (e.g. 1 for gray, 3 for RGB/BGR)
+/// * `m` - 2×3 affine inverse-map matrix
+/// * `dst_w` - Destination image width in pixels
+/// * `dst_h` - Destination image height in pixels
+///
+/// # Returns
+///
+/// Warped image data (`dst_w * dst_h * channels` bytes).
+///
+/// # Errors
+///
+/// Returns an error if dimensions are zero or the source buffer is too small.
+///
+/// # Examples
+///
+/// ```
+/// use oximedia_cv::transform::affine::warp_affine_image;
+///
+/// // Identity warp on a 4×4 RGB image
+/// let src = vec![128u8; 4 * 4 * 3];
+/// let identity: [[f64; 3]; 2] = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]];
+/// let dst = warp_affine_image(&src, 4, 4, 3, identity, 4, 4)?;
+/// assert_eq!(dst.len(), 4 * 4 * 3);
+/// ```
+pub fn warp_affine_image(
+    src: &[u8],
+    src_w: usize,
+    src_h: usize,
+    channels: usize,
+    m: [[f64; 3]; 2],
+    dst_w: usize,
+    dst_h: usize,
+) -> CvResult<Vec<u8>> {
+    if src_w == 0 || src_h == 0 {
+        return Err(CvError::invalid_dimensions(src_w as u32, src_h as u32));
+    }
+    if dst_w == 0 || dst_h == 0 {
+        return Err(CvError::invalid_dimensions(dst_w as u32, dst_h as u32));
+    }
+    if channels == 0 {
+        return Err(CvError::invalid_parameter("channels", "must be > 0"));
+    }
+    let expected = src_w * src_h * channels;
+    if src.len() < expected {
+        return Err(CvError::insufficient_data(expected, src.len()));
+    }
+
+    let mut out = vec![0u8; dst_w * dst_h * channels];
+
+    // Helper: bilinear sample of a single channel, returning 0.0 for out-of-bounds.
+    let sample = |row: i32, col: i32, ch: usize| -> f32 {
+        if row < 0 || row >= src_h as i32 || col < 0 || col >= src_w as i32 {
+            return 0.0;
+        }
+        src[(row as usize * src_w + col as usize) * channels + ch] as f32
+    };
+
+    for dy in 0..dst_h {
+        for dx in 0..dst_w {
+            // Inverse map: destination (dx, dy) → source (sx, sy)
+            let sx = m[0][0] * dx as f64 + m[0][1] * dy as f64 + m[0][2];
+            let sy = m[1][0] * dx as f64 + m[1][1] * dy as f64 + m[1][2];
+
+            let x0 = sx.floor() as i32;
+            let y0 = sy.floor() as i32;
+            let fx = (sx - sx.floor()) as f32;
+            let fy = (sy - sy.floor()) as f32;
+
+            let dst_off = (dy * dst_w + dx) * channels;
+            for ch in 0..channels {
+                let v00 = sample(y0, x0, ch);
+                let v10 = sample(y0, x0 + 1, ch);
+                let v01 = sample(y0 + 1, x0, ch);
+                let v11 = sample(y0 + 1, x0 + 1, ch);
+                let val = v00 * (1.0 - fx) * (1.0 - fy)
+                    + v10 * fx * (1.0 - fy)
+                    + v01 * (1.0 - fx) * fy
+                    + v11 * fx * fy;
+                out[dst_off + ch] = val.clamp(0.0, 255.0) as u8;
+            }
+        }
+    }
+
+    Ok(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -702,7 +799,7 @@ mod tests {
     #[test]
     fn test_inverse() {
         let transform = AffineTransform::translation(10.0, 20.0).scale(2.0, 2.0);
-        let inverse = transform.inverse().unwrap();
+        let inverse = transform.inverse().expect("inverse should succeed");
 
         let (x, y) = transform.transform_point(5.0, 5.0);
         let (rx, ry) = inverse.transform_point(x, y);
@@ -722,8 +819,8 @@ mod tests {
     fn test_transform_image() {
         let src = vec![100u8; 100];
         let transform = AffineTransform::identity();
-        let result =
-            transform_image(&src, 10, 10, &transform, 10, 10, Interpolation::Bilinear).unwrap();
+        let result = transform_image(&src, 10, 10, &transform, 10, 10, Interpolation::Bilinear)
+            .expect("transform_image should succeed");
         assert_eq!(result.len(), 100);
     }
 
@@ -732,7 +829,8 @@ mod tests {
         let src_points = vec![(0.0, 0.0), (1.0, 0.0), (0.0, 1.0)];
         let dst_points = vec![(0.0, 0.0), (2.0, 0.0), (0.0, 2.0)];
 
-        let transform = estimate_affine(&src_points, &dst_points).unwrap();
+        let transform =
+            estimate_affine(&src_points, &dst_points).expect("estimate_affine should succeed");
 
         // Should be a 2x scale
         let (x, y) = transform.transform_point(1.0, 1.0);

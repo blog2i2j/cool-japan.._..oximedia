@@ -95,21 +95,30 @@ mod tests {
 
     #[tokio::test]
     async fn test_usage_report() {
-        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_dir = tempfile::tempdir().expect("rights test operation should succeed");
         let db_path = format!("sqlite://{}/test.db", temp_dir.path().display());
-        let db = RightsDatabase::new(&db_path).await.unwrap();
+        let db = RightsDatabase::new(&db_path)
+            .await
+            .expect("rights test operation should succeed");
 
         // Create asset first to satisfy foreign key constraint
         let asset = crate::rights::Asset::new("Test Asset", crate::rights::AssetType::Video);
         let asset_id = asset.id.clone();
-        asset.save(&db).await.unwrap();
+        asset
+            .save(&db)
+            .await
+            .expect("rights test operation should succeed");
 
         let now = Utc::now();
         let log1 = UsageLog::new(&asset_id, UsageType::Commercial, now).with_territory("US");
         let log2 = UsageLog::new(&asset_id, UsageType::Web, now).with_territory("GB");
 
-        log1.save(&db).await.unwrap();
-        log2.save(&db).await.unwrap();
+        log1.save(&db)
+            .await
+            .expect("rights test operation should succeed");
+        log2.save(&db)
+            .await
+            .expect("rights test operation should succeed");
 
         let report = UsageReport::generate(
             &db,
@@ -118,7 +127,7 @@ mod tests {
             now + chrono::Duration::hours(1),
         )
         .await
-        .unwrap();
+        .expect("rights test operation should succeed");
 
         assert_eq!(report.stats.total_uses, 2);
     }

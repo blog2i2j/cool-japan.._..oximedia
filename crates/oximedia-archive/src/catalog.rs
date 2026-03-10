@@ -403,7 +403,7 @@ mod tests {
         assert_eq!(entries[0].id, "film001");
         assert_eq!(entries[0].title, "My Documentary");
         assert_eq!(entries[0].format, "mp4");
-        assert!((entries[0].duration_secs.unwrap() - 3600.5).abs() < 1e-6);
+        assert!((entries[0].duration_secs.expect("test expectation failed") - 3600.5).abs() < 1e-6);
         assert_eq!(entries[0].access_level, AccessLevel::Public);
     }
 
@@ -607,13 +607,19 @@ mod asset_catalog_tests {
     #[test]
     fn test_has_tag_true() {
         let c = make_catalog();
-        assert!(c.find_by_id(0).unwrap().has_tag("featured"));
+        assert!(c
+            .find_by_id(0)
+            .expect("find_by_id should succeed")
+            .has_tag("featured"));
     }
 
     #[test]
     fn test_has_tag_false() {
         let c = make_catalog();
-        assert!(!c.find_by_id(0).unwrap().has_tag("music"));
+        assert!(!c
+            .find_by_id(0)
+            .expect("find_by_id should succeed")
+            .has_tag("music"));
     }
 
     #[test]

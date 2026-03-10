@@ -786,7 +786,7 @@ mod tests {
         let mut muxer = OggMuxer::new(sink, config);
 
         let opus = create_opus_stream();
-        let idx = muxer.add_stream(opus).unwrap();
+        let idx = muxer.add_stream(opus).expect("operation should succeed");
 
         assert_eq!(idx, 0);
         assert_eq!(muxer.streams.len(), 1);
@@ -811,7 +811,7 @@ mod tests {
         let mut muxer = OggMuxer::new(sink, config);
 
         let opus = create_opus_stream();
-        muxer.add_stream(opus).unwrap();
+        muxer.add_stream(opus).expect("operation should succeed");
 
         let result = muxer.write_header().await;
         assert!(result.is_ok());
@@ -825,8 +825,11 @@ mod tests {
         let mut muxer = OggMuxer::new(sink, config);
 
         let opus = create_opus_stream();
-        muxer.add_stream(opus).unwrap();
-        muxer.write_header().await.unwrap();
+        muxer.add_stream(opus).expect("operation should succeed");
+        muxer
+            .write_header()
+            .await
+            .expect("operation should succeed");
 
         let packet = Packet::new(
             0,
@@ -846,8 +849,11 @@ mod tests {
         let mut muxer = OggMuxer::new(sink, config);
 
         let opus = create_opus_stream();
-        muxer.add_stream(opus).unwrap();
-        muxer.write_header().await.unwrap();
+        muxer.add_stream(opus).expect("operation should succeed");
+        muxer
+            .write_header()
+            .await
+            .expect("operation should succeed");
 
         let result = muxer.write_trailer().await;
         assert!(result.is_ok());

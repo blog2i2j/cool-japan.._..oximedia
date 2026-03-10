@@ -413,7 +413,7 @@ mod tests {
 
         list1.merge(&list2);
         assert_eq!(list1.len(), 3);
-        assert_eq!(list1.get("a").unwrap().reason, RevocationReason::PolicyViolation);
+        assert_eq!(list1.get("a").expect("entry should exist").reason, RevocationReason::PolicyViolation);
         assert!(list1.get("c").is_some());
     }
 

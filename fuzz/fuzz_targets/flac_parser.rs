@@ -23,9 +23,10 @@ fuzz_target!(|data: &[u8]| {
     let mut demuxer = FlacDemuxer::new(source);
 
     // Create a minimal runtime for async operations
-    let rt = tokio::runtime::Builder::new_current_thread()
-        .build()
-        .unwrap();
+    let rt = match tokio::runtime::Builder::new_current_thread().build() {
+        Ok(rt) => rt,
+        Err(_) => return,
+    };
 
     rt.block_on(async {
         // Try to probe the format

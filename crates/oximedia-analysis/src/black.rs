@@ -23,7 +23,7 @@
 //!
 //! // Process frames
 //! # let black_frame = vec![0u8; 1920 * 1080];
-//! detector.process_frame(&black_frame, 1920, 1080, 0).unwrap();
+//! detector.process_frame(&black_frame, 1920, 1080, 0)?;
 //!
 //! let segments = detector.finalize();
 //! println!("Found {} black segments", segments.len());
@@ -261,13 +261,17 @@ mod tests {
         // Process black frames
         let black_frame = vec![0u8; 64 * 64];
         for i in 0..5 {
-            detector.process_frame(&black_frame, 64, 64, i).unwrap();
+            detector
+                .process_frame(&black_frame, 64, 64, i)
+                .expect("frame processing should succeed");
         }
 
         // Process non-black frames
         let normal_frame = vec![128u8; 64 * 64];
         for i in 5..10 {
-            detector.process_frame(&normal_frame, 64, 64, i).unwrap();
+            detector
+                .process_frame(&normal_frame, 64, 64, i)
+                .expect("frame processing should succeed");
         }
 
         let segments = detector.finalize();
@@ -283,7 +287,9 @@ mod tests {
         // Process only 5 black frames (below minimum)
         let black_frame = vec![0u8; 64 * 64];
         for i in 0..5 {
-            detector.process_frame(&black_frame, 64, 64, i).unwrap();
+            detector
+                .process_frame(&black_frame, 64, 64, i)
+                .expect("frame processing should succeed");
         }
 
         let segments = detector.finalize();
@@ -303,11 +309,15 @@ mod tests {
 
         // Silent audio
         let silent = vec![0.0f32; 5000];
-        detector.process_samples(&silent).unwrap();
+        detector
+            .process_samples(&silent)
+            .expect("sample processing should succeed");
 
         // Loud audio
         let loud = vec![0.5f32; 5000];
-        detector.process_samples(&loud).unwrap();
+        detector
+            .process_samples(&loud)
+            .expect("sample processing should succeed");
 
         let segments = detector.finalize();
         assert!(!segments.is_empty());

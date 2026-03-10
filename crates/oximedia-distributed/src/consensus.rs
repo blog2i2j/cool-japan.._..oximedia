@@ -363,7 +363,7 @@ mod tests {
         assert_eq!(log.last_index(), 2);
         assert_eq!(log.last_term(), RaftTerm::new(1));
         assert!(log.entry_at(1).is_some());
-        assert_eq!(log.entry_at(1).unwrap().command, "cmd1");
+        assert_eq!(log.entry_at(1).expect("entry should exist").command, "cmd1");
         assert!(log.entry_at(0).is_none());
         assert!(log.entry_at(3).is_none());
     }

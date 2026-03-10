@@ -265,7 +265,7 @@ mod tests {
         let mut h = JobHistory::new();
         h.record(entry("j", true, 100));
         h.record(entry("j", false, 200));
-        let avg = h.average_duration().unwrap();
+        let avg = h.average_duration().expect("avg should be valid");
         assert_eq!(avg.as_millis(), 150);
     }
 

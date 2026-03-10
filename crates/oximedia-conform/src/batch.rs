@@ -142,7 +142,8 @@ impl BatchProcessor {
             .jobs
             .par_iter()
             .map(|job| {
-                let rt = tokio::runtime::Runtime::new().unwrap();
+                let rt = tokio::runtime::Runtime::new()
+                    .expect("failed to create tokio runtime for parallel batch job");
                 rt.block_on(self.process_job(job))
             })
             .collect();

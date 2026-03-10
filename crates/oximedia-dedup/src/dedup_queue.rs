@@ -383,11 +383,11 @@ mod tests {
             .with_max_retries(2);
         assert!(task.can_retry());
 
-        let r1 = task.retry().unwrap();
+        let r1 = task.retry().expect("operation should succeed");
         assert_eq!(r1.retries, 1);
         assert!(r1.can_retry());
 
-        let r2 = r1.retry().unwrap();
+        let r2 = r1.retry().expect("operation should succeed");
         assert_eq!(r2.retries, 2);
         assert!(!r2.can_retry());
         assert!(r2.retry().is_none());
@@ -405,11 +405,11 @@ mod tests {
         assert_eq!(q.len(), 3);
 
         // Should dequeue in priority order
-        let t = q.dequeue().unwrap();
+        let t = q.dequeue().expect("operation should succeed");
         assert_eq!(t.priority, DedupPriority::High);
-        let t = q.dequeue().unwrap();
+        let t = q.dequeue().expect("operation should succeed");
         assert_eq!(t.priority, DedupPriority::Normal);
-        let t = q.dequeue().unwrap();
+        let t = q.dequeue().expect("operation should succeed");
         assert_eq!(t.priority, DedupPriority::Low);
         assert!(q.dequeue().is_none());
     }

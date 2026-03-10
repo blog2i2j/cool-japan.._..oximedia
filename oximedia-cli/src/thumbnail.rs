@@ -368,15 +368,15 @@ mod tests {
     #[test]
     fn test_thumbnail_format_parsing() {
         assert_eq!(
-            ThumbnailFormat::from_str("png").unwrap(),
+            ThumbnailFormat::from_str("png").expect("ThumbnailFormat::from_str should succeed"),
             ThumbnailFormat::Png
         );
         assert_eq!(
-            ThumbnailFormat::from_str("jpeg").unwrap(),
+            ThumbnailFormat::from_str("jpeg").expect("ThumbnailFormat::from_str should succeed"),
             ThumbnailFormat::Jpeg
         );
         assert_eq!(
-            ThumbnailFormat::from_str("webp").unwrap(),
+            ThumbnailFormat::from_str("webp").expect("ThumbnailFormat::from_str should succeed"),
             ThumbnailFormat::Webp
         );
         assert!(ThumbnailFormat::from_str("bmp").is_err());
@@ -384,10 +384,16 @@ mod tests {
 
     #[test]
     fn test_parse_timestamp() {
-        assert_eq!(parse_timestamp("30").unwrap(), 30.0);
-        assert_eq!(parse_timestamp("1:30").unwrap(), 90.0);
-        assert_eq!(parse_timestamp("1:01:30").unwrap(), 3690.0);
-        assert_eq!(parse_timestamp("0:05:00").unwrap(), 300.0);
+        assert_eq!(parse_timestamp("30").expect("parse should succeed"), 30.0);
+        assert_eq!(parse_timestamp("1:30").expect("parse should succeed"), 90.0);
+        assert_eq!(
+            parse_timestamp("1:01:30").expect("parse should succeed"),
+            3690.0
+        );
+        assert_eq!(
+            parse_timestamp("0:05:00").expect("parse should succeed"),
+            300.0
+        );
     }
 
     #[test]

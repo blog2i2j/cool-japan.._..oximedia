@@ -791,7 +791,7 @@ mod tests {
         let header = NdiFrameHeader::new(NdiFrameType::Video, 123, 456789, 1024);
         let encoded = header.encode();
         let mut cursor = Cursor::new(&encoded[..]);
-        let decoded = NdiFrameHeader::decode(&mut cursor).unwrap();
+        let decoded = NdiFrameHeader::decode(&mut cursor).expect("unexpected None/Err");
 
         assert_eq!(decoded.frame_type, NdiFrameType::Video);
         assert_eq!(decoded.sequence, 123);
@@ -805,9 +805,9 @@ mod tests {
         metadata.insert("key1".to_string(), "value1".to_string());
         metadata.insert("key2".to_string(), "value2".to_string());
 
-        let encoded = metadata.encode(1, 1000).unwrap();
+        let encoded = metadata.encode(1, 1000).expect("unexpected None/Err");
         let cursor = Cursor::new(&encoded[..]);
-        let (decoded, header) = NdiMetadata::decode(cursor).unwrap();
+        let (decoded, header) = NdiMetadata::decode(cursor).expect("unexpected None/Err");
 
         assert_eq!(decoded.get("key1"), Some(&"value1".to_string()));
         assert_eq!(decoded.get("key2"), Some(&"value2".to_string()));
@@ -828,7 +828,7 @@ mod tests {
         let result = sync.get_synchronized();
         assert!(result.is_some());
 
-        let (video, audio) = result.unwrap();
+        let (video, audio) = result.expect("expected successful result");
         assert!(video.is_some());
         assert_eq!(audio.len(), 1);
     }

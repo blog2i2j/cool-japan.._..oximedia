@@ -288,7 +288,7 @@ mod tests {
     use super::*;
 
     fn make_tc(h: u8, m: u8, s: u8, f: u8) -> Timecode {
-        Timecode::new(h, m, s, f, FrameRate::Fps25).unwrap()
+        Timecode::new(h, m, s, f, FrameRate::Fps25).expect("valid timecode")
     }
 
     #[test]
@@ -325,7 +325,10 @@ mod tests {
         let mut interp = TcInterpolator::new(FrameRate::Fps25, InterpolationMode::Linear);
         let tc = make_tc(0, 0, 1, 0);
         interp.add_ref(TcRefPoint::new(tc, 25));
-        let result = interp.interpolate(25).unwrap().unwrap();
+        let result = interp
+            .interpolate(25)
+            .expect("interpolation should succeed")
+            .expect("interpolation should succeed");
         assert_eq!(result, tc);
     }
 
@@ -335,7 +338,10 @@ mod tests {
         interp.add_ref(TcRefPoint::new(make_tc(0, 0, 0, 0), 0));
         interp.add_ref(TcRefPoint::new(make_tc(0, 0, 2, 0), 50));
         // Position 10 should be 10 frames from start => 00:00:00:10
-        let result = interp.interpolate(10).unwrap().unwrap();
+        let result = interp
+            .interpolate(10)
+            .expect("interpolation should succeed")
+            .expect("interpolation should succeed");
         assert_eq!(result.hours, 0);
         assert_eq!(result.minutes, 0);
         assert_eq!(result.seconds, 0);
@@ -348,7 +354,10 @@ mod tests {
             TcInterpolator::new(FrameRate::Fps25, InterpolationMode::Linear).with_max_gap(500);
         interp.add_ref(TcRefPoint::new(make_tc(0, 0, 0, 0), 0));
         // Position 30 => extrapolate forward => 00:00:01:05
-        let result = interp.interpolate(30).unwrap().unwrap();
+        let result = interp
+            .interpolate(30)
+            .expect("interpolation should succeed")
+            .expect("interpolation should succeed");
         assert_eq!(result.seconds, 1);
         assert_eq!(result.frames, 5);
     }
@@ -367,10 +376,16 @@ mod tests {
         interp.add_ref(TcRefPoint::new(tc0, 0));
         interp.add_ref(TcRefPoint::new(tc1, 50));
         // Position 20 is closer to 0
-        let result = interp.interpolate(20).unwrap().unwrap();
+        let result = interp
+            .interpolate(20)
+            .expect("interpolation should succeed")
+            .expect("interpolation should succeed");
         assert_eq!(result, tc0);
         // Position 30 is closer to 50
-        let result = interp.interpolate(30).unwrap().unwrap();
+        let result = interp
+            .interpolate(30)
+            .expect("interpolation should succeed")
+            .expect("interpolation should succeed");
         assert_eq!(result, tc1);
     }
 
@@ -381,7 +396,10 @@ mod tests {
         // Before first ref => None
         assert!(interp.interpolate(5).is_none());
         // After first ref => count forward
-        let result = interp.interpolate(15).unwrap().unwrap();
+        let result = interp
+            .interpolate(15)
+            .expect("interpolation should succeed")
+            .expect("interpolation should succeed");
         assert_eq!(result.frames, 5);
     }
 
@@ -424,8 +442,14 @@ mod tests {
         let results = batch_interpolate(&interp, &positions);
         assert_eq!(results.len(), 4);
         assert!(results[0].reliable);
-        assert_eq!(results[0].timecode.unwrap().frames, 0);
-        assert_eq!(results[2].timecode.unwrap().frames, 10);
+        assert_eq!(
+            results[0].timecode.expect("timecode should exist").frames,
+            0
+        );
+        assert_eq!(
+            results[2].timecode.expect("timecode should exist").frames,
+            10
+        );
     }
 
     #[test]

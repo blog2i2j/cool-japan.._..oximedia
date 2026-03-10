@@ -462,7 +462,9 @@ mod tests {
     fn test_web_optimized_profile() {
         let source = create_test_properties();
         let options = ConversionOptions::default();
-        let settings = Profile::WebOptimized.apply(&source, &options).unwrap();
+        let settings = Profile::WebOptimized
+            .apply(&source, &options)
+            .expect("profile operation should succeed");
 
         assert_eq!(settings.format, "mp4");
         assert_eq!(settings.video_codec, Some("h264".to_string()));
@@ -474,11 +476,15 @@ mod tests {
         let source = create_test_properties();
         let options = ConversionOptions::default();
 
-        let mp3 = Profile::AudioMp3.apply(&source, &options).unwrap();
+        let mp3 = Profile::AudioMp3
+            .apply(&source, &options)
+            .expect("profile operation should succeed");
         assert_eq!(mp3.format, "mp3");
         assert_eq!(mp3.video_codec, None);
 
-        let flac = Profile::AudioFlac.apply(&source, &options).unwrap();
+        let flac = Profile::AudioFlac
+            .apply(&source, &options)
+            .expect("profile operation should succeed");
         assert_eq!(flac.format, "flac");
         assert_eq!(flac.audio_bitrate, None);
     }
@@ -488,7 +494,8 @@ mod tests {
         let source = create_test_properties();
         let max = (1280, 720);
 
-        let resolution = calculate_resolution(&source, max).unwrap();
+        let resolution =
+            calculate_resolution(&source, max).expect("profile operation should succeed");
         assert_eq!(resolution, (1280, 720));
     }
 

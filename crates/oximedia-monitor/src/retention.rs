@@ -407,7 +407,9 @@ mod tests {
         reg.register(RetentionPolicy::new("specific", "system.cpu"));
         reg.register(RetentionPolicy::new("broad", "system.*"));
 
-        let p = reg.policy_for("system.cpu").unwrap();
+        let p = reg
+            .policy_for("system.cpu")
+            .expect("policy_for should succeed");
         assert_eq!(p.name, "specific");
     }
 
@@ -417,7 +419,9 @@ mod tests {
         reg.register(RetentionPolicy::new("specific", "system.*"));
         reg.register(RetentionPolicy::new("default", "*"));
 
-        let p = reg.policy_for("quality.psnr").unwrap();
+        let p = reg
+            .policy_for("quality.psnr")
+            .expect("policy_for should succeed");
         assert_eq!(p.name, "default");
     }
 
@@ -431,32 +435,47 @@ mod tests {
     #[test]
     fn test_aggregate_mean() {
         let vals = vec![1.0, 2.0, 3.0, 4.0];
-        assert!((aggregate(&vals, AggregationFn::Mean).unwrap() - 2.5).abs() < 1e-9);
+        assert!(
+            (aggregate(&vals, AggregationFn::Mean).expect("operation should succeed") - 2.5).abs()
+                < 1e-9
+        );
     }
 
     #[test]
     fn test_aggregate_max_min() {
         let vals = vec![3.0, 1.0, 4.0, 1.0, 5.0];
-        assert!((aggregate(&vals, AggregationFn::Max).unwrap() - 5.0).abs() < 1e-9);
-        assert!((aggregate(&vals, AggregationFn::Min).unwrap() - 1.0).abs() < 1e-9);
+        assert!(
+            (aggregate(&vals, AggregationFn::Max).expect("operation should succeed") - 5.0).abs()
+                < 1e-9
+        );
+        assert!(
+            (aggregate(&vals, AggregationFn::Min).expect("operation should succeed") - 1.0).abs()
+                < 1e-9
+        );
     }
 
     #[test]
     fn test_aggregate_sum() {
         let vals = vec![1.0, 2.0, 3.0];
-        assert!((aggregate(&vals, AggregationFn::Sum).unwrap() - 6.0).abs() < 1e-9);
+        assert!(
+            (aggregate(&vals, AggregationFn::Sum).expect("operation should succeed") - 6.0).abs()
+                < 1e-9
+        );
     }
 
     #[test]
     fn test_aggregate_last() {
         let vals = vec![10.0, 20.0, 30.0];
-        assert!((aggregate(&vals, AggregationFn::Last).unwrap() - 30.0).abs() < 1e-9);
+        assert!(
+            (aggregate(&vals, AggregationFn::Last).expect("operation should succeed") - 30.0).abs()
+                < 1e-9
+        );
     }
 
     #[test]
     fn test_aggregate_p95() {
         let vals: Vec<f64> = (1..=100).map(|x| x as f64).collect();
-        let p95 = aggregate(&vals, AggregationFn::P95).unwrap();
+        let p95 = aggregate(&vals, AggregationFn::P95).expect("operation should succeed");
         // 95th percentile of 1..=100 should be 95.
         assert!((p95 - 95.0).abs() < 1.0);
     }

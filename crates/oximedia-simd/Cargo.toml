@@ -11,7 +11,7 @@ repository.workspace = true
 [dependencies]
 
 [build-dependencies]
-cc = "1.2"
+cc = { version = "1.2", optional = true }
 
 [dev-dependencies]
 criterion = "0.8"
@@ -299,6 +299,7 @@ never_loop = "allow"
 [features]
 default = ["runtime-dispatch"]
 runtime-dispatch = []
+native-asm = ["cc"]
 force-avx2 = []
 force-avx512 = []
 force-neon = []

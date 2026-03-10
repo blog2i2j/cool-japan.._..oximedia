@@ -270,7 +270,7 @@ mod tests {
         let mut p = ConversionProgress::new(1, 1_000);
         // 500 frames in 2000 ms → fps = 250 → 500 remaining / 250 = 2s
         p.update(500, 0, 2_000);
-        let eta = p.eta_s().unwrap();
+        let eta = p.eta_s().expect("ETA should be computed after update");
         assert!((eta - 2.0).abs() < 1e-6);
     }
 

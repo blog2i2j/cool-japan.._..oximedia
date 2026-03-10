@@ -34,6 +34,7 @@ const RIFF_MAGIC: &[u8] = b"RIFF";
 const WAVE_MAGIC: &[u8] = b"WAVE";
 const ISOBMFF_FTYP: &[u8] = b"ftyp";
 const WEBVTT_MAGIC: &[u8] = b"WEBVTT";
+const Y4M_MAGIC: &[u8] = b"YUV4MPEG2";
 const MPEG_TS_SYNC: u8 = 0x47; // MPEG-TS sync byte
 const TS_PACKET_SIZE: usize = 188;
 
@@ -57,7 +58,7 @@ const TS_PACKET_SIZE: usize = 188;
 ///
 /// // WebM/Matroska header
 /// let data = [0x1A, 0x45, 0xDF, 0xA3, 0x01, 0x00, 0x00, 0x00];
-/// let result = probe_format(&data).unwrap();
+/// let result = probe_format(&data)?;
 /// assert_eq!(result.format, ContainerFormat::Matroska);
 /// ```
 pub fn probe_format(data: &[u8]) -> Result<ProbeResult, OxiError> {
@@ -78,6 +79,14 @@ pub fn probe_format(data: &[u8]) -> Result<ProbeResult, OxiError> {
     if data.starts_with(OGG_MAGIC) {
         return Ok(ProbeResult {
             format: ContainerFormat::Ogg,
+            confidence: 0.99,
+        });
+    }
+
+    // Check Y4M (YUV4MPEG2)
+    if data.len() >= Y4M_MAGIC.len() && data.starts_with(Y4M_MAGIC) {
+        return Ok(ProbeResult {
+            format: ContainerFormat::Y4m,
             confidence: 0.99,
         });
     }
@@ -171,7 +180,7 @@ mod tests {
     #[test]
     fn test_probe_matroska() {
         let data = [0x1A, 0x45, 0xDF, 0xA3, 0x01, 0x00, 0x00, 0x00];
-        let result = probe_format(&data).unwrap();
+        let result = probe_format(&data).expect("operation should succeed");
         assert_eq!(result.format, ContainerFormat::Matroska);
         assert!(result.confidence > 0.9);
     }
@@ -179,21 +188,21 @@ mod tests {
     #[test]
     fn test_probe_ogg() {
         let data = b"OggS\x00\x02\x00\x00\x00\x00\x00\x00";
-        let result = probe_format(data).unwrap();
+        let result = probe_format(data).expect("operation should succeed");
         assert_eq!(result.format, ContainerFormat::Ogg);
     }
 
     #[test]
     fn test_probe_flac() {
         let data = b"fLaC\x00\x00\x00\x22";
-        let result = probe_format(data).unwrap();
+        let result = probe_format(data).expect("operation should succeed");
         assert_eq!(result.format, ContainerFormat::Flac);
     }
 
     #[test]
     fn test_probe_wav() {
         let data = b"RIFF\x00\x00\x00\x00WAVEfmt ";
-        let result = probe_format(data).unwrap();
+        let result = probe_format(data).expect("operation should succeed");
         assert_eq!(result.format, ContainerFormat::Wav);
     }
 

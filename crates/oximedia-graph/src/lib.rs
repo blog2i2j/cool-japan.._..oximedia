@@ -30,9 +30,9 @@
 //!
 //! let graph = builder
 //!     .connect(source_id, PortId(0), sink_id, PortId(0))
-//!     .unwrap()
+//!     ?
 //!     .build()
-//!     .unwrap();
+//!     ?;
 //!
 //! assert_eq!(graph.node_count(), 2);
 //! ```

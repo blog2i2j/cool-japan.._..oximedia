@@ -81,7 +81,11 @@ impl AdrSession {
     #[must_use]
     pub fn get_cues_sorted(&self) -> Vec<(usize, &AdrCue)> {
         let mut cues: Vec<_> = self.cues.iter().map(|(id, cue)| (*id, cue)).collect();
-        cues.sort_by(|a, b| a.1.start_timecode.partial_cmp(&b.1.start_timecode).unwrap());
+        cues.sort_by(|a, b| {
+            a.1.start_timecode
+                .partial_cmp(&b.1.start_timecode)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
         cues
     }
 
@@ -509,7 +513,7 @@ mod tests {
             Timecode::from_frames(1100, 24.0),
         );
         let id = session.add_cue(cue);
-        let retrieved_cue = session.get_cue(id).unwrap();
+        let retrieved_cue = session.get_cue(id).expect("get_cue should succeed");
         assert_eq!(retrieved_cue.description, "Test dialogue");
     }
 

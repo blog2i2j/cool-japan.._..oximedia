@@ -386,7 +386,9 @@ mod tests {
         op.cancel();
         cq.submit(op);
         cq.drain_pending(256);
-        let done = cq.pop_completed().unwrap();
+        let done = cq
+            .pop_completed()
+            .expect("pop_completed should return item");
         assert_eq!(done.status, OpStatus::Cancelled);
     }
 
@@ -396,8 +398,18 @@ mod tests {
         cq.submit(IoOp::new_read(1, 0, 1));
         cq.submit(IoOp::new_read(2, 1, 1));
         cq.drain_pending(1);
-        assert_eq!(cq.pop_completed().unwrap().id, 1);
-        assert_eq!(cq.pop_completed().unwrap().id, 2);
+        assert_eq!(
+            cq.pop_completed()
+                .expect("pop_completed should return item")
+                .id,
+            1
+        );
+        assert_eq!(
+            cq.pop_completed()
+                .expect("pop_completed should return item")
+                .id,
+            2
+        );
     }
 
     #[test]
@@ -414,7 +426,7 @@ mod tests {
         let mut p = BytePoller::new(vec![10, 20, 30], 1);
         p.poll(); // Idle → Waiting
         p.poll(); // Waiting → Ready (count=2 >= 1)
-        let chunk = p.read_chunk(2).unwrap();
+        let chunk = p.read_chunk(2).expect("read_chunk should succeed");
         assert_eq!(chunk, &[10, 20]);
     }
 

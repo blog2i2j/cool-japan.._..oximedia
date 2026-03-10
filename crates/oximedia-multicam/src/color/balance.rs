@@ -310,7 +310,13 @@ mod tests {
         settings.temperature = 5000.0;
 
         matcher.update_settings(settings);
-        assert_eq!(matcher.get_settings(1).unwrap().temperature, 5000.0);
+        assert_eq!(
+            matcher
+                .get_settings(1)
+                .expect("multicam test operation should succeed")
+                .temperature,
+            5000.0
+        );
     }
 
     #[test]
@@ -324,7 +330,13 @@ mod tests {
 
         // All angles should have same temperature as reference
         for i in 1..3 {
-            assert_eq!(matcher.get_settings(i).unwrap().temperature, 5500.0);
+            assert_eq!(
+                matcher
+                    .get_settings(i)
+                    .expect("multicam test operation should succeed")
+                    .temperature,
+                5500.0
+            );
         }
     }
 
@@ -336,7 +348,7 @@ mod tests {
         let gray = matcher.detect_gray_card(&image, 1920, 1080);
         assert!(gray.is_some());
 
-        let rgb = gray.unwrap();
+        let rgb = gray.expect("multicam test operation should succeed");
         assert!((rgb[0] - 0.5).abs() < 0.01);
         assert!((rgb[1] - 0.5).abs() < 0.01);
         assert!((rgb[2] - 0.5).abs() < 0.01);

@@ -5,7 +5,7 @@
 
 use crate::error::{StabilizeError, StabilizeResult};
 use crate::motion::model::MotionModel;
-use ndarray::Array1;
+use scirs2_core::ndarray::Array1;
 use serde::{Deserialize, Serialize};
 
 /// A trajectory represents accumulated camera motion over a sequence of frames.

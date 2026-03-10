@@ -329,7 +329,7 @@ mod tests {
             database_path: ":memory:".to_string(),
             ..Default::default()
         };
-        Arc::new(Coordinator::new(config).await.unwrap())
+        Arc::new(Coordinator::new(config).await.expect("failed to create"))
     }
 
     #[tokio::test]
@@ -355,8 +355,11 @@ mod tests {
             deadline: None,
         };
 
-        let job_id = coord.submit_job(job).await.unwrap();
-        let retrieved = coord.get_job_status(job_id).await.unwrap();
+        let job_id = coord.submit_job(job).await.expect("failed to submit job");
+        let retrieved = coord
+            .get_job_status(job_id)
+            .await
+            .expect("await should be valid");
         assert_eq!(retrieved.id, job_id);
     }
 
@@ -377,10 +380,16 @@ mod tests {
             deadline: None,
         };
 
-        let job_id = coord.submit_job(job).await.unwrap();
-        coord.cancel_job(job_id).await.unwrap();
+        let job_id = coord.submit_job(job).await.expect("failed to submit job");
+        coord
+            .cancel_job(job_id)
+            .await
+            .expect("await should be valid");
 
-        let retrieved = coord.get_job_status(job_id).await.unwrap();
+        let retrieved = coord
+            .get_job_status(job_id)
+            .await
+            .expect("await should be valid");
         assert_eq!(retrieved.state, crate::JobState::Cancelled);
     }
 }

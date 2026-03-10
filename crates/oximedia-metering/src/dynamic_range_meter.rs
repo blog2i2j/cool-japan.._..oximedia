@@ -426,7 +426,7 @@ mod tests {
     #[test]
     fn test_crest_factor_from_samples() {
         let sig = sine_block(1000.0, 48000.0, 0.5, 4800);
-        let cf = CrestFactor::from_samples(&sig).unwrap();
+        let cf = CrestFactor::from_samples(&sig).expect("cf should be valid");
         // Sine wave crest factor ≈ 3 dB
         assert!(
             cf.crest_db > 2.0 && cf.crest_db < 4.0,
@@ -444,7 +444,7 @@ mod tests {
     fn test_crest_factor_over_compressed() {
         // DC signal → crest factor = 0 dB
         let sig = vec![0.5_f64; 1000];
-        let cf = CrestFactor::from_samples(&sig).unwrap();
+        let cf = CrestFactor::from_samples(&sig).expect("cf should be valid");
         assert!(cf.is_over_compressed());
     }
 
@@ -462,7 +462,7 @@ mod tests {
         h.add(-80.0); // below min, not counted in bins
         h.add(10.0); // above max, not counted in bins
                      // total still incremented but bin counts should be 0
-        let mode = h.mode_bin().unwrap();
+        let mode = h.mode_bin().expect("mode should be valid");
         assert_eq!(h.bin_count(mode), 0);
     }
 
@@ -539,7 +539,7 @@ mod tests {
         let sig = vec![0.5_f64; 100];
         meter.process_mono(&sig);
         meter.set_integrated_lufs(-20.0);
-        let plr = meter.plr().unwrap();
+        let plr = meter.plr().expect("plr should be valid");
         assert!(plr.plr_lu.is_finite());
     }
 

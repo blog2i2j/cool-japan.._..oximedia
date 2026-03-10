@@ -538,7 +538,7 @@ mod tests {
 
     #[test]
     fn test_generic_storage_creation() {
-        let endpoint = Url::parse("https://s3.example.com").unwrap();
+        let endpoint = Url::parse("https://s3.example.com").expect("endpoint should be valid");
         let credentials = Credentials::new("access".to_string(), "secret".to_string());
         let storage = GenericStorage::new(endpoint, credentials, "test-bucket".to_string());
         assert!(storage.is_ok());

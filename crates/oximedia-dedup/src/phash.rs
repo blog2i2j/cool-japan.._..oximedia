@@ -592,12 +592,12 @@ mod tests {
     // ----- PHash tests -----
 
     fn solid_frame(val: u8, w: usize, h: usize) -> GrayFrame {
-        GrayFrame::new(w, h, vec![val; w * h]).unwrap()
+        GrayFrame::new(w, h, vec![val; w * h]).expect("operation should succeed")
     }
 
     fn gradient_frame(w: usize, h: usize) -> GrayFrame {
         let data = (0..w * h).map(|i| (i % 256) as u8).collect();
-        GrayFrame::new(w, h, data).unwrap()
+        GrayFrame::new(w, h, data).expect("operation should succeed")
     }
 
     #[test]
@@ -635,7 +635,7 @@ mod tests {
         let h = compute_phash(&frame);
         let hex = h.to_hex();
         assert_eq!(hex.len(), 16);
-        let h2 = PHash::from_hex(&hex).unwrap();
+        let h2 = PHash::from_hex(&hex).expect("operation should succeed");
         assert_eq!(h, h2);
     }
 
@@ -676,7 +676,7 @@ mod tests {
     #[test]
     fn test_gray_frame_from_rgb() {
         let rgb: Vec<u8> = (0..8 * 8 * 3).map(|i| (i % 256) as u8).collect();
-        let frame = GrayFrame::from_rgb(8, 8, &rgb, 3).unwrap();
+        let frame = GrayFrame::from_rgb(8, 8, &rgb, 3).expect("operation should succeed");
         assert_eq!(frame.data.len(), 64);
     }
 

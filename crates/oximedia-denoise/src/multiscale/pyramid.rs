@@ -33,7 +33,9 @@ impl LaplacianPyramid {
 
         // Build Gaussian pyramid
         for _ in 1..num_levels {
-            let prev = gaussian_pyramid.last().unwrap();
+            let Some(prev) = gaussian_pyramid.last() else {
+                break;
+            };
             let downsampled = downsample(prev);
             gaussian_pyramid.push(downsampled);
         }

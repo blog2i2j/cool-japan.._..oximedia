@@ -314,7 +314,9 @@ mod tests {
             progress: Some(0.75),
             queue_position: None,
         };
-        assert!((q.progress_pct().unwrap() - 75.0).abs() < f64::EPSILON);
+        assert!(
+            (q.progress_pct().expect("progress_pct should succeed") - 75.0).abs() < f64::EPSILON
+        );
     }
 
     #[test]

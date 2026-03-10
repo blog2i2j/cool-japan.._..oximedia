@@ -110,13 +110,19 @@ mod tests {
     #[tokio::test]
     async fn test_migration() {
         let options = SqliteConnectOptions::from_str(":memory:")
-            .unwrap()
+            .expect("operation should succeed")
             .create_if_missing(true);
-        let pool = SqlitePool::connect_with(options).await.unwrap();
+        let pool = SqlitePool::connect_with(options)
+            .await
+            .expect("connect_with should succeed");
 
-        migrate_database(&pool).await.unwrap();
+        migrate_database(&pool)
+            .await
+            .expect("operation should succeed");
 
-        let version = get_current_version(&pool).await.unwrap();
+        let version = get_current_version(&pool)
+            .await
+            .expect("get_current_version should succeed");
         assert!(version >= 1);
     }
 }

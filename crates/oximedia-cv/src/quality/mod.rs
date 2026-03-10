@@ -27,7 +27,7 @@
 //! distorted.allocate();
 //!
 //! // Calculate quality metrics
-//! let metrics = calculate_metrics(&reference, &distorted).unwrap();
+//! let metrics = calculate_metrics(&reference, &distorted)?;
 //! println!("PSNR: {:.2} dB", metrics.psnr);
 //! println!("SSIM: {:.4}", metrics.ssim);
 //! println!("VMAF: {:.2}", metrics.vmaf);
@@ -165,7 +165,7 @@ impl Default for QualityMetrics {
 /// let mut distorted = VideoFrame::new(PixelFormat::Yuv420p, 1280, 720);
 /// distorted.allocate();
 ///
-/// let metrics = calculate_metrics(&reference, &distorted).unwrap();
+/// let metrics = calculate_metrics(&reference, &distorted)?;
 /// assert!(metrics.psnr >= 0.0);
 /// assert!(metrics.ssim >= 0.0 && metrics.ssim <= 1.0);
 /// ```

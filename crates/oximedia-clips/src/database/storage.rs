@@ -260,29 +260,38 @@ mod tests {
 
     #[tokio::test]
     async fn test_database_creation() {
-        let db = ClipDatabase::new(":memory:").await.unwrap();
-        let count = db.count_clips().await.unwrap();
+        let db = ClipDatabase::new(":memory:")
+            .await
+            .expect("new should succeed");
+        let count = db.count_clips().await.expect("count_clips should succeed");
         assert_eq!(count, 0);
     }
 
     #[tokio::test]
     async fn test_save_and_get_clip() {
-        let db = ClipDatabase::new(":memory:").await.unwrap();
+        let db = ClipDatabase::new(":memory:")
+            .await
+            .expect("new should succeed");
 
         let mut clip = Clip::new(PathBuf::from("/test.mov"));
         clip.set_name("Test Clip");
         clip.add_keyword("test");
 
-        db.save_clip(&clip).await.unwrap();
+        db.save_clip(&clip).await.expect("operation should succeed");
 
-        let loaded = db.get_clip(&clip.id).await.unwrap();
+        let loaded = db
+            .get_clip(&clip.id)
+            .await
+            .expect("get_clip should succeed");
         assert_eq!(loaded.name, "Test Clip");
         assert_eq!(loaded.keywords.len(), 1);
     }
 
     #[tokio::test]
     async fn test_search_clips() {
-        let db = ClipDatabase::new(":memory:").await.unwrap();
+        let db = ClipDatabase::new(":memory:")
+            .await
+            .expect("new should succeed");
 
         let mut clip1 = Clip::new(PathBuf::from("/test1.mov"));
         clip1.set_name("Interview");
@@ -290,10 +299,17 @@ mod tests {
         let mut clip2 = Clip::new(PathBuf::from("/test2.mov"));
         clip2.set_name("Action Scene");
 
-        db.save_clip(&clip1).await.unwrap();
-        db.save_clip(&clip2).await.unwrap();
+        db.save_clip(&clip1)
+            .await
+            .expect("operation should succeed");
+        db.save_clip(&clip2)
+            .await
+            .expect("operation should succeed");
 
-        let results = db.search_clips("interview").await.unwrap();
+        let results = db
+            .search_clips("interview")
+            .await
+            .expect("search_clips should succeed");
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].name, "Interview");
     }

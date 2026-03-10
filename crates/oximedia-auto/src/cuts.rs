@@ -683,7 +683,11 @@ pub fn suggest_cuts_from_highlights(
     }
 
     // Sort by priority and take top N
-    cuts.sort_by(|a, b| b.priority.partial_cmp(&a.priority).unwrap());
+    cuts.sort_by(|a, b| {
+        b.priority
+            .partial_cmp(&a.priority)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
     cuts.truncate(max_cuts);
 
     // Re-sort by timestamp

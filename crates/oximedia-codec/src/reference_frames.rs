@@ -261,7 +261,7 @@ mod tests {
         list.add(RefFrame::short_term(0, 0, 0));
         list.add(RefFrame::short_term(10, 1, 1));
         list.add(RefFrame::short_term(20, 2, 2));
-        let closest = list.find_closest_poc(12).unwrap();
+        let closest = list.find_closest_poc(12).expect("should succeed");
         assert_eq!(closest.poc, 10);
     }
 

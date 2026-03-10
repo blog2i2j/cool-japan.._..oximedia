@@ -223,7 +223,9 @@ mod tests {
         };
 
         aligner.set_transform(1, transform);
-        let retrieved = aligner.get_transform(1).unwrap();
+        let retrieved = aligner
+            .get_transform(1)
+            .expect("multicam test operation should succeed");
         assert_eq!(retrieved.tx, 10.0);
         assert_eq!(retrieved.ty, 20.0);
     }
@@ -282,7 +284,9 @@ mod tests {
         aligner.set_transform(1, transform);
 
         aligner.reset();
-        let reset_transform = aligner.get_transform(1).unwrap();
+        let reset_transform = aligner
+            .get_transform(1)
+            .expect("multicam test operation should succeed");
         assert_eq!(reset_transform.tx, 0.0);
         assert_eq!(reset_transform.ty, 0.0);
     }

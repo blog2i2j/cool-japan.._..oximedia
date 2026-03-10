@@ -229,7 +229,7 @@ impl Default for PerspectiveTransform {
 /// let src = vec![(0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 100.0)];
 /// let dst = vec![(10.0, 10.0), (90.0, 10.0), (90.0, 90.0), (10.0, 90.0)];
 ///
-/// let transform = find_homography(&src, &dst).unwrap();
+/// let transform = find_homography(&src, &dst)?;
 /// ```
 pub fn find_homography(
     src_points: &[(f64, f64)],
@@ -381,7 +381,7 @@ fn solve_8x8(a: &[[f64; 8]; 8], b: &[f64; 8]) -> CvResult<[f64; 8]> {
 ///
 /// let src = vec![100u8; 100];
 /// let transform = PerspectiveTransform::identity();
-/// let result = warp_perspective(&src, 10, 10, &transform, 10, 10).unwrap();
+/// let result = warp_perspective(&src, 10, 10, &transform, 10, 10)?;
 /// ```
 pub fn warp_perspective(
     src: &[u8],
@@ -549,7 +549,7 @@ mod tests {
         let transform =
             PerspectiveTransform::new([[2.0, 0.0, 10.0], [0.0, 2.0, 20.0], [0.0, 0.0, 1.0]]);
 
-        let inverse = transform.inverse().unwrap();
+        let inverse = transform.inverse().expect("inverse should succeed");
 
         let (x, y) = transform.transform_point(5.0, 5.0);
         let (rx, ry) = inverse.transform_point(x, y);
@@ -577,7 +577,7 @@ mod tests {
         let src = vec![(0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 100.0)];
         let dst = vec![(0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 100.0)];
 
-        let transform = find_homography(&src, &dst).unwrap();
+        let transform = find_homography(&src, &dst).expect("find_homography should succeed");
 
         // Should be close to identity
         let (x, y) = transform.transform_point(50.0, 50.0);
@@ -590,7 +590,7 @@ mod tests {
         let src = vec![(0.0, 0.0), (100.0, 0.0), (100.0, 100.0), (0.0, 100.0)];
         let dst = vec![(0.0, 0.0), (200.0, 0.0), (200.0, 200.0), (0.0, 200.0)];
 
-        let transform = find_homography(&src, &dst).unwrap();
+        let transform = find_homography(&src, &dst).expect("find_homography should succeed");
 
         // Should scale by 2
         let (x, y) = transform.transform_point(50.0, 50.0);
@@ -602,7 +602,8 @@ mod tests {
     fn test_warp_perspective() {
         let src = vec![100u8; 100];
         let transform = PerspectiveTransform::identity();
-        let result = warp_perspective(&src, 10, 10, &transform, 10, 10).unwrap();
+        let result = warp_perspective(&src, 10, 10, &transform, 10, 10)
+            .expect("warp_perspective should succeed");
         assert_eq!(result.len(), 100);
     }
 
@@ -610,7 +611,7 @@ mod tests {
     fn test_quad_to_rect() {
         let quad = [(10.0, 10.0), (90.0, 10.0), (90.0, 90.0), (10.0, 90.0)];
 
-        let transform = quad_to_rect(&quad, 100.0, 100.0).unwrap();
+        let transform = quad_to_rect(&quad, 100.0, 100.0).expect("quad_to_rect should succeed");
 
         // Top-left corner should map to (0, 0)
         let (x, y) = transform.transform_point(10.0, 10.0);

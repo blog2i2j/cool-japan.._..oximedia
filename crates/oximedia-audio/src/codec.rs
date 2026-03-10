@@ -264,7 +264,7 @@ mod tests {
     #[test]
     fn test_registry_by_name() {
         let reg = CodecRegistry::new();
-        let info = reg.by_name("opus").unwrap();
+        let info = reg.by_name("opus").expect("should succeed");
         assert_eq!(info.name, "Opus");
     }
 

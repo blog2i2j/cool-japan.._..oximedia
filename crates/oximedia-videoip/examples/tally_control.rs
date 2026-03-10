@@ -40,7 +40,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             continue;
         }
 
-        match cmd.chars().next().unwrap() {
+        match cmd.chars().next().expect("next should succeed") {
             'p' => {
                 if let Ok(camera_id) = cmd[1..].parse::<u16>() {
                     tally_controller.set_state(camera_id, TallyState::Program);

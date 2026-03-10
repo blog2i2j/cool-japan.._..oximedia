@@ -102,7 +102,9 @@ impl TopologicalScheduler {
             for &node in &current_wave {
                 if let Some(succs) = successors.get(node) {
                     for &succ in succs {
-                        let deg = in_degree.get_mut(succ).unwrap();
+                        // succ was inserted into in_degree during graph construction above,
+                        // so this entry is guaranteed to exist.
+                        let deg = in_degree.entry(succ).or_insert(0);
                         *deg -= 1;
                         if *deg == 0 {
                             next_wave.push(succ);
@@ -261,7 +263,7 @@ mod tests {
     #[test]
     fn test_schedule_empty_graph() {
         let graph = MockGraph::new();
-        let order = TopologicalScheduler::schedule(&graph).unwrap();
+        let order = TopologicalScheduler::schedule(&graph).expect("schedule should succeed");
         assert!(order.node_ids.is_empty());
         assert!(order.parallelizable_groups.is_empty());
     }
@@ -270,7 +272,7 @@ mod tests {
     fn test_schedule_single_node() {
         let mut graph = MockGraph::new();
         graph.add_node("a");
-        let order = TopologicalScheduler::schedule(&graph).unwrap();
+        let order = TopologicalScheduler::schedule(&graph).expect("schedule should succeed");
         assert_eq!(order.node_ids, vec!["a"]);
         assert_eq!(order.parallelizable_groups.len(), 1);
     }
@@ -284,8 +286,14 @@ mod tests {
         graph.add_node("c");
         graph.add_dep("b", "a");
         graph.add_dep("c", "b");
-        let order = TopologicalScheduler::schedule(&graph).unwrap();
-        let pos = |id: &str| order.node_ids.iter().position(|x| x == id).unwrap();
+        let order = TopologicalScheduler::schedule(&graph).expect("schedule should succeed");
+        let pos = |id: &str| {
+            order
+                .node_ids
+                .iter()
+                .position(|x| x == id)
+                .expect("iter should succeed")
+        };
         assert!(pos("a") < pos("b"));
         assert!(pos("b") < pos("c"));
         // Each wave should be a single node.
@@ -298,7 +306,7 @@ mod tests {
         let mut graph = MockGraph::new();
         graph.add_node("a");
         graph.add_node("b");
-        let order = TopologicalScheduler::schedule(&graph).unwrap();
+        let order = TopologicalScheduler::schedule(&graph).expect("schedule should succeed");
         assert_eq!(order.parallelizable_groups.len(), 1);
         assert_eq!(order.parallelizable_groups[0].len(), 2);
     }
@@ -315,8 +323,14 @@ mod tests {
         graph.add_dep("right", "root");
         graph.add_dep("sink", "left");
         graph.add_dep("sink", "right");
-        let order = TopologicalScheduler::schedule(&graph).unwrap();
-        let pos = |id: &str| order.node_ids.iter().position(|x| x == id).unwrap();
+        let order = TopologicalScheduler::schedule(&graph).expect("schedule should succeed");
+        let pos = |id: &str| {
+            order
+                .node_ids
+                .iter()
+                .position(|x| x == id)
+                .expect("iter should succeed")
+        };
         assert!(pos("root") < pos("left"));
         assert!(pos("root") < pos("right"));
         assert!(pos("left") < pos("sink"));
@@ -331,7 +345,7 @@ mod tests {
         }
         graph.add_dep("b", "a");
         graph.add_dep("d", "c");
-        let order = TopologicalScheduler::schedule(&graph).unwrap();
+        let order = TopologicalScheduler::schedule(&graph).expect("schedule should succeed");
         let mut sorted = order.node_ids.clone();
         sorted.sort();
         assert_eq!(sorted, vec!["a", "b", "c", "d"]);
@@ -406,7 +420,7 @@ mod tests {
             graph.add_node(id);
         }
         graph.add_dep("b", "a");
-        let order = TopologicalScheduler::schedule(&graph).unwrap();
+        let order = TopologicalScheduler::schedule(&graph).expect("schedule should succeed");
         let constraints = ResourceConstraint::default();
         let plan = ResourceAwareScheduler::schedule(&order, &constraints);
         let covered: HashSet<String> = plan.stages.iter().flat_map(|s| s.nodes.clone()).collect();

@@ -354,7 +354,14 @@ mod tests {
             integrated_lufs: -23.0,
             true_peak_dbtp: -2.0,
         });
-        assert!((session.final_integrated_lufs().unwrap() - (-23.0)).abs() < f64::EPSILON);
+        assert!(
+            (session
+                .final_integrated_lufs()
+                .expect("final_integrated_lufs should succeed")
+                - (-23.0))
+                .abs()
+                < f64::EPSILON
+        );
     }
 
     #[test]
@@ -375,7 +382,14 @@ mod tests {
             integrated_lufs: -23.0,
             true_peak_dbtp: -1.5,
         });
-        assert!((session.max_true_peak_dbtp().unwrap() - (-1.5)).abs() < f64::EPSILON);
+        assert!(
+            (session
+                .max_true_peak_dbtp()
+                .expect("max_true_peak_dbtp should succeed")
+                - (-1.5))
+                .abs()
+                < f64::EPSILON
+        );
     }
 
     #[test]
@@ -405,7 +419,14 @@ mod tests {
             true_peak_dbtp: -2.0,
         });
         // Need -3 dB to go from -20 to -23
-        assert!((session.correction_db().unwrap() - (-3.0)).abs() < f64::EPSILON);
+        assert!(
+            (session
+                .correction_db()
+                .expect("correction_db should succeed")
+                - (-3.0))
+                .abs()
+                < f64::EPSILON
+        );
     }
 
     #[test]
@@ -426,7 +447,9 @@ mod tests {
             integrated_lufs: -23.0,
             true_peak_dbtp: -1.5,
         });
-        let lra = session.loudness_range_lu().unwrap();
+        let lra = session
+            .loudness_range_lu()
+            .expect("loudness_range_lu should succeed");
         assert!((lra - 8.0).abs() < f64::EPSILON); // -20 - (-28) = 8
     }
 

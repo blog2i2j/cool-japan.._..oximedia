@@ -16,7 +16,7 @@ use oximedia_core::OxiResult;
 /// ```ignore
 /// use oximedia_optimize::examples::basic_optimizer;
 ///
-/// let optimizer = basic_optimizer().unwrap();
+/// let optimizer = basic_optimizer()?;
 /// ```
 pub fn basic_optimizer() -> OxiResult<Optimizer> {
     let config = OptimizerConfig::default();
@@ -529,7 +529,7 @@ mod tests {
 
         let hd_rung = ladder.find_rung(1280, 720);
         assert!(hd_rung.is_some());
-        assert_eq!(hd_rung.unwrap().bitrate, 2_800_000);
+        assert_eq!(hd_rung.expect("rung should be found").bitrate, 2_800_000);
     }
 
     #[test]

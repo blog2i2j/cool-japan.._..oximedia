@@ -124,13 +124,13 @@ impl RingBuffer {
 
         let min = values
             .iter()
-            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .copied()
             .unwrap_or(0.0);
 
         let max = values
             .iter()
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .copied()
             .unwrap_or(0.0);
 
@@ -246,8 +246,8 @@ mod tests {
         buffer.push_value(2.0);
         buffer.push_value(3.0);
 
-        assert_eq!(buffer.oldest().unwrap().value, 1.0);
-        assert_eq!(buffer.newest().unwrap().value, 3.0);
+        assert_eq!(buffer.oldest().expect("oldest should succeed").value, 1.0);
+        assert_eq!(buffer.newest().expect("newest should succeed").value, 3.0);
     }
 
     #[test]

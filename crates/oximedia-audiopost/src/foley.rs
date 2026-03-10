@@ -50,8 +50,11 @@ impl FoleySession {
     /// Add a cue marker
     pub fn add_cue(&mut self, cue: FoleyCue) {
         self.cues.push(cue);
-        self.cues
-            .sort_by(|a, b| a.timecode.partial_cmp(&b.timecode).unwrap());
+        self.cues.sort_by(|a, b| {
+            a.timecode
+                .partial_cmp(&b.timecode)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
     }
 
     /// Get all cues
@@ -335,7 +338,7 @@ mod tests {
 
     #[test]
     fn test_foley_session_creation() {
-        let session = FoleySession::new("Scene 1", 48000, 4).unwrap();
+        let session = FoleySession::new("Scene 1", 48000, 4).expect("failed to create");
         assert_eq!(session.name, "Scene 1");
         assert_eq!(session.sample_rate, 48000);
         assert_eq!(session.track_count, 4);
@@ -349,7 +352,7 @@ mod tests {
 
     #[test]
     fn test_add_cue() {
-        let mut session = FoleySession::new("Scene 1", 48000, 4).unwrap();
+        let mut session = FoleySession::new("Scene 1", 48000, 4).expect("failed to create");
         let cue = FoleyCue::new(
             Timecode::from_frames(1000, 24.0),
             "Footstep",
@@ -361,7 +364,7 @@ mod tests {
 
     #[test]
     fn test_add_take() {
-        let mut session = FoleySession::new("Scene 1", 48000, 4).unwrap();
+        let mut session = FoleySession::new("Scene 1", 48000, 4).expect("failed to create");
         let take = FoleyTake::new(
             1,
             vec!["track1.wav".to_string(), "track2.wav".to_string()],
@@ -442,7 +445,7 @@ mod tests {
 
     #[test]
     fn test_cue_sorting() {
-        let mut session = FoleySession::new("Scene 1", 48000, 4).unwrap();
+        let mut session = FoleySession::new("Scene 1", 48000, 4).expect("failed to create");
 
         let cue1 = FoleyCue::new(
             Timecode::from_frames(2000, 24.0),

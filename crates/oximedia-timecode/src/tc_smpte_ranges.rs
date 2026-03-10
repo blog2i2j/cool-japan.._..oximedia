@@ -216,7 +216,7 @@ mod tests {
     use super::*;
 
     fn tc25(h: u8, m: u8, s: u8, f: u8) -> Timecode {
-        Timecode::new(h, m, s, f, FrameRate::Fps25).unwrap()
+        Timecode::new(h, m, s, f, FrameRate::Fps25).expect("valid timecode")
     }
 
     #[test]
@@ -302,7 +302,7 @@ mod tests {
     fn test_intersection_some() {
         let a = SmpteRange::from_frames(0, 100, 25);
         let b = SmpteRange::from_frames(50, 150, 25);
-        let inter = a.intersection(&b).unwrap();
+        let inter = a.intersection(&b).expect("intersection should succeed");
         assert_eq!(inter.start_frames, 50);
         assert_eq!(inter.end_frames, 100);
     }
@@ -325,7 +325,7 @@ mod tests {
     #[test]
     fn test_split_at() {
         let range = SmpteRange::from_frames(0, 200, 25);
-        let (left, right) = range.split_at(100).unwrap();
+        let (left, right) = range.split_at(100).expect("split should succeed");
         assert_eq!(left.end_frames, 100);
         assert_eq!(right.start_frames, 101);
     }

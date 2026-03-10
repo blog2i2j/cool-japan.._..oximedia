@@ -315,7 +315,7 @@ mod tests {
     fn test_verify_writer_basic() {
         let mut out = Vec::new();
         let mut vw = VerifyWriter::new(&mut out);
-        vw.write_all(b"test data").unwrap();
+        vw.write_all(b"test data").expect("failed to write");
         assert_eq!(vw.bytes_written(), 9);
         assert_eq!(vw.checksum(), fnv1a_64(b"test data"));
     }
@@ -332,7 +332,7 @@ mod tests {
     fn test_compare_equal() {
         let a = Cursor::new(b"identical data".to_vec());
         let b = Cursor::new(b"identical data".to_vec());
-        let result = compare_streams(a, b).unwrap();
+        let result = compare_streams(a, b).expect("compare should succeed");
         assert!(result.is_equal());
         assert_eq!(result, CompareResult::Equal { bytes: 14 });
     }
@@ -341,7 +341,7 @@ mod tests {
     fn test_compare_different_byte() {
         let a = Cursor::new(b"abc".to_vec());
         let b = Cursor::new(b"axc".to_vec());
-        let result = compare_streams(a, b).unwrap();
+        let result = compare_streams(a, b).expect("compare should succeed");
         assert_eq!(
             result,
             CompareResult::DifferentAt {
@@ -356,7 +356,7 @@ mod tests {
     fn test_compare_different_length() {
         let a = Cursor::new(b"short".to_vec());
         let b = Cursor::new(b"short and longer".to_vec());
-        let result = compare_streams(a, b).unwrap();
+        let result = compare_streams(a, b).expect("compare should succeed");
         assert_eq!(result, CompareResult::DifferentLength { shorter_len: 5 });
     }
 
@@ -364,7 +364,7 @@ mod tests {
     fn test_compare_both_empty() {
         let a = Cursor::new(Vec::<u8>::new());
         let b = Cursor::new(Vec::<u8>::new());
-        let result = compare_streams(a, b).unwrap();
+        let result = compare_streams(a, b).expect("compare should succeed");
         assert!(result.is_equal());
     }
 
@@ -372,7 +372,7 @@ mod tests {
     fn test_pattern_fill_basic() {
         let pf = PatternFill::new(b"ab");
         let mut out = Vec::new();
-        pf.write_to(&mut out, 7).unwrap();
+        pf.write_to(&mut out, 7).expect("write_to should succeed");
         assert_eq!(out, b"abababa");
     }
 
@@ -386,7 +386,7 @@ mod tests {
     fn test_pattern_fill_zero_len() {
         let pf = PatternFill::new(b"xyz");
         let mut out = Vec::new();
-        pf.write_to(&mut out, 0).unwrap();
+        pf.write_to(&mut out, 0).expect("write_to should succeed");
         assert!(out.is_empty());
     }
 }

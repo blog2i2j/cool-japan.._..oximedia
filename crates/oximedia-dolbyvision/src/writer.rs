@@ -764,7 +764,7 @@ mod tests {
         let rpu = DolbyVisionRpu::new(Profile::Profile8);
         let result = write_rpu_bitstream(&rpu);
         assert!(result.is_ok());
-        let data = result.unwrap();
+        let data = result.expect("data should be valid");
         assert!(!data.is_empty());
     }
 
@@ -773,7 +773,7 @@ mod tests {
         let rpu = DolbyVisionRpu::new(Profile::Profile8);
         let result = write_nal_unit(&rpu);
         assert!(result.is_ok());
-        let data = result.unwrap();
+        let data = result.expect("data should be valid");
         assert!(data.len() >= 2);
     }
 
@@ -801,7 +801,7 @@ mod tests {
         let mut cursor = Cursor::new(&mut buffer);
         let mut writer = BitWriter::endian(&mut cursor, BigEndian);
 
-        write_sei_size(&mut writer, 100).unwrap();
+        write_sei_size(&mut writer, 100).expect("test expectation failed");
         assert_eq!(buffer.len(), 1);
         assert_eq!(buffer[0], 100);
 
@@ -809,7 +809,7 @@ mod tests {
         cursor = Cursor::new(&mut buffer);
         writer = BitWriter::endian(&mut cursor, BigEndian);
 
-        write_sei_size(&mut writer, 300).unwrap();
+        write_sei_size(&mut writer, 300).expect("test expectation failed");
         assert_eq!(buffer.len(), 2);
         assert_eq!(buffer[0], 0xFF);
         assert_eq!(buffer[1], 45);

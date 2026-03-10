@@ -265,7 +265,7 @@ mod tests {
         q.enqueue(job("low", JobPriority::Low));
         q.enqueue(job("high", JobPriority::High));
         q.enqueue(job("normal", JobPriority::Normal));
-        let first = q.dequeue().unwrap();
+        let first = q.dequeue().expect("failed to dequeue");
         assert_eq!(first.priority, JobPriority::High);
     }
 
@@ -316,8 +316,17 @@ mod tests {
         q.enqueue(job("a", JobPriority::Normal));
         q.enqueue(job("b", JobPriority::Urgent));
         q.enqueue(job("c", JobPriority::Low));
-        assert_eq!(q.dequeue().unwrap().priority, JobPriority::Urgent);
-        assert_eq!(q.dequeue().unwrap().priority, JobPriority::Normal);
-        assert_eq!(q.dequeue().unwrap().priority, JobPriority::Low);
+        assert_eq!(
+            q.dequeue().expect("failed to dequeue").priority,
+            JobPriority::Urgent
+        );
+        assert_eq!(
+            q.dequeue().expect("failed to dequeue").priority,
+            JobPriority::Normal
+        );
+        assert_eq!(
+            q.dequeue().expect("failed to dequeue").priority,
+            JobPriority::Low
+        );
     }
 }

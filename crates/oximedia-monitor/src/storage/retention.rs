@@ -121,9 +121,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_retention_manager() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("failed to create temp dir");
         let db_path = dir.path().join("test.db");
-        let storage = Arc::new(SqliteStorage::new(&db_path).unwrap());
+        let storage = Arc::new(SqliteStorage::new(&db_path).expect("failed to create"));
 
         let config = RetentionConfig {
             raw_data: std::time::Duration::from_secs(10),
@@ -143,7 +143,7 @@ mod tests {
             labels: None,
         };
 
-        storage.insert(&point).unwrap();
+        storage.insert(&point).expect("failed to insert");
 
         // Insert some recent data
         let recent_time = Utc::now();
@@ -154,29 +154,29 @@ mod tests {
             labels: None,
         };
 
-        storage.insert(&point).unwrap();
+        storage.insert(&point).expect("failed to insert");
 
-        assert_eq!(storage.count().unwrap(), 2);
+        assert_eq!(storage.count().expect("count should succeed"), 2);
 
         // Run cleanup
-        manager.cleanup_now().await.unwrap();
+        manager.cleanup_now().await.expect("await should be valid");
 
         // Old data should be deleted
-        assert_eq!(storage.count().unwrap(), 1);
+        assert_eq!(storage.count().expect("count should succeed"), 1);
     }
 
     #[tokio::test]
     async fn test_retention_manager_start_stop() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("failed to create temp dir");
         let db_path = dir.path().join("test.db");
-        let storage = Arc::new(SqliteStorage::new(&db_path).unwrap());
+        let storage = Arc::new(SqliteStorage::new(&db_path).expect("failed to create"));
 
         let config = RetentionConfig::default();
         let manager = RetentionManager::new(config, storage);
 
         assert!(!manager.is_running().await);
 
-        manager.start().await.unwrap();
+        manager.start().await.expect("await should be valid");
         assert!(manager.is_running().await);
 
         manager.stop().await;

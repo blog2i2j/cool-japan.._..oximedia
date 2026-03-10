@@ -5,7 +5,7 @@ use crate::transform::calculate::StabilizationTransform;
 use crate::warp::boundary::BoundaryMode;
 use crate::warp::interpolation::InterpolationMethod;
 use crate::Frame;
-use ndarray::Array2;
+use scirs2_core::ndarray::Array2;
 
 /// Frame warper that applies stabilization transforms to frames.
 #[derive(Debug)]

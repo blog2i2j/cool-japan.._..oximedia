@@ -6,12 +6,12 @@ use tokio::time::{sleep, Duration};
 #[tokio::test]
 async fn test_end_to_end_video_streaming() {
     // Create source
-    let video_config = VideoConfig::new(640, 480, 30.0).unwrap();
-    let audio_config = AudioConfig::new(48000, 2).unwrap();
+    let video_config = VideoConfig::new(640, 480, 30.0).expect("video_config should be valid");
+    let audio_config = AudioConfig::new(48000, 2).expect("audio_config should be valid");
 
     let mut source = VideoIpSource::new("Test Camera", video_config, audio_config)
         .await
-        .unwrap();
+        .expect("test expectation failed");
 
     let source_addr = source.local_addr();
 
@@ -19,7 +19,7 @@ async fn test_end_to_end_video_streaming() {
     let mut receiver =
         VideoIpReceiver::connect(source_addr, types::VideoCodec::Vp9, types::AudioCodec::Opus)
             .await
-            .unwrap();
+            .expect("test expectation failed");
 
     source.add_destination(receiver.local_addr());
 
@@ -43,7 +43,10 @@ async fn test_end_to_end_video_streaming() {
     // Send frame in background
     tokio::spawn(async move {
         sleep(Duration::from_millis(10)).await;
-        source.send_frame(frame, Some(samples)).await.unwrap();
+        source
+            .send_frame(frame, Some(samples))
+            .await
+            .expect("test expectation failed");
     });
 
     // Try to receive (with timeout)
@@ -62,20 +65,23 @@ async fn test_end_to_end_video_streaming() {
 
 #[tokio::test]
 async fn test_fec_recovery() {
-    let video_config = VideoConfig::new(640, 480, 30.0).unwrap();
-    let audio_config = AudioConfig::new(48000, 2).unwrap();
+    let video_config = VideoConfig::new(640, 480, 30.0).expect("video_config should be valid");
+    let audio_config = AudioConfig::new(48000, 2).expect("audio_config should be valid");
 
     let mut source = VideoIpSource::new("FEC Test", video_config, audio_config)
         .await
-        .unwrap();
+        .expect("test expectation failed");
 
     // Enable FEC
-    source.enable_fec(0.1).unwrap();
+    source.enable_fec(0.1).expect("enable_fec should succeed");
 
     let frame = codec::VideoFrame::new(bytes::Bytes::from_static(b"test"), 640, 480, true, 0);
 
     // Should not panic
-    source.send_frame(frame, None).await.unwrap();
+    source
+        .send_frame(frame, None)
+        .await
+        .expect("test expectation failed");
 }
 
 #[tokio::test]
@@ -86,9 +92,12 @@ async fn test_metadata_transmission() {
     let packet = MetadataPacket::timecode(timecode);
 
     let encoded = packet.encode();
-    let decoded = MetadataPacket::decode(&encoded).unwrap();
+    let decoded = MetadataPacket::decode(&encoded).expect("decoded should be valid");
 
-    assert_eq!(decoded.as_timecode().unwrap(), timecode);
+    assert_eq!(
+        decoded.as_timecode().expect("as_timecode should succeed"),
+        timecode
+    );
 }
 
 #[tokio::test]
@@ -136,13 +145,17 @@ async fn test_jitter_buffer() {
         let packet = PacketBuilder::new(seq)
             .video()
             .build(Bytes::from_static(b"test"))
-            .unwrap();
-        buffer.add_packet(packet).unwrap();
+            .expect("test expectation failed");
+        buffer
+            .add_packet(packet)
+            .expect("add_packet should succeed");
     }
 
     // Should come out in order
     for expected in 0..5 {
-        let packet = buffer.get_packet_immediate().unwrap();
+        let packet = buffer
+            .get_packet_immediate()
+            .expect("packet should be valid");
         assert_eq!(packet.header.sequence, expected);
     }
 }
@@ -189,7 +202,7 @@ async fn test_packet_fragmentation() {
         let packet = PacketBuilder::new(i as u16)
             .with_timestamp(12345)
             .build(Bytes::copy_from_slice(chunk))
-            .unwrap();
+            .expect("test expectation failed");
 
         // Packet should be valid
         assert!(packet.header.validate().is_ok());
@@ -204,7 +217,7 @@ async fn test_timecode_conversion() {
 
     // Test encoding/decoding
     let bytes = tc.to_bytes();
-    let decoded = Timecode::from_bytes(&bytes).unwrap();
+    let decoded = Timecode::from_bytes(&bytes).expect("decoded should be valid");
     assert_eq!(tc, decoded);
 
     // Test frame conversion
@@ -218,16 +231,19 @@ async fn test_discovery_service() {
     use oximedia_videoip::discovery::*;
     use oximedia_videoip::types::*;
 
-    let mut server = DiscoveryServer::new().unwrap();
+    let mut server = DiscoveryServer::new().expect("test expectation failed");
 
     let video_format = VideoFormat::new(VideoCodec::Vp9, Resolution::HD_1080, FrameRate::FPS_30);
-    let audio_format = AudioFormat::new(AudioCodec::Opus, 48000, 2).unwrap();
+    let audio_format =
+        AudioFormat::new(AudioCodec::Opus, 48000, 2).expect("audio_format should be valid");
 
     let result = server.announce("TestDiscovery", 5000, &video_format, &audio_format);
 
     // May fail in restricted environments, that's OK
     if result.is_ok() {
-        server.stop_announce().unwrap();
+        server
+            .stop_announce()
+            .expect("stop_announce should succeed");
     }
 }
 
@@ -237,7 +253,9 @@ fn test_video_format_bitrate() {
 
     let format = VideoFormat::new(VideoCodec::Uyvy, Resolution::HD_1080, FrameRate::FPS_60);
 
-    let bitrate = format.uncompressed_bitrate().unwrap();
+    let bitrate = format
+        .uncompressed_bitrate()
+        .expect("bitrate should be valid");
     assert!(bitrate > 0);
 }
 
@@ -245,8 +263,10 @@ fn test_video_format_bitrate() {
 fn test_audio_format_bitrate() {
     use oximedia_videoip::types::*;
 
-    let format = AudioFormat::new(AudioCodec::Pcm16, 48000, 2).unwrap();
-    let bitrate = format.uncompressed_bitrate().unwrap();
+    let format = AudioFormat::new(AudioCodec::Pcm16, 48000, 2).expect("format should be valid");
+    let bitrate = format
+        .uncompressed_bitrate()
+        .expect("bitrate should be valid");
     assert_eq!(bitrate, 48000 * 2 * 16);
 }
 
@@ -286,9 +306,9 @@ fn test_packet_header_validation() {
 fn test_fec_encoder_ratios() {
     use oximedia_videoip::fec::FecEncoder;
 
-    let encoder_5 = FecEncoder::with_ratio(0.05).unwrap();
-    let encoder_10 = FecEncoder::with_ratio(0.10).unwrap();
-    let encoder_20 = FecEncoder::with_ratio(0.20).unwrap();
+    let encoder_5 = FecEncoder::with_ratio(0.05).expect("encoder_5 should be valid");
+    let encoder_10 = FecEncoder::with_ratio(0.10).expect("encoder_10 should be valid");
+    let encoder_20 = FecEncoder::with_ratio(0.20).expect("encoder_20 should be valid");
 
     assert!(encoder_5.parity_shards() == 1);
     assert!(encoder_10.parity_shards() == 2);

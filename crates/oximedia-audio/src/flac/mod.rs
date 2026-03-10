@@ -212,7 +212,7 @@ mod tests {
             codec: CodecId::Flac,
             ..Default::default()
         };
-        let decoder = FlacDecoder::new(&config).unwrap();
+        let decoder = FlacDecoder::new(&config).expect("should succeed");
         assert_eq!(decoder.codec(), CodecId::Flac);
     }
 
@@ -231,7 +231,7 @@ mod tests {
             codec: CodecId::Flac,
             ..Default::default()
         };
-        let mut decoder = FlacDecoder::new(&config).unwrap();
+        let mut decoder = FlacDecoder::new(&config).expect("should succeed");
         decoder.reset();
         assert!(!decoder.flushing);
     }
@@ -262,7 +262,7 @@ mod tests {
         data[12] = (4 << 4) | (1 << 1); // low 4 bits of sample rate + channels + bps high bit
         data[13] = 0xF << 4; // bps low 4 bits + total samples high nibble
 
-        let info = StreamInfo::parse(&data).unwrap();
+        let info = StreamInfo::parse(&data).expect("should succeed");
         assert_eq!(info.min_block_size, 4096);
         assert_eq!(info.max_block_size, 4096);
         assert_eq!(info.sample_rate, 44100);
@@ -276,7 +276,7 @@ mod tests {
         info.sample_rate = 44100;
         info.total_samples = 44100 * 60; // 1 minute
 
-        let duration = info.duration_secs().unwrap();
+        let duration = info.duration_secs().expect("should succeed");
         assert!((duration - 60.0).abs() < 0.001);
     }
 

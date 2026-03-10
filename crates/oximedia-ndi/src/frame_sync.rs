@@ -168,7 +168,7 @@ mod tests {
         let mut buf = FrameSyncBuffer::new(40);
         buf.push_video(FrameTimestamp::from_ms(100));
         buf.push_audio(FrameTimestamp::from_ms(80));
-        let err = buf.av_sync_error_ms().unwrap();
+        let err = buf.av_sync_error_ms().expect("expected sync error value");
         assert!((err - 20.0).abs() < 1e-6);
     }
 
@@ -203,9 +203,21 @@ mod tests {
         buf.push_audio(FrameTimestamp::from_ms(600));
         buf.drain_old_frames(100);
         assert_eq!(buf.video_frames.len(), 1);
-        assert_eq!(buf.video_frames.front().unwrap().to_ms(), 500);
+        assert_eq!(
+            buf.video_frames
+                .front()
+                .expect("expected non-empty deque")
+                .to_ms(),
+            500
+        );
         assert_eq!(buf.audio_frames.len(), 1);
-        assert_eq!(buf.audio_frames.front().unwrap().to_ms(), 600);
+        assert_eq!(
+            buf.audio_frames
+                .front()
+                .expect("expected non-empty deque")
+                .to_ms(),
+            600
+        );
     }
 
     #[test]

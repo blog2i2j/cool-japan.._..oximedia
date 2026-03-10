@@ -255,7 +255,7 @@ mod tests {
 
     #[test]
     fn test_gps_coordinate() {
-        let coord = GpsCoordinate::new(37.7749, -122.4194, 10.0).unwrap();
+        let coord = GpsCoordinate::new(37.7749, -122.4194, 10.0).expect("operation should succeed");
         assert_eq!(coord.latitude, 37.7749);
         assert_eq!(coord.longitude, -122.4194);
         assert_eq!(coord.altitude, 10.0);
@@ -267,7 +267,7 @@ mod tests {
 
     #[test]
     fn test_gps_data_point() {
-        let coord = GpsCoordinate::new(37.7749, -122.4194, 10.0).unwrap();
+        let coord = GpsCoordinate::new(37.7749, -122.4194, 10.0).expect("operation should succeed");
         let point = GpsDataPoint::new(coord)
             .with_speed(5.0)
             .with_heading(90.0)
@@ -281,11 +281,11 @@ mod tests {
 
     #[test]
     fn test_gps_serialization() {
-        let coord = GpsCoordinate::new(37.7749, -122.4194, 10.0).unwrap();
+        let coord = GpsCoordinate::new(37.7749, -122.4194, 10.0).expect("operation should succeed");
         let point = GpsDataPoint::new(coord).with_speed(5.0);
 
         let bytes = point.to_bytes();
-        let decoded = GpsDataPoint::from_bytes(&bytes).unwrap();
+        let decoded = GpsDataPoint::from_bytes(&bytes).expect("operation should succeed");
 
         assert!((decoded.coordinate.latitude - 37.7749).abs() < 0.0001);
         assert!((decoded.speed - 5.0).abs() < 0.0001);
@@ -295,11 +295,13 @@ mod tests {
     fn test_gps_track() {
         let mut track = GpsTrack::new();
 
-        let coord1 = GpsCoordinate::new(37.7749, -122.4194, 10.0).unwrap();
+        let coord1 =
+            GpsCoordinate::new(37.7749, -122.4194, 10.0).expect("operation should succeed");
         let point1 = GpsDataPoint::new(coord1);
         track.add_point(0, point1);
 
-        let coord2 = GpsCoordinate::new(37.7750, -122.4195, 11.0).unwrap();
+        let coord2 =
+            GpsCoordinate::new(37.7750, -122.4195, 11.0).expect("operation should succeed");
         let point2 = GpsDataPoint::new(coord2);
         track.add_point(1000, point2);
 

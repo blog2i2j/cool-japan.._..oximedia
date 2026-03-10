@@ -264,9 +264,9 @@ mod tests {
 
     #[test]
     fn test_query_engine() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("failed to create temp dir");
         let db_path = dir.path().join("test.db");
-        let storage = SqliteStorage::new(&db_path).unwrap();
+        let storage = SqliteStorage::new(&db_path).expect("failed to create");
         let engine = QueryEngine::new(storage);
 
         // Insert some test data
@@ -280,7 +280,10 @@ mod tests {
             })
             .collect();
 
-        engine.storage.insert_batch(&points).unwrap();
+        engine
+            .storage
+            .insert_batch(&points)
+            .expect("insert_batch should succeed");
 
         // Query the data
         let query = TimeSeriesQuery {
@@ -290,15 +293,15 @@ mod tests {
             labels: None,
         };
 
-        let result = engine.query(query).unwrap();
+        let result = engine.query(query).expect("failed to query");
         assert_eq!(result.points.len(), 10);
     }
 
     #[test]
     fn test_query_with_aggregation() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("failed to create temp dir");
         let db_path = dir.path().join("test.db");
-        let storage = SqliteStorage::new(&db_path).unwrap();
+        let storage = SqliteStorage::new(&db_path).expect("failed to create");
         let engine = QueryEngine::new(storage);
 
         let now = Utc::now();
@@ -311,7 +314,10 @@ mod tests {
             })
             .collect();
 
-        engine.storage.insert_batch(&points).unwrap();
+        engine
+            .storage
+            .insert_batch(&points)
+            .expect("insert_batch should succeed");
 
         let query = TimeSeriesQuery {
             metric_name: "cpu.usage".to_string(),
@@ -320,7 +326,7 @@ mod tests {
             labels: None,
         };
 
-        let result = engine.query(query).unwrap();
+        let result = engine.query(query).expect("failed to query");
         assert_eq!(result.points.len(), 1);
         assert_eq!(result.points[0].value, 4.5); // Average of 0-9
         assert!(result.metadata.aggregated);

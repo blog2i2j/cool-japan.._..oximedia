@@ -356,7 +356,12 @@ mod tests {
             .with_header("priority", "high")
             .with_header("region", "us-east");
         assert_eq!(msg.headers.len(), 2);
-        assert_eq!(msg.headers.get("priority").unwrap(), "high");
+        assert_eq!(
+            msg.headers
+                .get("priority")
+                .expect("get should return a value"),
+            "high"
+        );
     }
 
     #[test]

@@ -216,7 +216,10 @@ mod tests {
     fn test_get_by_name() {
         let preset = ProfilePresets::get_by_name("Web Video HD");
         assert!(preset.is_some());
-        assert_eq!(preset.unwrap().name, "Web Video HD");
+        assert_eq!(
+            preset.expect("Web Video HD preset should exist").name,
+            "Web Video HD"
+        );
 
         let missing = ProfilePresets::get_by_name("Non-existent");
         assert!(missing.is_none());

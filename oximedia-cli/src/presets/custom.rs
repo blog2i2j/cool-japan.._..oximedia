@@ -329,7 +329,7 @@ mod tests {
 
     #[test]
     fn test_load_preset_from_file() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("TempDir::new should succeed");
         let preset_path = temp_dir.path().join("test-preset.toml");
 
         let toml_content = r#"
@@ -360,9 +360,9 @@ sample_rate = 48000
 channels = 2
 "#;
 
-        fs::write(&preset_path, toml_content).unwrap();
+        fs::write(&preset_path, toml_content).expect("fs::write should succeed");
 
-        let preset = load_preset_from_file(&preset_path).unwrap();
+        let preset = load_preset_from_file(&preset_path).expect("load should succeed");
         assert_eq!(preset.name, "test-preset");
         assert_eq!(preset.video.codec, "vp9");
         assert_eq!(preset.audio.codec, "opus");
@@ -370,7 +370,7 @@ channels = 2
 
     #[test]
     fn test_save_preset_to_file() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("TempDir::new should succeed");
 
         let preset = Preset {
             name: "save-test".to_string(),
@@ -407,12 +407,12 @@ channels = 2
             tags: vec!["test".to_string()],
         };
 
-        save_preset_to_file(&preset, temp_dir.path()).unwrap();
+        save_preset_to_file(&preset, temp_dir.path()).expect("save should succeed");
 
         let saved_path = temp_dir.path().join("save-test.toml");
         assert!(saved_path.exists());
 
-        let loaded = load_preset_from_file(&saved_path).unwrap();
+        let loaded = load_preset_from_file(&saved_path).expect("load should succeed");
         assert_eq!(loaded.name, preset.name);
     }
 }

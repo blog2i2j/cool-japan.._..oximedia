@@ -266,7 +266,10 @@ mod tests {
         cache.put(make_entry("/seg.ts", CachePolicy::Standard, 1000, 5));
         let entry = cache.get("/seg.ts", 1010);
         assert!(entry.is_some());
-        assert_eq!(entry.unwrap().hit_count, 5);
+        assert_eq!(
+            entry.expect("operation should succeed in test").hit_count,
+            5
+        );
     }
 
     #[test]

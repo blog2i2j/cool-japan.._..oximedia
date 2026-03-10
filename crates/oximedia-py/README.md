@@ -1,6 +1,6 @@
 # OxiMedia Python Bindings
 
-**Status: [Partial]** | Version: 0.1.0 | Updated: 2026-03-06
+**Status: [Partial]** | Version: 0.1.1 | Updated: 2026-03-10
 
 Python bindings for OxiMedia, a royalty-free multimedia processing library written in Rust.
 

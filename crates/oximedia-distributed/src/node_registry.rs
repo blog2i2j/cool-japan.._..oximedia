@@ -391,7 +391,7 @@ mod tests {
     fn test_registry_register_and_get() {
         let mut reg = NodeRegistry::new();
         reg.register(worker("n0", 1000));
-        let n = reg.get("n0").unwrap();
+        let n = reg.get("n0").expect("get should return a value");
         assert_eq!(n.id, "n0");
     }
 
@@ -401,7 +401,7 @@ mod tests {
         reg.register(worker("n0", 1000));
         reg.register(gpu_worker("n0", 2000)); // same ID → replace
         assert_eq!(reg.len(), 1);
-        assert!(reg.get("n0").unwrap().has_gpu);
+        assert!(reg.get("n0").expect("get should return a value").has_gpu);
     }
 
     #[test]
@@ -446,8 +446,14 @@ mod tests {
         let mut reg = NodeRegistry::new();
         reg.register(worker("w0", 1000));
         reg.remove_node("w0", 2000);
-        assert_eq!(reg.get("w0").unwrap().status, NodeStatus::Removed);
-        assert!(!reg.get("w0").unwrap().is_available());
+        assert_eq!(
+            reg.get("w0").expect("get should return a value").status,
+            NodeStatus::Removed
+        );
+        assert!(!reg
+            .get("w0")
+            .expect("get should return a value")
+            .is_available());
     }
 
     #[test]

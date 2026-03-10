@@ -276,7 +276,7 @@ mod tests {
 
     #[test]
     fn test_cpu_backend_creation() {
-        let backend = CpuBackend::new().unwrap();
+        let backend = CpuBackend::new().expect("CPU backend creation should succeed");
         assert!(backend.num_threads() > 0);
         assert_eq!(backend.capabilities().backend_type, BackendType::CPU);
     }

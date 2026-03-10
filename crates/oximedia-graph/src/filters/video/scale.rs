@@ -771,7 +771,9 @@ mod tests {
         assert_eq!(filter.inputs().len(), 1);
         assert_eq!(filter.outputs().len(), 1);
 
-        filter.set_state(NodeState::Processing).unwrap();
+        filter
+            .set_state(NodeState::Processing)
+            .expect("set_state should succeed");
         assert_eq!(filter.state(), NodeState::Processing);
     }
 
@@ -780,7 +782,7 @@ mod tests {
         let config = ScaleConfig::new(1280, 720);
         let mut filter = ScaleFilter::new(NodeId(0), "scale", config);
 
-        let result = filter.process(None).unwrap();
+        let result = filter.process(None).expect("process should succeed");
         assert!(result.is_none());
     }
 

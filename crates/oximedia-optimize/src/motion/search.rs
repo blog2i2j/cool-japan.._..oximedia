@@ -342,7 +342,8 @@ mod tests {
     #[test]
     fn test_motion_optimizer_creation() {
         let config = OptimizerConfig::default();
-        let optimizer = MotionOptimizer::new(&config).unwrap();
+        let optimizer =
+            MotionOptimizer::new(&config).expect("motion optimizer creation should succeed");
         assert_eq!(optimizer.algorithm, SearchAlgorithm::Hexagon);
     }
 
@@ -351,11 +352,13 @@ mod tests {
         let mut config = OptimizerConfig::default();
 
         config.level = OptimizationLevel::Fast;
-        let opt_fast = MotionOptimizer::new(&config).unwrap();
+        let opt_fast =
+            MotionOptimizer::new(&config).expect("motion optimizer creation should succeed");
         assert_eq!(opt_fast.algorithm, SearchAlgorithm::Diamond);
 
         config.level = OptimizationLevel::Placebo;
-        let opt_placebo = MotionOptimizer::new(&config).unwrap();
+        let opt_placebo =
+            MotionOptimizer::new(&config).expect("motion optimizer creation should succeed");
         assert_eq!(opt_placebo.algorithm, SearchAlgorithm::Umh);
     }
 }

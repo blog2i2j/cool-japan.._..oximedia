@@ -48,7 +48,7 @@ impl NoiseProfiler {
         }
 
         let mut amplitudes: Vec<f32> = samples.iter().map(|&x| x.abs()).collect();
-        amplitudes.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        amplitudes.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         // Use 10th percentile as noise floor
         let idx = (amplitudes.len() as f32 * 0.1) as usize;

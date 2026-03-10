@@ -189,7 +189,10 @@ impl BatchProcessor {
 
         operation(&mut track)?;
 
-        let output_path = self.output_dir.join(path.file_name().unwrap());
+        let file_name = path.file_name().ok_or_else(|| {
+            crate::error::CaptionError::Import("Input path has no file name component".to_string())
+        })?;
+        let output_path = self.output_dir.join(file_name);
         let format = Importer::detect_format_from_extension(path)
             .ok_or_else(|| crate::error::CaptionError::Import("Unknown format".to_string()))?;
 

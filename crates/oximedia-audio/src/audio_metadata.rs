@@ -269,7 +269,10 @@ mod tests {
         let s1 = AudioStreamMeta::new(0, AudioCodecInfo::flac(), 48_000, 2, 48_000);
         let s2 = AudioStreamMeta::new(1, AudioCodecInfo::opus(), 48_000, 2, 48_000);
         let info = AudioFileInfo::new("file.mkv", "matroska", vec![s1, s2]);
-        assert_eq!(info.primary_stream().unwrap().stream_index, 0);
+        assert_eq!(
+            info.primary_stream().expect("should succeed").stream_index,
+            0
+        );
     }
 
     #[test]

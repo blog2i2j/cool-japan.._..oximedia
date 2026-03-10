@@ -369,7 +369,7 @@ mod tests {
         let mut q = RenderQueue::new();
         let id = q.enqueue("job1", sample_output());
         assert_eq!(q.len(), 1);
-        let job = q.get(id).unwrap();
+        let job = q.get(id).expect("job should be valid");
         assert_eq!(job.name, "job1");
         assert_eq!(job.state, JobState::Queued);
     }
@@ -393,11 +393,11 @@ mod tests {
     fn test_job_lifecycle() {
         let mut job = RenderJob::new(1, "test", sample_output());
         assert!(!job.is_terminal());
-        job.start().unwrap();
+        job.start().expect("start should succeed");
         assert_eq!(job.state, JobState::Running);
         job.set_progress(50.0);
         assert!((job.progress() - 50.0).abs() < f64::EPSILON);
-        job.complete().unwrap();
+        job.complete().expect("complete should succeed");
         assert!(job.is_terminal());
         assert!((job.progress() - 100.0).abs() < f64::EPSILON);
     }
@@ -405,8 +405,8 @@ mod tests {
     #[test]
     fn test_job_failure() {
         let mut job = RenderJob::new(1, "fail_test", sample_output());
-        job.start().unwrap();
-        job.fail("codec error").unwrap();
+        job.start().expect("start should succeed");
+        job.fail("codec error").expect("fail should succeed");
         assert_eq!(job.state, JobState::Failed);
         assert_eq!(job.error.as_deref(), Some("codec error"));
     }
@@ -414,15 +414,15 @@ mod tests {
     #[test]
     fn test_cancel_queued() {
         let mut job = RenderJob::new(1, "cancel_test", sample_output());
-        job.cancel().unwrap();
+        job.cancel().expect("cancel should succeed");
         assert_eq!(job.state, JobState::Cancelled);
     }
 
     #[test]
     fn test_cancel_completed_fails() {
         let mut job = RenderJob::new(1, "done", sample_output());
-        job.start().unwrap();
-        job.complete().unwrap();
+        job.start().expect("start should succeed");
+        job.complete().expect("complete should succeed");
         let err = job.cancel().unwrap_err();
         assert!(matches!(err, RenderQueueError::InvalidTransition { .. }));
     }
@@ -439,7 +439,7 @@ mod tests {
         let mut q = RenderQueue::with_concurrency(1);
         let id1 = q.enqueue("j1", sample_output());
         let _id2 = q.enqueue("j2", sample_output());
-        q.get_mut(id1).unwrap().start().unwrap();
+        q.get_mut(id1).expect("get_mut should succeed").start().expect("test expectation failed");
         assert!(q.next_runnable().is_none());
     }
 
@@ -448,8 +448,8 @@ mod tests {
         let mut q = RenderQueue::new();
         let id1 = q.enqueue("j1", sample_output());
         let _id2 = q.enqueue("j2", sample_output());
-        q.get_mut(id1).unwrap().start().unwrap();
-        q.get_mut(id1).unwrap().complete().unwrap();
+        q.get_mut(id1).expect("get_mut should succeed").start().expect("test expectation failed");
+        q.get_mut(id1).expect("get_mut should succeed").complete().expect("test expectation failed");
         let purged = q.purge_completed();
         assert_eq!(purged, 1);
         assert_eq!(q.len(), 1);
@@ -460,7 +460,7 @@ mod tests {
         let mut q = RenderQueue::new();
         let id1 = q.enqueue("j1", sample_output());
         let _id2 = q.enqueue("j2", sample_output());
-        q.get_mut(id1).unwrap().start().unwrap();
+        q.get_mut(id1).expect("get_mut should succeed").start().expect("test expectation failed");
         let s = q.stats();
         assert_eq!(s.running, 1);
         assert_eq!(s.queued, 1);

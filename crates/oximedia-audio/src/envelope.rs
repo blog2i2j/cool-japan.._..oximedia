@@ -427,7 +427,7 @@ mod tests {
         let buf = env.generate_cycle(10);
         assert!(!buf.is_empty());
         // last sample should be near zero
-        assert!(buf.last().unwrap().abs() < 0.1);
+        assert!(buf.last().expect("should have last element").abs() < 0.1);
     }
 
     #[test]

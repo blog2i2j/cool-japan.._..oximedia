@@ -252,7 +252,7 @@ mod tests {
         let mut lib = IngestPresetLibrary::new();
         lib.add(IngestPreset::new("a", "A", IngestQuality::Proxy));
         lib.add(IngestPreset::new("b", "B", IngestQuality::Hd));
-        let found = lib.find("b").unwrap();
+        let found = lib.find("b").expect("found should be valid");
         assert_eq!(found.quality, IngestQuality::Hd);
     }
 
@@ -262,7 +262,7 @@ mod tests {
         lib.add(IngestPreset::new("hd", "HD", IngestQuality::Hd));
         lib.add(IngestPreset::new("uhd", "UHD", IngestQuality::Uhd));
         lib.add(IngestPreset::new("ll", "LL", IngestQuality::Lossless));
-        let best = lib.best_quality().unwrap();
+        let best = lib.best_quality().expect("best should be valid");
         assert!(best.is_lossless());
     }
 
@@ -271,7 +271,7 @@ mod tests {
         let mut lib = IngestPresetLibrary::new();
         lib.add(IngestPreset::new("proxy", "Proxy", IngestQuality::Proxy));
         lib.add(IngestPreset::new("uhd", "UHD", IngestQuality::Uhd));
-        let best = lib.best_quality().unwrap();
+        let best = lib.best_quality().expect("best should be valid");
         assert_eq!(best.quality, IngestQuality::Uhd);
     }
 

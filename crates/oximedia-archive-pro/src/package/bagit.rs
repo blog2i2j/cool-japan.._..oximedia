@@ -327,19 +327,21 @@ mod tests {
 
     #[test]
     fn test_create_bagit_package() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("operation should succeed");
         let bag_dir = temp_dir.path().join("test-bag");
 
-        let mut test_file = NamedTempFile::new().unwrap();
-        test_file.write_all(b"Test content").unwrap();
-        test_file.flush().unwrap();
+        let mut test_file = NamedTempFile::new().expect("operation should succeed");
+        test_file
+            .write_all(b"Test content")
+            .expect("operation should succeed");
+        test_file.flush().expect("operation should succeed");
 
         let bag = BagItBuilder::new(bag_dir.clone())
             .with_metadata("Contact-Name", "Test User")
             .add_file(test_file.path())
-            .unwrap()
+            .expect("operation should succeed")
             .build()
-            .unwrap();
+            .expect("operation should succeed");
 
         assert!(bag.root.join("bagit.txt").exists());
         assert!(bag.root.join("bag-info.txt").exists());
@@ -348,18 +350,20 @@ mod tests {
 
     #[test]
     fn test_validate_bagit_package() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("operation should succeed");
         let bag_dir = temp_dir.path().join("test-bag");
 
-        let mut test_file = NamedTempFile::new().unwrap();
-        test_file.write_all(b"Validation test").unwrap();
-        test_file.flush().unwrap();
+        let mut test_file = NamedTempFile::new().expect("operation should succeed");
+        test_file
+            .write_all(b"Validation test")
+            .expect("operation should succeed");
+        test_file.flush().expect("operation should succeed");
 
         let bag = BagItBuilder::new(bag_dir.clone())
             .add_file(test_file.path())
-            .unwrap()
+            .expect("operation should succeed")
             .build()
-            .unwrap();
+            .expect("operation should succeed");
 
         let result = BagItValidator::validate(&bag);
         assert!(result.is_ok());
@@ -367,20 +371,22 @@ mod tests {
 
     #[test]
     fn test_load_bagit_package() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("operation should succeed");
         let bag_dir = temp_dir.path().join("test-bag");
 
-        let mut test_file = NamedTempFile::new().unwrap();
-        test_file.write_all(b"Load test").unwrap();
-        test_file.flush().unwrap();
+        let mut test_file = NamedTempFile::new().expect("operation should succeed");
+        test_file
+            .write_all(b"Load test")
+            .expect("operation should succeed");
+        test_file.flush().expect("operation should succeed");
 
         BagItBuilder::new(bag_dir.clone())
             .add_file(test_file.path())
-            .unwrap()
+            .expect("operation should succeed")
             .build()
-            .unwrap();
+            .expect("operation should succeed");
 
-        let loaded = BagItPackage::load(&bag_dir).unwrap();
+        let loaded = BagItPackage::load(&bag_dir).expect("operation should succeed");
         assert_eq!(loaded.algorithm, ChecksumAlgorithm::Sha256);
     }
 }

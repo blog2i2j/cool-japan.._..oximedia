@@ -183,7 +183,7 @@ mod tests {
     fn test_job_tag_new_some() {
         let t = JobTag::new("encode");
         assert!(t.is_some());
-        assert_eq!(t.unwrap().as_str(), "encode");
+        assert_eq!(t.expect("test expectation failed").as_str(), "encode");
     }
 
     #[test]
@@ -198,14 +198,14 @@ mod tests {
 
     #[test]
     fn test_job_tag_display() {
-        let t = JobTag::new("mytag").unwrap();
+        let t = JobTag::new("mytag").expect("t should be valid");
         assert_eq!(format!("{t}"), "mytag");
     }
 
     #[test]
     fn test_tagged_job_has_tag() {
         let mut j = TaggedJob::new("job-1");
-        let t = JobTag::new("audio").unwrap();
+        let t = JobTag::new("audio").expect("t should be valid");
         j.attach(t.clone());
         assert!(j.has_tag(&t));
     }
@@ -213,14 +213,14 @@ mod tests {
     #[test]
     fn test_tagged_job_has_tag_false() {
         let j = TaggedJob::new("job-2");
-        let t = JobTag::new("video").unwrap();
+        let t = JobTag::new("video").expect("t should be valid");
         assert!(!j.has_tag(&t));
     }
 
     #[test]
     fn test_tagged_job_detach() {
         let mut j = TaggedJob::new("job-3");
-        let t = JobTag::new("batch").unwrap();
+        let t = JobTag::new("batch").expect("t should be valid");
         j.attach(t.clone());
         assert_eq!(j.tag_count(), 1);
         assert!(j.detach(&t));
@@ -230,17 +230,17 @@ mod tests {
     #[test]
     fn test_tagged_job_tag_count() {
         let mut j = TaggedJob::new("job-4");
-        j.attach(JobTag::new("a").unwrap());
-        j.attach(JobTag::new("b").unwrap());
-        j.attach(JobTag::new("c").unwrap());
+        j.attach(JobTag::new("a").expect("attach should succeed"));
+        j.attach(JobTag::new("b").expect("attach should succeed"));
+        j.attach(JobTag::new("c").expect("attach should succeed"));
         assert_eq!(j.tag_count(), 3);
     }
 
     #[test]
     fn test_tagged_job_tag_strings_sorted() {
         let mut j = TaggedJob::new("job-5");
-        j.attach(JobTag::new("z").unwrap());
-        j.attach(JobTag::new("a").unwrap());
+        j.attach(JobTag::new("z").expect("attach should succeed"));
+        j.attach(JobTag::new("a").expect("attach should succeed"));
         let strings = j.tag_strings();
         assert_eq!(strings, vec!["a", "z"]);
     }
@@ -248,7 +248,7 @@ mod tests {
     #[test]
     fn test_job_tag_index_tag_and_jobs_with_tag() {
         let mut idx = JobTagIndex::new();
-        let t = JobTag::new("urgent").unwrap();
+        let t = JobTag::new("urgent").expect("t should be valid");
         idx.tag("job-a", t.clone());
         idx.tag("job-b", t.clone());
         let jobs = idx.jobs_with_tag(&t);
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn test_job_tag_index_untag() {
         let mut idx = JobTagIndex::new();
-        let t = JobTag::new("slow").unwrap();
+        let t = JobTag::new("slow").expect("t should be valid");
         idx.tag("job-x", t.clone());
         assert_eq!(idx.jobs_with_tag(&t).len(), 1);
         idx.untag("job-x", &t);
@@ -270,17 +270,17 @@ mod tests {
     #[test]
     fn test_job_tag_index_tag_count() {
         let mut idx = JobTagIndex::new();
-        idx.tag("j1", JobTag::new("t1").unwrap());
-        idx.tag("j2", JobTag::new("t2").unwrap());
-        idx.tag("j3", JobTag::new("t1").unwrap()); // same tag as j1
+        idx.tag("j1", JobTag::new("t1").expect("tag should succeed"));
+        idx.tag("j2", JobTag::new("t2").expect("tag should succeed"));
+        idx.tag("j3", JobTag::new("t1").expect("tag should succeed")); // same tag as j1
         assert_eq!(idx.tag_count(), 2);
     }
 
     #[test]
     fn test_job_tag_index_tags_for_job() {
         let mut idx = JobTagIndex::new();
-        idx.tag("jq", JobTag::new("video").unwrap());
-        idx.tag("jq", JobTag::new("hd").unwrap());
+        idx.tag("jq", JobTag::new("video").expect("tag should succeed"));
+        idx.tag("jq", JobTag::new("hd").expect("tag should succeed"));
         let tags = idx.tags_for_job("jq");
         assert!(tags.contains("video"));
         assert!(tags.contains("hd"));

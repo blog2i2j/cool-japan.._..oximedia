@@ -287,7 +287,7 @@ mod tests {
 
     #[test]
     fn test_parse_ndf() {
-        let tc = TimecodeValue::parse("01:02:03:04", 25.0).unwrap();
+        let tc = TimecodeValue::parse("01:02:03:04", 25.0).expect("valid timecode value");
         assert_eq!(tc.hh, 1);
         assert_eq!(tc.mm, 2);
         assert_eq!(tc.ss, 3);
@@ -297,7 +297,7 @@ mod tests {
 
     #[test]
     fn test_parse_df() {
-        let tc = TimecodeValue::parse("01:02:03;04", 29.97).unwrap();
+        let tc = TimecodeValue::parse("01:02:03;04", 29.97).expect("valid timecode value");
         assert_eq!(tc.hh, 1);
         assert_eq!(tc.mm, 2);
         assert_eq!(tc.ss, 3);
@@ -329,7 +329,7 @@ mod tests {
     #[test]
     fn test_parse_display_roundtrip() {
         let original = "01:30:45:12";
-        let tc = TimecodeValue::parse(original, 25.0).unwrap();
+        let tc = TimecodeValue::parse(original, 25.0).expect("valid timecode value");
         assert_eq!(tc.to_string(), original);
     }
 }

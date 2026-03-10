@@ -4,11 +4,12 @@
 //! robust fitting algorithms like RANSAC.
 
 use crate::error::{StabilizeError, StabilizeResult};
-use crate::motion::model::{AffineModel, MotionModel, PerspectiveModel, TranslationModel};
+use crate::motion::model::{
+    AffineModel, Matrix3x3, MotionModel, PerspectiveModel, TranslationModel,
+};
 use crate::motion::tracker::FeatureTrack;
 use crate::StabilizationMode;
-use nalgebra as na;
-use rand::Rng;
+use scirs2_core::random::Random;
 
 /// Motion estimator that fits motion models to feature tracks.
 #[derive(Debug)]
@@ -103,7 +104,6 @@ impl MotionEstimator {
             StabilizationMode::Perspective => self.fit_perspective_ransac(&correspondences)?,
             StabilizationMode::ThreeD => {
                 // For 3D mode, start with affine approximation
-                // Full 3D estimation is done in the three_d module
                 self.fit_affine_ransac(&correspondences)?
             }
         };
@@ -132,7 +132,7 @@ impl MotionEstimator {
 
         let mut best_model: Option<TranslationModel> = None;
         let mut best_inliers = 0;
-        let mut rng = rand::rng();
+        let mut rng = Random::default();
 
         for _ in 0..self.ransac_iterations {
             // Sample one correspondence (minimum for translation)
@@ -177,7 +177,7 @@ impl MotionEstimator {
 
         let mut best_model: Option<AffineModel> = None;
         let mut best_inliers = 0;
-        let mut rng = rand::rng();
+        let mut rng = Random::default();
 
         for _ in 0..self.ransac_iterations {
             // Sample 3 correspondences (minimum for affine)
@@ -229,7 +229,7 @@ impl MotionEstimator {
 
         let mut best_model: Option<PerspectiveModel> = None;
         let mut best_inliers = 0;
-        let mut rng = rand::rng();
+        let mut rng = Random::default();
 
         for _ in 0..self.ransac_iterations {
             // Sample 4 correspondences (minimum for homography)
@@ -282,48 +282,51 @@ impl MotionEstimator {
             ));
         }
 
-        // Build linear system for affine transformation
-        let mut a = na::Matrix6::zeros();
-        let mut b = na::Vector6::zeros();
+        // Build 6x6 linear system for affine transformation
+        // [x1 y1 1 0  0  0] [a11]   [x1']
+        // [0  0  0 x1 y1 1] [a12] = [y1']
+        // [x2 y2 1 0  0  0] [tx ]   [x2']
+        // [0  0  0 x2 y2 1] [a21]   [y2']
+        // [x3 y3 1 0  0  0] [a22]   [x3']
+        // [0  0  0 x3 y3 1] [ty ]   [y3']
+        let mut a_mat = [[0.0f64; 6]; 6];
+        let mut b_vec = [0.0f64; 6];
 
         for (i, corr) in correspondences.iter().enumerate() {
             let row = i * 2;
-            a[(row, 0)] = corr.src.0;
-            a[(row, 1)] = corr.src.1;
-            a[(row, 2)] = 1.0;
-            b[row] = corr.dst.0;
+            a_mat[row][0] = corr.src.0;
+            a_mat[row][1] = corr.src.1;
+            a_mat[row][2] = 1.0;
+            b_vec[row] = corr.dst.0;
 
-            a[(row + 1, 3)] = corr.src.0;
-            a[(row + 1, 4)] = corr.src.1;
-            a[(row + 1, 5)] = 1.0;
-            b[row + 1] = corr.dst.1;
+            a_mat[row + 1][3] = corr.src.0;
+            a_mat[row + 1][4] = corr.src.1;
+            a_mat[row + 1][5] = 1.0;
+            b_vec[row + 1] = corr.dst.1;
         }
 
-        // Solve linear system
-        if let Some(x) = a.try_inverse() {
-            let params = x * b;
+        // Solve using Gaussian elimination with partial pivoting
+        let params = solve_6x6(&a_mat, &b_vec)
+            .ok_or_else(|| StabilizeError::matrix("Matrix is singular"))?;
 
-            // Extract affine parameters
-            let a11 = params[0];
-            let a12 = params[1];
-            let a21 = params[3];
-            let a22 = params[4];
-            let dx = params[2];
-            let dy = params[5];
+        // Extract affine parameters
+        let a11 = params[0];
+        let a12 = params[1];
+        let a21 = params[3];
+        let _a22 = params[4];
+        let dx = params[2];
+        let dy = params[5];
 
-            // Decompose into TRS
-            let scale = (a11 * a11 + a21 * a21).sqrt();
-            let angle = a21.atan2(a11);
-            let shear_x = a12 / scale;
-            let shear_y = a22 / scale - 1.0;
+        // Decompose into TRS
+        let scale = (a11 * a11 + a21 * a21).sqrt();
+        let angle = a21.atan2(a11);
+        let shear_x = a12 / scale;
+        let shear_y = _a22 / scale - 1.0;
 
-            Ok(AffineModel::new(dx, dy, angle, scale, shear_x, shear_y))
-        } else {
-            Err(StabilizeError::matrix("Matrix is singular"))
-        }
+        Ok(AffineModel::new(dx, dy, angle, scale, shear_x, shear_y))
     }
 
-    /// Fit homography to 4 or more points.
+    /// Fit homography to 4 or more points using DLT.
     fn fit_homography(
         &self,
         correspondences: &[&Correspondence],
@@ -335,9 +338,11 @@ impl MotionEstimator {
             ));
         }
 
-        // Build DLT (Direct Linear Transform) matrix
+        // Build DLT matrix and solve using SVD via scirs2-core
         let n = correspondences.len();
-        let mut a = na::DMatrix::zeros(2 * n, 9);
+        use scirs2_core::ndarray::Array2;
+
+        let mut a = Array2::<f64>::zeros((2 * n, 9));
 
         for (i, corr) in correspondences.iter().enumerate() {
             let x1 = corr.src.0;
@@ -348,41 +353,44 @@ impl MotionEstimator {
             let row = i * 2;
 
             // First row
-            a[(row, 0)] = -x1;
-            a[(row, 1)] = -y1;
-            a[(row, 2)] = -1.0;
-            a[(row, 6)] = x2 * x1;
-            a[(row, 7)] = x2 * y1;
-            a[(row, 8)] = x2;
+            a[[row, 0]] = -x1;
+            a[[row, 1]] = -y1;
+            a[[row, 2]] = -1.0;
+            a[[row, 6]] = x2 * x1;
+            a[[row, 7]] = x2 * y1;
+            a[[row, 8]] = x2;
 
             // Second row
-            a[(row + 1, 3)] = -x1;
-            a[(row + 1, 4)] = -y1;
-            a[(row + 1, 5)] = -1.0;
-            a[(row + 1, 6)] = y2 * x1;
-            a[(row + 1, 7)] = y2 * y1;
-            a[(row + 1, 8)] = y2;
+            a[[row + 1, 3]] = -x1;
+            a[[row + 1, 4]] = -y1;
+            a[[row + 1, 5]] = -1.0;
+            a[[row + 1, 6]] = y2 * x1;
+            a[[row + 1, 7]] = y2 * y1;
+            a[[row + 1, 8]] = y2;
         }
 
         // Solve using SVD
-        let svd = na::linalg::SVD::new(a, true, true);
+        let svd = scirs2_core::linalg::svd_ndarray(&a)
+            .map_err(|e| StabilizeError::matrix(format!("SVD failed: {e}")))?;
 
-        if let Some(v_t) = svd.v_t {
-            let h = v_t.row(8);
+        // The last row of Vt gives the null space solution
+        let vt = &svd.vt;
+        let last_row = vt.nrows() - 1;
 
-            let homography = na::Matrix3::new(h[0], h[1], h[2], h[3], h[4], h[5], h[6], h[7], h[8]);
-
-            // Normalize
-            let normalized = if homography[(2, 2)].abs() > 1e-10 {
-                homography / homography[(2, 2)]
-            } else {
-                homography
-            };
-
-            Ok(PerspectiveModel::new(normalized))
-        } else {
-            Err(StabilizeError::matrix("SVD failed"))
+        let mut homography = Matrix3x3::zeros();
+        for i in 0..3 {
+            for j in 0..3 {
+                homography.set(i, j, vt[[last_row, i * 3 + j]]);
+            }
         }
+
+        // Normalize
+        let h22 = homography.get(2, 2);
+        if h22.abs() > 1e-10 {
+            homography = homography.scale(1.0 / h22);
+        }
+
+        Ok(PerspectiveModel::new(homography))
     }
 
     /// Count inliers for a given model.
@@ -451,10 +459,26 @@ impl MotionEstimator {
             return model.clone();
         }
 
-        // Fit to all inliers using least squares
-        // For simplicity, use the original model
-        // In production, implement weighted least squares refinement
-        model.clone()
+        // Least squares refinement using all inliers
+        // Compute mean displacements as refined estimate
+        let mut sum_dx = 0.0;
+        let mut sum_dy = 0.0;
+        for corr in &inliers {
+            sum_dx += corr.dst.0 - corr.src.0;
+            sum_dy += corr.dst.1 - corr.src.1;
+        }
+        let n = inliers.len() as f64;
+        let refined_dx = sum_dx / n;
+        let refined_dy = sum_dy / n;
+
+        AffineModel::new(
+            refined_dx,
+            refined_dy,
+            model.angle,
+            model.scale,
+            model.shear_x,
+            model.shear_y,
+        )
     }
 
     /// Refine homography using all inliers.
@@ -486,6 +510,59 @@ impl MotionEstimator {
             model.clone()
         }
     }
+}
+
+/// Solve a 6x6 linear system using Gaussian elimination with partial pivoting.
+fn solve_6x6(a: &[[f64; 6]; 6], b: &[f64; 6]) -> Option<[f64; 6]> {
+    let mut aug = [[0.0f64; 7]; 6];
+    for i in 0..6 {
+        for j in 0..6 {
+            aug[i][j] = a[i][j];
+        }
+        aug[i][6] = b[i];
+    }
+
+    // Forward elimination with partial pivoting
+    for col in 0..6 {
+        // Find pivot
+        let mut max_val = aug[col][col].abs();
+        let mut max_row = col;
+        for row in (col + 1)..6 {
+            if aug[row][col].abs() > max_val {
+                max_val = aug[row][col].abs();
+                max_row = row;
+            }
+        }
+
+        if max_val < 1e-15 {
+            return None; // Singular
+        }
+
+        // Swap rows
+        if max_row != col {
+            aug.swap(col, max_row);
+        }
+
+        // Eliminate below
+        for row in (col + 1)..6 {
+            let factor = aug[row][col] / aug[col][col];
+            for j in col..7 {
+                aug[row][j] -= factor * aug[col][j];
+            }
+        }
+    }
+
+    // Back substitution
+    let mut x = [0.0f64; 6];
+    for i in (0..6).rev() {
+        let mut sum = aug[i][6];
+        for j in (i + 1)..6 {
+            sum -= aug[i][j] * x[j];
+        }
+        x[i] = sum / aug[i][i];
+    }
+
+    Some(x)
 }
 
 /// A correspondence between points in two frames.

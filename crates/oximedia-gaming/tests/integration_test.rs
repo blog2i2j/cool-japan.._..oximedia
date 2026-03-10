@@ -10,12 +10,14 @@ async fn test_basic_streaming_lifecycle() {
         .framerate(60)
         .bitrate(6000)
         .build()
-        .unwrap();
+        .expect("should succeed");
 
-    let mut streamer = GameStreamer::new(config).await.unwrap();
+    let mut streamer = GameStreamer::new(config)
+        .await
+        .expect("valid game streamer");
 
     // Start streaming
-    streamer.start().await.unwrap();
+    streamer.start().await.expect("start should succeed");
     assert!(streamer.is_streaming());
 
     // Check stats
@@ -24,40 +26,54 @@ async fn test_basic_streaming_lifecycle() {
     assert_eq!(stats.bitrate, 6000);
 
     // Stop streaming
-    streamer.stop().await.unwrap();
+    streamer.stop().await.expect("stop should succeed");
     assert!(!streamer.is_streaming());
 }
 
 #[tokio::test]
 async fn test_pause_resume() {
-    let config = StreamConfig::builder().build().unwrap();
-    let mut streamer = GameStreamer::new(config).await.unwrap();
+    let config = StreamConfig::builder()
+        .build()
+        .expect("valid stream config");
+    let mut streamer = GameStreamer::new(config)
+        .await
+        .expect("valid game streamer");
 
-    streamer.start().await.unwrap();
+    streamer.start().await.expect("start should succeed");
     assert!(streamer.is_streaming());
 
-    streamer.pause().unwrap();
+    streamer.pause().expect("pause should succeed");
     assert!(!streamer.is_streaming());
 
-    streamer.resume().unwrap();
+    streamer.resume().expect("resume should succeed");
     assert!(streamer.is_streaming());
 
-    streamer.stop().await.unwrap();
+    streamer.stop().await.expect("stop should succeed");
 }
 
 #[tokio::test]
 async fn test_replay_buffer_integration() {
-    let config = StreamConfig::builder().replay_buffer(30).build().unwrap();
+    let config = StreamConfig::builder()
+        .replay_buffer(30)
+        .build()
+        .expect("valid stream config");
 
-    let mut streamer = GameStreamer::new(config).await.unwrap();
-    streamer.enable_replay_buffer(60).unwrap();
+    let mut streamer = GameStreamer::new(config)
+        .await
+        .expect("valid game streamer");
+    streamer
+        .enable_replay_buffer(60)
+        .expect("enable replay buffer should succeed");
 
-    streamer.start().await.unwrap();
+    streamer.start().await.expect("start should succeed");
 
     // Save replay
-    streamer.save_replay("/tmp/test_replay.mp4").await.unwrap();
+    streamer
+        .save_replay("/tmp/test_replay.mp4")
+        .await
+        .expect("save replay should succeed");
 
-    streamer.stop().await.unwrap();
+    streamer.stop().await.expect("stop should succeed");
 }
 
 #[test]
@@ -73,7 +89,7 @@ fn test_all_resolutions() {
         let config = StreamConfig::builder()
             .resolution(width, height)
             .build()
-            .unwrap();
+            .expect("should succeed");
 
         assert_eq!(config.resolution, (width, height));
     }
@@ -84,7 +100,10 @@ fn test_all_framerates() {
     let framerates = [30, 60, 120, 144, 240];
 
     for fps in framerates {
-        let config = StreamConfig::builder().framerate(fps).build().unwrap();
+        let config = StreamConfig::builder()
+            .framerate(fps)
+            .build()
+            .expect("valid stream config");
 
         assert_eq!(config.framerate, fps);
     }
@@ -103,7 +122,7 @@ fn test_encoder_presets() {
         let config = StreamConfig::builder()
             .encoder_preset(preset)
             .build()
-            .unwrap();
+            .expect("should succeed");
 
         assert_eq!(config.encoder_preset, preset);
     }
@@ -120,7 +139,10 @@ fn test_capture_sources() {
     ];
 
     for source in sources {
-        let config = StreamConfig::builder().source(source).build().unwrap();
+        let config = StreamConfig::builder()
+            .source(source)
+            .build()
+            .expect("valid stream config");
 
         assert_eq!(config.source, source);
     }
@@ -138,7 +160,10 @@ fn test_bitrate_ranges() {
     ];
 
     for bitrate in bitrates {
-        let config = StreamConfig::builder().bitrate(bitrate).build().unwrap();
+        let config = StreamConfig::builder()
+            .bitrate(bitrate)
+            .build()
+            .expect("valid stream config");
 
         assert_eq!(config.bitrate, bitrate);
     }
@@ -152,15 +177,17 @@ async fn test_high_framerate_streaming() {
         .encoder_preset(EncoderPreset::UltraLowLatency)
         .bitrate(10000)
         .build()
-        .unwrap();
+        .expect("should succeed");
 
-    let mut streamer = GameStreamer::new(config).await.unwrap();
-    streamer.start().await.unwrap();
+    let mut streamer = GameStreamer::new(config)
+        .await
+        .expect("valid game streamer");
+    streamer.start().await.expect("start should succeed");
 
     let stats = streamer.get_stats();
     assert_eq!(stats.fps, 144);
 
-    streamer.stop().await.unwrap();
+    streamer.stop().await.expect("stop should succeed");
 }
 
 #[tokio::test]
@@ -171,15 +198,17 @@ async fn test_4k_streaming() {
         .encoder_preset(EncoderPreset::HighQuality)
         .bitrate(20000)
         .build()
-        .unwrap();
+        .expect("should succeed");
 
-    let mut streamer = GameStreamer::new(config).await.unwrap();
-    streamer.start().await.unwrap();
+    let mut streamer = GameStreamer::new(config)
+        .await
+        .expect("valid game streamer");
+    streamer.start().await.expect("start should succeed");
 
     let stats = streamer.get_stats();
     assert_eq!(stats.bitrate, 20000);
 
-    streamer.stop().await.unwrap();
+    streamer.stop().await.expect("stop should succeed");
 }
 
 #[test]
@@ -188,7 +217,7 @@ fn test_webcam_microphone_integration() {
         .webcam(true)
         .microphone(true)
         .build()
-        .unwrap();
+        .expect("should succeed");
 
     assert!(config.enable_webcam);
     assert!(config.enable_microphone);
@@ -196,7 +225,9 @@ fn test_webcam_microphone_integration() {
 
 #[test]
 fn test_config_builder_defaults() {
-    let config = StreamConfig::builder().build().unwrap();
+    let config = StreamConfig::builder()
+        .build()
+        .expect("valid stream config");
 
     assert_eq!(config.resolution, (1920, 1080));
     assert_eq!(config.framerate, 60);
@@ -213,9 +244,11 @@ async fn test_streaming_stats_accuracy() {
         .framerate(60)
         .bitrate(8000)
         .build()
-        .unwrap();
+        .expect("should succeed");
 
-    let streamer = GameStreamer::new(config).await.unwrap();
+    let streamer = GameStreamer::new(config)
+        .await
+        .expect("valid game streamer");
     let stats = streamer.get_stats();
 
     assert_eq!(stats.fps, 60);
@@ -240,22 +273,30 @@ fn test_invalid_configurations() {
 
 #[tokio::test]
 async fn test_double_start_error() {
-    let config = StreamConfig::builder().build().unwrap();
-    let mut streamer = GameStreamer::new(config).await.unwrap();
+    let config = StreamConfig::builder()
+        .build()
+        .expect("valid stream config");
+    let mut streamer = GameStreamer::new(config)
+        .await
+        .expect("valid game streamer");
 
-    streamer.start().await.unwrap();
+    streamer.start().await.expect("start should succeed");
 
     // Second start should fail
     assert!(streamer.start().await.is_err());
 
-    streamer.stop().await.unwrap();
+    streamer.stop().await.expect("stop should succeed");
 }
 
 #[test]
 fn test_pause_when_not_running() {
-    let config = StreamConfig::builder().build().unwrap();
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    let mut streamer = rt.block_on(GameStreamer::new(config)).unwrap();
+    let config = StreamConfig::builder()
+        .build()
+        .expect("valid stream config");
+    let rt = tokio::runtime::Runtime::new().expect("tokio runtime should start");
+    let mut streamer = rt
+        .block_on(GameStreamer::new(config))
+        .expect("valid game streamer");
 
     // Pause when not running should fail
     assert!(streamer.pause().is_err());
@@ -263,9 +304,13 @@ fn test_pause_when_not_running() {
 
 #[test]
 fn test_resume_when_not_paused() {
-    let config = StreamConfig::builder().build().unwrap();
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    let mut streamer = rt.block_on(GameStreamer::new(config)).unwrap();
+    let config = StreamConfig::builder()
+        .build()
+        .expect("valid stream config");
+    let rt = tokio::runtime::Runtime::new().expect("tokio runtime should start");
+    let mut streamer = rt
+        .block_on(GameStreamer::new(config))
+        .expect("valid game streamer");
 
     // Resume when not paused should fail
     assert!(streamer.resume().is_err());
@@ -273,9 +318,13 @@ fn test_resume_when_not_paused() {
 
 #[test]
 fn test_replay_buffer_duration_limits() {
-    let config = StreamConfig::builder().build().unwrap();
-    let rt = tokio::runtime::Runtime::new().unwrap();
-    let mut streamer = rt.block_on(GameStreamer::new(config)).unwrap();
+    let config = StreamConfig::builder()
+        .build()
+        .expect("valid stream config");
+    let rt = tokio::runtime::Runtime::new().expect("tokio runtime should start");
+    let mut streamer = rt
+        .block_on(GameStreamer::new(config))
+        .expect("valid game streamer");
 
     // Too short
     assert!(streamer.enable_replay_buffer(2).is_err());
@@ -295,28 +344,32 @@ async fn test_multiple_config_changes() {
         .resolution(1280, 720)
         .framerate(30)
         .build()
-        .unwrap();
+        .expect("should succeed");
 
-    let mut streamer = GameStreamer::new(config).await.unwrap();
-    streamer.start().await.unwrap();
+    let mut streamer = GameStreamer::new(config)
+        .await
+        .expect("valid game streamer");
+    streamer.start().await.expect("start should succeed");
 
     let stats = streamer.get_stats();
     assert_eq!(stats.fps, 30);
 
-    streamer.stop().await.unwrap();
+    streamer.stop().await.expect("stop should succeed");
 
     // Create new config
     let config2 = StreamConfig::builder()
         .resolution(1920, 1080)
         .framerate(60)
         .build()
-        .unwrap();
+        .expect("should succeed");
 
-    let mut streamer2 = GameStreamer::new(config2).await.unwrap();
-    streamer2.start().await.unwrap();
+    let mut streamer2 = GameStreamer::new(config2)
+        .await
+        .expect("valid game streamer");
+    streamer2.start().await.expect("start should succeed");
 
     let stats2 = streamer2.get_stats();
     assert_eq!(stats2.fps, 60);
 
-    streamer2.stop().await.unwrap();
+    streamer2.stop().await.expect("stop should succeed");
 }

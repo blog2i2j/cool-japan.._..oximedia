@@ -433,7 +433,7 @@ mod tests {
         for _ in 0..100 {
             ewma.update(50.0);
         }
-        let v = ewma.value().unwrap();
+        let v = ewma.value().expect("value should succeed");
         assert!((v - 50.0).abs() < 0.001);
     }
 
@@ -452,7 +452,7 @@ mod tests {
         for i in 0..10 {
             forecaster.add_sample(ResourceSample::new(i as f64, 50.0));
         }
-        let fit = forecaster.fit_linear().unwrap();
+        let fit = forecaster.fit_linear().expect("fit_linear should succeed");
         assert!(fit.slope.abs() < 1e-10);
         assert!((fit.intercept - 50.0).abs() < 1e-10);
     }
@@ -463,7 +463,7 @@ mod tests {
         for i in 0..10 {
             forecaster.add_sample(ResourceSample::new(i as f64, i as f64 * 5.0));
         }
-        let fit = forecaster.fit_linear().unwrap();
+        let fit = forecaster.fit_linear().expect("fit_linear should succeed");
         assert!((fit.slope - 5.0).abs() < 1e-10);
         assert!(fit.r_squared > 0.99);
     }
@@ -474,7 +474,7 @@ mod tests {
         for i in 0..20 {
             forecaster.add_sample(ResourceSample::new(i as f64, 40.0 + i as f64 * 2.0));
         }
-        let result = forecaster.forecast(30.0).unwrap();
+        let result = forecaster.forecast(30.0).expect("forecast should succeed");
         assert_eq!(result.trend, TrendDirection::Rising);
         assert!(result.time_to_threshold.is_some());
     }
@@ -485,7 +485,7 @@ mod tests {
         for i in 0..20 {
             forecaster.add_sample(ResourceSample::new(i as f64, 80.0 - i as f64 * 2.0));
         }
-        let result = forecaster.forecast(30.0).unwrap();
+        let result = forecaster.forecast(30.0).expect("forecast should succeed");
         assert_eq!(result.trend, TrendDirection::Falling);
         assert!(result.time_to_threshold.is_none());
     }
@@ -497,7 +497,9 @@ mod tests {
             forecaster.add_sample(ResourceSample::new(i as f64, i as f64));
         }
         // Last 5 values: 6,7,8,9,10 → avg = 8.0
-        let avg = forecaster.moving_average(5).unwrap();
+        let avg = forecaster
+            .moving_average(5)
+            .expect("moving_average should succeed");
         assert!((avg - 8.0).abs() < 1e-10);
     }
 
@@ -524,7 +526,7 @@ mod tests {
                 ResourceSample::new(i as f64, 30.0 + i as f64),
             );
         }
-        let cpu = manager.get(ResourceKind::Cpu).unwrap();
+        let cpu = manager.get(ResourceKind::Cpu).expect("failed to get value");
         assert_eq!(cpu.sample_count(), 10);
     }
 

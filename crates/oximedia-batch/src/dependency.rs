@@ -239,7 +239,8 @@ mod tests {
     #[test]
     fn test_add_dependency() {
         let mut g = DependencyGraph::new();
-        g.add_dependency(&id("a"), &id("b")).unwrap();
+        g.add_dependency(&id("a"), &id("b"))
+            .expect("failed to add dependency");
         assert_eq!(g.edge_count(), 1);
         assert!(g.successors_of(&id("a")).contains("b"));
         assert!(g.predecessors_of(&id("b")).contains("a"));
@@ -255,37 +256,57 @@ mod tests {
     #[test]
     fn test_no_cycle_simple_chain() {
         let mut g = DependencyGraph::new();
-        g.add_dependency(&id("a"), &id("b")).unwrap();
-        g.add_dependency(&id("b"), &id("c")).unwrap();
+        g.add_dependency(&id("a"), &id("b"))
+            .expect("failed to add dependency");
+        g.add_dependency(&id("b"), &id("c"))
+            .expect("failed to add dependency");
         assert!(!g.has_cycle());
     }
 
     #[test]
     fn test_cycle_detection() {
         let mut g = DependencyGraph::new();
-        g.add_dependency(&id("a"), &id("b")).unwrap();
-        g.add_dependency(&id("b"), &id("c")).unwrap();
-        g.add_dependency(&id("c"), &id("a")).unwrap();
+        g.add_dependency(&id("a"), &id("b"))
+            .expect("failed to add dependency");
+        g.add_dependency(&id("b"), &id("c"))
+            .expect("failed to add dependency");
+        g.add_dependency(&id("c"), &id("a"))
+            .expect("failed to add dependency");
         assert!(g.has_cycle());
     }
 
     #[test]
     fn test_topological_order_linear() {
         let mut g = DependencyGraph::new();
-        g.add_dependency(&id("a"), &id("b")).unwrap();
-        g.add_dependency(&id("b"), &id("c")).unwrap();
-        let order = g.topological_order().unwrap();
-        let ai = order.iter().position(|x| x == "a").unwrap();
-        let bi = order.iter().position(|x| x == "b").unwrap();
-        let ci = order.iter().position(|x| x == "c").unwrap();
+        g.add_dependency(&id("a"), &id("b"))
+            .expect("failed to add dependency");
+        g.add_dependency(&id("b"), &id("c"))
+            .expect("failed to add dependency");
+        let order = g
+            .topological_order()
+            .expect("topological order should succeed");
+        let ai = order
+            .iter()
+            .position(|x| x == "a")
+            .expect("element not found in order");
+        let bi = order
+            .iter()
+            .position(|x| x == "b")
+            .expect("element not found in order");
+        let ci = order
+            .iter()
+            .position(|x| x == "c")
+            .expect("element not found in order");
         assert!(ai < bi && bi < ci);
     }
 
     #[test]
     fn test_topological_order_cycle_error() {
         let mut g = DependencyGraph::new();
-        g.add_dependency(&id("x"), &id("y")).unwrap();
-        g.add_dependency(&id("y"), &id("x")).unwrap();
+        g.add_dependency(&id("x"), &id("y"))
+            .expect("failed to add dependency");
+        g.add_dependency(&id("y"), &id("x"))
+            .expect("failed to add dependency");
         assert!(g.topological_order().is_err());
     }
 
@@ -293,7 +314,8 @@ mod tests {
     fn test_roots() {
         let mut g = DependencyGraph::new();
         g.add_job(&id("root"));
-        g.add_dependency(&id("root"), &id("child")).unwrap();
+        g.add_dependency(&id("root"), &id("child"))
+            .expect("failed to add dependency");
         let roots = g.roots();
         assert!(roots.contains(&"root".to_string()));
         assert!(!roots.contains(&"child".to_string()));
@@ -302,7 +324,8 @@ mod tests {
     #[test]
     fn test_leaves() {
         let mut g = DependencyGraph::new();
-        g.add_dependency(&id("a"), &id("b")).unwrap();
+        g.add_dependency(&id("a"), &id("b"))
+            .expect("failed to add dependency");
         let leaves = g.leaves();
         assert!(leaves.contains(&"b".to_string()));
         assert!(!leaves.contains(&"a".to_string()));
@@ -311,7 +334,8 @@ mod tests {
     #[test]
     fn test_remove_job() {
         let mut g = DependencyGraph::new();
-        g.add_dependency(&id("a"), &id("b")).unwrap();
+        g.add_dependency(&id("a"), &id("b"))
+            .expect("failed to add dependency");
         g.remove_job(&id("a"));
         assert!(!g.contains(&id("a")));
         assert!(g.predecessors_of(&id("b")).is_empty());
@@ -321,14 +345,26 @@ mod tests {
     fn test_diamond_dag() {
         // a -> b, a -> c, b -> d, c -> d
         let mut g = DependencyGraph::new();
-        g.add_dependency(&id("a"), &id("b")).unwrap();
-        g.add_dependency(&id("a"), &id("c")).unwrap();
-        g.add_dependency(&id("b"), &id("d")).unwrap();
-        g.add_dependency(&id("c"), &id("d")).unwrap();
+        g.add_dependency(&id("a"), &id("b"))
+            .expect("failed to add dependency");
+        g.add_dependency(&id("a"), &id("c"))
+            .expect("failed to add dependency");
+        g.add_dependency(&id("b"), &id("d"))
+            .expect("failed to add dependency");
+        g.add_dependency(&id("c"), &id("d"))
+            .expect("failed to add dependency");
         assert!(!g.has_cycle());
-        let order = g.topological_order().unwrap();
-        let ai = order.iter().position(|x| x == "a").unwrap();
-        let di = order.iter().position(|x| x == "d").unwrap();
+        let order = g
+            .topological_order()
+            .expect("topological order should succeed");
+        let ai = order
+            .iter()
+            .position(|x| x == "a")
+            .expect("element not found in order");
+        let di = order
+            .iter()
+            .position(|x| x == "d")
+            .expect("element not found in order");
         assert!(ai < di);
     }
 
@@ -339,7 +375,9 @@ mod tests {
         g.add_job(&id("y"));
         g.add_job(&id("z"));
         assert!(!g.has_cycle());
-        let order = g.topological_order().unwrap();
+        let order = g
+            .topological_order()
+            .expect("topological order should succeed");
         assert_eq!(order.len(), 3);
     }
 }

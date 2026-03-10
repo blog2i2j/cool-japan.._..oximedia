@@ -244,7 +244,7 @@ mod tests {
         let token = mgr.create("abc123", "alice", 0, 9999);
         let session = mgr.get(&token);
         assert!(session.is_some());
-        assert_eq!(session.unwrap().user_id, "alice");
+        assert_eq!(session.expect("test expectation failed").user_id, "alice");
     }
 
     #[test]
@@ -258,7 +258,11 @@ mod tests {
         let mut mgr = SessionManager::new();
         let token = mgr.create("tok1", "bob", 0, 9999);
         assert!(mgr.expire(&token));
-        assert!(!mgr.get(&token).unwrap().status.is_active());
+        assert!(!mgr
+            .get(&token)
+            .expect("get should succeed")
+            .status
+            .is_active());
     }
 
     #[test]
@@ -294,6 +298,9 @@ mod tests {
         let mut mgr = SessionManager::new();
         let token = mgr.create("tok", "charlie", 0, 9999);
         assert!(mgr.revoke(&token));
-        assert_eq!(mgr.get(&token).unwrap().status, SessionStatus::Revoked);
+        assert_eq!(
+            mgr.get(&token).expect("get should succeed").status,
+            SessionStatus::Revoked
+        );
     }
 }

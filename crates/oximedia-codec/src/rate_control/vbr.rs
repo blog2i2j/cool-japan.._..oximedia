@@ -1445,7 +1445,7 @@ mod tests {
             controller.update(&stats);
         }
 
-        let first_pass_data = controller.finalize_first_pass().unwrap();
+        let first_pass_data = controller.finalize_first_pass().expect("should succeed");
         assert_eq!(first_pass_data.frame_count, 30);
         assert!(!first_pass_data.suggested_bits.is_empty());
 

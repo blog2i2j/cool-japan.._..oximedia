@@ -80,9 +80,18 @@ impl LtcReader {
 }
 
 impl TimecodeReader for LtcReader {
+    /// Return the most recently decoded timecode.
+    ///
+    /// Audio samples must be submitted via [`LtcReader::process_samples`]
+    /// before this method can return `Some(timecode)`.  Calling
+    /// `read_timecode` without first feeding samples will always return
+    /// `Ok(None)` because no frames have been decoded yet.
+    ///
+    /// This design keeps the `TimecodeReader` trait pull-based: callers that
+    /// own the sample source feed chunks via `process_samples`, then poll
+    /// `read_timecode` to retrieve completed frames.
     fn read_timecode(&mut self) -> Result<Option<Timecode>, TimecodeError> {
-        // This is a placeholder - in practice, samples would be fed externally
-        Ok(None)
+        Ok(self.decoder.last_decoded_timecode())
     }
 
     fn frame_rate(&self) -> FrameRate {

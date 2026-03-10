@@ -247,7 +247,10 @@ mod tests {
         let offsets = TimecodeSync::align_cameras(&records, 25.0);
         assert_eq!(offsets.len(), 2);
 
-        let cam1 = offsets.iter().find(|(id, _)| *id == 1).unwrap();
+        let cam1 = offsets
+            .iter()
+            .find(|(id, _)| *id == 1)
+            .expect("multicam test operation should succeed");
         assert_eq!(cam1.1, 0); // no offset
     }
 
@@ -259,7 +262,10 @@ mod tests {
             CameraTimecodeRecord::new(1, "00:00:10:10", 250),
         ];
         let offsets = TimecodeSync::align_cameras(&records, 25.0);
-        let cam1 = offsets.iter().find(|(id, _)| *id == 1).unwrap();
+        let cam1 = offsets
+            .iter()
+            .find(|(id, _)| *id == 1)
+            .expect("multicam test operation should succeed");
         assert_eq!(cam1.1, 10);
     }
 

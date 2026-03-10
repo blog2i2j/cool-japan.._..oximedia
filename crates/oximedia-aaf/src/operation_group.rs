@@ -221,7 +221,7 @@ mod tests {
         let def = make_video_effect_def();
         let p = def.find_param("level");
         assert!(p.is_some());
-        assert_eq!(p.unwrap().pid, 1);
+        assert_eq!(p.expect("test expectation failed").pid, 1);
     }
 
     #[test]

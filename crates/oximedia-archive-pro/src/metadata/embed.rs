@@ -77,7 +77,7 @@ mod tests {
 
     #[test]
     fn test_embed_sidecar() {
-        let file = NamedTempFile::new().unwrap();
+        let file = NamedTempFile::new().expect("operation should succeed");
         let embedder = MetadataEmbedder::new().with_field("title", "Test");
 
         let result = embedder.embed_sidecar(file.path());

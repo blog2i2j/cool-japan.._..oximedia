@@ -215,7 +215,7 @@ mod tests {
 
         let progress = monitor.get_progress(&job_id);
         assert!(progress.is_some());
-        assert_eq!(progress.unwrap().progress, 50.0);
+        assert_eq!(progress.expect("progress should be valid").progress, 50.0);
     }
 
     #[test]

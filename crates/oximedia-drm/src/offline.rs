@@ -269,7 +269,13 @@ mod tests {
         store.persist(make_license(1, 5_000));
         store.persist(make_license(1, 20_000));
         assert_eq!(store.len(), 1);
-        assert_eq!(store.retrieve(&[1]).unwrap().expiry_ms, 20_000);
+        assert_eq!(
+            store
+                .retrieve(&[1])
+                .expect("license should exist")
+                .expiry_ms,
+            20_000
+        );
     }
 
     #[test]

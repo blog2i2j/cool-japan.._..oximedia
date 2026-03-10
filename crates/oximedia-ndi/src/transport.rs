@@ -411,7 +411,9 @@ mod tests {
         let seq = session.enqueue_send(vec![10, 20], PacketPriority::Normal);
         assert_eq!(seq, Some(0));
         assert_eq!(session.send_queue_len(), 1);
-        let pkt = session.dequeue_send().unwrap();
+        let pkt = session
+            .dequeue_send()
+            .expect("expected packet in send queue");
         assert_eq!(pkt.sequence, 0);
         assert_eq!(pkt.payload, vec![10, 20]);
     }
@@ -436,7 +438,9 @@ mod tests {
         let pkt = TransportPacket::new(0, PacketPriority::Normal, vec![99]);
         assert!(session.feed_received(pkt));
         assert_eq!(session.recv_queue_len(), 1);
-        let out = session.dequeue_received().unwrap();
+        let out = session
+            .dequeue_received()
+            .expect("expected packet in recv queue");
         assert_eq!(out.payload, vec![99]);
     }
 
@@ -502,7 +506,7 @@ mod tests {
     fn test_reassemble_roundtrip() {
         let original = vec![1u8, 2, 3, 4, 5, 6, 7];
         let mut frags = fragment_payload(&original, 3, 0);
-        let reassembled = reassemble_fragments(&mut frags).unwrap();
+        let reassembled = reassemble_fragments(&mut frags).expect("reassembly should succeed");
         assert_eq!(reassembled, original);
     }
 

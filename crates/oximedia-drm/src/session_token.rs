@@ -261,7 +261,9 @@ mod tests {
         let mut t = t;
         t.sign(SECRET);
         let v = validator();
-        let err = v.validate_at(&t, 3_000_000).unwrap_err();
+        let err = v
+            .validate_at(&t, 3_000_000)
+            .expect_err("should return error");
         assert_eq!(err, TokenValidationError::Expired);
     }
 
@@ -270,7 +272,9 @@ mod tests {
         let mut t = SessionToken::with_timestamps("tok-future", 5_000_000, 6_000_000);
         t.sign(SECRET);
         let v = validator();
-        let err = v.validate_at(&t, 1_000_000).unwrap_err();
+        let err = v
+            .validate_at(&t, 1_000_000)
+            .expect_err("should return error");
         assert_eq!(err, TokenValidationError::NotYetValid);
     }
 
@@ -278,7 +282,9 @@ mod tests {
     fn test_unsigned_token_rejected() {
         let t = SessionToken::with_timestamps("tok-nosig", 1_000_000, 9_000_000);
         let v = validator();
-        let err = v.validate_at(&t, 5_000_000).unwrap_err();
+        let err = v
+            .validate_at(&t, 5_000_000)
+            .expect_err("should return error");
         assert_eq!(err, TokenValidationError::NotSigned);
     }
 
@@ -287,7 +293,9 @@ mod tests {
         let mut t = SessionToken::with_timestamps("tok-wrong", 1_000_000, 9_000_000);
         t.sign(b"wrong-secret");
         let v = validator(); // uses SECRET
-        let err = v.validate_at(&t, 5_000_000).unwrap_err();
+        let err = v
+            .validate_at(&t, 5_000_000)
+            .expect_err("should return error");
         assert_eq!(err, TokenValidationError::SignatureMismatch);
     }
 
@@ -296,7 +304,7 @@ mod tests {
         let token = valid_token();
         let v = validator().require_claim("sub");
         let now: i64 = 1_700_000_000;
-        let err = v.validate_at(&token, now).unwrap_err();
+        let err = v.validate_at(&token, now).expect_err("should return error");
         assert_eq!(err, TokenValidationError::MissingClaim("sub".to_string()));
     }
 
@@ -313,21 +321,30 @@ mod tests {
     fn test_set_and_retrieve_text_claim() {
         let mut t = valid_token();
         t.set_claim("content_id", TokenClaim::Text("movie-999".to_string()));
-        assert_eq!(t.claim("content_id").unwrap().as_text(), Some("movie-999"));
+        assert_eq!(
+            t.claim("content_id").expect("claim should exist").as_text(),
+            Some("movie-999")
+        );
     }
 
     #[test]
     fn test_set_and_retrieve_integer_claim() {
         let mut t = valid_token();
         t.set_claim("quality", TokenClaim::Integer(1080));
-        assert_eq!(t.claim("quality").unwrap().as_integer(), Some(1080));
+        assert_eq!(
+            t.claim("quality").expect("claim should exist").as_integer(),
+            Some(1080)
+        );
     }
 
     #[test]
     fn test_set_and_retrieve_flag_claim() {
         let mut t = valid_token();
         t.set_claim("offline", TokenClaim::Flag(true));
-        assert_eq!(t.claim("offline").unwrap().as_flag(), Some(true));
+        assert_eq!(
+            t.claim("offline").expect("claim should exist").as_flag(),
+            Some(true)
+        );
     }
 
     #[test]

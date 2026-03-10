@@ -76,8 +76,11 @@ impl ToneCurve {
     /// Append a control point and keep the list sorted by `pq_in`.
     pub fn add_point(&mut self, pt: ToneCurvePoint) {
         self.points.push(pt);
-        self.points
-            .sort_by(|a, b| a.pq_in.partial_cmp(&b.pq_in).unwrap());
+        self.points.sort_by(|a, b| {
+            a.pq_in
+                .partial_cmp(&b.pq_in)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
     }
 
     /// Evaluate the curve at `pq_in` using piece-wise linear interpolation.
@@ -88,11 +91,15 @@ impl ToneCurve {
         if self.points.is_empty() {
             return pq_in;
         }
-        if pq_in <= self.points.first().unwrap().pq_in {
-            return self.points.first().unwrap().pq_out;
+        // Safety: checked non-empty above
+        let first = self.points.first().expect("checked non-empty");
+        let last = self.points.last().expect("checked non-empty");
+
+        if pq_in <= first.pq_in {
+            return first.pq_out;
         }
-        if pq_in >= self.points.last().unwrap().pq_in {
-            return self.points.last().unwrap().pq_out;
+        if pq_in >= last.pq_in {
+            return last.pq_out;
         }
 
         // Find the surrounding segment
@@ -105,7 +112,7 @@ impl ToneCurve {
             }
         }
 
-        self.points.last().unwrap().pq_out
+        self.points.last().expect("checked non-empty").pq_out
     }
 
     /// Returns `true` when `pq_out` is non-decreasing along the curve.
@@ -239,7 +246,7 @@ mod tests {
         });
         let ins: Vec<f32> = c.points.iter().map(|p| p.pq_in).collect();
         let mut sorted = ins.clone();
-        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        sorted.sort_by(|a, b| a.partial_cmp(b).expect("sort_by should succeed"));
         assert_eq!(ins, sorted);
     }
 

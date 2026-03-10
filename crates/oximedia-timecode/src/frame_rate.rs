@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn test_new_valid() {
-        let fr = FrameRateRatio::new(25, 1).unwrap();
+        let fr = FrameRateRatio::new(25, 1).expect("valid frame rate ratio");
         assert_eq!(fr.numerator, 25);
         assert_eq!(fr.denominator, 1);
     }
@@ -126,41 +126,41 @@ mod tests {
 
     #[test]
     fn test_fps_f64_exact() {
-        let fr = FrameRateRatio::new(25, 1).unwrap();
+        let fr = FrameRateRatio::new(25, 1).expect("valid frame rate ratio");
         assert!((fr.fps_f64() - 25.0).abs() < 1e-9);
     }
 
     #[test]
     fn test_fps_f64_fractional() {
-        let fr = FrameRateRatio::new(30000, 1001).unwrap();
+        let fr = FrameRateRatio::new(30000, 1001).expect("valid frame rate ratio");
         assert!((fr.fps_f64() - 29.97002997).abs() < 1e-6);
     }
 
     #[test]
     fn test_is_drop_frame_compatible_true() {
-        let fr2997 = FrameRateRatio::new(30000, 1001).unwrap();
-        let fr5994 = FrameRateRatio::new(60000, 1001).unwrap();
+        let fr2997 = FrameRateRatio::new(30000, 1001).expect("valid frame rate ratio");
+        let fr5994 = FrameRateRatio::new(60000, 1001).expect("valid frame rate ratio");
         assert!(fr2997.is_drop_frame_compatible());
         assert!(fr5994.is_drop_frame_compatible());
     }
 
     #[test]
     fn test_is_drop_frame_compatible_false() {
-        let fr = FrameRateRatio::new(25, 1).unwrap();
+        let fr = FrameRateRatio::new(25, 1).expect("valid frame rate ratio");
         assert!(!fr.is_drop_frame_compatible());
     }
 
     #[test]
     fn test_matches_equal() {
-        let a = FrameRateRatio::new(25, 1).unwrap();
-        let b = FrameRateRatio::new(50, 2).unwrap();
+        let a = FrameRateRatio::new(25, 1).expect("valid frame rate ratio");
+        let b = FrameRateRatio::new(50, 2).expect("valid frame rate ratio");
         assert!(a.matches(&b));
     }
 
     #[test]
     fn test_matches_not_equal() {
-        let a = FrameRateRatio::new(24, 1).unwrap();
-        let b = FrameRateRatio::new(25, 1).unwrap();
+        let a = FrameRateRatio::new(24, 1).expect("valid frame rate ratio");
+        let b = FrameRateRatio::new(25, 1).expect("valid frame rate ratio");
         assert!(!a.matches(&b));
     }
 
@@ -180,26 +180,26 @@ mod tests {
 
     #[test]
     fn test_nominal_fps_exact() {
-        let fr = FrameRateRatio::new(30, 1).unwrap();
+        let fr = FrameRateRatio::new(30, 1).expect("valid frame rate ratio");
         assert_eq!(fr.nominal_fps(), 30);
     }
 
     #[test]
     fn test_nominal_fps_rounded() {
-        let fr = FrameRateRatio::new(30000, 1001).unwrap();
+        let fr = FrameRateRatio::new(30000, 1001).expect("valid frame rate ratio");
         // 29.97 rounds to 30
         assert_eq!(fr.nominal_fps(), 30);
     }
 
     #[test]
     fn test_display_integer() {
-        let fr = FrameRateRatio::new(25, 1).unwrap();
+        let fr = FrameRateRatio::new(25, 1).expect("valid frame rate ratio");
         assert_eq!(fr.to_string(), "25");
     }
 
     #[test]
     fn test_display_fractional() {
-        let fr = FrameRateRatio::new(30000, 1001).unwrap();
+        let fr = FrameRateRatio::new(30000, 1001).expect("valid frame rate ratio");
         assert_eq!(fr.to_string(), "30000/1001");
     }
 }

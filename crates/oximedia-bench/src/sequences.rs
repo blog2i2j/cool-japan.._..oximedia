@@ -482,16 +482,18 @@ mod tests {
     #[test]
     fn test_content_type_serialization() {
         let ct = ContentType::Sports;
-        let json = serde_json::to_string(&ct).unwrap();
-        let deserialized: ContentType = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&ct).expect("json should be valid");
+        let deserialized: ContentType =
+            serde_json::from_str(&json).expect("test expectation failed");
         assert_eq!(ct, deserialized);
     }
 
     #[test]
     fn test_motion_characteristics() {
         let motion = MotionCharacteristics::High;
-        let json = serde_json::to_string(&motion).unwrap();
-        let deserialized: MotionCharacteristics = serde_json::from_str(&json).unwrap();
+        let json = serde_json::to_string(&motion).expect("json should be valid");
+        let deserialized: MotionCharacteristics =
+            serde_json::from_str(&json).expect("test expectation failed");
         assert_eq!(motion, deserialized);
     }
 

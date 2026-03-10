@@ -1,0 +1,32 @@
+[package]
+name = "oximedia-plugin"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Plugin system for OxiMedia - dynamic codec loading"
+keywords = ["media", "plugin", "codec", "dynamic"]
+categories = ["multimedia", "multimedia::encoding"]
+
+[lints]
+workspace = true
+
+[dependencies]
+oximedia-core.workspace = true
+oximedia-codec = { workspace = true, default-features = false }
+thiserror.workspace = true
+tracing.workspace = true
+serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
+
+[features]
+default = []
+dynamic-loading = ["libloading"]
+
+[dependencies.libloading]
+version = "0.8"
+optional = true
+
+[dev-dependencies]
+tempfile = "3"

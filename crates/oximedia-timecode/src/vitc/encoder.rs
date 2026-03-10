@@ -567,8 +567,10 @@ mod tests {
         let config = VitcWriterConfig::default();
         let mut encoder = VitcEncoder::new(config);
 
-        let timecode = Timecode::new(1, 2, 3, 4, FrameRate::Fps25).unwrap();
-        let pixels = encoder.encode_line(&timecode, 1).unwrap();
+        let timecode = Timecode::new(1, 2, 3, 4, FrameRate::Fps25).expect("valid timecode");
+        let pixels = encoder
+            .encode_line(&timecode, 1)
+            .expect("encode should succeed");
 
         assert_eq!(pixels.len(), BITS_PER_LINE * PIXELS_PER_BIT);
     }

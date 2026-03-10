@@ -260,9 +260,9 @@ mod tests {
         s.enqueue(ScheduleEntry::new(2, 5, 200, None));
         s.enqueue(ScheduleEntry::new(3, 5, 300, None));
 
-        assert_eq!(s.dequeue().unwrap().job_id, 1);
-        assert_eq!(s.dequeue().unwrap().job_id, 2);
-        assert_eq!(s.dequeue().unwrap().job_id, 3);
+        assert_eq!(s.dequeue().expect("dequeue should succeed").job_id, 1);
+        assert_eq!(s.dequeue().expect("dequeue should succeed").job_id, 2);
+        assert_eq!(s.dequeue().expect("dequeue should succeed").job_id, 3);
         assert!(s.dequeue().is_none());
     }
 
@@ -275,9 +275,9 @@ mod tests {
         s.enqueue(ScheduleEntry::new(2, 9, 200, None)); // high prio
         s.enqueue(ScheduleEntry::new(3, 5, 300, None)); // mid prio
 
-        assert_eq!(s.dequeue().unwrap().job_id, 2); // highest prio first
-        assert_eq!(s.dequeue().unwrap().job_id, 3);
-        assert_eq!(s.dequeue().unwrap().job_id, 1);
+        assert_eq!(s.dequeue().expect("dequeue should succeed").job_id, 2); // highest prio first
+        assert_eq!(s.dequeue().expect("dequeue should succeed").job_id, 3);
+        assert_eq!(s.dequeue().expect("dequeue should succeed").job_id, 1);
     }
 
     // ── EntryScheduler – EDF ──────────────────────────────────────────────────
@@ -289,9 +289,9 @@ mod tests {
         s.enqueue(ScheduleEntry::new(2, 1, 100, Some(1000))); // earliest deadline
         s.enqueue(ScheduleEntry::new(3, 1, 100, None)); // no deadline – last
 
-        assert_eq!(s.dequeue().unwrap().job_id, 2);
-        assert_eq!(s.dequeue().unwrap().job_id, 1);
-        assert_eq!(s.dequeue().unwrap().job_id, 3);
+        assert_eq!(s.dequeue().expect("dequeue should succeed").job_id, 2);
+        assert_eq!(s.dequeue().expect("dequeue should succeed").job_id, 1);
+        assert_eq!(s.dequeue().expect("dequeue should succeed").job_id, 3);
     }
 
     // ── EntryScheduler – RoundRobin ───────────────────────────────────────────
@@ -304,10 +304,10 @@ mod tests {
         s.enqueue(ScheduleEntry::new(30, 1, 0, None));
 
         // RoundRobin picks index 0 first (round_robin_idx starts at 0)
-        let first = s.dequeue().unwrap().job_id;
+        let first = s.dequeue().expect("first should be valid").job_id;
         // After first removal the queue shrinks; just check we get something valid
-        let second = s.dequeue().unwrap().job_id;
-        let third = s.dequeue().unwrap().job_id;
+        let second = s.dequeue().expect("second should be valid").job_id;
+        let third = s.dequeue().expect("third should be valid").job_id;
         let ids = [first, second, third];
         let mut sorted = ids;
         sorted.sort_unstable();
@@ -392,7 +392,7 @@ mod tests {
     fn test_time_window_intersection_some() {
         let a = TimeWindow::new(0, 300);
         let b = TimeWindow::new(100, 500);
-        let inter = a.intersection(&b).unwrap();
+        let inter = a.intersection(&b).expect("inter should be valid");
         assert_eq!(inter.start_ms, 100);
         assert_eq!(inter.end_ms, 300);
     }

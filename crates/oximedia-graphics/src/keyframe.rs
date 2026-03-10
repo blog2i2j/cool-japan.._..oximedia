@@ -450,8 +450,13 @@ impl<T: Lerp> AnimationTrack<T> {
         if self.keyframes.len() == 1 || time <= self.keyframes[0].time {
             return self.keyframes[0].value.clone();
         }
-        if time >= self.keyframes.last().unwrap().time {
-            return self.keyframes.last().unwrap().value.clone();
+        // SAFETY: is_empty() checked above and len >= 2, so last() is always Some
+        let last_kf = self
+            .keyframes
+            .last()
+            .expect("keyframes non-empty after len checks");
+        if time >= last_kf.time {
+            return last_kf.value.clone();
         }
 
         // Binary search for the preceding keyframe
@@ -483,8 +488,13 @@ impl AnimationTrack<f64> {
         if self.keyframes.len() == 1 || time <= self.keyframes[0].time {
             return self.keyframes[0].value;
         }
-        if time >= self.keyframes.last().unwrap().time {
-            return self.keyframes.last().unwrap().value;
+        // SAFETY: is_empty() checked above and len >= 2, so last() is always Some
+        let last_kf = self
+            .keyframes
+            .last()
+            .expect("keyframes non-empty after len checks");
+        if time >= last_kf.time {
+            return last_kf.value;
         }
 
         let next_idx = self.keyframes.partition_point(|k| k.time <= time);

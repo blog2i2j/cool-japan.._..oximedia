@@ -504,7 +504,7 @@ mod tests {
         assert_eq!(mgr.asset_count(), 1);
         assert!(mgr.record_access("/archive/clip.mov"));
         assert!(!mgr.record_access("/nonexistent"));
-        let asset = mgr.get_asset("/archive/clip.mov").unwrap();
+        let asset = mgr.get_asset("/archive/clip.mov").expect("asset should be valid");
         assert_eq!(asset.total_accesses, 1);
     }
 
@@ -514,7 +514,7 @@ mod tests {
         mgr.register_asset(AssetAccessRecord::new(PathBuf::from("/a"), 1000));
         mgr.register_asset(AssetAccessRecord::new(PathBuf::from("/b"), 2000));
         let summary = mgr.tier_summary();
-        let hot = summary.get(&StorageTier::Hot).unwrap();
+        let hot = summary.get(&StorageTier::Hot).expect("hot should be valid");
         assert_eq!(hot.asset_count, 2);
         assert_eq!(hot.total_bytes, 3000);
     }
@@ -531,7 +531,7 @@ mod tests {
             estimated_cost_delta: -100.0,
         };
         assert!(mgr.apply_migration(&action));
-        let asset = mgr.get_asset("/vid.mxf").unwrap();
+        let asset = mgr.get_asset("/vid.mxf").expect("asset should be valid");
         assert_eq!(asset.current_tier, StorageTier::Warm);
     }
 

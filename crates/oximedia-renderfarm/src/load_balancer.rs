@@ -63,11 +63,11 @@ impl LoadBalancer {
         workers
             .iter()
             .min_by(|a, b| {
-                let load_a = self.worker_loads.get(&a.id).unwrap_or(&0.0);
-                let load_b = self.worker_loads.get(&b.id).unwrap_or(&0.0);
+                let load_a = self.worker_loads.get(&a.id).copied().unwrap_or(0.0);
+                let load_b = self.worker_loads.get(&b.id).copied().unwrap_or(0.0);
                 load_a
-                    .partial_cmp(load_b)
-                    .expect("invariant: load values are finite f64")
+                    .partial_cmp(&load_b)
+                    .unwrap_or(std::cmp::Ordering::Equal)
             })
             .map(|w| w.id)
     }
@@ -78,7 +78,7 @@ impl LoadBalancer {
             .max_by(|a, b| {
                 a.performance_score()
                     .partial_cmp(&b.performance_score())
-                    .expect("invariant: performance_score is finite f64")
+                    .unwrap_or(std::cmp::Ordering::Equal)
             })
             .map(|w| w.id)
     }

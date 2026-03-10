@@ -325,7 +325,9 @@ mod tests {
         // Process static frames
         let frame = vec![128u8; 64 * 64];
         for i in 0..5 {
-            analyzer.process_frame(&frame, 64, 64, i).unwrap();
+            analyzer
+                .process_frame(&frame, 64, 64, i)
+                .expect("frame processing should succeed");
         }
 
         let stats = analyzer.finalize();
@@ -425,7 +427,9 @@ mod tests {
         }
 
         for (i, frame) in frames.iter().enumerate() {
-            analyzer.process_frame(frame, 64, 64, i).unwrap();
+            analyzer
+                .process_frame(frame, 64, 64, i)
+                .expect("frame processing should succeed");
         }
 
         let stats = analyzer.finalize();

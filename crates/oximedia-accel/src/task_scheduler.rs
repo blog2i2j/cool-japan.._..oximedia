@@ -265,7 +265,7 @@ mod tests {
         let mut s = AccelScheduler::new(false, false);
         s.enqueue(task(1, TaskPriority::Low, 10));
         s.enqueue(task(2, TaskPriority::High, 10));
-        let (first, _) = s.schedule(0).unwrap();
+        let (first, _) = s.schedule(0).expect("schedule should succeed");
         assert_eq!(first.priority, TaskPriority::High);
     }
 
@@ -274,7 +274,7 @@ mod tests {
         let mut s = AccelScheduler::new(false, false);
         s.enqueue(task(1, TaskPriority::Normal, 10));
         s.enqueue(task(2, TaskPriority::RealTime, 50));
-        let (first, _) = s.schedule(0).unwrap();
+        let (first, _) = s.schedule(0).expect("schedule should succeed");
         assert_eq!(first.priority, TaskPriority::RealTime);
     }
 
@@ -283,7 +283,7 @@ mod tests {
         let mut s = AccelScheduler::new(false, false);
         s.enqueue(task(1, TaskPriority::Normal, 200));
         s.enqueue(task(2, TaskPriority::Normal, 50));
-        let (first, _) = s.schedule(0).unwrap();
+        let (first, _) = s.schedule(0).expect("schedule should succeed");
         assert_eq!(first.cost, 50);
     }
 
@@ -296,7 +296,7 @@ mod tests {
             TaskPriority::Normal,
             100,
         ));
-        let (_, target) = s.schedule(0).unwrap();
+        let (_, target) = s.schedule(0).expect("schedule should succeed");
         assert_eq!(target, AccelTarget::Gpu);
     }
 
@@ -309,7 +309,7 @@ mod tests {
             TaskPriority::Normal,
             100,
         ));
-        let (_, target) = s.schedule(0).unwrap();
+        let (_, target) = s.schedule(0).expect("schedule should succeed");
         assert_eq!(target, AccelTarget::Cpu);
     }
 
@@ -322,7 +322,7 @@ mod tests {
             TaskPriority::Normal,
             100,
         ));
-        let (_, target) = s.schedule(0).unwrap();
+        let (_, target) = s.schedule(0).expect("schedule should succeed");
         assert_eq!(target, AccelTarget::Npu);
     }
 

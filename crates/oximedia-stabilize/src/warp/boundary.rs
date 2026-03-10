@@ -1,6 +1,6 @@
 //! Boundary handling modes for frame warping.
 
-use ndarray::Array2;
+use scirs2_core::ndarray::Array2;
 
 /// Boundary handling mode for pixels outside the frame.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

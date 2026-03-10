@@ -299,7 +299,7 @@ mod tests {
         let task = PriorityTask::new("t1", Priority::Normal, 100);
         assert!(q.push(task));
         assert_eq!(q.len(), 1);
-        let popped = q.pop().unwrap();
+        let popped = q.pop().expect("pop should return a value");
         assert_eq!(popped.task_id, "t1");
         assert!(q.is_empty());
     }
@@ -310,9 +310,12 @@ mod tests {
         q.push(PriorityTask::new("low", Priority::Low, 100));
         q.push(PriorityTask::new("high", Priority::High, 100));
         q.push(PriorityTask::new("normal", Priority::Normal, 100));
-        assert_eq!(q.pop().unwrap().task_id, "high");
-        assert_eq!(q.pop().unwrap().task_id, "normal");
-        assert_eq!(q.pop().unwrap().task_id, "low");
+        assert_eq!(q.pop().expect("pop should return a value").task_id, "high");
+        assert_eq!(
+            q.pop().expect("pop should return a value").task_id,
+            "normal"
+        );
+        assert_eq!(q.pop().expect("pop should return a value").task_id, "low");
     }
 
     #[test]
@@ -320,7 +323,10 @@ mod tests {
         let mut q = TaskPriorityQueue::new();
         q.push(PriorityTask::new("later", Priority::Normal, 200));
         q.push(PriorityTask::new("earlier", Priority::Normal, 100));
-        assert_eq!(q.pop().unwrap().task_id, "earlier");
+        assert_eq!(
+            q.pop().expect("pop should return a value").task_id,
+            "earlier"
+        );
     }
 
     #[test]
@@ -328,7 +334,10 @@ mod tests {
         let mut q = TaskPriorityQueue::new();
         q.push(PriorityTask::new("no_dl", Priority::Normal, 100));
         q.push(PriorityTask::new("with_dl", Priority::Normal, 100).with_deadline(5000));
-        assert_eq!(q.pop().unwrap().task_id, "with_dl");
+        assert_eq!(
+            q.pop().expect("pop should return a value").task_id,
+            "with_dl"
+        );
     }
 
     #[test]
@@ -336,7 +345,10 @@ mod tests {
         let mut q = TaskPriorityQueue::new();
         q.push(PriorityTask::new("late_dl", Priority::Normal, 100).with_deadline(9000));
         q.push(PriorityTask::new("early_dl", Priority::Normal, 100).with_deadline(3000));
-        assert_eq!(q.pop().unwrap().task_id, "early_dl");
+        assert_eq!(
+            q.pop().expect("pop should return a value").task_id,
+            "early_dl"
+        );
     }
 
     #[test]
@@ -352,7 +364,7 @@ mod tests {
     fn test_peek() {
         let mut q = TaskPriorityQueue::new();
         q.push(PriorityTask::new("t1", Priority::High, 100));
-        let peeked = q.peek().unwrap();
+        let peeked = q.peek().expect("peek should return a value");
         assert_eq!(peeked.task_id, "t1");
         assert_eq!(q.len(), 1); // not removed
     }
@@ -376,7 +388,7 @@ mod tests {
         q.apply_aging();
         q.apply_aging();
         // Low now has same effective weight as critical (3), but critical is not aged
-        let first = q.pop().unwrap();
+        let first = q.pop().expect("pop should return a value");
         // Both have weight 3, tied; order depends on secondary criteria
         assert!(first.task_id == "low" || first.task_id == "crit");
     }

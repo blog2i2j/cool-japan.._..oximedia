@@ -276,7 +276,9 @@ mod tests {
         db.add(sample_profile(24.0, -0.02));
         db.add(sample_profile(70.0, -0.005));
         // 35 mm is closer to 24 mm than to 70 mm
-        let found = db.find("TestCam", "TestLens 50mm", 35.0).unwrap();
+        let found = db
+            .find("TestCam", "TestLens 50mm", 35.0)
+            .expect("expected item to be found");
         assert!((found.focal_length_mm - 24.0).abs() < 1e-6);
     }
 

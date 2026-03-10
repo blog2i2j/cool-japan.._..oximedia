@@ -112,31 +112,45 @@ mod tests {
         let detector = ContainerDetector::new();
 
         assert_eq!(
-            detector.detect_from_extension("mp4").unwrap(),
+            detector
+                .detect_from_extension("mp4")
+                .expect("container format should be detected"),
             ContainerFormat::Mp4
         );
         assert_eq!(
-            detector.detect_from_extension("mkv").unwrap(),
+            detector
+                .detect_from_extension("mkv")
+                .expect("container format should be detected"),
             ContainerFormat::Matroska
         );
         assert_eq!(
-            detector.detect_from_extension("webm").unwrap(),
+            detector
+                .detect_from_extension("webm")
+                .expect("container format should be detected"),
             ContainerFormat::Webm
         );
         assert_eq!(
-            detector.detect_from_extension("ogg").unwrap(),
+            detector
+                .detect_from_extension("ogg")
+                .expect("container format should be detected"),
             ContainerFormat::Ogg
         );
         assert_eq!(
-            detector.detect_from_extension("ts").unwrap(),
+            detector
+                .detect_from_extension("ts")
+                .expect("container format should be detected"),
             ContainerFormat::MpegTs
         );
         assert_eq!(
-            detector.detect_from_extension("wav").unwrap(),
+            detector
+                .detect_from_extension("wav")
+                .expect("container format should be detected"),
             ContainerFormat::Wav
         );
         assert_eq!(
-            detector.detect_from_extension("flac").unwrap(),
+            detector
+                .detect_from_extension("flac")
+                .expect("container format should be detected"),
             ContainerFormat::Flac
         );
         assert!(detector.detect_from_extension("unknown").is_err());
@@ -147,11 +161,15 @@ mod tests {
         let detector = ContainerDetector::new();
 
         assert_eq!(
-            detector.detect_from_path(Path::new("video.mp4")).unwrap(),
+            detector
+                .detect_from_path(Path::new("video.mp4"))
+                .expect("container format should be detected"),
             ContainerFormat::Mp4
         );
         assert_eq!(
-            detector.detect_from_path(Path::new("video.webm")).unwrap(),
+            detector
+                .detect_from_path(Path::new("video.webm"))
+                .expect("container format should be detected"),
             ContainerFormat::Webm
         );
         assert!(detector.detect_from_path(Path::new("noext")).is_err());
@@ -162,7 +180,9 @@ mod tests {
         let detector = ContainerDetector::new();
         let mp4_data = b"\x00\x00\x00\x20ftypiso5\x00\x00\x00\x00";
         assert_eq!(
-            detector.detect_from_content(mp4_data).unwrap(),
+            detector
+                .detect_from_content(mp4_data)
+                .expect("container format should be detected"),
             ContainerFormat::Mp4
         );
     }
@@ -172,7 +192,9 @@ mod tests {
         let detector = ContainerDetector::new();
         let mkv_data = b"\x1A\x45\xDF\xA3\x9F\x42\x86\x81\x01\x42\xF7\x81";
         assert_eq!(
-            detector.detect_from_content(mkv_data).unwrap(),
+            detector
+                .detect_from_content(mkv_data)
+                .expect("container format should be detected"),
             ContainerFormat::Matroska
         );
     }
@@ -182,7 +204,9 @@ mod tests {
         let detector = ContainerDetector::new();
         let ogg_data = b"OggS\x00\x02\x00\x00\x00\x00\x00\x00\x00\x00";
         assert_eq!(
-            detector.detect_from_content(ogg_data).unwrap(),
+            detector
+                .detect_from_content(ogg_data)
+                .expect("container format should be detected"),
             ContainerFormat::Ogg
         );
     }
@@ -192,7 +216,9 @@ mod tests {
         let detector = ContainerDetector::new();
         let wav_data = b"RIFF\x24\x08\x00\x00WAVEfmt ";
         assert_eq!(
-            detector.detect_from_content(wav_data).unwrap(),
+            detector
+                .detect_from_content(wav_data)
+                .expect("container format should be detected"),
             ContainerFormat::Wav
         );
     }
@@ -202,7 +228,9 @@ mod tests {
         let detector = ContainerDetector::new();
         let flac_data = b"fLaC\x00\x00\x00\x22\x12\x00\x12\x00";
         assert_eq!(
-            detector.detect_from_content(flac_data).unwrap(),
+            detector
+                .detect_from_content(flac_data)
+                .expect("container format should be detected"),
             ContainerFormat::Flac
         );
     }

@@ -308,7 +308,7 @@ mod tests {
     fn test_region_intersect() {
         let a = Region::new(0, 0, 20, 20);
         let b = Region::new(10, 10, 20, 20);
-        let c = a.intersect(&b).unwrap();
+        let c = a.intersect(&b).expect("c should be valid");
         assert_eq!(c, Region::new(10, 10, 10, 10));
     }
 

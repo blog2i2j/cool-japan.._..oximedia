@@ -6,6 +6,7 @@
 use crate::clip::{Clip, MediaSource};
 use crate::error::{TimelineError, TimelineResult};
 use crate::timeline::Timeline;
+use crate::transition_engine::{TransitionEngine, TransitionInput};
 use crate::types::Position;
 
 /// RGBA pixel buffer.
@@ -305,30 +306,114 @@ impl TimelineRenderer {
         }
     }
 
-    fn apply_transitions(
-        &self,
-        timeline: &Timeline,
-        position: Position,
-        _buffer: &mut PixelBuffer,
-    ) {
-        // Walk video tracks to find clips that overlap via transitions
+    /// Apply transitions at the given position.
+    ///
+    /// For each video track, walk the clip list looking for adjacent clips
+    /// connected by a transition. When the playhead falls within the
+    /// transition zone (the overlap region at the cut point), render both
+    /// the outgoing and incoming clips independently and blend them via
+    /// the `TransitionEngine`.
+    fn apply_transitions(&self, timeline: &Timeline, position: Position, buffer: &mut PixelBuffer) {
+        let engine = TransitionEngine::new();
+
         for track in &timeline.video_tracks {
             if track.hidden {
                 continue;
             }
-            for clip in &track.clips {
-                if let Some(transition) = timeline.transitions.get(&clip.id) {
-                    let clip_dur = clip.source_out.value() - clip.source_in.value();
-                    let clip_end = clip.timeline_in.value() + clip_dur;
-                    let t_dur = transition.duration.0;
-                    // Check if position is within transition zone at clip end
-                    if position.value() >= clip_end - t_dur && position.value() < clip_end {
-                        let _progress =
-                            (position.value() - (clip_end - t_dur)) as f32 / t_dur as f32;
-                        // Transition effect would be applied here
-                        // In a full implementation, we'd blend adjacent clip buffers
-                    }
+
+            // Check each clip for a registered transition.
+            for (idx, clip) in track.clips.iter().enumerate() {
+                let Some(transition) = timeline.transitions.get(&clip.id) else {
+                    continue;
+                };
+                if !transition.enabled {
+                    continue;
                 }
+                // Skip audio-only transitions.
+                if !transition.transition_type.is_video() {
+                    continue;
+                }
+
+                let clip_dur = clip.source_out.value() - clip.source_in.value();
+                let clip_end = clip.timeline_in.value() + clip_dur;
+                let t_dur = transition.duration.0;
+                if t_dur <= 0 {
+                    continue;
+                }
+
+                // Determine the transition zone based on alignment.
+                let (zone_start, zone_end) = match transition.alignment {
+                    crate::transition::TransitionAlignment::Center => {
+                        let half = t_dur / 2;
+                        (clip_end - half, clip_end + (t_dur - half))
+                    }
+                    crate::transition::TransitionAlignment::EndAtCut => {
+                        (clip_end - t_dur, clip_end)
+                    }
+                    crate::transition::TransitionAlignment::StartAtCut => {
+                        (clip_end, clip_end + t_dur)
+                    }
+                };
+
+                let pos_val = position.value();
+                if pos_val < zone_start || pos_val >= zone_end {
+                    continue;
+                }
+
+                // Compute normalised progress within the zone.
+                let progress = if zone_end == zone_start {
+                    0.0f32
+                } else {
+                    (pos_val - zone_start) as f32 / (zone_end - zone_start) as f32
+                };
+
+                // Render the outgoing clip frame.
+                let outgoing_buf = self.render_clip(clip, position).unwrap_or_else(|| {
+                    PixelBuffer::solid(
+                        self.settings.width,
+                        self.settings.height,
+                        self.settings.background,
+                    )
+                });
+
+                // Try to find the next clip as the incoming source.
+                let incoming_buf = track
+                    .clips
+                    .get(idx + 1)
+                    .and_then(|next_clip| self.render_clip(next_clip, position))
+                    .unwrap_or_else(|| {
+                        PixelBuffer::solid(
+                            self.settings.width,
+                            self.settings.height,
+                            self.settings.background,
+                        )
+                    });
+
+                // Resize both to output dimensions if needed.
+                let out_resized = if outgoing_buf.width != self.settings.width
+                    || outgoing_buf.height != self.settings.height
+                {
+                    outgoing_buf.resize_nearest(self.settings.width, self.settings.height)
+                } else {
+                    outgoing_buf
+                };
+                let in_resized = if incoming_buf.width != self.settings.width
+                    || incoming_buf.height != self.settings.height
+                {
+                    incoming_buf.resize_nearest(self.settings.width, self.settings.height)
+                } else {
+                    incoming_buf
+                };
+
+                let input = TransitionInput {
+                    outgoing: &out_resized,
+                    incoming: &in_resized,
+                    progress,
+                };
+
+                // Apply the transition; on error fall back to the outgoing buffer.
+                let blended = engine.apply_or_fallback(transition, &input);
+                *buffer = blended;
             }
         }
     }

@@ -1,7 +1,7 @@
 //! Interpolation methods for frame warping.
 
 use crate::warp::boundary::BoundaryMode;
-use ndarray::Array2;
+use scirs2_core::ndarray::Array2;
 
 /// Interpolation method for pixel sampling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

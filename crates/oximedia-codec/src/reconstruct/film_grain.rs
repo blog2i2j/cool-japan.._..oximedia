@@ -583,7 +583,7 @@ fn interpolate_scaling_points(points: &[ScalingPoint], lut: &mut [u8]) {
     }
 
     // Fill after last point
-    let last_point = points.last().unwrap();
+    let last_point = points.last().expect("points is non-empty by construction");
     for val in lut.iter_mut().skip(last_point.value as usize + 1) {
         *val = last_point.scaling;
     }

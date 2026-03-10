@@ -162,8 +162,8 @@ fn calculate_stats(img: &[u8]) -> (u8, u8, f64) {
         return (0, 0, 0.0);
     }
 
-    let min = *img.iter().min().unwrap();
-    let max = *img.iter().max().unwrap();
+    let min = img.iter().copied().min().unwrap_or(0);
+    let max = img.iter().copied().max().unwrap_or(0);
     let sum: u64 = img.iter().map(|&x| u64::from(x)).sum();
     let mean = sum as f64 / img.len() as f64;
 

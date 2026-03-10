@@ -4,8 +4,8 @@
 //! geometry for accurate perspective rendering.
 
 use super::LedPanel;
+use crate::math::{Point3, Vector3};
 use crate::{tracking::CameraPose, Result};
-use nalgebra::{Point3, Vector3};
 use serde::{Deserialize, Serialize};
 
 /// Frustum plane
@@ -28,7 +28,7 @@ impl FrustumPlane {
     #[must_use]
     pub fn from_point_normal(point: &Point3<f64>, normal: Vector3<f64>) -> Self {
         let normalized = normal.normalize();
-        let distance = -normalized.dot(&point.coords);
+        let distance = -normalized.dot(&point.coords());
         Self {
             normal: normalized,
             distance,
@@ -38,13 +38,13 @@ impl FrustumPlane {
     /// Test if point is inside (positive side of) plane
     #[must_use]
     pub fn is_inside(&self, point: &Point3<f64>) -> bool {
-        self.normal.dot(&point.coords) + self.distance >= 0.0
+        self.normal.dot(&point.coords()) + self.distance >= 0.0
     }
 
     /// Distance from point to plane
     #[must_use]
     pub fn distance_to(&self, point: &Point3<f64>) -> f64 {
-        self.normal.dot(&point.coords) + self.distance
+        self.normal.dot(&point.coords()) + self.distance
     }
 }
 
@@ -184,7 +184,7 @@ impl ViewingFrustum {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use nalgebra::UnitQuaternion;
+    use crate::math::UnitQuaternion;
 
     #[test]
     fn test_frustum_plane() {

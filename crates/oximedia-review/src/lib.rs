@@ -93,7 +93,8 @@ pub mod version_compare;
 pub mod error;
 
 pub use compare::{
-    CompareLayout, CompareResult, CompareVersion, DiffStats, MediaComparator, WipeAngle,
+    apply_compare_filter, CompareFilter, CompareLayout, CompareResult, CompareVersion, DiffStats,
+    MediaComparator, WipeAngle,
 };
 pub use error::{ReviewError, ReviewResult};
 pub use session::ReviewSession;

@@ -201,9 +201,10 @@ impl JitterBuffer {
         loop {
             match self.heap.peek() {
                 Some(Reverse(e)) if e.pts_samples <= up_to_pts => {
-                    let Reverse(entry) = self.heap.pop().unwrap();
-                    out.push(entry);
-                    self.stats.total_drained += 1;
+                    if let Some(Reverse(entry)) = self.heap.pop() {
+                        out.push(entry);
+                        self.stats.total_drained += 1;
+                    }
                 }
                 _ => break,
             }

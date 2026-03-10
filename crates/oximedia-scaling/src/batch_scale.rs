@@ -78,7 +78,12 @@ pub struct BatchItem {
 
 impl BatchItem {
     /// Creates a new batch item.
-    pub fn new(source: PathBuf, destination: PathBuf, target_width: u32, target_height: u32) -> Self {
+    pub fn new(
+        source: PathBuf,
+        destination: PathBuf,
+        target_width: u32,
+        target_height: u32,
+    ) -> Self {
         Self {
             source,
             destination,
@@ -393,10 +398,7 @@ impl BatchScaleJob {
         for item in &mut self.items {
             item.mark_in_progress();
             // Simulate: items with "fail" in the name fail
-            let should_fail = item
-                .source
-                .to_string_lossy()
-                .contains("fail");
+            let should_fail = item.source.to_string_lossy().contains("fail");
 
             if should_fail {
                 match self.config.error_policy {
@@ -466,7 +468,9 @@ mod tests {
         assert_eq!(ItemStatus::InProgress.to_string(), "InProgress");
         assert_eq!(ItemStatus::Completed.to_string(), "Completed");
         assert_eq!(ItemStatus::Skipped.to_string(), "Skipped");
-        assert!(ItemStatus::Failed("oops".into()).to_string().contains("oops"));
+        assert!(ItemStatus::Failed("oops".into())
+            .to_string()
+            .contains("oops"));
     }
 
     #[test]
@@ -486,12 +490,7 @@ mod tests {
 
     #[test]
     fn test_batch_item_failure() {
-        let mut item = BatchItem::new(
-            PathBuf::from("/a.png"),
-            PathBuf::from("/b.png"),
-            100,
-            100,
-        );
+        let mut item = BatchItem::new(PathBuf::from("/a.png"), PathBuf::from("/b.png"), 100, 100);
         item.mark_failed("disk full");
         assert!(item.is_failed());
         assert!(!item.is_completed());
@@ -573,8 +572,18 @@ mod tests {
     #[test]
     fn test_batch_job_process_all_success() {
         let items = vec![
-            BatchItem::new(PathBuf::from("/a.png"), PathBuf::from("/out/a.png"), 100, 100),
-            BatchItem::new(PathBuf::from("/b.png"), PathBuf::from("/out/b.png"), 200, 200),
+            BatchItem::new(
+                PathBuf::from("/a.png"),
+                PathBuf::from("/out/a.png"),
+                100,
+                100,
+            ),
+            BatchItem::new(
+                PathBuf::from("/b.png"),
+                PathBuf::from("/out/b.png"),
+                200,
+                200,
+            ),
         ];
         let config = BatchConfig::new();
         let mut job = BatchScaleJob::new(items, config);
@@ -586,14 +595,24 @@ mod tests {
     #[test]
     fn test_batch_job_process_with_failure() {
         let items = vec![
-            BatchItem::new(PathBuf::from("/ok.png"), PathBuf::from("/out/ok.png"), 100, 100),
+            BatchItem::new(
+                PathBuf::from("/ok.png"),
+                PathBuf::from("/out/ok.png"),
+                100,
+                100,
+            ),
             BatchItem::new(
                 PathBuf::from("/fail_this.png"),
                 PathBuf::from("/out/fail.png"),
                 100,
                 100,
             ),
-            BatchItem::new(PathBuf::from("/ok2.png"), PathBuf::from("/out/ok2.png"), 100, 100),
+            BatchItem::new(
+                PathBuf::from("/ok2.png"),
+                PathBuf::from("/out/ok2.png"),
+                100,
+                100,
+            ),
         ];
         let config = BatchConfig::new().with_error_policy(ErrorPolicy::SkipAndContinue);
         let mut job = BatchScaleJob::new(items, config);

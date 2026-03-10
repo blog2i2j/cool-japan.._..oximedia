@@ -17,11 +17,8 @@ oximedia-core = { workspace = true }
 oximedia-cv = { workspace = true }
 oximedia-graph = { workspace = true }
 thiserror = { workspace = true }
-nalgebra = { version = "0.33", features = ["serde-serialize"] }
-ndarray = { workspace = true, features = ["serde"] }
+scirs2-core = { workspace = true }
 rayon = { workspace = true }
 serde = { workspace = true }
-rand = { workspace = true }
 
 [dev-dependencies]
-rand = { workspace = true }

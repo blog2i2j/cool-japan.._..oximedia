@@ -561,7 +561,7 @@ mod tests {
 
     #[test]
     fn test_binaural_renderer() {
-        let mut renderer = BinauralRenderer::new(44100).unwrap();
+        let mut renderer = BinauralRenderer::new(44100).expect("should succeed");
 
         let input = vec![1.0; 512];
         let mut output_left = vec![0.0; 512];

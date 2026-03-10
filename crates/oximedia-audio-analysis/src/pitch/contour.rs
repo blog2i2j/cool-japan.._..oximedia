@@ -52,7 +52,7 @@ impl PitchContour {
             if window.is_empty() {
                 smoothed.push(0.0);
             } else {
-                window.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                window.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
                 smoothed.push(window[window.len() / 2]);
             }
         }

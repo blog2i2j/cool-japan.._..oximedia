@@ -234,9 +234,9 @@ mod tests {
     fn test_register_exceeds_limit() {
         let mut reg = DeviceRegistry::new(2);
         reg.register(make_record("d1", "u1", DeviceType::Desktop))
-            .unwrap();
+            .expect("register should succeed");
         reg.register(make_record("d2", "u1", DeviceType::Mobile))
-            .unwrap();
+            .expect("register should succeed");
         let result = reg.register(make_record("d3", "u1", DeviceType::WebBrowser));
         assert!(result.is_err());
     }
@@ -245,9 +245,9 @@ mod tests {
     fn test_deauthorize_frees_slot() {
         let mut reg = DeviceRegistry::new(2);
         reg.register(make_record("d1", "u1", DeviceType::Desktop))
-            .unwrap();
+            .expect("register should succeed");
         reg.register(make_record("d2", "u1", DeviceType::Mobile))
-            .unwrap();
+            .expect("register should succeed");
         assert!(reg.deauthorize("d1"));
         // Now only 1 authorized, so registration should succeed
         assert!(reg
@@ -265,9 +265,9 @@ mod tests {
     fn test_authorized_count_excludes_deauthorized() {
         let mut reg = DeviceRegistry::new(5);
         reg.register(make_record("d1", "u2", DeviceType::Desktop))
-            .unwrap();
+            .expect("register should succeed");
         reg.register(make_record("d2", "u2", DeviceType::Mobile))
-            .unwrap();
+            .expect("register should succeed");
         reg.deauthorize("d1");
         assert_eq!(reg.authorized_count("u2"), 1);
     }
@@ -276,7 +276,7 @@ mod tests {
     fn test_remove_device() {
         let mut reg = DeviceRegistry::new(3);
         reg.register(make_record("d1", "u1", DeviceType::Desktop))
-            .unwrap();
+            .expect("register should succeed");
         assert!(reg.remove("d1"));
         assert_eq!(reg.total_count(), 0);
     }
@@ -291,7 +291,7 @@ mod tests {
     fn test_get_device() {
         let mut reg = DeviceRegistry::new(3);
         reg.register(make_record("d1", "u1", DeviceType::Television))
-            .unwrap();
+            .expect("register should succeed");
         let record = reg.get("d1").expect("record should exist");
         assert_eq!(record.device_id, "d1");
     }
@@ -300,11 +300,11 @@ mod tests {
     fn test_authorized_devices_list() {
         let mut reg = DeviceRegistry::new(5);
         reg.register(make_record("d1", "u3", DeviceType::Desktop))
-            .unwrap();
+            .expect("register should succeed");
         reg.register(make_record("d2", "u3", DeviceType::Mobile))
-            .unwrap();
+            .expect("register should succeed");
         reg.register(make_record("d3", "u4", DeviceType::Television))
-            .unwrap();
+            .expect("register should succeed");
         reg.deauthorize("d1");
         let devices = reg.authorized_devices("u3");
         assert_eq!(devices.len(), 1);
@@ -315,7 +315,7 @@ mod tests {
     fn test_different_users_independent_limits() {
         let mut reg = DeviceRegistry::new(1);
         reg.register(make_record("d1", "u1", DeviceType::Desktop))
-            .unwrap();
+            .expect("register should succeed");
         // u2 should be unaffected by u1's usage
         assert!(reg
             .register(make_record("d2", "u2", DeviceType::Mobile))

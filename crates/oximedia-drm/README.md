@@ -1,7 +1,7 @@
 # oximedia-drm
 
 ![Status: Stable](https://img.shields.io/badge/status-stable-green)
-![Version: 0.1.0](https://img.shields.io/badge/version-0.1.0-blue)
+![Version: 0.1.1](https://img.shields.io/badge/version-0.1.1-blue)
 
 DRM (Digital Rights Management) and encryption support for OxiMedia streaming, implementing CENC and supporting Widevine, PlayReady, FairPlay, and W3C Clear Key.
 
@@ -40,9 +40,9 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-drm = "0.1.0"
+oximedia-drm = "0.1.1"
 # Enable specific DRM systems:
-oximedia-drm = { version = "0.1.0", features = ["all-drm"] }
+oximedia-drm = { version = "0.1.1", features = ["all-drm"] }
 ```
 
 ## Feature Flags

@@ -261,7 +261,7 @@ mod tests {
     fn test_pool_free_reduces_bytes() {
         let mut pool = TexturePool::new(1.0);
         let desc = TextureDescriptor::new(4, 4, TextureFormat::Rgba8);
-        let handle = pool.allocate(desc).unwrap();
+        let handle = pool.allocate(desc).expect("allocation should succeed");
         let before = pool.allocated_bytes();
         pool.free(handle);
         assert!(pool.allocated_bytes() < before);
@@ -272,10 +272,10 @@ mod tests {
     fn test_pool_reuses_freed_slot() {
         let mut pool = TexturePool::new(1.0);
         let d1 = TextureDescriptor::new(4, 4, TextureFormat::R8);
-        let h1 = pool.allocate(d1).unwrap();
+        let h1 = pool.allocate(d1).expect("allocation should succeed");
         pool.free(h1);
         let d2 = TextureDescriptor::new(4, 4, TextureFormat::R8);
-        let h2 = pool.allocate(d2).unwrap();
+        let h2 = pool.allocate(d2).expect("allocation should succeed");
         assert_eq!(h1, h2);
     }
 
@@ -294,7 +294,7 @@ mod tests {
         // Set a precise budget
         let desc = TextureDescriptor::new(4, 4, TextureFormat::Rgba8); // 64 bytes
         pool.max_bytes = 128;
-        pool.allocate(desc).unwrap();
+        pool.allocate(desc).expect("allocation should succeed");
         let util = pool.utilization();
         assert!((util - 0.5).abs() < 1e-6, "expected 0.5, got {util}");
     }

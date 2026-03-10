@@ -797,7 +797,7 @@ mod tests {
 
     #[test]
     fn test_tile_encoder_config_manual() {
-        let config = TileEncoderConfig::with_tile_counts(2, 2, 4).unwrap();
+        let config = TileEncoderConfig::with_tile_counts(2, 2, 4).expect("should succeed");
         assert_eq!(config.tile_cols, 2);
         assert_eq!(config.tile_rows, 2);
         assert_eq!(config.tile_count(), 4);
@@ -824,14 +824,14 @@ mod tests {
 
     #[test]
     fn test_tile_frame_splitter() {
-        let config = TileEncoderConfig::with_tile_counts(2, 2, 4).unwrap();
-        let splitter = TileFrameSplitter::new(config, 1920, 1080).unwrap();
+        let config = TileEncoderConfig::with_tile_counts(2, 2, 4).expect("should succeed");
+        let splitter = TileFrameSplitter::new(config, 1920, 1080).expect("should succeed");
 
         assert_eq!(splitter.tile_count(), 4);
         assert_eq!(splitter.regions().len(), 4);
 
         // Check first tile
-        let region = splitter.region(0).unwrap();
+        let region = splitter.region(0).expect("should succeed");
         assert_eq!(region.col, 0);
         assert_eq!(region.row, 0);
         assert_eq!(region.x, 0);
@@ -849,14 +849,14 @@ mod tests {
         let result = encoder.encode(&frame);
         assert!(result.is_ok());
 
-        let encoded = result.unwrap();
+        let encoded = result.expect("should succeed");
         assert!(encoded.encoded_size() > 0);
     }
 
     #[test]
     fn test_parallel_tile_encoder() {
-        let config = TileEncoderConfig::with_tile_counts(2, 2, 4).unwrap();
-        let encoder = ParallelTileEncoder::new(config, 1920, 1080).unwrap();
+        let config = TileEncoderConfig::with_tile_counts(2, 2, 4).expect("should succeed");
+        let encoder = ParallelTileEncoder::new(config, 1920, 1080).expect("should succeed");
 
         assert_eq!(encoder.tile_count(), 4);
         assert_eq!(encoder.regions().len(), 4);
@@ -864,8 +864,8 @@ mod tests {
 
     #[test]
     fn test_parallel_encode_frame() {
-        let config = TileEncoderConfig::with_tile_counts(2, 2, 4).unwrap();
-        let encoder = ParallelTileEncoder::new(config, 1920, 1080).unwrap();
+        let config = TileEncoderConfig::with_tile_counts(2, 2, 4).expect("should succeed");
+        let encoder = ParallelTileEncoder::new(config, 1920, 1080).expect("should succeed");
 
         let mut frame = VideoFrame::new(PixelFormat::Yuv420p, 1920, 1080);
         frame.allocate();
@@ -873,28 +873,30 @@ mod tests {
         let result = encoder.encode_frame(&frame, 128, true);
         assert!(result.is_ok());
 
-        let tiles = result.unwrap();
+        let tiles = result.expect("should succeed");
         assert_eq!(tiles.len(), 4);
     }
 
     #[test]
     fn test_merge_tiles() {
-        let config = TileEncoderConfig::with_tile_counts(2, 2, 4).unwrap();
-        let encoder = ParallelTileEncoder::new(config, 1920, 1080).unwrap();
+        let config = TileEncoderConfig::with_tile_counts(2, 2, 4).expect("should succeed");
+        let encoder = ParallelTileEncoder::new(config, 1920, 1080).expect("should succeed");
 
         let mut frame = VideoFrame::new(PixelFormat::Yuv420p, 1920, 1080);
         frame.allocate();
 
-        let tiles = encoder.encode_frame(&frame, 128, true).unwrap();
+        let tiles = encoder
+            .encode_frame(&frame, 128, true)
+            .expect("should succeed");
         let merged = encoder.merge_tiles(&tiles);
 
         assert!(merged.is_ok());
-        assert!(!merged.unwrap().is_empty());
+        assert!(!merged.expect("should succeed").is_empty());
     }
 
     #[test]
     fn test_tile_info_builder() {
-        let config = TileEncoderConfig::with_tile_counts(2, 2, 4).unwrap();
+        let config = TileEncoderConfig::with_tile_counts(2, 2, 4).expect("should succeed");
         let tile_info = TileInfoBuilder::from_config(&config, 1920, 1080);
 
         assert_eq!(tile_info.tile_cols, 2);

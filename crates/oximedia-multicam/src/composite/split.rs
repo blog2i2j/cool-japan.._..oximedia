@@ -332,7 +332,7 @@ mod tests {
         let mut split = SplitScreen::new(1920, 1080, SplitOrientation::Vertical);
         split
             .set_layout(Layout::SplitScreen { left: 0, right: 1 })
-            .unwrap();
+            .expect("multicam test operation should succeed");
 
         split.swap_angles();
         assert_eq!(split.first_angle(), Some(1));

@@ -16,7 +16,7 @@
 //! ```rust
 //! use oximedia_audio::{Resampler, ResamplerQuality};
 //!
-//! let mut resampler = Resampler::new(44100, 48000, 2, ResamplerQuality::High).unwrap();
+//! let mut resampler = Resampler::new(44100, 48000, 2, ResamplerQuality::High)?;
 //! // Process audio frames...
 //! ```
 

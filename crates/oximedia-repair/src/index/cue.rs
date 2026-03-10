@@ -481,8 +481,8 @@ mod tests {
     fn test_scan_and_build_no_clusters() {
         // A buffer with no cluster markers returns empty cue list
         let tmp = std::env::temp_dir().join("oximedia_repair_cue_test.mkv");
-        std::fs::write(&tmp, b"not a matroska file at all").unwrap();
-        let cues = scan_and_build_cue_points(&tmp, 1000).unwrap();
+        std::fs::write(&tmp, b"not a matroska file at all").expect("unexpected None/Err");
+        let cues = scan_and_build_cue_points(&tmp, 1000).expect("cue point scan should succeed");
         assert!(cues.is_empty());
         let _ = std::fs::remove_file(&tmp);
     }

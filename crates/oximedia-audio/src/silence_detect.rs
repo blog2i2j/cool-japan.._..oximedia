@@ -174,8 +174,9 @@ impl SilenceDetector {
             };
             if duration < min_dur && !merged.is_empty() {
                 // Merge with previous
-                let last = merged.last_mut().unwrap();
-                last.1 = *end;
+                if let Some(last) = merged.last_mut() {
+                    last.1 = *end;
+                }
             } else {
                 // Check if we can merge with previous of same type
                 if let Some(last) = merged.last_mut() {

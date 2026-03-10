@@ -17,8 +17,8 @@ use oximedia_core::{OxiError, OxiResult};
 ///
 /// let data = [0x00, 0x00, 0x00, 0x14, b'f', b't', b'y', b'p'];
 /// let mut atom = Mp4Atom::new(&data);
-/// assert_eq!(atom.read_u32().unwrap(), 20);
-/// assert_eq!(atom.read_type().unwrap(), "ftyp");
+/// assert_eq!(atom.read_u32()?, 20);
+/// assert_eq!(atom.read_type()?, "ftyp");
 /// ```
 pub struct Mp4Atom<'a> {
     /// The underlying data buffer.
@@ -228,7 +228,7 @@ mod tests {
     fn test_read_u8() {
         let data = [0x42];
         let mut atom = Mp4Atom::new(&data);
-        assert_eq!(atom.read_u8().unwrap(), 0x42);
+        assert_eq!(atom.read_u8().expect("read_u8 should succeed"), 0x42);
         assert!(atom.is_empty());
     }
 
@@ -236,35 +236,35 @@ mod tests {
     fn test_read_u16() {
         let data = [0x01, 0x02];
         let mut atom = Mp4Atom::new(&data);
-        assert_eq!(atom.read_u16().unwrap(), 0x0102);
+        assert_eq!(atom.read_u16().expect("read_u16 should succeed"), 0x0102);
     }
 
     #[test]
     fn test_read_u32() {
         let data = [0x00, 0x00, 0x00, 0x14];
         let mut atom = Mp4Atom::new(&data);
-        assert_eq!(atom.read_u32().unwrap(), 20);
+        assert_eq!(atom.read_u32().expect("read_u32 should succeed"), 20);
     }
 
     #[test]
     fn test_read_u64() {
         let data = [0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x64];
         let mut atom = Mp4Atom::new(&data);
-        assert_eq!(atom.read_u64().unwrap(), 100);
+        assert_eq!(atom.read_u64().expect("read_u64 should succeed"), 100);
     }
 
     #[test]
     fn test_read_i32() {
         let data = [0xFF, 0xFF, 0xFF, 0xFF];
         let mut atom = Mp4Atom::new(&data);
-        assert_eq!(atom.read_i32().unwrap(), -1);
+        assert_eq!(atom.read_i32().expect("operation should succeed"), -1);
     }
 
     #[test]
     fn test_read_type() {
         let data = b"ftyp";
         let mut atom = Mp4Atom::new(data);
-        assert_eq!(atom.read_type().unwrap(), "ftyp");
+        assert_eq!(atom.read_type().expect("operation should succeed"), "ftyp");
     }
 
     #[test]
@@ -272,7 +272,7 @@ mod tests {
         // 1.0 in 16.16 fixed-point
         let data = [0x00, 0x01, 0x00, 0x00];
         let mut atom = Mp4Atom::new(&data);
-        let value = atom.read_fixed_16_16().unwrap();
+        let value = atom.read_fixed_16_16().expect("operation should succeed");
         assert!((value - 1.0).abs() < f64::EPSILON);
     }
 
@@ -281,7 +281,7 @@ mod tests {
         // 1.0 in 8.8 fixed-point
         let data = [0x01, 0x00];
         let mut atom = Mp4Atom::new(&data);
-        let value = atom.read_fixed_8_8().unwrap();
+        let value = atom.read_fixed_8_8().expect("operation should succeed");
         assert!((value - 1.0).abs() < f64::EPSILON);
     }
 
@@ -289,7 +289,7 @@ mod tests {
     fn test_read_bytes() {
         let data = [0x01, 0x02, 0x03, 0x04];
         let mut atom = Mp4Atom::new(&data);
-        let bytes = atom.read_bytes(2).unwrap();
+        let bytes = atom.read_bytes(2).expect("read_bytes should succeed");
         assert_eq!(bytes, &[0x01, 0x02]);
         assert_eq!(atom.position(), 2);
     }
@@ -298,7 +298,7 @@ mod tests {
     fn test_skip() {
         let data = [0x01, 0x02, 0x03, 0x04];
         let mut atom = Mp4Atom::new(&data);
-        atom.skip(2).unwrap();
+        atom.skip(2).expect("operation should succeed");
         assert_eq!(atom.position(), 2);
         assert_eq!(atom.remaining(), &[0x03, 0x04]);
     }
@@ -316,7 +316,7 @@ mod tests {
         let mut atom = Mp4Atom::new(&data);
         assert_eq!(atom.len(), 2);
         assert!(!atom.is_empty());
-        atom.skip(2).unwrap();
+        atom.skip(2).expect("operation should succeed");
         assert!(atom.is_empty());
     }
 }

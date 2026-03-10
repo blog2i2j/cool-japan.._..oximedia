@@ -196,7 +196,11 @@ mod tests {
             "",
             1000,
         );
-        let ann = layer.annotations.iter().find(|a| a.id == id).unwrap();
+        let ann = layer
+            .annotations
+            .iter()
+            .find(|a| a.id == id)
+            .expect("collab test operation should succeed");
         assert_eq!(ann.age_ms(3000), 2000);
     }
 
@@ -210,7 +214,11 @@ mod tests {
             "",
             5000,
         );
-        let ann = layer.annotations.iter().find(|a| a.id == id).unwrap();
+        let ann = layer
+            .annotations
+            .iter()
+            .find(|a| a.id == id)
+            .expect("collab test operation should succeed");
         // now < timestamp → saturating_sub → 0
         assert_eq!(ann.age_ms(1000), 0);
     }

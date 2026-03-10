@@ -169,7 +169,7 @@ mod tests {
 
     #[test]
     fn test_compute_stats_single_element() {
-        let stats = compute_stats(&[42.0]).unwrap();
+        let stats = compute_stats(&[42.0]).expect("stats should be valid");
         assert_eq!(stats.min, 42.0);
         assert_eq!(stats.max, 42.0);
         assert_eq!(stats.mean, 42.0);
@@ -178,45 +178,45 @@ mod tests {
 
     #[test]
     fn test_compute_stats_mean() {
-        let stats = compute_stats(&[1.0, 2.0, 3.0, 4.0, 5.0]).unwrap();
+        let stats = compute_stats(&[1.0, 2.0, 3.0, 4.0, 5.0]).expect("stats should be valid");
         assert!((stats.mean - 3.0).abs() < 1e-10);
     }
 
     #[test]
     fn test_compute_stats_min_max() {
-        let stats = compute_stats(&[5.0, 1.0, 3.0]).unwrap();
+        let stats = compute_stats(&[5.0, 1.0, 3.0]).expect("stats should be valid");
         assert_eq!(stats.min, 1.0);
         assert_eq!(stats.max, 5.0);
     }
 
     #[test]
     fn test_compute_stats_range() {
-        let stats = compute_stats(&[10.0, 20.0]).unwrap();
+        let stats = compute_stats(&[10.0, 20.0]).expect("stats should be valid");
         assert_eq!(stats.range(), 10.0);
     }
 
     #[test]
     fn test_compute_stats_std_dev_uniform() {
         // All same value → std_dev should be 0
-        let stats = compute_stats(&[7.0, 7.0, 7.0, 7.0]).unwrap();
+        let stats = compute_stats(&[7.0, 7.0, 7.0, 7.0]).expect("stats should be valid");
         assert!(stats.std_dev < 1e-10);
     }
 
     #[test]
     fn test_compute_stats_median_odd() {
-        let stats = compute_stats(&[1.0, 3.0, 5.0]).unwrap();
+        let stats = compute_stats(&[1.0, 3.0, 5.0]).expect("stats should be valid");
         assert!((stats.median - 3.0).abs() < 1e-10);
     }
 
     #[test]
     fn test_compute_stats_median_even() {
-        let stats = compute_stats(&[1.0, 2.0, 3.0, 4.0]).unwrap();
+        let stats = compute_stats(&[1.0, 2.0, 3.0, 4.0]).expect("stats should be valid");
         assert!((stats.median - 2.5).abs() < 1e-10);
     }
 
     #[test]
     fn test_bench_stats_cv() {
-        let stats = compute_stats(&[10.0, 10.0, 10.0]).unwrap();
+        let stats = compute_stats(&[10.0, 10.0, 10.0]).expect("stats should be valid");
         assert_eq!(stats.cv(), 0.0);
     }
 
@@ -236,13 +236,13 @@ mod tests {
 
     #[test]
     fn test_bench_stats_is_stable() {
-        let stats = compute_stats(&[100.0, 101.0, 99.0, 100.0]).unwrap();
+        let stats = compute_stats(&[100.0, 101.0, 99.0, 100.0]).expect("stats should be valid");
         assert!(stats.is_stable(0.1)); // CV should be very small
     }
 
     #[test]
     fn test_bench_stats_not_stable() {
-        let stats = compute_stats(&[1.0, 100.0, 50.0]).unwrap();
+        let stats = compute_stats(&[1.0, 100.0, 50.0]).expect("stats should be valid");
         assert!(!stats.is_stable(0.05));
     }
 

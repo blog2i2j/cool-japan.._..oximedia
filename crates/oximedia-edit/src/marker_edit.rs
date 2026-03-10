@@ -402,8 +402,8 @@ mod tests {
         let markers = vec![EditMarker::new(1, 100, "a"), EditMarker::new(2, 200, "b")];
         let result = snap_to_nearest(&markers, 105, 10);
         assert!(result.is_some());
-        assert_eq!(result.unwrap().marker_id, 1);
-        assert_eq!(result.unwrap().distance, 5);
+        assert_eq!(result.expect("test expectation failed").marker_id, 1);
+        assert_eq!(result.expect("test expectation failed").distance, 5);
     }
 
     #[test]
@@ -419,7 +419,7 @@ mod tests {
         let id = ed.add_point(500, "Point");
         assert_eq!(ed.count(), 1);
         assert!(ed.get(id).is_some());
-        assert_eq!(ed.get(id).unwrap().label, "Point");
+        assert_eq!(ed.get(id).expect("get should succeed").label, "Point");
     }
 
     #[test]
@@ -446,7 +446,7 @@ mod tests {
     fn test_marker_editor_filter_by_category() {
         let mut ed = MarkerEditor::new();
         let id1 = ed.add_point(100, "ch1");
-        ed.get_mut(id1).unwrap().category = MarkerCategory::Chapter;
+        ed.get_mut(id1).expect("get_mut should succeed").category = MarkerCategory::Chapter;
         let _id2 = ed.add_point(200, "gen");
         let chapters = ed.filter_by_category(MarkerCategory::Chapter);
         assert_eq!(chapters.len(), 1);
@@ -467,7 +467,7 @@ mod tests {
     fn test_marker_editor_delete_by_category() {
         let mut ed = MarkerEditor::new();
         let id = ed.add_point(100, "err");
-        ed.get_mut(id).unwrap().category = MarkerCategory::Error;
+        ed.get_mut(id).expect("get_mut should succeed").category = MarkerCategory::Error;
         ed.add_point(200, "gen");
         let removed = ed.delete_by_category(MarkerCategory::Error);
         assert_eq!(removed, 1);

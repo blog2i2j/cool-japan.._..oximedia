@@ -220,7 +220,7 @@ mod tests {
         let result = estimator.estimate(&current, &reference);
 
         assert!(result.is_ok());
-        let motion_vectors = result.unwrap();
+        let motion_vectors = result.expect("motion_vectors should be valid");
         assert!(!motion_vectors.is_empty());
     }
 

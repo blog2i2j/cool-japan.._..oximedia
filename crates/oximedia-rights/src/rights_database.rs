@@ -165,7 +165,10 @@ mod tests {
         db.insert(make_record("r1", RecordStatus::Active));
         let found = db.lookup("r1");
         assert!(found.is_some());
-        assert_eq!(found.unwrap().id, "r1");
+        assert_eq!(
+            found.expect("rights test operation should succeed").id,
+            "r1"
+        );
     }
 
     #[test]
@@ -179,7 +182,9 @@ mod tests {
         let mut db = RightsDatabase::new();
         db.insert(make_record("r1", RecordStatus::Active));
         db.insert(make_record("r1", RecordStatus::Revoked));
-        let r = db.lookup("r1").unwrap();
+        let r = db
+            .lookup("r1")
+            .expect("rights test operation should succeed");
         assert_eq!(r.status, RecordStatus::Revoked);
     }
 
@@ -189,7 +194,12 @@ mod tests {
         db.insert(make_record("r1", RecordStatus::Active));
         let updated = db.update_status("r1", RecordStatus::Expired);
         assert!(updated);
-        assert_eq!(db.lookup("r1").unwrap().status, RecordStatus::Expired);
+        assert_eq!(
+            db.lookup("r1")
+                .expect("rights test operation should succeed")
+                .status,
+            RecordStatus::Expired
+        );
     }
 
     #[test]

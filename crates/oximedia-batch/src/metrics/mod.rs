@@ -179,7 +179,7 @@ mod tests {
 
     #[test]
     fn test_inc_jobs_submitted() {
-        let collector = MetricsCollector::new().unwrap();
+        let collector = MetricsCollector::new().expect("failed to create");
         collector.inc_jobs_submitted();
         collector.inc_jobs_submitted();
 
@@ -189,7 +189,7 @@ mod tests {
 
     #[test]
     fn test_inc_jobs_completed() {
-        let collector = MetricsCollector::new().unwrap();
+        let collector = MetricsCollector::new().expect("failed to create");
         collector.inc_jobs_completed();
 
         let metrics = collector.gather();
@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn test_inc_jobs_failed() {
-        let collector = MetricsCollector::new().unwrap();
+        let collector = MetricsCollector::new().expect("failed to create");
         collector.inc_jobs_failed();
 
         let metrics = collector.gather();
@@ -207,7 +207,7 @@ mod tests {
 
     #[test]
     fn test_set_jobs_by_status() {
-        let collector = MetricsCollector::new().unwrap();
+        let collector = MetricsCollector::new().expect("failed to create");
         collector.set_jobs_by_status("running", 5.0);
 
         let metrics = collector.gather();
@@ -216,7 +216,7 @@ mod tests {
 
     #[test]
     fn test_set_jobs_by_priority() {
-        let collector = MetricsCollector::new().unwrap();
+        let collector = MetricsCollector::new().expect("failed to create");
         collector.set_jobs_by_priority("high", 3.0);
 
         let metrics = collector.gather();
@@ -225,7 +225,7 @@ mod tests {
 
     #[test]
     fn test_observe_job_duration() {
-        let collector = MetricsCollector::new().unwrap();
+        let collector = MetricsCollector::new().expect("failed to create");
         collector.observe_job_duration("transcode", 120.5);
 
         let metrics = collector.gather();
@@ -234,7 +234,7 @@ mod tests {
 
     #[test]
     fn test_set_processing_speed() {
-        let collector = MetricsCollector::new().unwrap();
+        let collector = MetricsCollector::new().expect("failed to create");
         collector.set_processing_speed("fps", 30.0);
 
         let metrics = collector.gather();
@@ -243,7 +243,7 @@ mod tests {
 
     #[test]
     fn test_set_queue_size() {
-        let collector = MetricsCollector::new().unwrap();
+        let collector = MetricsCollector::new().expect("failed to create");
         collector.set_queue_size(10.0);
 
         let metrics = collector.gather();
@@ -252,7 +252,7 @@ mod tests {
 
     #[test]
     fn test_set_active_workers() {
-        let collector = MetricsCollector::new().unwrap();
+        let collector = MetricsCollector::new().expect("failed to create");
         collector.set_active_workers(4.0);
 
         let metrics = collector.gather();

@@ -39,7 +39,7 @@
 //! // CPU-based bicubic upscaling (no ONNX required)
 //! let input = vec![128u8; 64 * 64 * 3];
 //! let enhancer = SuperResolutionEnhancer::new(UpscaleMode::Bicubic2x);
-//! let upscaled = enhancer.upscale(&input, 64, 64).unwrap();
+//! let upscaled = enhancer.upscale(&input, 64, 64)?;
 //! assert_eq!(upscaled.len(), 128 * 128 * 3);
 //! ```
 //!

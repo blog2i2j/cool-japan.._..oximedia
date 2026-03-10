@@ -203,13 +203,21 @@ async fn run_benchmarks_impl(options: &BenchmarkOptions) -> Result<BenchmarkSumm
     // Calculate summary statistics
     let fastest_run = all_runs
         .iter()
-        .min_by(|a, b| a.duration_secs.partial_cmp(&b.duration_secs).unwrap())
+        .min_by(|a, b| {
+            a.duration_secs
+                .partial_cmp(&b.duration_secs)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
         .ok_or_else(|| anyhow!("No benchmark runs completed"))?
         .clone();
 
     let slowest_run = all_runs
         .iter()
-        .max_by(|a, b| a.duration_secs.partial_cmp(&b.duration_secs).unwrap())
+        .max_by(|a, b| {
+            a.duration_secs
+                .partial_cmp(&b.duration_secs)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
         .ok_or_else(|| anyhow!("No benchmark runs completed"))?
         .clone();
 

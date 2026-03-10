@@ -242,7 +242,7 @@ mod tests {
         policy.add_endpoint(make_ep(3));
         policy.add_endpoint(make_ep(1));
         policy.add_endpoint(make_ep(2));
-        let primary = policy.primary().unwrap();
+        let primary = policy.primary().expect("primary should be valid");
         assert_eq!(primary.priority, 1);
     }
 

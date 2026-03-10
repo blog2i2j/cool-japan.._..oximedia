@@ -317,7 +317,7 @@ mod tests {
         mgr.submit(make_req("low", RestorePriority::Low, 1000));
         mgr.submit(make_req("crit", RestorePriority::Critical, 1001));
         mgr.submit(make_req("norm", RestorePriority::Normal, 1002));
-        let first = mgr.next_request().unwrap();
+        let first = mgr.next_request().expect("operation should succeed");
         assert_eq!(first.priority, RestorePriority::Critical);
     }
 

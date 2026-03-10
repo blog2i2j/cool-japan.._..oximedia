@@ -213,7 +213,9 @@ mod tests {
     #[test]
     fn test_offset_for_found() {
         let result = make_result();
-        let o = result.offset_for(1).unwrap();
+        let o = result
+            .offset_for(1)
+            .expect("multicam test operation should succeed");
         assert_eq!(o.offset_frames, 12);
     }
 

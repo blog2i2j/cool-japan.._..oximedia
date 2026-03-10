@@ -372,7 +372,7 @@ mod tests {
     #[test]
     fn test_aspect_ratio() {
         let h = TrackHeader::video(1, 1920.0, 1080.0, 0);
-        let ratio = h.aspect_ratio().unwrap();
+        let ratio = h.aspect_ratio().expect("operation should succeed");
         assert!((ratio - 16.0 / 9.0).abs() < 0.01);
     }
 

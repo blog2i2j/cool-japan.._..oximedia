@@ -182,7 +182,13 @@ pub fn detect_clipping(
         let r = frame[base];
         let g = frame[base + 1];
         let b = frame[base + 2];
-        if r >= clip_hi || r <= clip_lo || g >= clip_hi || g <= clip_lo || b >= clip_hi || b <= clip_lo {
+        if r >= clip_hi
+            || r <= clip_lo
+            || g >= clip_hi
+            || g <= clip_lo
+            || b >= clip_hi
+            || b <= clip_lo
+        {
             any_affected += 1;
         }
     }

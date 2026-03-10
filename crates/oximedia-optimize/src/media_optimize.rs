@@ -463,7 +463,7 @@ mod tests {
         assert_eq!(p.height, 720);
         assert!(p.denoising);
         assert!(p.crf.is_some());
-        assert!(p.crf.unwrap() > 23); // lower quality than 1080p
+        assert!(p.crf.expect("CRF should be set") > 23); // lower quality than 1080p
     }
 
     #[test]

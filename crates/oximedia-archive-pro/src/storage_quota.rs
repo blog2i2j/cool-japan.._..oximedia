@@ -424,7 +424,7 @@ mod tests {
         mgr.add_quota(QuotaConfig::from_gb(scope.clone(), 80, 100));
         mgr.update_usage(scope.clone(), QuotaUsage::new(50 * GB, 25));
 
-        let report = mgr.report(&scope).unwrap();
+        let report = mgr.report(&scope).expect("operation should succeed");
         assert_eq!(report.used_bytes, 50 * GB);
         assert!((report.usage_percent - 50.0).abs() < 0.01);
         assert_eq!(report.status, QuotaCheckResult::Ok);

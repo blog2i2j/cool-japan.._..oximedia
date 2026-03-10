@@ -286,7 +286,7 @@ mod tests {
         );
         let seg = index.get(id);
         assert!(seg.is_some());
-        assert_eq!(seg.unwrap().asset_id, "asset1");
+        assert_eq!(seg.expect("test expectation failed").asset_id, "asset1");
     }
 
     #[test]

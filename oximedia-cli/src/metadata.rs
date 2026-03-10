@@ -465,15 +465,17 @@ mod tests {
 
         metadata
             .set_field("title", "Test Title".to_string())
-            .unwrap();
+            .expect("set_field should succeed");
         assert_eq!(metadata.title, Some("Test Title".to_string()));
 
-        metadata.set_field("year", "2024".to_string()).unwrap();
+        metadata
+            .set_field("year", "2024".to_string())
+            .expect("set_field should succeed");
         assert_eq!(metadata.year, Some(2024));
 
         metadata
             .set_field("custom_tag", "Custom Value".to_string())
-            .unwrap();
+            .expect("set_field should succeed");
         assert_eq!(
             metadata.custom.get("custom_tag"),
             Some(&"Custom Value".to_string())

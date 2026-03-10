@@ -97,7 +97,8 @@ pub fn generate_rgb_parade(
             for (intensity, &count) in column.iter().enumerate() {
                 if count > 0 {
                     // Map intensity (0-255) to scope height
-                    let scope_y = scope_height - 1 - ((intensity as u32 * scope_height) / 255);
+                    let mapped = ((intensity as u32 * scope_height) / 255).min(scope_height - 1);
+                    let scope_y = scope_height - 1 - mapped;
 
                     // Calculate brightness based on count
                     let brightness = ((count as f32 / max_val as f32).sqrt() * 255.0) as u8;
@@ -213,7 +214,8 @@ pub fn generate_ycbcr_parade(
             for (intensity, &count) in column.iter().enumerate() {
                 if count > 0 {
                     // Map intensity (0-255) to scope height
-                    let scope_y = scope_height - 1 - ((intensity as u32 * scope_height) / 255);
+                    let mapped = ((intensity as u32 * scope_height) / 255).min(scope_height - 1);
+                    let scope_y = scope_height - 1 - mapped;
 
                     // Calculate brightness based on count
                     let brightness = ((count as f32 / max_val as f32).sqrt() * 255.0) as u8;

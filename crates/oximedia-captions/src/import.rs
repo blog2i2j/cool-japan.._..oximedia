@@ -114,7 +114,7 @@ mod tests {
     #[test]
     fn test_import_srt() {
         let srt = b"1\n00:00:01,000 --> 00:00:03,000\nTest caption\n\n";
-        let track = Importer::import_auto(srt).unwrap();
+        let track = Importer::import_auto(srt).expect("auto import should succeed");
         assert_eq!(track.captions.len(), 1);
         assert_eq!(track.captions[0].text, "Test caption");
     }
@@ -122,7 +122,7 @@ mod tests {
     #[test]
     fn test_import_webvtt() {
         let vtt = b"WEBVTT\n\n00:00:01.000 --> 00:00:03.000\nTest caption\n\n";
-        let track = Importer::import_auto(vtt).unwrap();
+        let track = Importer::import_auto(vtt).expect("auto import should succeed");
         assert_eq!(track.captions.len(), 1);
         assert_eq!(track.captions[0].text, "Test caption");
     }

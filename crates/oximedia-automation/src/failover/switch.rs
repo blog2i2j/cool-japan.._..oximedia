@@ -100,7 +100,7 @@ mod tests {
         let switch = FailoverSwitch::new(0);
         assert!(switch.is_primary(0).await);
 
-        switch.trigger(0).await.unwrap();
+        switch.trigger(0).await.expect("operation should succeed");
         assert!(!switch.is_primary(0).await);
     }
 
@@ -108,10 +108,10 @@ mod tests {
     async fn test_restore_primary() {
         let switch = FailoverSwitch::new(0);
 
-        switch.trigger(0).await.unwrap();
+        switch.trigger(0).await.expect("operation should succeed");
         assert!(!switch.is_primary(0).await);
 
-        switch.restore(0).await.unwrap();
+        switch.restore(0).await.expect("operation should succeed");
         assert!(switch.is_primary(0).await);
     }
 
@@ -120,7 +120,10 @@ mod tests {
         let switch = FailoverSwitch::new(0);
 
         let channels = vec![0, 1, 2];
-        switch.synchronized_failover(&channels).await.unwrap();
+        switch
+            .synchronized_failover(&channels)
+            .await
+            .expect("operation should succeed");
 
         for channel in channels {
             assert!(!switch.is_primary(channel).await);

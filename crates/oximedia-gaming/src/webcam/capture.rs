@@ -57,12 +57,12 @@ mod tests {
     #[test]
     fn test_webcam_creation() {
         let config = WebcamConfig::default();
-        let _webcam = WebcamCapture::new(config).unwrap();
+        let _webcam = WebcamCapture::new(config).expect("valid webcam capture");
     }
 
     #[test]
     fn test_list_devices() {
-        let devices = WebcamCapture::list_devices().unwrap();
+        let devices = WebcamCapture::list_devices().expect("list devices should succeed");
         assert!(!devices.is_empty());
     }
 }

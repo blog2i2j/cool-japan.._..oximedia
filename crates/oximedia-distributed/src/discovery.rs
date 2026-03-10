@@ -494,7 +494,7 @@ impl HealthChecker {
         // Perform health check (simplified)
         let status = self.perform_health_check(endpoint).await;
 
-        let latency = start.elapsed().unwrap_or(Duration::from_secs(0));
+        let latency = start.elapsed().unwrap_or(Duration::ZERO);
 
         let mut result = HealthCheckResult {
             worker_id: endpoint.worker_id.clone(),
@@ -605,18 +605,17 @@ impl WorkerRegistry {
     pub async fn register(&self, worker_id: String, endpoint: WorkerEndpoint) -> Result<()> {
         info!("Registering worker in registry: {}", worker_id);
 
+        let unix_now = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .unwrap_or(Duration::ZERO)
+            .as_secs();
+
         let worker = RegisteredWorker {
             worker_id: worker_id.clone(),
             address: endpoint.address.to_string(),
             hostname: endpoint.hostname,
-            registered_at: SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
-            last_heartbeat: SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
-                .as_secs(),
+            registered_at: unix_now,
+            last_heartbeat: unix_now,
             capabilities: serde_json::json!({}),
             metadata: endpoint.metadata,
         };
@@ -650,7 +649,7 @@ impl WorkerRegistry {
         if let Some(worker) = workers.get_mut(worker_id) {
             worker.last_heartbeat = SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
-                .unwrap()
+                .unwrap_or(Duration::ZERO)
                 .as_secs();
         }
 

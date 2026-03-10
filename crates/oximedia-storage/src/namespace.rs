@@ -188,7 +188,7 @@ mod tests {
     #[test]
     fn test_namespace_parent_some() {
         let ns = Namespace::new("media/video/raw");
-        let parent = ns.parent().unwrap();
+        let parent = ns.parent().expect("parent should exist");
         assert_eq!(parent.name(), "media/video");
     }
 
@@ -270,7 +270,7 @@ mod tests {
         mgr.create(&ns, NamespaceMeta::default());
         mgr.increment_count(&ns);
         mgr.increment_count(&ns);
-        let meta = mgr.meta(&ns).unwrap();
+        let meta = mgr.meta(&ns).expect("meta should succeed");
         assert_eq!(meta.object_count, 2);
     }
 

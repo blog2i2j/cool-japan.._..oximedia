@@ -321,7 +321,7 @@ mod tests {
 
         let leader = topo.find_leader();
         assert!(leader.is_some());
-        assert_eq!(leader.unwrap().node_id, "n1");
+        assert_eq!(leader.expect("leader should exist").node_id, "n1");
     }
 
     #[test]

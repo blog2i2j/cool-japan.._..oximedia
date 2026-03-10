@@ -297,6 +297,7 @@ mod tests {
         let q = ReferenceQuality::locked(100, 0);
         let r = TimeReference::new(ReferenceSource::Ptp, 500, q);
         assert!(r.is_fresh(Duration::from_secs(10)));
+        std::thread::sleep(Duration::from_millis(1));
         assert!(!r.is_fresh(Duration::from_nanos(0)));
     }
 

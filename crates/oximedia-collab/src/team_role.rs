@@ -285,7 +285,10 @@ impl RoleManager {
         if role.built_in {
             return Err(RoleError::BuiltInRole(name.to_string()));
         }
-        Ok(self.roles.remove(name).unwrap())
+        Ok(self
+            .roles
+            .remove(name)
+            .expect("role key exists: verified by get() above"))
     }
 
     /// Get a role by name.
@@ -433,7 +436,8 @@ mod tests {
     fn test_role_manager_add_custom() {
         let mut mgr = RoleManager::new();
         let role = TeamRole::new("intern", "Intern role", 25).with_capability(Capability::View);
-        mgr.add_role(role).unwrap();
+        mgr.add_role(role)
+            .expect("collab test operation should succeed");
         assert!(mgr.get_role("intern").is_some());
     }
 
@@ -457,7 +461,8 @@ mod tests {
     fn test_assign_and_check_capability() {
         let mut mgr = RoleManager::new();
         let assignment = RoleAssignment::new("user1", "editor", "admin", 1000);
-        mgr.assign_role(assignment).unwrap();
+        mgr.assign_role(assignment)
+            .expect("collab test operation should succeed");
         assert!(mgr.user_has_capability("user1", Capability::EditTimeline));
         assert!(!mgr.user_has_capability("user1", Capability::Admin));
     }
@@ -466,8 +471,10 @@ mod tests {
     fn test_revoke_role() {
         let mut mgr = RoleManager::new();
         let assignment = RoleAssignment::new("user1", "editor", "admin", 1000);
-        mgr.assign_role(assignment).unwrap();
-        mgr.revoke_role("user1", "editor").unwrap();
+        mgr.assign_role(assignment)
+            .expect("collab test operation should succeed");
+        mgr.revoke_role("user1", "editor")
+            .expect("collab test operation should succeed");
         assert!(!mgr.user_has_capability("user1", Capability::EditTimeline));
     }
 
@@ -483,9 +490,9 @@ mod tests {
     fn test_total_assignments() {
         let mut mgr = RoleManager::new();
         mgr.assign_role(RoleAssignment::new("u1", "editor", "admin", 1000))
-            .unwrap();
+            .expect("collab test operation should succeed");
         mgr.assign_role(RoleAssignment::new("u2", "viewer", "admin", 1000))
-            .unwrap();
+            .expect("collab test operation should succeed");
         assert_eq!(mgr.total_assignments(), 2);
     }
 }

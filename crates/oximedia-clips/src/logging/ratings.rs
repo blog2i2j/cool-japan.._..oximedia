@@ -90,8 +90,14 @@ mod tests {
 
     #[test]
     fn test_rating_from_value() {
-        assert_eq!(Rating::from_value(1).unwrap(), Rating::OneStar);
-        assert_eq!(Rating::from_value(5).unwrap(), Rating::FiveStars);
+        assert_eq!(
+            Rating::from_value(1).expect("from_value should succeed"),
+            Rating::OneStar
+        );
+        assert_eq!(
+            Rating::from_value(5).expect("from_value should succeed"),
+            Rating::FiveStars
+        );
         assert!(Rating::from_value(0).is_err());
         assert!(Rating::from_value(6).is_err());
     }

@@ -207,12 +207,15 @@ mod tests {
 
     #[test]
     fn test_generate_file_checksum() {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"Hello, World!").unwrap();
-        file.flush().unwrap();
+        let mut file = NamedTempFile::new().expect("operation should succeed");
+        file.write_all(b"Hello, World!")
+            .expect("operation should succeed");
+        file.flush().expect("operation should succeed");
 
         let generator = ChecksumGenerator::new();
-        let checksum = generator.generate_file(file.path()).unwrap();
+        let checksum = generator
+            .generate_file(file.path())
+            .expect("operation should succeed");
 
         assert_eq!(checksum.size, 13);
         assert_eq!(checksum.checksums.len(), 1);
@@ -221,9 +224,10 @@ mod tests {
 
     #[test]
     fn test_multiple_algorithms() {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"Test data").unwrap();
-        file.flush().unwrap();
+        let mut file = NamedTempFile::new().expect("operation should succeed");
+        file.write_all(b"Test data")
+            .expect("operation should succeed");
+        file.flush().expect("operation should succeed");
 
         let generator = ChecksumGenerator::new().with_algorithms(vec![
             ChecksumAlgorithm::Md5,
@@ -231,17 +235,20 @@ mod tests {
             ChecksumAlgorithm::Blake3,
         ]);
 
-        let checksum = generator.generate_file(file.path()).unwrap();
+        let checksum = generator
+            .generate_file(file.path())
+            .expect("operation should succeed");
         assert_eq!(checksum.checksums.len(), 3);
     }
 
     #[test]
     fn test_quick_checksum() {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"Quick test").unwrap();
-        file.flush().unwrap();
+        let mut file = NamedTempFile::new().expect("operation should succeed");
+        file.write_all(b"Quick test")
+            .expect("operation should succeed");
+        file.flush().expect("operation should succeed");
 
-        let hash = quick_checksum(file.path()).unwrap();
+        let hash = quick_checksum(file.path()).expect("operation should succeed");
         assert!(!hash.is_empty());
     }
 }

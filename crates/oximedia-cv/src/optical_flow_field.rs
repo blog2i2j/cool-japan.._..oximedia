@@ -389,7 +389,7 @@ mod tests {
         let _ = analyzer.compute_dense(&luma, 16, 16);
         let field = analyzer.compute_dense(&luma, 16, 16);
         assert!(field.is_some());
-        let f = field.unwrap();
+        let f = field.expect("f should be valid");
         assert_eq!(f.width, 16);
         assert_eq!(f.height, 16);
     }
@@ -412,7 +412,9 @@ mod tests {
         let mut analyzer = FlowFieldAnalyzer::new(cfg);
         let luma = vec![100u8; 8 * 8];
         let _ = analyzer.compute_dense(&luma, 8, 8);
-        let field = analyzer.compute_dense(&luma, 8, 8).unwrap();
+        let field = analyzer
+            .compute_dense(&luma, 8, 8)
+            .expect("compute_dense should succeed");
         // Identical frames → best match at (0, 0) displacement.
         assert!((field.avg_magnitude() - 0.0).abs() < 1e-5);
     }

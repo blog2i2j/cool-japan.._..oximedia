@@ -793,8 +793,8 @@ mod tests {
         let input = create_test_yuv_frame(64, 48);
         let result = filter
             .process(Some(FilterFrame::Video(input)))
-            .unwrap()
-            .unwrap();
+            .expect("operation should succeed")
+            .expect("operation should succeed");
 
         if let FilterFrame::Video(frame) = result {
             assert_eq!(frame.format, PixelFormat::Rgb24);
@@ -814,8 +814,8 @@ mod tests {
         let input = create_test_rgb_frame(64, 48);
         let result = filter
             .process(Some(FilterFrame::Video(input)))
-            .unwrap()
-            .unwrap();
+            .expect("operation should succeed")
+            .expect("operation should succeed");
 
         if let FilterFrame::Video(frame) = result {
             assert_eq!(frame.format, PixelFormat::Yuv420p);
@@ -833,8 +833,8 @@ mod tests {
         let input = create_test_yuv_frame(64, 48);
         let result = filter
             .process(Some(FilterFrame::Video(input)))
-            .unwrap()
-            .unwrap();
+            .expect("operation should succeed")
+            .expect("operation should succeed");
 
         if let FilterFrame::Video(frame) = result {
             assert_eq!(frame.format, PixelFormat::Yuv420p);
@@ -879,7 +879,9 @@ mod tests {
         let mut filter = ColorConvertFilter::new(NodeId(0), "convert", config);
 
         assert_eq!(filter.state(), NodeState::Idle);
-        filter.set_state(NodeState::Processing).unwrap();
+        filter
+            .set_state(NodeState::Processing)
+            .expect("set_state should succeed");
         assert_eq!(filter.state(), NodeState::Processing);
     }
 
@@ -888,7 +890,7 @@ mod tests {
         let config = ColorConvertConfig::new(PixelFormat::Rgb24);
         let mut filter = ColorConvertFilter::new(NodeId(0), "convert", config);
 
-        let result = filter.process(None).unwrap();
+        let result = filter.process(None).expect("process should succeed");
         assert!(result.is_none());
     }
 

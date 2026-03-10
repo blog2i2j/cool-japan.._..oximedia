@@ -287,7 +287,7 @@ mod tests {
         ];
         let rung = model.select_rung(&ladder);
         assert!(rung.is_some());
-        assert_eq!(rung.unwrap().height, 720);
+        assert_eq!(rung.expect("rung should be found").height, 720);
     }
 
     #[test]

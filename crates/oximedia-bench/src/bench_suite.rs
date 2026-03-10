@@ -204,7 +204,7 @@ mod tests {
         let c = BenchCase::new("enc", 150.0).with_baseline(100.0);
         let ratio = c.throughput_ratio();
         assert!(ratio.is_some());
-        assert!((ratio.unwrap() - 1.5).abs() < 1e-9);
+        assert!((ratio.expect("test expectation failed") - 1.5).abs() < 1e-9);
     }
 
     #[test]
@@ -216,7 +216,11 @@ mod tests {
     #[test]
     fn test_bench_case_zero_baseline() {
         let c = BenchCase::new("enc", 100.0).with_baseline(0.0);
-        assert_eq!(c.throughput_ratio().unwrap(), 0.0);
+        assert_eq!(
+            c.throughput_ratio()
+                .expect("throughput_ratio should succeed"),
+            0.0
+        );
     }
 
     #[test]
@@ -265,7 +269,7 @@ mod tests {
             .cases
             .iter()
             .find(|c| c.name == "fast_codec")
-            .unwrap();
+            .expect("test expectation failed");
         assert!((fast.throughput - 120.0).abs() < 1e-9);
     }
 
@@ -277,9 +281,9 @@ mod tests {
             .cases
             .iter()
             .find(|c| c.name == "fast_codec")
-            .unwrap();
+            .expect("test expectation failed");
         assert!(fast.throughput_ratio.is_some());
-        assert!((fast.throughput_ratio.unwrap() - 1.2).abs() < 1e-9);
+        assert!((fast.throughput_ratio.expect("test expectation failed") - 1.2).abs() < 1e-9);
     }
 
     #[test]
@@ -290,7 +294,7 @@ mod tests {
             .cases
             .iter()
             .find(|c| c.name == "medium_codec")
-            .unwrap();
+            .expect("test expectation failed");
         assert!(medium.throughput_ratio.is_none());
     }
 

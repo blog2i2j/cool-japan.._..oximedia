@@ -294,7 +294,7 @@ mod tests {
     fn test_sample_position_duration_to() {
         let start = pos(0);
         let end = pos(48000);
-        let dur = start.duration_to(&end).unwrap();
+        let dur = start.duration_to(&end).expect("duration_to should succeed");
         assert!((dur - 1.0).abs() < 1e-9);
     }
 
@@ -345,7 +345,7 @@ mod tests {
     #[test]
     fn test_adr_cue_record_duration() {
         let cue = AdrCueRecord::new("cue-1", "1A", "Alice", "Hello world", pos(0), pos(96000));
-        let dur = cue.duration_secs().unwrap();
+        let dur = cue.duration_secs().expect("duration_secs should succeed");
         assert!((dur - 2.0).abs() < 1e-9);
     }
 

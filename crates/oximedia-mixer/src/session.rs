@@ -598,9 +598,9 @@ mod tests {
     #[test]
     fn test_session_serialization() {
         let session = MixerSession::with_config("Test Session".to_string(), 48000, 512);
-        let json = session.data().to_json().unwrap();
+        let json = session.data().to_json().expect("json should be valid");
 
-        let loaded = SessionData::from_json(&json).unwrap();
+        let loaded = SessionData::from_json(&json).expect("loaded should be valid");
         assert_eq!(loaded.name, "Test Session");
         assert_eq!(loaded.sample_rate, 48000);
     }

@@ -193,7 +193,7 @@ mod tests {
         assert!(block.length > 0);
 
         // Verify we can parse it back
-        let comments = VorbisComments::parse(&block.data).unwrap();
+        let comments = VorbisComments::parse(&block.data).expect("operation should succeed");
         assert_eq!(comments.tags.get_text("TITLE"), Some("Test Title"));
         assert_eq!(comments.tags.get_text("ARTIST"), Some("Test Artist"));
     }
@@ -206,7 +206,7 @@ mod tests {
         assert_eq!(block.block_type, BlockType::VorbisComment);
         assert!(block.is_last);
 
-        let comments = VorbisComments::parse(&block.data).unwrap();
+        let comments = VorbisComments::parse(&block.data).expect("operation should succeed");
         assert!(comments.is_empty());
     }
 }

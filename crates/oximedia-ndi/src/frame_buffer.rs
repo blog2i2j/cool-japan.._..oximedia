@@ -260,7 +260,7 @@ mod tests {
         assert!(buf.push(make_frame(1, 100)));
         assert!(buf.push(make_frame(2, 100)));
         assert_eq!(buf.len(), 2);
-        let f = buf.pop().unwrap();
+        let f = buf.pop().expect("expected non-empty buffer");
         assert_eq!(f.sequence, 1);
         assert_eq!(buf.len(), 1);
     }
@@ -272,7 +272,7 @@ mod tests {
         buf.push(make_frame(2, 10));
         buf.push(make_frame(3, 10)); // should evict frame 1
         assert_eq!(buf.len(), 2);
-        let f = buf.pop().unwrap();
+        let f = buf.pop().expect("expected non-empty buffer");
         assert_eq!(f.sequence, 2); // frame 1 was dropped
         assert_eq!(buf.stats().frames_dropped, 1);
     }
@@ -313,7 +313,7 @@ mod tests {
     fn test_buffer_peek() {
         let mut buf = NdiFrameBuffer::new(4, BufferStrategy::DropOldest);
         buf.push(make_frame(10, 50));
-        let peeked = buf.peek().unwrap();
+        let peeked = buf.peek().expect("expected non-empty buffer");
         assert_eq!(peeked.sequence, 10);
         assert_eq!(buf.len(), 1); // peek doesn't consume
     }

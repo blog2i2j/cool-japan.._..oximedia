@@ -69,7 +69,7 @@ fn calculate_scene_based_timestamps(duration: f64, count: usize) -> Result<Vec<f
     }
 
     // Sort and trim to requested count
-    scene_timestamps.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    scene_timestamps.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     scene_timestamps.truncate(count);
 
     Ok(scene_timestamps)
@@ -128,7 +128,7 @@ fn calculate_smart_timestamps(
     for t in scene {
         combined.push(t);
     }
-    combined.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    combined.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     combined.dedup_by(|a, b| (*a - *b).abs() < 1.0); // collapse timestamps within 1 second
 
     // Trim or pad to exactly `count` entries
@@ -143,7 +143,7 @@ fn calculate_smart_timestamps(
         // Pad with uniform timestamps
         let extra = calculate_uniform_timestamps(duration, count - combined.len(), None)?;
         combined.extend(extra);
-        combined.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        combined.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         combined.truncate(count);
         Ok(combined)
     } else {

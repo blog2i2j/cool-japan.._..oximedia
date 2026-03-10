@@ -14,7 +14,6 @@ workspace = true
 
 [dependencies]
 oximedia-core.workspace = true
-ndarray.workspace = true
 rayon.workspace = true
 thiserror.workspace = true
 

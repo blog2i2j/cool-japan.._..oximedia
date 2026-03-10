@@ -72,7 +72,7 @@ impl ConvolutionKernel {
             3,
             false,
         )
-        .unwrap()
+        .expect("hardcoded 3x3 Sobel X kernel is always valid")
     }
 
     /// Create a Sobel Y kernel (3x3)
@@ -84,7 +84,7 @@ impl ConvolutionKernel {
             3,
             false,
         )
-        .unwrap()
+        .expect("hardcoded 3x3 Sobel Y kernel is always valid")
     }
 
     /// Create a Laplacian kernel (3x3)
@@ -96,7 +96,7 @@ impl ConvolutionKernel {
             3,
             false,
         )
-        .unwrap()
+        .expect("hardcoded 3x3 Laplacian kernel is always valid")
     }
 
     /// Create a box blur kernel
@@ -116,7 +116,7 @@ impl ConvolutionKernel {
             3,
             false,
         )
-        .unwrap()
+        .expect("hardcoded 3x3 sharpen kernel is always valid")
     }
 
     /// Get the kernel data
@@ -387,7 +387,8 @@ mod tests {
 
     #[test]
     fn test_box_blur_kernel() {
-        let kernel = ConvolutionKernel::box_blur(3).unwrap();
+        let kernel =
+            ConvolutionKernel::box_blur(3).expect("box blur kernel creation should succeed");
         assert_eq!(kernel.dimensions(), (3, 3));
         let expected_value = 1.0 / 9.0;
         for &value in kernel.data() {

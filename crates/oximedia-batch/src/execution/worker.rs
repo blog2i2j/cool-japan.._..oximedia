@@ -49,10 +49,13 @@ mod tests {
 
     #[test]
     fn test_worker_creation() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
 
-        let database = Arc::new(Database::new(db_path).unwrap());
+        let database = Arc::new(Database::new(db_path).expect("failed to create database"));
         let queue = Arc::new(JobQueue::new());
 
         let worker = Worker::new(0, queue, database);
@@ -61,10 +64,13 @@ mod tests {
 
     #[test]
     fn test_worker_clone() {
-        let temp_file = NamedTempFile::new().unwrap();
-        let db_path = temp_file.path().to_str().unwrap();
+        let temp_file = NamedTempFile::new().expect("failed to create temp file");
+        let db_path = temp_file
+            .path()
+            .to_str()
+            .expect("path should be valid UTF-8");
 
-        let database = Arc::new(Database::new(db_path).unwrap());
+        let database = Arc::new(Database::new(db_path).expect("failed to create database"));
         let queue = Arc::new(JobQueue::new());
 
         let worker1 = Worker::new(1, queue, database);

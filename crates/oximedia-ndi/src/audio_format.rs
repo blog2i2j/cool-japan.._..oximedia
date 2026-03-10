@@ -257,9 +257,9 @@ mod tests {
     fn test_audio_buffer_channel_data_planar() {
         let cfg = NdiAudioConfig::stereo_48k_30fps();
         let buf = NdiAudioBuffer::zeroed(cfg, 1600);
-        let ch0 = buf.channel_data(0).unwrap();
+        let ch0 = buf.channel_data(0).expect("expected channel data");
         assert_eq!(ch0.len(), 1600 * 4);
-        let ch1 = buf.channel_data(1).unwrap();
+        let ch1 = buf.channel_data(1).expect("expected channel data");
         assert_eq!(ch1.len(), 1600 * 4);
     }
 

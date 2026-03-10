@@ -160,10 +160,13 @@ impl DependencyGraph {
             order.push(node);
             if let Some(dependents) = self.reverse.get(&node) {
                 for &dep in dependents {
-                    let deg = in_deg.get_mut(&dep).unwrap();
-                    *deg -= 1;
-                    if *deg == 0 {
-                        queue.push_back(dep);
+                    // SAFETY: every node in `reverse` was also inserted into `in_deg`
+                    // during the initialisation loop above, so this entry always exists.
+                    if let Some(deg) = in_deg.get_mut(&dep) {
+                        *deg -= 1;
+                        if *deg == 0 {
+                            queue.push_back(dep);
+                        }
                     }
                 }
             }
@@ -224,8 +227,10 @@ mod tests {
         g.add_job(1);
         g.add_job(2);
         g.add_job(3);
-        g.add_dependency(2, 1).unwrap();
-        g.add_dependency(3, 2).unwrap();
+        g.add_dependency(2, 1)
+            .expect("add_dependency should succeed");
+        g.add_dependency(3, 2)
+            .expect("add_dependency should succeed");
         g
     }
 
@@ -240,7 +245,8 @@ mod tests {
     #[test]
     fn test_add_dependency_basic() {
         let mut g = DependencyGraph::new();
-        g.add_dependency(2, 1).unwrap();
+        g.add_dependency(2, 1)
+            .expect("add_dependency should succeed");
         assert!(g.deps[&2].contains(&1));
         assert!(g.reverse[&1].contains(&2));
     }
@@ -255,8 +261,10 @@ mod tests {
     #[test]
     fn test_add_dependency_cycle_rejected() {
         let mut g = DependencyGraph::new();
-        g.add_dependency(2, 1).unwrap();
-        g.add_dependency(3, 2).unwrap();
+        g.add_dependency(2, 1)
+            .expect("add_dependency should succeed");
+        g.add_dependency(3, 2)
+            .expect("add_dependency should succeed");
         // 1 → 3 would create 3→2→1→3 cycle
         let res = g.add_dependency(1, 3);
         assert!(res.is_err());
@@ -265,8 +273,10 @@ mod tests {
     #[test]
     fn test_add_dependency_no_duplicate_edges() {
         let mut g = DependencyGraph::new();
-        g.add_dependency(2, 1).unwrap();
-        g.add_dependency(2, 1).unwrap(); // duplicate
+        g.add_dependency(2, 1)
+            .expect("add_dependency should succeed");
+        g.add_dependency(2, 1)
+            .expect("add_dependency should succeed"); // duplicate
         assert_eq!(g.deps[&2].len(), 1);
     }
 
@@ -299,7 +309,7 @@ mod tests {
     #[test]
     fn test_topological_order_linear() {
         let g = make_graph_linear();
-        let order = g.topological_order().unwrap();
+        let order = g.topological_order().expect("order should be valid");
         assert_eq!(order.len(), 3);
         let pos: HashMap<u64, usize> = order.iter().enumerate().map(|(i, &v)| (v, i)).collect();
         assert!(pos[&1] < pos[&2]);
@@ -312,7 +322,7 @@ mod tests {
         g.add_job(10);
         g.add_job(20);
         g.add_job(30);
-        let order = g.topological_order().unwrap();
+        let order = g.topological_order().expect("order should be valid");
         assert_eq!(order.len(), 3);
     }
 
@@ -348,13 +358,17 @@ mod tests {
         //  \ /
         //   4
         let mut g = DependencyGraph::new();
-        g.add_dependency(2, 1).unwrap();
-        g.add_dependency(3, 1).unwrap();
-        g.add_dependency(4, 2).unwrap();
-        g.add_dependency(4, 3).unwrap();
+        g.add_dependency(2, 1)
+            .expect("add_dependency should succeed");
+        g.add_dependency(3, 1)
+            .expect("add_dependency should succeed");
+        g.add_dependency(4, 2)
+            .expect("add_dependency should succeed");
+        g.add_dependency(4, 3)
+            .expect("add_dependency should succeed");
 
         assert!(!g.has_cycle());
-        let order = g.topological_order().unwrap();
+        let order = g.topological_order().expect("order should be valid");
         let pos: HashMap<u64, usize> = order.iter().enumerate().map(|(i, &v)| (v, i)).collect();
         assert!(pos[&1] < pos[&2]);
         assert!(pos[&1] < pos[&3]);

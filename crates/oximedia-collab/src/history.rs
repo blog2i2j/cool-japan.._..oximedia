@@ -468,11 +468,11 @@ impl HistoryStats {
                 .entry(format!("{:?}", entry.operation.op_type))
                 .or_insert(0) += 1;
 
-            if oldest_entry.is_none() || entry.timestamp < oldest_entry.unwrap() {
+            if oldest_entry.map_or(true, |t| entry.timestamp < t) {
                 oldest_entry = Some(entry.timestamp);
             }
 
-            if newest_entry.is_none() || entry.timestamp > newest_entry.unwrap() {
+            if newest_entry.map_or(true, |t| entry.timestamp > t) {
                 newest_entry = Some(entry.timestamp);
             }
         }
@@ -577,7 +577,10 @@ mod tests {
         let user_id = Uuid::new_v4();
         let op = create_test_op(user_id, 1);
 
-        manager.add_operation(op).await.unwrap();
+        manager
+            .add_operation(op)
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(manager.size().await, 1);
     }
 
@@ -587,16 +590,25 @@ mod tests {
         let user_id = Uuid::new_v4();
 
         let op1 = create_test_op(user_id, 1);
-        manager.add_operation(op1).await.unwrap();
+        manager
+            .add_operation(op1)
+            .await
+            .expect("collab test operation should succeed");
 
         assert!(manager.can_undo(user_id).await);
         assert!(!manager.can_redo(user_id).await);
 
-        manager.undo(user_id).await.unwrap();
+        manager
+            .undo(user_id)
+            .await
+            .expect("collab test operation should succeed");
         assert!(!manager.can_undo(user_id).await);
         assert!(manager.can_redo(user_id).await);
 
-        manager.redo(user_id).await.unwrap();
+        manager
+            .redo(user_id)
+            .await
+            .expect("collab test operation should succeed");
         assert!(manager.can_undo(user_id).await);
         assert!(!manager.can_redo(user_id).await);
     }
@@ -609,11 +621,17 @@ mod tests {
         // Add 20 operations
         for i in 0..20 {
             let op = create_test_op(user_id, i);
-            manager.add_operation(op).await.unwrap();
+            manager
+                .add_operation(op)
+                .await
+                .expect("collab test operation should succeed");
         }
 
         // Compact to 5 entries
-        manager.compact(5).await.unwrap();
+        manager
+            .compact(5)
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(manager.size().await, 5);
     }
 
@@ -623,14 +641,20 @@ mod tests {
         let user_id = Uuid::new_v4();
         let op = create_test_op(user_id, 1);
 
-        manager.add_operation(op.clone()).await.unwrap();
+        manager
+            .add_operation(op.clone())
+            .await
+            .expect("collab test operation should succeed");
 
         let branch_id = manager
             .create_branch("feature".to_string(), op.id)
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
 
-        let current = manager.get_current_branch().await.unwrap();
+        let current = manager
+            .get_current_branch()
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(current.id, branch_id);
         assert_eq!(current.name, "feature");
     }
@@ -644,15 +668,15 @@ mod tests {
         manager
             .add_operation(create_test_op(user1, 1))
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
         manager
             .add_operation(create_test_op(user1, 2))
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
         manager
             .add_operation(create_test_op(user2, 3))
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
 
         let stats = HistoryStats::from_manager(&manager).await;
         assert_eq!(stats.total_entries, 3);
@@ -668,16 +692,22 @@ mod tests {
         manager
             .add_operation(create_test_op(user_id, 1))
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
         manager
             .add_operation(create_test_op(user_id, 2))
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
 
-        let json = manager.export_json().await.unwrap();
+        let json = manager
+            .export_json()
+            .await
+            .expect("collab test operation should succeed");
 
         let manager2 = HistoryManager::new(1000);
-        manager2.import_json(&json).await.unwrap();
+        manager2
+            .import_json(&json)
+            .await
+            .expect("collab test operation should succeed");
 
         assert_eq!(manager2.size().await, 2);
     }

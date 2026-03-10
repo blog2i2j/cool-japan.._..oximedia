@@ -596,16 +596,20 @@ mod tests {
     #[tokio::test]
     async fn test_compression() {
         let data = vec![1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-        let compressed = compress_data(&data).unwrap();
-        let decompressed = decompress_data(&compressed).unwrap();
+        let compressed = compress_data(&data).expect("collab test operation should succeed");
+        let decompressed =
+            decompress_data(&compressed).expect("collab test operation should succeed");
         assert_eq!(data, decompressed);
     }
 
     #[tokio::test]
     async fn test_compressed_message() {
         let msg = SyncMessage::Ping;
-        let compressed = CompressedMessage::from_message(&msg, true, 0).unwrap();
-        let decompressed = compressed.deserialize().unwrap();
+        let compressed = CompressedMessage::from_message(&msg, true, 0)
+            .expect("collab test operation should succeed");
+        let decompressed = compressed
+            .deserialize()
+            .expect("collab test operation should succeed");
 
         match decompressed {
             SyncMessage::Ping => (),
@@ -627,14 +631,26 @@ mod tests {
     async fn test_change_queue() {
         let queue = ChangeQueue::new(3);
 
-        queue.push(SyncMessage::Ping).await.unwrap();
-        queue.push(SyncMessage::Pong).await.unwrap();
-        queue.push(SyncMessage::QueryState).await.unwrap();
+        queue
+            .push(SyncMessage::Ping)
+            .await
+            .expect("collab test operation should succeed");
+        queue
+            .push(SyncMessage::Pong)
+            .await
+            .expect("collab test operation should succeed");
+        queue
+            .push(SyncMessage::QueryState)
+            .await
+            .expect("collab test operation should succeed");
 
         assert_eq!(queue.len().await, 3);
 
         // Should remove oldest when full
-        queue.push(SyncMessage::Ping).await.unwrap();
+        queue
+            .push(SyncMessage::Ping)
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(queue.len().await, 3);
 
         let messages = queue.drain().await;
@@ -676,12 +692,18 @@ mod tests {
         manager
             .register_session(session.id, session.clone())
             .await
-            .unwrap();
+            .expect("collab test operation should succeed");
 
-        let conn = manager.connect(owner.id, session.id).await.unwrap();
+        let conn = manager
+            .connect(owner.id, session.id)
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(manager.connection_count(session.id).await, 1);
 
-        manager.disconnect(conn.id).await.unwrap();
+        manager
+            .disconnect(conn.id)
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(manager.connection_count(session.id).await, 0);
     }
 }
@@ -1279,7 +1301,10 @@ mod extended_tests {
         manager.record_attempt().await;
         assert_eq!(manager.attempts().await, 1);
 
-        let delay = manager.next_delay().await.unwrap();
+        let delay = manager
+            .next_delay()
+            .await
+            .expect("collab test operation should succeed");
         assert!(delay.as_millis() >= 100);
 
         manager.reset().await;
@@ -1297,7 +1322,10 @@ mod extended_tests {
 
         let batch = batcher.add(SyncMessage::QueryState).await;
         assert!(batch.is_some());
-        assert_eq!(batch.unwrap().len(), 3);
+        assert_eq!(
+            batch.expect("collab test operation should succeed").len(),
+            3
+        );
     }
 
     #[tokio::test]
@@ -1337,10 +1365,15 @@ mod extended_tests {
             CollabConfig::default(),
         ));
 
-        pool.add(conn.clone()).await.unwrap();
+        pool.add(conn.clone())
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(pool.size().await, 1);
 
-        let retrieved = pool.get(conn.id).await.unwrap();
+        let retrieved = pool
+            .get(conn.id)
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(retrieved.id, conn.id);
     }
 
@@ -1378,7 +1411,10 @@ mod extended_tests {
         let coordinator = SyncCoordinator::new(CollabConfig::default());
         let session_id = Uuid::new_v4();
 
-        coordinator.register_session(session_id).await.unwrap();
+        coordinator
+            .register_session(session_id)
+            .await
+            .expect("collab test operation should succeed");
 
         let conn = Arc::new(SyncConnection::new(
             Uuid::new_v4(),
@@ -1386,7 +1422,10 @@ mod extended_tests {
             CollabConfig::default(),
         ));
 
-        coordinator.add_connection(session_id, conn).await.unwrap();
+        coordinator
+            .add_connection(session_id, conn)
+            .await
+            .expect("collab test operation should succeed");
         assert_eq!(coordinator.connection_count(session_id).await, 1);
     }
 }

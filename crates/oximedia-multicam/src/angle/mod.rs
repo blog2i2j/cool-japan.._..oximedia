@@ -94,18 +94,15 @@ impl AngleSelector {
             return 0;
         }
 
-        let best = angles
-            .iter()
-            .max_by(|a, b| {
-                let score_a = self.score(a, previous);
-                let score_b = self.score(b, previous);
-                score_a
-                    .partial_cmp(&score_b)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
-            .unwrap();
+        let best = angles.iter().max_by(|a, b| {
+            let score_a = self.score(a, previous);
+            let score_b = self.score(b, previous);
+            score_a
+                .partial_cmp(&score_b)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
-        best.angle_id
+        best.map_or(0, |b| b.angle_id)
     }
 
     /// Computes the selection score for a single coverage entry.
@@ -334,11 +331,17 @@ mod tests {
         let stats = AngleStatistics::compute(&log, 300);
         assert_eq!(stats.len(), 2);
 
-        let angle1 = stats.iter().find(|s| s.angle_id == 1).unwrap();
+        let angle1 = stats
+            .iter()
+            .find(|s| s.angle_id == 1)
+            .expect("multicam test operation should succeed");
         assert_eq!(angle1.screen_time_frames, 100);
         assert_eq!(angle1.switch_count, 1);
 
-        let angle2 = stats.iter().find(|s| s.angle_id == 2).unwrap();
+        let angle2 = stats
+            .iter()
+            .find(|s| s.angle_id == 2)
+            .expect("multicam test operation should succeed");
         assert_eq!(angle2.screen_time_frames, 200); // 300 - 100
     }
 

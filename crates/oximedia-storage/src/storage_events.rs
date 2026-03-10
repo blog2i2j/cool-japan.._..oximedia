@@ -297,7 +297,7 @@ mod tests {
         let mut bus = StorageEventBus::new(10);
         let idx = bus.subscribe_events(Subscriber::new("sub1"));
         bus.publish(make_created("obj", 512));
-        let received = bus.drain_subscriber(idx).unwrap();
+        let received = bus.drain_subscriber(idx).expect("drain should succeed");
         assert_eq!(received.len(), 1);
     }
 
@@ -309,7 +309,7 @@ mod tests {
         let idx = bus.subscribe_events(sub);
         bus.publish(make_created("obj", 1));
         bus.publish(make_quota_warning("ns"));
-        let received = bus.drain_subscriber(idx).unwrap();
+        let received = bus.drain_subscriber(idx).expect("drain should succeed");
         assert_eq!(received.len(), 1);
         assert!(received[0].is_warning());
     }

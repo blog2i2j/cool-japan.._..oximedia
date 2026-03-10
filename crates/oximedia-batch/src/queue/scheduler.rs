@@ -400,7 +400,9 @@ mod tests {
 
         // Schedule in the past
         let past = Utc::now() - chrono::Duration::hours(1);
-        scheduler.schedule_at(job, past).unwrap();
+        scheduler
+            .schedule_at(job, past)
+            .expect("schedule_at should succeed");
 
         let due_jobs = scheduler.get_due_jobs();
         assert_eq!(due_jobs.len(), 1);
@@ -422,9 +424,11 @@ mod tests {
 
         let job_id = job.id.clone();
         let future = Utc::now() + chrono::Duration::hours(1);
-        scheduler.schedule_at(job, future).unwrap();
+        scheduler
+            .schedule_at(job, future)
+            .expect("schedule_at should succeed");
 
-        scheduler.cancel(&job_id).unwrap();
+        scheduler.cancel(&job_id).expect("cancel should succeed");
         assert_eq!(scheduler.len(), 0);
     }
 
@@ -496,7 +500,10 @@ mod tests {
         // Recurring job stays in the map
         assert_eq!(scheduler.len(), 1);
         // Due time should have been advanced (now in the future)
-        let rescheduled = scheduler.scheduled_jobs.get(&job_id).unwrap();
+        let rescheduled = scheduler
+            .scheduled_jobs
+            .get(&job_id)
+            .expect("failed to get value");
         assert!(rescheduled.due_time > Utc::now());
     }
 
@@ -504,7 +511,7 @@ mod tests {
     fn test_cron_expression_parse_wildcard() {
         let cron = CronExpression::parse("* * * * *");
         assert!(cron.is_some());
-        let c = cron.unwrap();
+        let c = cron.expect("cron should be valid");
         assert!(c.minutes.is_empty());
         assert!(c.hours.is_empty());
     }
@@ -513,7 +520,7 @@ mod tests {
     fn test_cron_expression_parse_step() {
         let cron = CronExpression::parse("*/15 * * * *");
         assert!(cron.is_some());
-        let c = cron.unwrap();
+        let c = cron.expect("cron should be valid");
         assert_eq!(c.minutes, vec![0, 15, 30, 45]);
     }
 
@@ -521,7 +528,7 @@ mod tests {
     fn test_cron_expression_parse_range() {
         let cron = CronExpression::parse("0 9-17 * * *");
         assert!(cron.is_some());
-        let c = cron.unwrap();
+        let c = cron.expect("cron should be valid");
         assert_eq!(c.minutes, vec![0]);
         assert_eq!(c.hours, vec![9, 10, 11, 12, 13, 14, 15, 16, 17]);
     }
@@ -530,7 +537,7 @@ mod tests {
     fn test_cron_expression_parse_list() {
         let cron = CronExpression::parse("0,30 * * * *");
         assert!(cron.is_some());
-        let c = cron.unwrap();
+        let c = cron.expect("cron should be valid");
         assert_eq!(c.minutes, vec![0, 30]);
     }
 
@@ -543,7 +550,7 @@ mod tests {
     #[test]
     fn test_cron_next_after() {
         // Every hour at minute 0
-        let cron = CronExpression::parse("0 * * * *").unwrap();
+        let cron = CronExpression::parse("0 * * * *").expect("failed to parse");
         let from = Utc::now();
         let next = cron.next_after(from);
         assert!(next > from);

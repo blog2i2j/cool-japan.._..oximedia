@@ -677,7 +677,7 @@ mod tests {
 
         let data = writer.into_vec();
         let mut reader = BitstreamReader::new(&data);
-        let parsed = FrameHeader::parse(&mut reader).unwrap();
+        let parsed = FrameHeader::parse(&mut reader).expect("should succeed");
 
         assert_eq!(parsed.is_keyframe, true);
         assert_eq!(parsed.quality_index, 30);
@@ -691,12 +691,12 @@ mod tests {
         };
 
         let mut writer = BitstreamWriter::new();
-        range.write(&mut writer).unwrap();
+        range.write(&mut writer).expect("write should succeed");
         writer.byte_align();
 
         let data = writer.into_vec();
         let mut reader = BitstreamReader::new(&data);
-        let parsed = QuantRange::parse(&mut reader).unwrap();
+        let parsed = QuantRange::parse(&mut reader).expect("should succeed");
 
         assert_eq!(parsed.min_qi, 10);
         assert_eq!(parsed.max_qi, 50);

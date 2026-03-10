@@ -146,7 +146,7 @@ pub mod scene {
 
 /// Motion pattern detection and analysis.
 pub mod patterns {
-    use ndarray::Array1;
+    use scirs2_core::ndarray::Array1;
 
     /// Detect periodic motion patterns.
     #[must_use]

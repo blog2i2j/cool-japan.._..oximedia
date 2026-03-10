@@ -322,8 +322,17 @@ mod tests {
         let entry = ConvertLogEntry::new("j1", LogLevel::Debug, "init", "ok")
             .with_meta("codec", "h264")
             .with_meta("bitrate", "5000000");
-        assert_eq!(entry.metadata.get("codec").unwrap(), "h264");
-        assert_eq!(entry.metadata.get("bitrate").unwrap(), "5000000");
+        assert_eq!(
+            entry.metadata.get("codec").expect("codec key should exist"),
+            "h264"
+        );
+        assert_eq!(
+            entry
+                .metadata
+                .get("bitrate")
+                .expect("bitrate key should exist"),
+            "5000000"
+        );
     }
 
     #[test]

@@ -14,10 +14,10 @@
 
 use std::sync::OnceLock;
 
-#[cfg(target_arch = "x86_64")]
+#[cfg(all(feature = "native-asm", target_arch = "x86_64"))]
 mod x86;
 
-#[cfg(target_arch = "aarch64")]
+#[cfg(all(feature = "native-asm", target_arch = "aarch64"))]
 mod arm;
 
 mod scalar;
@@ -185,18 +185,18 @@ pub fn forward_dct(input: &[i16], output: &mut [i16], size: DctSize) -> Result<(
         return Err(SimdError::InvalidBufferSize);
     }
 
-    let features = detect_cpu_features();
+    let _features = detect_cpu_features();
 
-    #[cfg(target_arch = "x86_64")]
+    #[cfg(all(feature = "native-asm", target_arch = "x86_64"))]
     {
-        if features.avx2 {
+        if _features.avx2 {
             return x86::forward_dct_avx2(input, output, size);
         }
     }
 
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(all(feature = "native-asm", target_arch = "aarch64"))]
     {
-        if features.neon {
+        if _features.neon {
             return arm::forward_dct_neon(input, output, size);
         }
     }
@@ -225,18 +225,18 @@ pub fn inverse_dct(input: &[i16], output: &mut [i16], size: DctSize) -> Result<(
         return Err(SimdError::InvalidBufferSize);
     }
 
-    let features = detect_cpu_features();
+    let _features = detect_cpu_features();
 
-    #[cfg(target_arch = "x86_64")]
+    #[cfg(all(feature = "native-asm", target_arch = "x86_64"))]
     {
-        if features.avx2 {
+        if _features.avx2 {
             return x86::inverse_dct_avx2(input, output, size);
         }
     }
 
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(all(feature = "native-asm", target_arch = "aarch64"))]
     {
-        if features.neon {
+        if _features.neon {
             return arm::inverse_dct_neon(input, output, size);
         }
     }
@@ -281,20 +281,20 @@ pub fn interpolate(
         return Err(SimdError::InvalidBufferSize);
     }
 
-    let features = detect_cpu_features();
+    let _features = detect_cpu_features();
 
-    #[cfg(target_arch = "x86_64")]
+    #[cfg(all(feature = "native-asm", target_arch = "x86_64"))]
     {
-        if features.avx2 {
+        if _features.avx2 {
             return x86::interpolate_avx2(
                 src, dst, src_stride, dst_stride, width, height, dx, dy, filter,
             );
         }
     }
 
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(all(feature = "native-asm", target_arch = "aarch64"))]
     {
-        if features.neon {
+        if _features.neon {
             return arm::interpolate_neon(
                 src, dst, src_stride, dst_stride, width, height, dx, dy, filter,
             );
@@ -340,21 +340,21 @@ pub fn sad(
         return Err(SimdError::InvalidBufferSize);
     }
 
-    let features = detect_cpu_features();
+    let _features = detect_cpu_features();
 
-    #[cfg(target_arch = "x86_64")]
+    #[cfg(all(feature = "native-asm", target_arch = "x86_64"))]
     {
-        if features.avx512bw {
+        if _features.avx512bw {
             return x86::sad_avx512(src1, src2, stride1, stride2, size);
         }
-        if features.avx2 {
+        if _features.avx2 {
             return x86::sad_avx2(src1, src2, stride1, stride2, size);
         }
     }
 
-    #[cfg(target_arch = "aarch64")]
+    #[cfg(all(feature = "native-asm", target_arch = "aarch64"))]
     {
-        if features.neon {
+        if _features.neon {
             return arm::sad_neon(src1, src2, stride1, stride2, size);
         }
     }

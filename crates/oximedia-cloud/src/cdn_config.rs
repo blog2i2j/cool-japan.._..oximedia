@@ -327,7 +327,9 @@ mod tests {
         let mut cfg = CdnConfig::new(CdnProviderKind::CloudFront, simple_origin(), None);
         cfg.add_cache_rule(CacheRule::new("/videos/*", 300, false));
         cfg.add_cache_rule(CacheRule::new("/images/*", 3600, true));
-        let rule = cfg.find_rule("/videos/trailer.mp4").unwrap();
+        let rule = cfg
+            .find_rule("/videos/trailer.mp4")
+            .expect("rule should be valid");
         assert_eq!(rule.ttl_seconds, 300);
     }
 

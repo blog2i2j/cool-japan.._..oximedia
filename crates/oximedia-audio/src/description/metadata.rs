@@ -541,7 +541,7 @@ mod tests {
 
     #[test]
     fn test_language_tag_parse() {
-        let tag = LanguageTag::parse("en-US").unwrap();
+        let tag = LanguageTag::parse("en-US").expect("should succeed");
         assert_eq!(tag.language, "en");
         assert_eq!(tag.region, Some("US".to_string()));
         assert_eq!(tag.to_string(), "en-US");
@@ -549,7 +549,7 @@ mod tests {
 
     #[test]
     fn test_language_tag_complex() {
-        let tag = LanguageTag::parse("zh-Hans-CN").unwrap();
+        let tag = LanguageTag::parse("zh-Hans-CN").expect("should succeed");
         assert_eq!(tag.language, "zh");
         assert_eq!(tag.script, Some("Hans".to_string()));
         assert_eq!(tag.region, Some("CN".to_string()));

@@ -194,7 +194,7 @@ pub fn detect_instrument_scores(
         }
     }
 
-    scores.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap());
+    scores.sort_by(|(_, a), (_, b)| b.partial_cmp(a).unwrap_or(std::cmp::Ordering::Equal));
     scores
 }
 
@@ -246,7 +246,7 @@ mod tests {
         let bass_score = scores
             .iter()
             .find(|(i, _)| *i == Instrument::Bass)
-            .unwrap()
+            .expect("unexpected None/Err")
             .1;
         assert!(bass_score > 0.5);
     }

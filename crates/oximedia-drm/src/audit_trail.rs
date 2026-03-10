@@ -398,8 +398,17 @@ mod tests {
         trail.record(3, AuditCategory::Key, AuditSeverity::Info, "a", "z");
         let stats = trail.stats();
         assert_eq!(stats.total, 3);
-        assert_eq!(*stats.by_category.get("License").unwrap(), 2);
-        assert_eq!(*stats.by_category.get("Key").unwrap(), 1);
+        assert_eq!(
+            *stats
+                .by_category
+                .get("License")
+                .expect("entry should exist"),
+            2
+        );
+        assert_eq!(
+            *stats.by_category.get("Key").expect("entry should exist"),
+            1
+        );
     }
 
     #[test]
@@ -428,7 +437,7 @@ mod tests {
         .with_content("all");
         let seq = trail.record_event(event);
         assert_eq!(seq, 1); // Seq is overwritten.
-        let stored = trail.get_by_seq(1).unwrap();
+        let stored = trail.get_by_seq(1).expect("entry should exist");
         assert_eq!(stored.message, "wipe");
         assert_eq!(stored.content_id.as_deref(), Some("all"));
     }

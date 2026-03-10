@@ -313,7 +313,7 @@ mod tests {
 
     #[test]
     fn test_reel_id_creation() {
-        let reel = ReelId::new("A001").unwrap();
+        let reel = ReelId::new("A001").expect("failed to create");
         assert_eq!(reel.as_str(), "A001");
     }
 
@@ -328,31 +328,31 @@ mod tests {
 
     #[test]
     fn test_black_reel() {
-        let reel = ReelId::new("BL").unwrap();
+        let reel = ReelId::new("BL").expect("failed to create");
         assert!(reel.is_black());
 
-        let reel = ReelId::new("BLACK").unwrap();
+        let reel = ReelId::new("BLACK").expect("failed to create");
         assert!(reel.is_black());
 
-        let reel = ReelId::new("A001").unwrap();
+        let reel = ReelId::new("A001").expect("failed to create");
         assert!(!reel.is_black());
     }
 
     #[test]
     fn test_auxiliary_reel() {
-        let reel = ReelId::new("AX").unwrap();
+        let reel = ReelId::new("AX").expect("failed to create");
         assert!(reel.is_auxiliary());
 
-        let reel = ReelId::new("AX001").unwrap();
+        let reel = ReelId::new("AX001").expect("failed to create");
         assert!(reel.is_auxiliary());
 
-        let reel = ReelId::new("A001").unwrap();
+        let reel = ReelId::new("A001").expect("failed to create");
         assert!(!reel.is_auxiliary());
     }
 
     #[test]
     fn test_source_info() {
-        let mut source = SourceInfo::new("A001").unwrap();
+        let mut source = SourceInfo::new("A001").expect("failed to create");
         source.set_file_path(PathBuf::from("/path/to/clip.mov"));
         source.set_clip_name("Clip 1".to_string());
         source.set_duration_frames(1000);
@@ -367,8 +367,8 @@ mod tests {
     fn test_reel_table() {
         let mut table = ReelTable::new();
 
-        let source1 = SourceInfo::new("A001").unwrap();
-        let source2 = SourceInfo::new("A002").unwrap();
+        let source1 = SourceInfo::new("A001").expect("failed to create");
+        let source2 = SourceInfo::new("A002").expect("failed to create");
 
         table.add_source(source1.clone());
         table.add_source(source2.clone());
@@ -382,9 +382,9 @@ mod tests {
     fn test_reel_table_builder() {
         let table = ReelTableBuilder::new()
             .add_reel("A001")
-            .unwrap()
+            .expect("operation should succeed")
             .add_reel("A002")
-            .unwrap()
+            .expect("operation should succeed")
             .build();
 
         assert_eq!(table.len(), 2);
@@ -392,7 +392,7 @@ mod tests {
 
     #[test]
     fn test_metadata() {
-        let mut source = SourceInfo::new("A001").unwrap();
+        let mut source = SourceInfo::new("A001").expect("failed to create");
         source.add_metadata("format".to_string(), "ProRes".to_string());
         source.add_metadata("resolution".to_string(), "1920x1080".to_string());
 
@@ -407,11 +407,11 @@ mod tests {
     fn test_find_by_file_path() {
         let mut table = ReelTable::new();
 
-        let mut source1 = SourceInfo::new("A001").unwrap();
+        let mut source1 = SourceInfo::new("A001").expect("failed to create");
         source1.set_file_path(PathBuf::from("/path/to/clip1.mov"));
         table.add_source(source1);
 
-        let mut source2 = SourceInfo::new("A002").unwrap();
+        let mut source2 = SourceInfo::new("A002").expect("failed to create");
         source2.set_file_path(PathBuf::from("/path/to/clip2.mov"));
         table.add_source(source2);
 

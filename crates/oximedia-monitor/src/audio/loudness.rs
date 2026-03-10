@@ -135,7 +135,7 @@ mod tests {
 
     #[test]
     fn test_loudness_monitor_process() {
-        let mut monitor = LoudnessMonitor::new(48000.0, 2).unwrap();
+        let mut monitor = LoudnessMonitor::new(48000.0, 2).expect("failed to create");
 
         let samples = vec![0.1f32; 10000];
         assert!(monitor.process(&samples).is_ok());

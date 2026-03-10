@@ -268,14 +268,16 @@ mod tests {
     #[test]
     fn test_lookahead_analyzer_creation() {
         let config = OptimizerConfig::default();
-        let analyzer = LookaheadAnalyzer::new(&config).unwrap();
+        let analyzer =
+            LookaheadAnalyzer::new(&config).expect("lookahead analyzer creation should succeed");
         assert_eq!(analyzer.buffer_size, config.lookahead_frames);
     }
 
     #[test]
     fn test_complexity_calculation() {
         let config = OptimizerConfig::default();
-        let analyzer = LookaheadAnalyzer::new(&config).unwrap();
+        let analyzer =
+            LookaheadAnalyzer::new(&config).expect("lookahead analyzer creation should succeed");
 
         let flat = vec![128u8; 256];
         let complexity_flat = analyzer.calculate_complexity(&flat);
@@ -289,7 +291,8 @@ mod tests {
     #[test]
     fn test_scene_change_detection() {
         let config = OptimizerConfig::default();
-        let analyzer = LookaheadAnalyzer::new(&config).unwrap();
+        let analyzer =
+            LookaheadAnalyzer::new(&config).expect("lookahead analyzer creation should succeed");
 
         let frame1 = vec![100u8; 256];
         let frame2 = vec![100u8; 256]; // Same
@@ -320,7 +323,8 @@ mod tests {
     #[test]
     fn test_bit_allocation() {
         let config = OptimizerConfig::default();
-        let analyzer = LookaheadAnalyzer::new(&config).unwrap();
+        let analyzer =
+            LookaheadAnalyzer::new(&config).expect("lookahead analyzer creation should succeed");
 
         let analysis = vec![
             LookaheadFrame {

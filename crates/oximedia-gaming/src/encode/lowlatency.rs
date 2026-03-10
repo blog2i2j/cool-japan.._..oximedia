@@ -166,7 +166,7 @@ mod tests {
     #[test]
     fn test_encoder_creation() {
         let config = EncoderConfig::default();
-        let encoder = LowLatencyEncoder::new(config).unwrap();
+        let encoder = LowLatencyEncoder::new(config).expect("valid encoder");
         assert_eq!(encoder.frames_encoded, 0);
     }
 
@@ -189,10 +189,12 @@ mod tests {
     #[test]
     fn test_encode_frame() {
         let config = EncoderConfig::default();
-        let mut encoder = LowLatencyEncoder::new(config).unwrap();
+        let mut encoder = LowLatencyEncoder::new(config).expect("valid encoder");
 
         let frame_data = vec![0u8; 1920 * 1080 * 4];
-        let encoded = encoder.encode_frame(&frame_data).unwrap();
+        let encoded = encoder
+            .encode_frame(&frame_data)
+            .expect("encode should succeed");
 
         assert!(!encoded.is_keyframe || encoder.frames_encoded == 1);
     }
@@ -202,21 +204,27 @@ mod tests {
         let mut config = EncoderConfig::default();
         config.keyframe_interval = 30;
 
-        let mut encoder = LowLatencyEncoder::new(config).unwrap();
+        let mut encoder = LowLatencyEncoder::new(config).expect("valid encoder");
         let frame_data = vec![0u8; 1920 * 1080 * 4];
 
         // First frame should be keyframe
-        let frame1 = encoder.encode_frame(&frame_data).unwrap();
+        let frame1 = encoder
+            .encode_frame(&frame_data)
+            .expect("encode should succeed");
         assert!(frame1.is_keyframe);
 
         // Next 29 frames should not be keyframes
         for _ in 0..29 {
-            let frame = encoder.encode_frame(&frame_data).unwrap();
+            let frame = encoder
+                .encode_frame(&frame_data)
+                .expect("encode should succeed");
             assert!(!frame.is_keyframe);
         }
 
         // 31st frame should be keyframe
-        let frame31 = encoder.encode_frame(&frame_data).unwrap();
+        let frame31 = encoder
+            .encode_frame(&frame_data)
+            .expect("encode should succeed");
         assert!(frame31.is_keyframe);
     }
 
@@ -226,7 +234,7 @@ mod tests {
         config.latency_mode = LatencyMode::UltraLow;
         config.use_b_frames = false;
 
-        let encoder = LowLatencyEncoder::new(config).unwrap();
+        let encoder = LowLatencyEncoder::new(config).expect("valid encoder");
         assert_eq!(encoder.config.latency_mode, LatencyMode::UltraLow);
         assert!(!encoder.config.use_b_frames);
     }
@@ -234,10 +242,12 @@ mod tests {
     #[test]
     fn test_encoder_stats() {
         let config = EncoderConfig::default();
-        let mut encoder = LowLatencyEncoder::new(config).unwrap();
+        let mut encoder = LowLatencyEncoder::new(config).expect("valid encoder");
 
         let frame_data = vec![0u8; 1920 * 1080 * 4];
-        encoder.encode_frame(&frame_data).unwrap();
+        encoder
+            .encode_frame(&frame_data)
+            .expect("encode should succeed");
 
         let stats = encoder.get_stats();
         assert_eq!(stats.frames_encoded, 1);

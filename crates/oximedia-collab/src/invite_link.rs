@@ -262,7 +262,9 @@ mod tests {
     fn manager_create_and_get() {
         let mut mgr = InviteLinkManager::new();
         let token = mgr.create("s1".into(), InviteRole::Editor, 5, 0);
-        let link = mgr.get(&token).unwrap();
+        let link = mgr
+            .get(&token)
+            .expect("collab test operation should succeed");
         assert_eq!(link.role, InviteRole::Editor);
     }
 
@@ -270,16 +272,24 @@ mod tests {
     fn manager_use_invite_increments_count() {
         let mut mgr = InviteLinkManager::new();
         let token = mgr.create("s1".into(), InviteRole::Editor, 5, 0);
-        let role = mgr.use_invite(&token, 0).unwrap();
+        let role = mgr
+            .use_invite(&token, 0)
+            .expect("collab test operation should succeed");
         assert_eq!(role, InviteRole::Editor);
-        assert_eq!(mgr.get(&token).unwrap().use_count, 1);
+        assert_eq!(
+            mgr.get(&token)
+                .expect("collab test operation should succeed")
+                .use_count,
+            1
+        );
     }
 
     #[test]
     fn manager_use_invite_exhausted() {
         let mut mgr = InviteLinkManager::new();
         let token = mgr.create("s1".into(), InviteRole::Viewer, 1, 0);
-        mgr.use_invite(&token, 0).unwrap();
+        mgr.use_invite(&token, 0)
+            .expect("collab test operation should succeed");
         let err = mgr.use_invite(&token, 0).unwrap_err();
         assert_eq!(err, InviteError::Exhausted);
     }

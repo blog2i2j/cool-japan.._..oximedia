@@ -206,9 +206,12 @@ mod tests {
         let (tx, mut rx) = mpsc::unbounded_channel();
         handler.add_connection("conn1".to_string(), tx).await;
 
-        handler.broadcast("test message".to_string()).await.unwrap();
+        handler
+            .broadcast("test message".to_string())
+            .await
+            .expect("operation should succeed");
 
-        let received = rx.recv().await.unwrap();
+        let received = rx.recv().await.expect("recv should succeed");
         assert_eq!(received, "test message");
     }
 
@@ -218,7 +221,7 @@ mod tests {
             data: serde_json::json!({"status": "ok"}),
         };
 
-        let json = serde_json::to_string(&message).unwrap();
+        let json = serde_json::to_string(&message).expect("to_string should succeed");
         assert!(json.contains("\"type\":\"status\""));
     }
 }

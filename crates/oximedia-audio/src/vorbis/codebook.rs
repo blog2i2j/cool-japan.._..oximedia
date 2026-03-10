@@ -406,14 +406,14 @@ mod tests {
     #[test]
     fn test_huffman_tree_build() {
         let lengths = vec![2, 2, 3, 3, 3, 3];
-        let tree = HuffmanTree::build(&lengths).unwrap();
+        let tree = HuffmanTree::build(&lengths).expect("should succeed");
         assert_eq!(tree.max_length(), 3);
         assert_eq!(tree.entry_count(), 6);
     }
 
     #[test]
     fn test_huffman_tree_empty() {
-        let tree = HuffmanTree::build(&[]).unwrap();
+        let tree = HuffmanTree::build(&[]).expect("should succeed");
         assert_eq!(tree.max_length(), 0);
         assert_eq!(tree.entry_count(), 0);
     }

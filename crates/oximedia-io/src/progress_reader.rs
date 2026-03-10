@@ -223,7 +223,7 @@ mod tests {
             total_bytes: Some(100),
             throughput_bps: 0.0,
         };
-        let f = p.fraction().unwrap();
+        let f = p.fraction().expect("fraction should be known");
         assert!((f - 0.5).abs() < 1e-9);
     }
 
@@ -244,7 +244,7 @@ mod tests {
             total_bytes: Some(100),
             throughput_bps: 0.0,
         };
-        let pct = p.percent().unwrap();
+        let pct = p.percent().expect("percent should be known");
         assert!((pct - 75.0).abs() < 1e-9);
     }
 
@@ -255,7 +255,7 @@ mod tests {
             total_bytes: Some(0),
             throughput_bps: 0.0,
         };
-        assert!((p.fraction().unwrap() - 1.0).abs() < 1e-9);
+        assert!((p.fraction().expect("fraction should be known") - 1.0).abs() < 1e-9);
     }
 
     #[test]
@@ -272,7 +272,7 @@ mod tests {
         let mut buf = [0u8; 10];
         let mut total = 0usize;
         loop {
-            let n = reader.read(&mut buf).unwrap();
+            let n = reader.read(&mut buf).expect("failed to read");
             if n == 0 {
                 break;
             }
@@ -293,7 +293,7 @@ mod tests {
         .with_total(200);
 
         let mut buf = [0u8; 50];
-        while reader.read(&mut buf).unwrap() > 0 {}
+        while reader.read(&mut buf).expect("failed to read") > 0 {}
         assert_eq!(reader.bytes_read(), 200);
     }
 
@@ -310,7 +310,7 @@ mod tests {
         .with_report_interval(500);
 
         let mut buf = [0u8; 100];
-        while reader.read(&mut buf).unwrap() > 0 {}
+        while reader.read(&mut buf).expect("failed to read") > 0 {}
         // with 1000 bytes and 500 interval, expect ~2 reports
         let count = call_count.load(Ordering::Relaxed);
         assert!(count >= 2, "expected at least 2 reports, got {count}");
@@ -334,7 +334,7 @@ mod tests {
         let mut buf = [0u8; 5];
         let mut total = 0usize;
         loop {
-            let n = counter.read(&mut buf).unwrap();
+            let n = counter.read(&mut buf).expect("failed to read");
             if n == 0 {
                 break;
             }
@@ -349,7 +349,7 @@ mod tests {
         let cursor = Cursor::new(Vec::<u8>::new());
         let mut counter = ByteCounter::new(cursor);
         let mut buf = [0u8; 16];
-        let n = counter.read(&mut buf).unwrap();
+        let n = counter.read(&mut buf).expect("failed to read");
         assert_eq!(n, 0);
         assert_eq!(counter.count(), 0);
     }
@@ -373,7 +373,7 @@ mod tests {
         });
 
         let mut buf = [0u8; 500];
-        while reader.read(&mut buf).unwrap() > 0 {}
+        while reader.read(&mut buf).expect("failed to read") > 0 {}
         assert_eq!(reader.bytes_read(), 10_000);
     }
 }

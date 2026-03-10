@@ -293,10 +293,18 @@ impl<R: MediaSource> MatroskaDemuxer<R> {
         self.consume_buffer(consumed);
 
         // Determine format from DocType
-        self.format = Some(match self.ebml_header.as_ref().unwrap().doc_type {
-            DocType::WebM => ContainerFormat::WebM,
-            DocType::Matroska => ContainerFormat::Matroska,
-        });
+        // Safety: `self.ebml_header` was just set to `Some(header)` on the line above.
+        self.format = Some(
+            match self
+                .ebml_header
+                .as_ref()
+                .expect("ebml_header was set immediately before this line")
+                .doc_type
+            {
+                DocType::WebM => ContainerFormat::WebM,
+                DocType::Matroska => ContainerFormat::Matroska,
+            },
+        );
 
         // Parse segment element header
         self.ensure_buffer(12).await?;
@@ -1011,7 +1019,7 @@ mod tests {
         let source = MemorySource::new(Bytes::from(data));
         let mut demuxer = MatroskaDemuxer::new(source);
 
-        let result = demuxer.probe().await.unwrap();
+        let result = demuxer.probe().await.expect("probe should succeed");
         assert_eq!(result.format, ContainerFormat::WebM);
         assert!(result.confidence > 0.9);
         assert!(demuxer.header_parsed);
@@ -1023,7 +1031,7 @@ mod tests {
         let source = MemorySource::new(Bytes::from(data));
         let mut demuxer = MatroskaDemuxer::new(source);
 
-        demuxer.probe().await.unwrap();
+        demuxer.probe().await.expect("probe should succeed");
 
         let streams = demuxer.streams();
         assert!(!streams.is_empty());
@@ -1036,9 +1044,12 @@ mod tests {
         let source = MemorySource::new(Bytes::from(data));
         let mut demuxer = MatroskaDemuxer::new(source);
 
-        demuxer.probe().await.unwrap();
+        demuxer.probe().await.expect("probe should succeed");
 
-        let packet = demuxer.read_packet().await.unwrap();
+        let packet = demuxer
+            .read_packet()
+            .await
+            .expect("operation should succeed");
         assert_eq!(packet.stream_index, 0);
         assert!(packet.is_keyframe());
         assert_eq!(packet.size(), 4);
@@ -1050,10 +1061,13 @@ mod tests {
         let source = MemorySource::new(Bytes::from(data));
         let mut demuxer = MatroskaDemuxer::new(source);
 
-        demuxer.probe().await.unwrap();
+        demuxer.probe().await.expect("probe should succeed");
 
         // Read first packet
-        let _ = demuxer.read_packet().await.unwrap();
+        let _ = demuxer
+            .read_packet()
+            .await
+            .expect("operation should succeed");
 
         // Second read should return EOF
         let result = demuxer.read_packet().await;
@@ -1066,9 +1080,9 @@ mod tests {
         let source = MemorySource::new(Bytes::from(data));
         let mut demuxer = MatroskaDemuxer::new(source);
 
-        demuxer.probe().await.unwrap();
+        demuxer.probe().await.expect("probe should succeed");
 
-        let info = demuxer.segment_info().unwrap();
+        let info = demuxer.segment_info().expect("operation should succeed");
         assert_eq!(info.timecode_scale, 1_000_000);
         assert!(info.duration.is_some());
     }
@@ -1079,7 +1093,7 @@ mod tests {
         let source = MemorySource::new(Bytes::from(data));
         let mut demuxer = MatroskaDemuxer::new(source);
 
-        demuxer.probe().await.unwrap();
+        demuxer.probe().await.expect("probe should succeed");
 
         let tracks = demuxer.tracks();
         assert!(!tracks.is_empty());
@@ -1087,7 +1101,7 @@ mod tests {
         assert_eq!(tracks[0].codec_id, "V_VP9");
         assert!(tracks[0].video.is_some());
 
-        let video = tracks[0].video.as_ref().unwrap();
+        let video = tracks[0].video.as_ref().expect("operation should succeed");
         assert_eq!(video.pixel_width, 1920);
         assert_eq!(video.pixel_height, 1080);
     }

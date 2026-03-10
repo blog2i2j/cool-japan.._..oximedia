@@ -283,7 +283,7 @@ mod tests {
         pool.active
             .iter_mut()
             .find(|x| x.id == f.id)
-            .unwrap()
+            .expect("operation should succeed in test")
             .signal();
         assert_eq!(pool.completed_count(), 1);
     }

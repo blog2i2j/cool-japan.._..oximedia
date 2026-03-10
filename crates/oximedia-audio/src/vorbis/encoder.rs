@@ -780,7 +780,7 @@ mod tests {
             frame_size: 1024,
         };
 
-        let encoder = VorbisEncoder::new(&config).unwrap();
+        let encoder = VorbisEncoder::new(&config).expect("should succeed");
         assert_eq!(encoder.codec(), CodecId::Vorbis);
         assert_eq!(encoder.sample_rate, 44100);
         assert_eq!(encoder.channels, 2);

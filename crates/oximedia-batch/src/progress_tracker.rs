@@ -263,7 +263,7 @@ mod tests {
         let mut mon = BatchProgressMonitor::new();
         mon.register("j1", 10);
         mon.register("j2", 20);
-        mon.get_mut("j2").unwrap().finish();
+        mon.get_mut("j2").expect("get_mut should succeed").finish();
         assert_eq!(mon.completed_count(), 1);
     }
 
@@ -280,9 +280,13 @@ mod tests {
         let mut mon = BatchProgressMonitor::new();
         mon.register("j1", 100);
         mon.register("j2", 100);
-        mon.get_mut("j1").unwrap().update(50); // 50%
-        mon.get_mut("j2").unwrap().update(100); // 100%
-                                                // mean = 75%
+        mon.get_mut("j1")
+            .expect("get_mut should succeed")
+            .update(50); // 50%
+        mon.get_mut("j2")
+            .expect("get_mut should succeed")
+            .update(100); // 100%
+                          // mean = 75%
         assert!((mon.overall_pct() - 75.0).abs() < 1e-9);
     }
 }

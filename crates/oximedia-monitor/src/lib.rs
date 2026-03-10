@@ -248,21 +248,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_monitor_creation() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("failed to create temp dir");
         let monitor = OximediaMonitor::new(fast_monitor_config(&dir))
             .await
-            .unwrap();
+            .expect("operation should succeed");
         assert!(monitor.alert_manager().is_some());
     }
 
     #[tokio::test]
     async fn test_monitor_start_stop() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("failed to create temp dir");
         let monitor = OximediaMonitor::new(fast_monitor_config(&dir))
             .await
-            .unwrap();
+            .expect("operation should succeed");
 
-        monitor.start().await.unwrap();
+        monitor.start().await.expect("await should be valid");
         assert!(monitor.metrics_collector().is_running().await);
 
         monitor.stop().await;
@@ -272,16 +272,21 @@ mod tests {
 
     #[tokio::test]
     async fn test_collect_metrics() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("failed to create temp dir");
         // Enable system metrics (CPU + memory) but disable disk I/O so the
         // test completes quickly on macOS with many mount points.
         let mut config = MonitorConfig::default();
         config.storage.db_path = dir.path().join("monitor.db");
         config.metrics.enable_disk_metrics = false;
 
-        let monitor = OximediaMonitor::new(config).await.unwrap();
+        let monitor = OximediaMonitor::new(config)
+            .await
+            .expect("failed to create");
 
-        let system_metrics = monitor.system_metrics().await.unwrap();
+        let system_metrics = monitor
+            .system_metrics()
+            .await
+            .expect("await should be valid");
         assert!(system_metrics.is_some());
 
         let app_metrics = monitor.application_metrics();

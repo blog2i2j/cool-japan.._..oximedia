@@ -480,7 +480,7 @@ mod tests {
     fn test_track_group_find_member() {
         let mob_id = Uuid::new_v4();
         let group = TrackGroup::stereo_pair("Stereo", 1, 2, mob_id);
-        let left = group.find_member(1).unwrap();
+        let left = group.find_member(1).expect("left should be valid");
         assert_eq!(left.role, ChannelRole::Left);
         assert!(group.find_member(99).is_none());
     }

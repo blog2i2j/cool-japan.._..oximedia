@@ -163,7 +163,9 @@ mod tests {
         manager.add_take(take);
         assert_eq!(manager.total_takes(), 1);
 
-        manager.remove_take(&take_id).unwrap();
+        manager
+            .remove_take(&take_id)
+            .expect("remove_take should succeed");
         assert_eq!(manager.total_takes(), 0);
     }
 }

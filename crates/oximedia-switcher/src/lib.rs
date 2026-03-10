@@ -491,8 +491,56 @@ impl Switcher {
             MacroCommand::SelectAux { aux_id, input } => {
                 self.bus_manager.set_aux(aux_id, input)?;
             }
-            _ => {
-                // Other commands not yet implemented
+            MacroCommand::SetTransition {
+                me_row,
+                transition_type,
+            } => {
+                // Map the string transition type name to a TransitionConfig and
+                // apply it to the correct M/E row transition engine.
+                let config = match transition_type.to_ascii_lowercase().as_str() {
+                    "mix" | "dissolve" => TransitionConfig::mix(30),
+                    "cut" => TransitionConfig::cut(),
+                    "wipe" | "wipe_horizontal" => {
+                        TransitionConfig::wipe(transition::WipePattern::Horizontal, 30)
+                    }
+                    "wipe_vertical" => {
+                        TransitionConfig::wipe(transition::WipePattern::Vertical, 30)
+                    }
+                    "wipe_diagonal" => {
+                        TransitionConfig::wipe(transition::WipePattern::DiagonalTopLeft, 30)
+                    }
+                    _ => TransitionConfig::mix(30),
+                };
+                self.set_transition_config(me_row, config)?;
+            }
+            MacroCommand::LoadMediaPool { slot_id } => {
+                // Mark the requested media pool slot as occupied/ready so that
+                // downstream compositing can use it.  If the slot does not yet
+                // exist in the pool (it may have been pre-allocated) we treat
+                // the operation as a no-op because there is no filesystem path
+                // available at macro-execution time.
+                if self.media_pool.has_slot(slot_id) {
+                    let slot = self.media_pool.get_slot_mut(slot_id)?;
+                    slot.set_occupied(true);
+                }
+                // No error if the slot is absent — the macro may have been
+                // authored before the pool was fully populated.
+            }
+            MacroCommand::Wait { duration_ms: _ } => {
+                // Wait commands are handled by the MacroPlayer's internal
+                // timing mechanism (next_command() only returns the next
+                // command after the delay has elapsed).  By the time we
+                // receive a Wait command here it has already been consumed
+                // by the player, so nothing further is required.
+            }
+            MacroCommand::RunMacro { macro_id } => {
+                // Trigger playback of another macro by ID.  We clone the
+                // macro out of the engine first to avoid the borrow checker
+                // conflict between `self.macro_engine` (borrow for
+                // `get_macro`) and `self.macro_engine.player_mut()`.
+                self.macro_engine.run_macro(macro_id).map_err(|e| {
+                    SwitcherError::Config(format!("RunMacro {macro_id} failed: {e}"))
+                })?;
             }
         }
         Ok(())

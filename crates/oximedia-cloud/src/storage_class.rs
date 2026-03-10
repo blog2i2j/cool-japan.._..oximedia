@@ -221,7 +221,7 @@ mod tests {
         mgr.register(glacier_class());
         let rec = mgr.recommend(&StorageTierLevel::Hot, false);
         assert!(rec.is_some());
-        assert_eq!(rec.unwrap().name, "S3-STANDARD");
+        assert_eq!(rec.expect("test expectation failed").name, "S3-STANDARD");
     }
 
     #[test]
@@ -239,7 +239,7 @@ mod tests {
         mgr.register(ia_class());
         let cost = mgr.cost_per_gb_month("S3-IA");
         assert!(cost.is_some());
-        assert!((cost.unwrap() - 0.013).abs() < 1e-9);
+        assert!((cost.expect("test expectation failed") - 0.013).abs() < 1e-9);
     }
 
     #[test]

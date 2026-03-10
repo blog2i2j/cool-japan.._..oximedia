@@ -381,8 +381,8 @@ mod tests {
         let grid = perfect_grid();
         let p = grid.get(2, 2);
         assert!(p.is_some());
-        assert_eq!(p.unwrap().col, 2);
-        assert_eq!(p.unwrap().row, 2);
+        assert_eq!(p.expect("expected p to be Some/Ok").col, 2);
+        assert_eq!(p.expect("expected p to be Some/Ok").row, 2);
     }
 
     #[test]

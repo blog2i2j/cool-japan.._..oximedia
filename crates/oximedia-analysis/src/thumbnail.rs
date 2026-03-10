@@ -268,12 +268,16 @@ mod tests {
         // Add some good quality frames
         let good_frame = vec![128u8; 64 * 64];
         for i in (0..20).step_by(2) {
-            selector.process_frame(&good_frame, 64, 64, i).unwrap();
+            selector
+                .process_frame(&good_frame, 64, 64, i)
+                .expect("frame processing should succeed");
         }
 
         // Add some bad quality frames (too dark)
         let bad_frame = vec![10u8; 64 * 64];
-        selector.process_frame(&bad_frame, 64, 64, 10).unwrap();
+        selector
+            .process_frame(&bad_frame, 64, 64, 10)
+            .expect("frame processing should succeed");
 
         let thumbnails = selector.finalize();
         assert!(thumbnails.len() <= 5);
@@ -309,7 +313,9 @@ mod tests {
         // Add many frames
         let frame = vec![128u8; 64 * 64];
         for i in 0..20 {
-            selector.process_frame(&frame, 64, 64, i).unwrap();
+            selector
+                .process_frame(&frame, 64, 64, i)
+                .expect("frame processing should succeed");
         }
 
         let thumbnails = selector.finalize();

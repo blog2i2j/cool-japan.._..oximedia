@@ -23,7 +23,7 @@ pdf = []
 oximedia-core.workspace = true
 oximedia-io.workspace = true
 oximedia-container.workspace = true
-oximedia-codec.workspace = true
+oximedia-codec = { workspace = true, default-features = true }
 oximedia-timecode.workspace = true
 oximedia-audio-analysis.workspace = true
 thiserror.workspace = true

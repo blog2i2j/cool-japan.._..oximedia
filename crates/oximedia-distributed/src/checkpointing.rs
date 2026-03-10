@@ -254,7 +254,7 @@ mod tests {
 
         let loaded = store.load(&id);
         assert!(loaded.is_some());
-        assert_eq!(loaded.unwrap().job_id, "job-a");
+        assert_eq!(loaded.expect("loading should succeed").job_id, "job-a");
     }
 
     #[test]
@@ -272,7 +272,7 @@ mod tests {
 
         let latest = store.latest_for_job("job-a");
         assert!(latest.is_some());
-        assert_eq!(latest.unwrap().id.sequence, 2); // ts=3000 is latest
+        assert_eq!(latest.expect("latest should exist").id.sequence, 2); // ts=3000 is latest
     }
 
     #[test]
@@ -309,7 +309,7 @@ mod tests {
 
         let cp = RecoveryPlanner::find_recovery_point(&store, "job-fail");
         assert!(cp.is_some());
-        assert_eq!(cp.unwrap().created_at_ms, 9000);
+        assert_eq!(cp.expect("checkpoint should exist").created_at_ms, 9000);
     }
 
     #[test]

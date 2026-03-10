@@ -594,7 +594,10 @@ mod tests {
         let cdf = CdfContext::new(4);
         assert_eq!(cdf.nsymb, 4);
         assert_eq!(cdf.cdf().len(), 4);
-        assert_eq!(*cdf.cdf().last().unwrap(), CDF_PROB_TOP);
+        assert_eq!(
+            *cdf.cdf().last().expect("should have last element"),
+            CDF_PROB_TOP
+        );
     }
 
     #[test]
@@ -607,7 +610,10 @@ mod tests {
 
         // CDF should change after update
         assert_ne!(initial_cdf, updated_cdf);
-        assert_eq!(*updated_cdf.last().unwrap(), CDF_PROB_TOP);
+        assert_eq!(
+            *updated_cdf.last().expect("should have last element"),
+            CDF_PROB_TOP
+        );
     }
 
     #[test]
@@ -734,7 +740,7 @@ mod tests {
         let cdf = pmf_to_cdf(&pmf);
 
         assert_eq!(cdf.len(), 4);
-        assert!(*cdf.last().unwrap() > 0);
+        assert!(*cdf.last().expect("should have last element") > 0);
         // Check monotonic increasing
         for i in 1..cdf.len() {
             assert!(cdf[i] >= cdf[i - 1]);

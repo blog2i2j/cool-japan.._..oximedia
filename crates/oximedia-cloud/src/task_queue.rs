@@ -294,8 +294,12 @@ mod tests {
     #[test]
     fn test_enqueue_returns_incrementing_ids() {
         let mut q = make_queue(10);
-        let id1 = q.enqueue(QueuePriority::Normal, b"a".to_vec()).unwrap();
-        let id2 = q.enqueue(QueuePriority::Normal, b"b".to_vec()).unwrap();
+        let id1 = q
+            .enqueue(QueuePriority::Normal, b"a".to_vec())
+            .expect("id1 should be valid");
+        let id2 = q
+            .enqueue(QueuePriority::Normal, b"b".to_vec())
+            .expect("id2 should be valid");
         assert_eq!(id1, 1);
         assert_eq!(id2, 2);
     }
@@ -310,8 +314,10 @@ mod tests {
     #[test]
     fn test_len_increases_on_enqueue() {
         let mut q = make_queue(10);
-        q.enqueue(QueuePriority::Low, b"x".to_vec()).unwrap();
-        q.enqueue(QueuePriority::High, b"y".to_vec()).unwrap();
+        q.enqueue(QueuePriority::Low, b"x".to_vec())
+            .expect("test expectation failed");
+        q.enqueue(QueuePriority::High, b"y".to_vec())
+            .expect("test expectation failed");
         assert_eq!(q.len(), 2);
     }
 
@@ -324,13 +330,15 @@ mod tests {
     #[test]
     fn test_dequeue_respects_priority() {
         let mut q = make_queue(10);
-        q.enqueue(QueuePriority::Low, b"low".to_vec()).unwrap();
+        q.enqueue(QueuePriority::Low, b"low".to_vec())
+            .expect("test expectation failed");
         q.enqueue(QueuePriority::Critical, b"crit".to_vec())
-            .unwrap();
-        q.enqueue(QueuePriority::Normal, b"norm".to_vec()).unwrap();
-        let first = q.dequeue().unwrap();
+            .expect("test expectation failed");
+        q.enqueue(QueuePriority::Normal, b"norm".to_vec())
+            .expect("test expectation failed");
+        let first = q.dequeue().expect("first should be valid");
         assert_eq!(first.payload, b"crit");
-        let second = q.dequeue().unwrap();
+        let second = q.dequeue().expect("second should be valid");
         assert_eq!(second.payload, b"norm");
     }
 
@@ -338,9 +346,10 @@ mod tests {
     fn test_dequeue_batch_returns_correct_count() {
         let mut q = make_queue(20);
         for _ in 0..5 {
-            q.enqueue(QueuePriority::Normal, b"item".to_vec()).unwrap();
+            q.enqueue(QueuePriority::Normal, b"item".to_vec())
+                .expect("test expectation failed");
         }
-        let batch = q.dequeue_batch(3).unwrap();
+        let batch = q.dequeue_batch(3).expect("batch should be valid");
         assert_eq!(batch.len(), 3);
         assert_eq!(q.len(), 2);
     }
@@ -354,16 +363,19 @@ mod tests {
     #[test]
     fn test_dequeue_batch_partial_fill() {
         let mut q = make_queue(10);
-        q.enqueue(QueuePriority::Normal, b"only".to_vec()).unwrap();
-        let batch = q.dequeue_batch(5).unwrap();
+        q.enqueue(QueuePriority::Normal, b"only".to_vec())
+            .expect("test expectation failed");
+        let batch = q.dequeue_batch(5).expect("batch should be valid");
         assert_eq!(batch.len(), 1);
     }
 
     #[test]
     fn test_queue_full_error() {
         let mut q = make_queue(2);
-        q.enqueue(QueuePriority::Normal, b"a".to_vec()).unwrap();
-        q.enqueue(QueuePriority::Normal, b"b".to_vec()).unwrap();
+        q.enqueue(QueuePriority::Normal, b"a".to_vec())
+            .expect("test expectation failed");
+        q.enqueue(QueuePriority::Normal, b"b".to_vec())
+            .expect("test expectation failed");
         assert_eq!(
             q.enqueue(QueuePriority::Normal, b"c".to_vec()),
             Err(TaskQueueError::QueueFull)
@@ -373,9 +385,12 @@ mod tests {
     #[test]
     fn test_lane_depth() {
         let mut q = make_queue(20);
-        q.enqueue(QueuePriority::High, b"h1".to_vec()).unwrap();
-        q.enqueue(QueuePriority::High, b"h2".to_vec()).unwrap();
-        q.enqueue(QueuePriority::Low, b"l1".to_vec()).unwrap();
+        q.enqueue(QueuePriority::High, b"h1".to_vec())
+            .expect("test expectation failed");
+        q.enqueue(QueuePriority::High, b"h2".to_vec())
+            .expect("test expectation failed");
+        q.enqueue(QueuePriority::Low, b"l1".to_vec())
+            .expect("test expectation failed");
         assert_eq!(q.lane_depth(QueuePriority::High), 2);
         assert_eq!(q.lane_depth(QueuePriority::Low), 1);
         assert_eq!(q.lane_depth(QueuePriority::Normal), 0);
@@ -384,8 +399,10 @@ mod tests {
     #[test]
     fn test_clear_empties_all_lanes() {
         let mut q = make_queue(20);
-        q.enqueue(QueuePriority::Low, b"a".to_vec()).unwrap();
-        q.enqueue(QueuePriority::Critical, b"b".to_vec()).unwrap();
+        q.enqueue(QueuePriority::Low, b"a".to_vec())
+            .expect("test expectation failed");
+        q.enqueue(QueuePriority::Critical, b"b".to_vec())
+            .expect("test expectation failed");
         q.clear();
         assert!(q.is_empty());
     }
@@ -407,7 +424,7 @@ mod tests {
     fn test_enqueue_task_direct() {
         let mut q = make_queue(10);
         let task = CloudTask::new(99, QueuePriority::High, b"direct".to_vec());
-        q.enqueue_task(task).unwrap();
+        q.enqueue_task(task).expect("enqueue_task should succeed");
         assert_eq!(q.len(), 1);
         assert_eq!(q.lane_depth(QueuePriority::High), 1);
     }

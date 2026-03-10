@@ -202,19 +202,25 @@ mod tests {
 
     #[test]
     fn test_rle_decode_empty() {
-        assert_eq!(rle_decode(&[]).unwrap(), Vec::<u8>::new());
+        assert_eq!(
+            rle_decode(&[]).expect("operation should succeed"),
+            Vec::<u8>::new()
+        );
     }
 
     #[test]
     fn test_rle_decode_single_pair() {
-        assert_eq!(rle_decode(&[3, 7]).unwrap(), vec![7, 7, 7]);
+        assert_eq!(
+            rle_decode(&[3, 7]).expect("operation should succeed"),
+            vec![7, 7, 7]
+        );
     }
 
     #[test]
     fn test_rle_roundtrip() {
         let original = vec![0u8, 0, 0, 1, 2, 2, 2, 3];
         let encoded = rle_encode(&original);
-        let decoded = rle_decode(&encoded).unwrap();
+        let decoded = rle_decode(&encoded).expect("operation should succeed");
         assert_eq!(decoded, original);
     }
 

@@ -194,9 +194,20 @@ impl SqliteStorage {
         let rows = stmt.query_map(
             params![metric_name, start.timestamp(), end.timestamp()],
             |row| {
+                let ts_secs: i64 = row.get(1)?;
+                let timestamp = DateTime::from_timestamp(ts_secs, 0).ok_or_else(|| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        1,
+                        rusqlite::types::Type::Integer,
+                        Box::new(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            format!("timestamp value {ts_secs} is out of valid DateTime range"),
+                        )),
+                    )
+                })?;
                 Ok(TimeSeriesPoint {
                     metric_name: row.get(0)?,
-                    timestamp: DateTime::from_timestamp(row.get(1)?, 0).unwrap(),
+                    timestamp,
                     value: row.get(2)?,
                     labels: row.get(3)?,
                 })
@@ -274,9 +285,20 @@ impl SqliteStorage {
         let rows = stmt.query_map(
             params![metric_name, start.timestamp(), end.timestamp()],
             |row| {
+                let ts_secs: i64 = row.get(1)?;
+                let timestamp = DateTime::from_timestamp(ts_secs, 0).ok_or_else(|| {
+                    rusqlite::Error::FromSqlConversionFailure(
+                        1,
+                        rusqlite::types::Type::Integer,
+                        Box::new(std::io::Error::new(
+                            std::io::ErrorKind::InvalidData,
+                            format!("timestamp value {ts_secs} is out of valid DateTime range"),
+                        )),
+                    )
+                })?;
                 Ok(AggregateRow {
                     metric_name: row.get(0)?,
-                    timestamp: DateTime::from_timestamp(row.get(1)?, 0).unwrap(),
+                    timestamp,
                     min_value: row.get(2)?,
                     max_value: row.get(3)?,
                     avg_value: row.get(4)?,
@@ -419,18 +441,18 @@ mod tests {
 
     #[test]
     fn test_sqlite_storage_creation() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("failed to create temp dir");
         let db_path = dir.path().join("test.db");
 
-        let _storage = SqliteStorage::new(&db_path).unwrap();
+        let _storage = SqliteStorage::new(&db_path).expect("failed to create");
         assert!(db_path.exists());
     }
 
     #[test]
     fn test_insert_and_query() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("failed to create temp dir");
         let db_path = dir.path().join("test.db");
-        let storage = SqliteStorage::new(&db_path).unwrap();
+        let storage = SqliteStorage::new(&db_path).expect("failed to create");
 
         let now = Utc::now();
 
@@ -441,7 +463,7 @@ mod tests {
             labels: None,
         };
 
-        storage.insert(&point).unwrap();
+        storage.insert(&point).expect("failed to insert");
 
         let points = storage
             .query(
@@ -449,7 +471,7 @@ mod tests {
                 now - chrono::Duration::seconds(10),
                 now + chrono::Duration::seconds(10),
             )
-            .unwrap();
+            .expect("operation should succeed");
 
         assert_eq!(points.len(), 1);
         assert_eq!(points[0].value, 42.5);
@@ -457,9 +479,9 @@ mod tests {
 
     #[test]
     fn test_insert_batch() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("failed to create temp dir");
         let db_path = dir.path().join("test.db");
-        let storage = SqliteStorage::new(&db_path).unwrap();
+        let storage = SqliteStorage::new(&db_path).expect("failed to create");
 
         let now = Utc::now();
 
@@ -472,7 +494,9 @@ mod tests {
             })
             .collect();
 
-        storage.insert_batch(&points).unwrap();
+        storage
+            .insert_batch(&points)
+            .expect("insert_batch should succeed");
 
         let queried = storage
             .query(
@@ -480,16 +504,16 @@ mod tests {
                 now - chrono::Duration::seconds(10),
                 now + chrono::Duration::seconds(20),
             )
-            .unwrap();
+            .expect("operation should succeed");
 
         assert_eq!(queried.len(), 10);
     }
 
     #[test]
     fn test_delete_before() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("failed to create temp dir");
         let db_path = dir.path().join("test.db");
-        let storage = SqliteStorage::new(&db_path).unwrap();
+        let storage = SqliteStorage::new(&db_path).expect("failed to create");
 
         let now = Utc::now();
 
@@ -502,35 +526,37 @@ mod tests {
             })
             .collect();
 
-        storage.insert_batch(&points).unwrap();
+        storage
+            .insert_batch(&points)
+            .expect("insert_batch should succeed");
 
         // Delete points before now + 5 seconds
         let deleted = storage
             .delete_before(now + chrono::Duration::seconds(5))
-            .unwrap();
+            .expect("operation should succeed");
 
         assert_eq!(deleted, 5);
 
-        let remaining = storage.count().unwrap();
+        let remaining = storage.count().expect("count should succeed");
         assert_eq!(remaining, 5);
     }
 
     #[test]
     fn test_database_size() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("failed to create temp dir");
         let db_path = dir.path().join("test.db");
-        let storage = SqliteStorage::new(&db_path).unwrap();
+        let storage = SqliteStorage::new(&db_path).expect("failed to create");
 
-        let size = storage.size().unwrap();
+        let size = storage.size().expect("size should succeed");
         assert!(size > 0);
     }
 
     #[test]
     fn test_vacuum() {
-        let dir = tempdir().unwrap();
+        let dir = tempdir().expect("failed to create temp dir");
         let db_path = dir.path().join("test.db");
-        let storage = SqliteStorage::new(&db_path).unwrap();
+        let storage = SqliteStorage::new(&db_path).expect("failed to create");
 
-        storage.vacuum().unwrap();
+        storage.vacuum().expect("vacuum should succeed");
     }
 }

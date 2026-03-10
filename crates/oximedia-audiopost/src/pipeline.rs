@@ -494,7 +494,9 @@ mod tests {
             (samples.iter().map(|&s| s * s).sum::<f32>() / samples.len() as f32).sqrt();
 
         let leveler = DialogueLeveler::default();
-        leveler.process(&mut samples).unwrap();
+        leveler
+            .process(&mut samples)
+            .expect("process should succeed");
 
         let after_rms: f32 =
             (samples.iter().map(|&s| s * s).sum::<f32>() / samples.len() as f32).sqrt();
@@ -556,7 +558,8 @@ mod tests {
         let p = SurroundPanner::new(SurroundFormat::Surround51);
         let input = vec![0.5f32; 64];
         let mut output = vec![0.0f32; 64 * 6];
-        p.process(&input, &mut output).unwrap();
+        p.process(&input, &mut output)
+            .expect("process should succeed");
     }
 
     #[test]

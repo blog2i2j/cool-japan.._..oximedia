@@ -314,7 +314,7 @@ mod tests {
     fn layout_set_and_get_position() {
         let mut layout = GraphLayout::new();
         layout.set_position(1, NodePosition::new(0.0, 0.0));
-        let pos = layout.get_position(1).unwrap();
+        let pos = layout.get_position(1).expect("get_position should succeed");
         assert!((pos.x - 0.0).abs() < 1e-6);
     }
 
@@ -323,7 +323,7 @@ mod tests {
         let mut layout = GraphLayout::new();
         layout.set_position(2, NodePosition::new(0.0, 0.0));
         layout.set_position(2, NodePosition::new(100.0, 200.0));
-        let pos = layout.get_position(2).unwrap();
+        let pos = layout.get_position(2).expect("get_position should succeed");
         assert!((pos.x - 100.0).abs() < 1e-6);
         // Only one entry for the node.
         assert_eq!(
@@ -355,9 +355,18 @@ mod tests {
         let nodes = vec![1u64, 2, 3];
         let edges = vec![(1u64, 2u64), (2, 3)];
         let layout = GraphLayout::auto_layout_left_right(&nodes, &edges);
-        let x1 = layout.get_position(1).unwrap().x;
-        let x2 = layout.get_position(2).unwrap().x;
-        let x3 = layout.get_position(3).unwrap().x;
+        let x1 = layout
+            .get_position(1)
+            .expect("get_position should succeed")
+            .x;
+        let x2 = layout
+            .get_position(2)
+            .expect("get_position should succeed")
+            .x;
+        let x3 = layout
+            .get_position(3)
+            .expect("get_position should succeed")
+            .x;
         assert!(x1 <= x2, "source should be left of middle");
         assert!(x2 <= x3, "middle should be left of sink");
     }

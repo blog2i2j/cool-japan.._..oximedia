@@ -177,7 +177,11 @@ impl TruePeakReport {
     pub fn worst_channel(&self) -> Option<usize> {
         self.channels
             .iter()
-            .max_by(|a, b| a.peak_dbtp.partial_cmp(&b.peak_dbtp).unwrap())
+            .max_by(|a, b| {
+                a.peak_dbtp
+                    .partial_cmp(&b.peak_dbtp)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .map(|s| s.channel)
     }
 
@@ -248,8 +252,8 @@ mod tests {
         let mut m = TruePeakMeter::new(2, -1.0);
         m.process_sample(0.9, 0);
         m.process_sample(0.5, 1);
-        let ch0 = m.channel_peak_dbtp(0).unwrap();
-        let ch1 = m.channel_peak_dbtp(1).unwrap();
+        let ch0 = m.channel_peak_dbtp(0).expect("ch0 should be valid");
+        let ch1 = m.channel_peak_dbtp(1).expect("ch1 should be valid");
         assert!(ch0 > ch1);
     }
 
@@ -288,7 +292,13 @@ mod tests {
     fn meter_process_frame() {
         let mut m = TruePeakMeter::new(2, -1.0);
         m.process_frame(&[0.4, 0.8]);
-        assert!((m.channel_peak_dbtp(1).unwrap() - linear_to_dbtp(0.8)).abs() < 1e-9);
+        assert!(
+            (m.channel_peak_dbtp(1)
+                .expect("channel_peak_dbtp should succeed")
+                - linear_to_dbtp(0.8))
+            .abs()
+                < 1e-9
+        );
     }
 
     // ── TruePeakReport ───────────────────────────────────────────────────────

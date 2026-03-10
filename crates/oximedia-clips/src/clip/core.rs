@@ -302,7 +302,7 @@ mod tests {
         assert_ne!(id1, id2);
 
         let id_str = id1.to_string();
-        let id_parsed: ClipId = id_str.parse().unwrap();
+        let id_parsed: ClipId = id_str.parse().expect("parse should succeed");
         assert_eq!(id1, id_parsed);
     }
 }

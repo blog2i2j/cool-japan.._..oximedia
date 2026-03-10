@@ -21,7 +21,7 @@ cdn-all = ["cdn-aws", "cdn-azure", "cdn-gcs"]
 [dependencies]
 oximedia-core = { workspace = true }
 oximedia-io = { workspace = true }
-oximedia-codec = { workspace = true }
+oximedia-codec = { workspace = true, default-features = true }
 oximedia-container = { workspace = true }
 oximedia-audio = { workspace = true }
 oximedia-cv = { workspace = true }

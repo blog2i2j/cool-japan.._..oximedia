@@ -249,7 +249,7 @@ mod tests {
         let mut mgr = GroupManager::new();
         let id = mgr.create("editors", GroupType::Editor);
         assert!(mgr.add_member(id, "frank"));
-        assert!(mgr.get(id).unwrap().is_member("frank"));
+        assert!(mgr.get(id).expect("get should succeed").is_member("frank"));
     }
 
     #[test]

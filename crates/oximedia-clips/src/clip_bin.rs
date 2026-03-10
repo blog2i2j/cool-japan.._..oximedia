@@ -146,7 +146,9 @@ impl BinManager {
         let bin = ClipBin::new(id, name);
         let bin_id = bin.id.clone();
         self.bins.insert(bin_id.clone(), bin);
-        self.bins.get(&bin_id).unwrap()
+        self.bins
+            .get(&bin_id)
+            .expect("bin was just inserted so it must be present")
     }
 
     /// Find a bin by its id, returning an immutable reference if present.
@@ -216,7 +218,7 @@ mod tests {
         bin.add_item(make_item("c1", "Alpha"));
         let removed = bin.remove("c1");
         assert!(removed.is_some());
-        assert_eq!(removed.unwrap().name, "Alpha");
+        assert_eq!(removed.expect("value should be valid").name, "Alpha");
         assert_eq!(bin.item_count(), 0);
     }
 
@@ -250,7 +252,7 @@ mod tests {
         mgr.create_bin("bin-a", "Scene 1");
         let found = mgr.find_bin("bin-a");
         assert!(found.is_some());
-        assert_eq!(found.unwrap().name, "Scene 1");
+        assert_eq!(found.expect("value should be valid").name, "Scene 1");
     }
 
     #[test]
@@ -284,7 +286,12 @@ mod tests {
         if let Some(bin) = mgr.find_bin_mut("b1") {
             bin.add_item(make_item("c1", "New Clip"));
         }
-        assert_eq!(mgr.find_bin("b1").unwrap().item_count(), 1);
+        assert_eq!(
+            mgr.find_bin("b1")
+                .expect("find_bin should succeed")
+                .item_count(),
+            1
+        );
     }
 
     #[test]

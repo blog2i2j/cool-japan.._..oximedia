@@ -543,7 +543,7 @@ mod tests {
         let mut out = vec![0u8; 256];
         let mut total = 0;
         loop {
-            let n = reader.read(&mut out[total..]).unwrap();
+            let n = reader.read(&mut out[total..]).expect("failed to read");
             if n == 0 {
                 break;
             }
@@ -558,8 +558,8 @@ mod tests {
         let inner = Vec::new();
         let mut writer = AlignedWriter::new(inner, 64, AlignmentSpec::Sector512);
         let data = b"test data for aligned writer";
-        writer.write_all(data).unwrap();
-        writer.flush().unwrap();
+        writer.write_all(data).expect("failed to write");
+        writer.flush().expect("failed to flush");
         let total = writer.total_written();
         assert!(total > 0);
     }

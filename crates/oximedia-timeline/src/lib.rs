@@ -120,5 +120,5 @@ pub use timeline_exporter::{
 };
 pub use track::{Track, TrackId, TrackType};
 pub use transition::{Transition, TransitionAlignment, TransitionType};
-pub use transition_engine::{TransitionEngine, TransitionInput};
+pub use transition_engine::{TransitionEngine, TransitionError, TransitionInput};
 pub use types::{Duration, Position, Speed};

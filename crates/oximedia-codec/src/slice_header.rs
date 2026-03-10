@@ -293,7 +293,7 @@ mod tests {
         let reader = SliceHeaderReader::new(8);
         // slice_type=2 (I), frame_num=0x0005, pps_id=0, flags=0x00
         let data = [2u8, 0x00, 0x05, 0x00, 0x00];
-        let hdr = reader.parse(1, &data).unwrap();
+        let hdr = reader.parse(1, &data).expect("parse should succeed");
         assert_eq!(hdr.slice_type, SliceType::I);
         assert_eq!(hdr.frame_num, 5);
         assert!(hdr.is_reference());

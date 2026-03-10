@@ -370,7 +370,11 @@ mod tests {
 
         let cut = library.get_preset("Cut");
         assert!(cut.is_some());
-        assert_eq!(cut.unwrap().transition_type, TransitionType::Cut);
+        assert_eq!(
+            cut.expect("multicam test operation should succeed")
+                .transition_type,
+            TransitionType::Cut
+        );
     }
 
     #[test]

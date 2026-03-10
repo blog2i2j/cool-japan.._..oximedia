@@ -378,10 +378,10 @@ mod tests {
         let tags = HashMap::new();
         let result = set.evaluate("video/clip.mp4", &tags);
         assert!(result.is_some());
-        assert_eq!(result.unwrap().0.id, "p1");
+        assert_eq!(result.expect("result should be ok").0.id, "p1");
 
         let result2 = set.evaluate("audio/track.mp3", &tags);
-        assert_eq!(result2.unwrap().0.id, "p2");
+        assert_eq!(result2.expect("result should be ok").0.id, "p2");
     }
 
     #[test]

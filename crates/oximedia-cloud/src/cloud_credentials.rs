@@ -184,9 +184,9 @@ impl std::fmt::Display for CredentialStoreError {
 ///
 /// let mut store = CredentialStore::new();
 /// let cred = CloudCredential::new("prod-s3", CredentialType::StaticKey, "AKIA…", "secret");
-/// store.register(cred).unwrap();
+/// store.register(cred)?;
 ///
-/// let found = store.get("prod-s3").unwrap();
+/// let found = store.get("prod-s3")?;
 /// assert_eq!(found.key_id, "AKIA…");
 /// ```
 #[derive(Debug, Default)]
@@ -322,7 +322,7 @@ mod tests {
     #[test]
     fn test_credential_seconds_remaining_positive() {
         let cred = make_cred("test").with_ttl(Duration::from_secs(3600));
-        let rem = cred.seconds_remaining().unwrap();
+        let rem = cred.seconds_remaining().expect("rem should be valid");
         assert!(rem > 3590.0 && rem <= 3600.0);
     }
 
@@ -348,15 +348,19 @@ mod tests {
     #[test]
     fn test_store_register_and_get() {
         let mut store = CredentialStore::new();
-        store.register(make_cred("alpha")).unwrap();
-        let cred = store.get("alpha").unwrap();
+        store
+            .register(make_cred("alpha"))
+            .expect("test expectation failed");
+        let cred = store.get("alpha").expect("cred should be valid");
         assert_eq!(cred.name, "alpha");
     }
 
     #[test]
     fn test_store_duplicate_register_fails() {
         let mut store = CredentialStore::new();
-        store.register(make_cred("dup")).unwrap();
+        store
+            .register(make_cred("dup"))
+            .expect("test expectation failed");
         let err = store.register(make_cred("dup")).unwrap_err();
         assert!(matches!(err, CredentialStoreError::AlreadyExists(_)));
     }
@@ -373,18 +377,22 @@ mod tests {
     #[test]
     fn test_store_upsert_replaces() {
         let mut store = CredentialStore::new();
-        store.register(make_cred("x")).unwrap();
+        store
+            .register(make_cred("x"))
+            .expect("test expectation failed");
         let updated =
             CloudCredential::new("x", CredentialType::BearerToken, "new_key", "new_secret");
         store.upsert(updated);
-        let cred = store.get("x").unwrap();
+        let cred = store.get("x").expect("cred should be valid");
         assert!(matches!(cred.kind, CredentialType::BearerToken));
     }
 
     #[test]
     fn test_store_remove() {
         let mut store = CredentialStore::new();
-        store.register(make_cred("rm")).unwrap();
+        store
+            .register(make_cred("rm"))
+            .expect("test expectation failed");
         let removed = store.remove("rm");
         assert!(removed.is_some());
         assert!(store.is_empty());
@@ -394,8 +402,12 @@ mod tests {
     fn test_store_len_and_is_empty() {
         let mut store = CredentialStore::new();
         assert!(store.is_empty());
-        store.register(make_cred("a")).unwrap();
-        store.register(make_cred("b")).unwrap();
+        store
+            .register(make_cred("a"))
+            .expect("test expectation failed");
+        store
+            .register(make_cred("b"))
+            .expect("test expectation failed");
         assert_eq!(store.len(), 2);
     }
 

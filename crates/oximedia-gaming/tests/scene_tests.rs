@@ -35,7 +35,9 @@ fn test_remove_scene() {
         description: "Main gameplay scene".to_string(),
     });
 
-    manager.remove_scene("Gameplay").unwrap();
+    manager
+        .remove_scene("Gameplay")
+        .expect("remove scene should succeed");
     assert_eq!(manager.scene_count(), 0);
 }
 
@@ -48,7 +50,9 @@ fn test_switch_scene() {
         description: "Main gameplay scene".to_string(),
     });
 
-    manager.switch_to("Gameplay").unwrap();
+    manager
+        .switch_to("Gameplay")
+        .expect("switch should succeed");
     assert_eq!(manager.active_scene(), Some("Gameplay"));
 }
 
@@ -68,7 +72,9 @@ fn test_remove_active_scene() {
         description: "Main gameplay scene".to_string(),
     });
 
-    manager.switch_to("Gameplay").unwrap();
+    manager
+        .switch_to("Gameplay")
+        .expect("switch should succeed");
     assert!(manager.remove_scene("Gameplay").is_err());
 }
 
@@ -88,7 +94,7 @@ fn test_multiple_scenes() {
     assert_eq!(manager.scene_count(), 4);
 
     for name in scenes {
-        manager.switch_to(name).unwrap();
+        manager.switch_to(name).expect("switch should succeed");
         assert_eq!(manager.active_scene(), Some(name));
     }
 }

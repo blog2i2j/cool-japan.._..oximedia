@@ -498,7 +498,7 @@ mod tests {
             SettingDescriptor::new("by the fire"),
         );
         let text = engine.generate(&ctx, DescriptionStyle::Concise);
-        let first_char = text.chars().next().unwrap();
+        let first_char = text.chars().next().expect("first_char should be valid");
         assert!(
             first_char.is_uppercase(),
             "Expected uppercase start: {text}"

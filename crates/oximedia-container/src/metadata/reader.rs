@@ -128,20 +128,20 @@ mod tests {
 
     #[tokio::test]
     async fn test_detect_format_flac() {
-        let format = detect_format(b"fLaC").unwrap();
+        let format = detect_format(b"fLaC").expect("operation should succeed");
         assert_eq!(format, ContainerFormat::Flac);
     }
 
     #[tokio::test]
     async fn test_detect_format_ogg() {
-        let format = detect_format(b"OggS").unwrap();
+        let format = detect_format(b"OggS").expect("operation should succeed");
         assert_eq!(format, ContainerFormat::Ogg);
     }
 
     #[tokio::test]
     async fn test_detect_format_matroska() {
         let magic = [0x1A, 0x45, 0xDF, 0xA3];
-        let format = detect_format(&magic).unwrap();
+        let format = detect_format(&magic).expect("operation should succeed");
         assert_eq!(format, ContainerFormat::Matroska);
     }
 

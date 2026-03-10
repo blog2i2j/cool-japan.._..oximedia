@@ -124,8 +124,8 @@ mod tests {
         let config = LiveSwitcherConfig::default();
         let mut switcher = LiveSwitcherAutomation::new(config);
 
-        switcher.set_preview(2).unwrap();
-        switcher.auto_cut().unwrap();
+        switcher.set_preview(2).expect("set_preview should succeed");
+        switcher.auto_cut().expect("auto_cut should succeed");
 
         assert_eq!(switcher.current_source(), Some(2));
         assert_eq!(switcher.preview_source(), None);
@@ -139,10 +139,14 @@ mod tests {
         };
         let mut switcher = LiveSwitcherAutomation::new(config);
 
-        switcher.auto_sequence().unwrap();
+        switcher
+            .auto_sequence()
+            .expect("auto_sequence should succeed");
         assert_eq!(switcher.current_source(), Some(1));
 
-        switcher.auto_sequence().unwrap();
+        switcher
+            .auto_sequence()
+            .expect("auto_sequence should succeed");
         assert_eq!(switcher.current_source(), Some(2));
     }
 }

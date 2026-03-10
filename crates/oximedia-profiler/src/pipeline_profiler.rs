@@ -47,11 +47,71 @@ pub struct PipelineBottleneck {
 
 // ── PipelineProfiler ──────────────────────────────────────────────────────────
 
+/// Per-stage accumulated raw data used to update `PipelineStage` incrementally.
+#[derive(Debug, Default, Clone)]
+struct StageAccumulator {
+    /// Sum of all recorded durations in milliseconds.
+    sum_ms: f32,
+    /// Minimum observed duration.
+    min_ms: f32,
+    /// Maximum observed duration.
+    max_ms: f32,
+    /// Number of samples recorded.
+    count: u32,
+}
+
+impl StageAccumulator {
+    fn new() -> Self {
+        Self {
+            sum_ms: 0.0,
+            min_ms: f32::MAX,
+            max_ms: f32::MIN,
+            count: 0,
+        }
+    }
+
+    fn push(&mut self, duration_ms: f32) {
+        self.sum_ms += duration_ms;
+        self.min_ms = self.min_ms.min(duration_ms);
+        self.max_ms = self.max_ms.max(duration_ms);
+        self.count += 1;
+    }
+
+    fn to_stage(&self, name: &str) -> PipelineStage {
+        PipelineStage {
+            name: name.to_string(),
+            avg_duration_ms: if self.count > 0 {
+                self.sum_ms / self.count as f32
+            } else {
+                0.0
+            },
+            min_ms: if self.min_ms == f32::MAX {
+                0.0
+            } else {
+                self.min_ms
+            },
+            max_ms: if self.max_ms == f32::MIN {
+                0.0
+            } else {
+                self.max_ms
+            },
+            samples: self.count,
+        }
+    }
+}
+
 /// Records and analyses pipeline stage timings.
+///
+/// Internally stores one [`PipelineStage`] per named stage so that
+/// [`stages()`][PipelineProfiler::stages] can return stable references
+/// without any lifetime gymnastics or allocation leaks.
 #[derive(Debug, Default)]
 pub struct PipelineProfiler {
-    /// Per-stage accumulated data: (sum_ms, min_ms, max_ms, count).
-    data: HashMap<String, (f32, f32, f32, u32)>,
+    /// Per-stage accumulated raw data (kept in sync with `stages_map`).
+    accumulators: HashMap<String, StageAccumulator>,
+    /// Materialised `PipelineStage` objects — updated on every `record()` call
+    /// so that `stages()` can hand out `&PipelineStage` references.
+    stages_map: HashMap<String, PipelineStage>,
 }
 
 impl PipelineProfiler {
@@ -63,74 +123,57 @@ impl PipelineProfiler {
 
     /// Record a single timing sample for `stage` (in milliseconds).
     pub fn record(&mut self, stage: &str, duration_ms: f32) {
-        let entry = self
-            .data
+        let acc = self
+            .accumulators
             .entry(stage.to_string())
-            .or_insert((0.0, f32::MAX, f32::MIN, 0));
-        entry.0 += duration_ms;
-        entry.1 = entry.1.min(duration_ms);
-        entry.2 = entry.2.max(duration_ms);
-        entry.3 += 1;
+            .or_insert_with(StageAccumulator::new);
+        acc.push(duration_ms);
+        // Keep the materialised PipelineStage up-to-date so references from
+        // `stages()` always reflect the latest accumulated data.
+        let updated = acc.to_stage(stage);
+        self.stages_map.insert(stage.to_string(), updated);
     }
 
-    /// Return a `PipelineStage` for each recorded stage.
+    /// Return a reference to each recorded [`PipelineStage`].
+    ///
+    /// The returned references are valid for the lifetime of `self`.
     #[must_use]
     pub fn stages(&self) -> Vec<&PipelineStage> {
-        // We build stages lazily — return an owned vec then leak references.
-        // Because HashMap entries are stored separately we materialise a Vec
-        // on the heap and return references into it. For a real codebase we'd
-        // store PipelineStage directly; here we keep it simple.
-        // NOTE: returns a Vec<&PipelineStage> by constructing from internal state.
-        // We return a Vec<PipelineStage> wrapper via a separate helper.
-        Vec::new() // placeholder; users should call `stage_list()`.
+        self.stages_map.values().collect()
     }
 
-    /// Return an owned list of `PipelineStage` values (preferred over `stages()`).
+    /// Return an owned list of [`PipelineStage`] values.
+    ///
+    /// Equivalent to cloning the result of [`stages()`][Self::stages].
     #[must_use]
     pub fn stage_list(&self) -> Vec<PipelineStage> {
-        self.data
-            .iter()
-            .map(|(name, &(sum, min, max, count))| PipelineStage {
-                name: name.clone(),
-                avg_duration_ms: if count > 0 { sum / count as f32 } else { 0.0 },
-                min_ms: if min == f32::MAX { 0.0 } else { min },
-                max_ms: if max == f32::MIN { 0.0 } else { max },
-                samples: count,
-            })
-            .collect()
+        self.stages_map.values().cloned().collect()
     }
 
     /// Find the pipeline bottleneck (stage with the highest average duration).
     #[must_use]
     pub fn find_bottleneck(&self) -> Option<PipelineBottleneck> {
-        if self.data.is_empty() {
+        if self.stages_map.is_empty() {
             return None;
         }
-        let total_ms: f32 = self
-            .data
-            .values()
-            .map(|&(sum, _, _, count)| if count > 0 { sum / count as f32 } else { 0.0 })
-            .sum();
+        let total_ms: f32 = self.stages_map.values().map(|s| s.avg_duration_ms).sum();
 
-        self.data
-            .iter()
-            .max_by(|(_, a), (_, b)| {
-                let avg_a = if a.3 > 0 { a.0 / a.3 as f32 } else { 0.0 };
-                let avg_b = if b.3 > 0 { b.0 / b.3 as f32 } else { 0.0 };
-                avg_a
-                    .partial_cmp(&avg_b)
+        self.stages_map
+            .values()
+            .max_by(|a, b| {
+                a.avg_duration_ms
+                    .partial_cmp(&b.avg_duration_ms)
                     .unwrap_or(std::cmp::Ordering::Equal)
             })
-            .map(|(name, &(sum, _, _, count))| {
-                let avg = if count > 0 { sum / count as f32 } else { 0.0 };
+            .map(|stage| {
                 let utilization_pct = if total_ms > 0.0 {
-                    avg / total_ms * 100.0
+                    stage.avg_duration_ms / total_ms * 100.0
                 } else {
                     0.0
                 };
                 let queue_depth = (utilization_pct / 10.0) as u32 + 1;
                 PipelineBottleneck {
-                    stage: name.clone(),
+                    stage: stage.name.clone(),
                     utilization_pct,
                     queue_depth,
                 }

@@ -113,21 +113,21 @@ mod tests {
 
     #[test]
     fn test_lossless() {
-        let preset = lossless().unwrap();
+        let preset = lossless().expect("archive preset should be valid");
         assert_eq!(preset.container, ContainerFormat::Matroska);
-        let video = preset.video.unwrap();
+        let video = preset.video.expect("archive preset should be valid");
         assert_eq!(video.codec, VideoCodec::Av1);
         assert_eq!(video.quality, Some(0));
-        let audio = preset.audio.unwrap();
+        let audio = preset.audio.expect("archive preset should be valid");
         assert_eq!(audio.codec, AudioCodec::Flac);
     }
 
     #[test]
     fn test_intermediate() {
-        let preset = intermediate().unwrap();
-        let video = preset.video.unwrap();
+        let preset = intermediate().expect("archive preset should be valid");
+        let video = preset.video.expect("archive preset should be valid");
         assert_eq!(video.speed, EncodingSpeed::Fast);
-        let audio = preset.audio.unwrap();
+        let audio = preset.audio.expect("archive preset should be valid");
         assert_eq!(audio.codec, AudioCodec::Pcm);
     }
 

@@ -358,8 +358,14 @@ mod tests {
         let mut sm = ShardMap::new();
         sm.add_node(NodeId::new("n1", "Node 1"));
         sm.add_node(NodeId::new("n2", "Node 2"));
-        let result1 = sm.lookup("my-key").unwrap().to_string();
-        let result2 = sm.lookup("my-key").unwrap().to_string();
+        let result1 = sm
+            .lookup("my-key")
+            .expect("lookup should succeed")
+            .to_string();
+        let result2 = sm
+            .lookup("my-key")
+            .expect("lookup should succeed")
+            .to_string();
         assert_eq!(result1, result2);
     }
 

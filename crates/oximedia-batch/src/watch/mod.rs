@@ -201,9 +201,12 @@ mod tests {
 
     #[tokio::test]
     async fn test_watch_folder_creation() {
-        let temp_dir = TempDir::new().unwrap();
+        let temp_dir = TempDir::new().expect("failed to create temp dir");
         let db_path = temp_dir.path().join("test.db");
-        let engine = Arc::new(BatchEngine::new(db_path.to_str().unwrap(), 2).unwrap());
+        let engine = Arc::new(
+            BatchEngine::new(db_path.to_str().expect("path should be valid UTF-8"), 2)
+                .expect("path should be valid UTF-8"),
+        );
 
         let config = WatchConfig::new(temp_dir.path().to_path_buf());
         let watcher = WatchFolder::new(config, engine);

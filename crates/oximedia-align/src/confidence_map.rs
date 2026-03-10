@@ -285,7 +285,7 @@ mod tests {
     fn test_get_set() {
         let mut m = ConfidenceMap::new(3, 3);
         assert!(m.set(1, 2, 0.75));
-        assert!((m.get(1, 2).unwrap() - 0.75).abs() < 1e-12);
+        assert!((m.get(1, 2).expect("get should succeed") - 0.75).abs() < 1e-12);
     }
 
     #[test]
@@ -304,9 +304,9 @@ mod tests {
     fn test_set_clamps_value() {
         let mut m = ConfidenceMap::new(2, 2);
         m.set(0, 0, 2.0);
-        assert!((m.get(0, 0).unwrap() - 1.0).abs() < 1e-12);
+        assert!((m.get(0, 0).expect("get should succeed") - 1.0).abs() < 1e-12);
         m.set(0, 0, -1.0);
-        assert!(m.get(0, 0).unwrap().abs() < 1e-12);
+        assert!(m.get(0, 0).expect("get should succeed").abs() < 1e-12);
     }
 
     #[test]
@@ -370,7 +370,7 @@ mod tests {
             height: 1,
             data: vec![0.5, 0.6],
         };
-        let merged = merge_max(&a, &b).unwrap();
+        let merged = merge_max(&a, &b).expect("merged should be valid");
         assert!((merged.data[0] - 0.5).abs() < 1e-12);
         assert!((merged.data[1] - 0.8).abs() < 1e-12);
     }
@@ -387,7 +387,7 @@ mod tests {
             height: 1,
             data: vec![0.5, 0.6],
         };
-        let merged = merge_min(&a, &b).unwrap();
+        let merged = merge_min(&a, &b).expect("merged should be valid");
         assert!((merged.data[0] - 0.3).abs() < 1e-12);
         assert!((merged.data[1] - 0.6).abs() < 1e-12);
     }

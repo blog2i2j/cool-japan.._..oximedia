@@ -512,7 +512,7 @@ impl MedianFilterSmoother {
                 window.push(signal[j]);
             }
 
-            window.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            window.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
             let median = window[window.len() / 2];
             smoothed.push(median);
         }

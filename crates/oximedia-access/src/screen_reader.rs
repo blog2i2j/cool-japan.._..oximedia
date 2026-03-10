@@ -433,7 +433,7 @@ mod tests {
         q.push(Announcement::polite("Hello", 100));
         q.push(Announcement::polite("World", 200));
         assert_eq!(q.len(), 2);
-        let a = q.pop().unwrap();
+        let a = q.pop().expect("a should be valid");
         assert_eq!(a.text, "Hello");
         assert_eq!(q.len(), 1);
     }
@@ -444,7 +444,7 @@ mod tests {
         q.push(Announcement::polite("Low priority", 100));
         q.push(Announcement::assertive("High priority", 200));
         q.push(Announcement::polite("Also low", 300));
-        let a = q.pop().unwrap();
+        let a = q.pop().expect("a should be valid");
         assert_eq!(a.text, "High priority");
     }
 
@@ -456,7 +456,7 @@ mod tests {
         q.push(Announcement::polite("C", 300));
         // "A" should have been dropped
         assert_eq!(q.len(), 2);
-        let first = q.pop().unwrap();
+        let first = q.pop().expect("first should be valid");
         assert_eq!(first.text, "B");
     }
 

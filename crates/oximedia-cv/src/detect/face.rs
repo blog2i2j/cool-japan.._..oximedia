@@ -1375,7 +1375,11 @@ impl CnnFaceDetector {
         }
 
         // Sort by confidence (descending)
-        detections.sort_by(|a, b| b.confidence.partial_cmp(&a.confidence).unwrap());
+        detections.sort_by(|a, b| {
+            b.confidence
+                .partial_cmp(&a.confidence)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
 
         let mut keep = Vec::new();
         let mut suppressed = vec![false; detections.len()];
@@ -1560,7 +1564,9 @@ mod tests {
     fn test_haar_cascade_detect_empty() {
         let cascade = HaarCascade::new(24, 24);
         let image = vec![100u8; 1000];
-        let result = cascade.detect(&image, 100, 10).unwrap();
+        let result = cascade
+            .detect(&image, 100, 10)
+            .expect("detect should succeed");
 
         // Empty cascade should return no detections
         assert!(result.is_empty());
@@ -1679,7 +1685,8 @@ mod tests {
     #[test]
     fn test_extract_rgb_region() {
         let image = vec![0u8; 100 * 100 * 3];
-        let region = extract_rgb_region(&image, 100, 100, 10, 10, 20, 20).unwrap();
+        let region = extract_rgb_region(&image, 100, 100, 10, 10, 20, 20)
+            .expect("extract_rgb_region should succeed");
 
         assert_eq!(region.len(), 20 * 20 * 3);
     }
@@ -1688,7 +1695,8 @@ mod tests {
     fn test_extract_rgb_region_clipped() {
         let image = vec![0u8; 100 * 100 * 3];
         // Request region that extends beyond image bounds
-        let region = extract_rgb_region(&image, 100, 100, 90, 90, 20, 20).unwrap();
+        let region = extract_rgb_region(&image, 100, 100, 90, 90, 20, 20)
+            .expect("extract_rgb_region should succeed");
 
         // Should be clipped to 10x10
         assert_eq!(region.len(), 10 * 10 * 3);

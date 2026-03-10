@@ -101,9 +101,12 @@ impl Default for ValidatorConfig {
 /// use oximedia_timecode::{Timecode, FrameRate};
 /// use oximedia_timecode::tc_validator::{TimecodeValidator, ValidatorConfig};
 ///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let validator = TimecodeValidator::new(ValidatorConfig::default());
-/// let tc = Timecode::new(1, 0, 0, 0, FrameRate::Fps25).unwrap();
+/// let tc = Timecode::new(1, 0, 0, 0, FrameRate::Fps25)?;
 /// assert!(validator.validate(&tc).is_empty());
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone)]
 pub struct TimecodeValidator {
@@ -236,7 +239,7 @@ mod tests {
     use crate::FrameRate;
 
     fn valid_25fps() -> Timecode {
-        Timecode::new(1, 30, 0, 12, FrameRate::Fps25).unwrap()
+        Timecode::new(1, 30, 0, 12, FrameRate::Fps25).expect("valid timecode")
     }
 
     #[test]
@@ -311,7 +314,7 @@ mod tests {
 
     #[test]
     fn test_within_range_pass() {
-        let tc = Timecode::new(0, 0, 1, 0, FrameRate::Fps25).unwrap(); // 25 frames
+        let tc = Timecode::new(0, 0, 1, 0, FrameRate::Fps25).expect("valid timecode"); // 25 frames
         let cfg = ValidatorConfig {
             rules: vec![ValidationRule::WithinRange],
             allowed_range: Some((0, 100)),
@@ -322,7 +325,7 @@ mod tests {
 
     #[test]
     fn test_within_range_fail() {
-        let tc = Timecode::new(0, 0, 10, 0, FrameRate::Fps25).unwrap(); // 250 frames
+        let tc = Timecode::new(0, 0, 10, 0, FrameRate::Fps25).expect("valid timecode"); // 250 frames
         let cfg = ValidatorConfig {
             rules: vec![ValidationRule::WithinRange],
             allowed_range: Some((0, 100)),
@@ -341,7 +344,7 @@ mod tests {
     #[test]
     fn test_validate_range_all_valid() {
         let tcs: Vec<Timecode> = (0u8..5)
-            .map(|f| Timecode::new(0, 0, 0, f, FrameRate::Fps25).unwrap())
+            .map(|f| Timecode::new(0, 0, 0, f, FrameRate::Fps25).expect("valid timecode"))
             .collect();
         let v = TimecodeValidator::default_validator();
         assert!(v.validate_range(&tcs).is_empty());
@@ -349,7 +352,7 @@ mod tests {
 
     #[test]
     fn test_validate_range_with_violation() {
-        let good = Timecode::new(0, 0, 0, 0, FrameRate::Fps25).unwrap();
+        let good = Timecode::new(0, 0, 0, 0, FrameRate::Fps25).expect("valid timecode");
         let bad = raw_timecode(0, 0, 0, 25, 25, false); // frames == fps
         let v = TimecodeValidator::default_validator();
         let results = v.validate_range(&[good, bad]);

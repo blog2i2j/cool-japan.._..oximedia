@@ -63,10 +63,13 @@ impl TcResult {
 /// use oximedia_timecode::{Timecode, FrameRate};
 /// use oximedia_timecode::tc_calculator::{TcCalculator, TcOperation};
 ///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let calc = TcCalculator::new(FrameRate::Fps25);
-/// let tc = Timecode::new(0, 0, 0, 0, FrameRate::Fps25).unwrap();
-/// let result = calc.apply(&tc, TcOperation::AddFrames(50)).unwrap();
+/// let tc = Timecode::new(0, 0, 0, 0, FrameRate::Fps25)?;
+/// let result = calc.apply(&tc, TcOperation::AddFrames(50))?;
 /// assert_eq!(result.timecode.seconds, 2);
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone, Copy)]
 pub struct TcCalculator {
@@ -169,7 +172,7 @@ mod tests {
     use super::*;
 
     fn tc(h: u8, m: u8, s: u8, f: u8) -> Timecode {
-        Timecode::new(h, m, s, f, FrameRate::Fps25).unwrap()
+        Timecode::new(h, m, s, f, FrameRate::Fps25).expect("valid timecode")
     }
 
     fn calc() -> TcCalculator {
@@ -180,7 +183,7 @@ mod tests {
     fn test_add_frames_basic() {
         let result = calc()
             .apply(&tc(0, 0, 0, 0), TcOperation::AddFrames(25))
-            .unwrap();
+            .expect("should succeed");
         assert_eq!(result.timecode.seconds, 1);
         assert_eq!(result.timecode.frames, 0);
         assert!(!result.wrapped);
@@ -190,7 +193,7 @@ mod tests {
     fn test_add_frames_wraps_hour() {
         let result = calc()
             .apply(&tc(23, 59, 59, 24), TcOperation::AddFrames(1))
-            .unwrap();
+            .expect("should succeed");
         // Should wrap to midnight
         assert_eq!(result.timecode.hours, 0);
         assert!(result.wrapped);
@@ -201,7 +204,7 @@ mod tests {
     fn test_subtract_frames_basic() {
         let result = calc()
             .apply(&tc(0, 0, 2, 0), TcOperation::SubtractFrames(25))
-            .unwrap();
+            .expect("should succeed");
         assert_eq!(result.timecode.seconds, 1);
         assert!(!result.wrapped);
     }
@@ -210,7 +213,7 @@ mod tests {
     fn test_subtract_frames_wraps_backwards() {
         let result = calc()
             .apply(&tc(0, 0, 0, 0), TcOperation::SubtractFrames(25))
-            .unwrap();
+            .expect("should succeed");
         // Should wrap to 23:59:59:00
         assert_eq!(result.timecode.hours, 23);
         assert!(result.wrapped);
@@ -220,7 +223,7 @@ mod tests {
     fn test_add_seconds() {
         let result = calc()
             .apply(&tc(0, 0, 0, 0), TcOperation::AddSeconds(3))
-            .unwrap();
+            .expect("should succeed");
         assert_eq!(result.timecode.seconds, 3);
     }
 
@@ -228,7 +231,7 @@ mod tests {
     fn test_subtract_seconds() {
         let result = calc()
             .apply(&tc(0, 0, 5, 0), TcOperation::SubtractSeconds(3))
-            .unwrap();
+            .expect("should succeed");
         assert_eq!(result.timecode.seconds, 2);
     }
 
@@ -285,7 +288,7 @@ mod tests {
     fn test_tc_result_tc_accessor() {
         let result = calc()
             .apply(&tc(0, 0, 1, 0), TcOperation::AddFrames(0))
-            .unwrap();
+            .expect("should succeed");
         assert_eq!(result.tc().seconds, 1);
     }
 
@@ -298,7 +301,9 @@ mod tests {
     #[test]
     fn test_add_zero_frames() {
         let original = tc(1, 2, 3, 4);
-        let result = calc().apply(&original, TcOperation::AddFrames(0)).unwrap();
+        let result = calc()
+            .apply(&original, TcOperation::AddFrames(0))
+            .expect("operation should succeed");
         assert_eq!(result.timecode, original);
         assert!(!result.wrapped);
     }

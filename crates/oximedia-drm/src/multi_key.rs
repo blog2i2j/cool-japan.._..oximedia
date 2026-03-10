@@ -368,11 +368,15 @@ mod tests {
         p.assign_key(TrackKind::Audio, 1);
         s.add_period(p);
 
-        let (idx, slot) = s.resolve(TrackKind::Video, 5000).unwrap();
+        let (idx, slot) = s
+            .resolve(TrackKind::Video, 5000)
+            .expect("operation should succeed");
         assert_eq!(idx, 0);
         assert_eq!(slot.label, "video");
 
-        let (idx, slot) = s.resolve(TrackKind::Audio, 5000).unwrap();
+        let (idx, slot) = s
+            .resolve(TrackKind::Audio, 5000)
+            .expect("operation should succeed");
         assert_eq!(idx, 1);
         assert_eq!(slot.label, "audio");
     }
@@ -383,7 +387,9 @@ mod tests {
         s.add_slot(KeySlot::new(make_key(1), make_key(2), "default"));
         s.set_default_slot(0);
         // No periods, should fall back to default.
-        let (idx, _) = s.resolve(TrackKind::Subtitle, 0).unwrap();
+        let (idx, _) = s
+            .resolve(TrackKind::Subtitle, 0)
+            .expect("operation should succeed");
         assert_eq!(idx, 0);
     }
 

@@ -251,10 +251,22 @@ mod tests {
         source.insert("creator".to_string(), "AcmeCam".to_string());
         source.insert("date".to_string(), "2024-01-15".to_string());
         let result = cw.transform(&source, MetadataScheme::DublinCore, MetadataScheme::Premis);
-        assert_eq!(result.get("objectIdentifierValue").unwrap(), "Sunset Film");
-        assert_eq!(result.get("creatingApplicationName").unwrap(), "AcmeCam");
         assert_eq!(
-            result.get("dateCreatedByApplication").unwrap(),
+            result
+                .get("objectIdentifierValue")
+                .expect("operation should succeed"),
+            "Sunset Film"
+        );
+        assert_eq!(
+            result
+                .get("creatingApplicationName")
+                .expect("operation should succeed"),
+            "AcmeCam"
+        );
+        assert_eq!(
+            result
+                .get("dateCreatedByApplication")
+                .expect("operation should succeed"),
             "2024-01-15"
         );
     }
@@ -325,6 +337,9 @@ mod tests {
         source.insert("unknown_field".to_string(), "foo".to_string());
         let result = cw.transform(&source, MetadataScheme::DublinCore, MetadataScheme::Mets);
         assert_eq!(result.len(), 1);
-        assert_eq!(result.get("dmSubject").unwrap(), "documentary");
+        assert_eq!(
+            result.get("dmSubject").expect("operation should succeed"),
+            "documentary"
+        );
     }
 }

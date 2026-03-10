@@ -560,7 +560,7 @@ mod tests {
     fn test_combine_intersect() {
         let a = AlphaMask::opaque(4, 4);
         let b = AlphaMask::transparent(4, 4);
-        let c = a.combine(&b, MaskOp::Intersect).unwrap();
+        let c = a.combine(&b, MaskOp::Intersect).expect("c should be valid");
         assert!((c.get(0, 0)).abs() < f64::EPSILON);
     }
 
@@ -568,7 +568,7 @@ mod tests {
     fn test_combine_union() {
         let a = AlphaMask::opaque(4, 4);
         let b = AlphaMask::transparent(4, 4);
-        let c = a.combine(&b, MaskOp::Union).unwrap();
+        let c = a.combine(&b, MaskOp::Union).expect("c should be valid");
         assert!((c.get(0, 0) - 1.0).abs() < f64::EPSILON);
     }
 

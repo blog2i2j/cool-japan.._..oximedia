@@ -370,7 +370,7 @@ mod tests {
         let refresh = mgr.issue_refresh_token("grace");
         let new_access = mgr.refresh(&refresh, &["viewer"]);
         assert!(new_access.is_some());
-        let new_token = new_access.unwrap();
+        let new_token = new_access.expect("new_token should be valid");
         assert_eq!(new_token.claims.sub, "grace");
         assert!(mgr.validate(&new_token).is_valid());
     }

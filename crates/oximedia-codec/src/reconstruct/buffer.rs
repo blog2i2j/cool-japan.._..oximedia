@@ -774,7 +774,7 @@ mod tests {
         src.set(10, 20, 128);
 
         let mut dst = PlaneBuffer::new(64, 48, 8, PlaneType::Y);
-        dst.copy_from(&src).unwrap();
+        dst.copy_from(&src).expect("should succeed");
 
         assert_eq!(dst.get(10, 20), 128);
     }
@@ -818,7 +818,10 @@ mod tests {
         if let Some(u) = frame.u_plane_mut() {
             u.set(5, 5, 50);
         }
-        assert_eq!(frame.u_plane().unwrap().get(5, 5), 50);
+        assert_eq!(
+            frame.u_plane().expect("get should return value").get(5, 5),
+            50
+        );
     }
 
     #[test]
@@ -827,7 +830,7 @@ mod tests {
         src.y_plane_mut().set(10, 10, 100);
 
         let mut dst = FrameBuffer::new(64, 48, 8, ChromaSubsampling::Cs420);
-        dst.copy_from(&src).unwrap();
+        dst.copy_from(&src).expect("should succeed");
 
         assert_eq!(dst.y_plane().get(10, 10), 100);
     }
@@ -866,13 +869,13 @@ mod tests {
 
         assert!(pool.is_empty());
 
-        let buf1 = pool.acquire().unwrap();
+        let buf1 = pool.acquire().expect("should succeed");
         assert_eq!(buf1.width(), 64);
 
         pool.release(buf1);
         assert_eq!(pool.available_count(), 1);
 
-        let buf2 = pool.acquire().unwrap();
+        let buf2 = pool.acquire().expect("should succeed");
         assert!(pool.is_empty());
         assert_eq!(buf2.width(), 64);
     }
@@ -881,9 +884,9 @@ mod tests {
     fn test_buffer_pool_max_size() {
         let mut pool = BufferPool::new(64, 48, 8, ChromaSubsampling::Cs420, 2);
 
-        let buf1 = pool.acquire().unwrap();
-        let buf2 = pool.acquire().unwrap();
-        let buf3 = pool.acquire().unwrap();
+        let buf1 = pool.acquire().expect("should succeed");
+        let buf2 = pool.acquire().expect("should succeed");
+        let buf3 = pool.acquire().expect("should succeed");
 
         pool.release(buf1);
         pool.release(buf2);
@@ -896,13 +899,13 @@ mod tests {
     fn test_buffer_pool_reconfigure() {
         let mut pool = BufferPool::new(64, 48, 8, ChromaSubsampling::Cs420, 4);
 
-        let buf = pool.acquire().unwrap();
+        let buf = pool.acquire().expect("should succeed");
         pool.release(buf);
 
         pool.reconfigure(128, 96, 10, ChromaSubsampling::Cs422);
         assert!(pool.is_empty());
 
-        let new_buf = pool.acquire().unwrap();
+        let new_buf = pool.acquire().expect("should succeed");
         assert_eq!(new_buf.width(), 128);
         assert_eq!(new_buf.height(), 96);
         assert_eq!(new_buf.bit_depth(), 10);

@@ -214,7 +214,7 @@ mod tests {
     fn test_get_entries() {
         let mut store = HashStore::new();
         store.insert(make_entry("hash1", "/file1.mp4", 200));
-        let entries = store.get("hash1").unwrap();
+        let entries = store.get("hash1").expect("operation should succeed");
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].file_size, 200);
     }

@@ -227,7 +227,7 @@ LUT_3D_SIZE 2
 "#;
 
         let cursor = Cursor::new(cube_data);
-        let lut = parse_cube(cursor).unwrap();
+        let lut = parse_cube(cursor).expect("CUBE parsing should succeed");
         assert_eq!(lut.size, 2);
         assert_eq!(lut.data.len(), 2 * 2 * 2 * 3);
     }
@@ -235,14 +235,14 @@ LUT_3D_SIZE 2
     #[test]
     fn test_write_cube() {
         let lut = Lut3D::identity(2);
-        let cube = write_cube(&lut, "Test").unwrap();
+        let cube = write_cube(&lut, "Test").expect("CUBE writing should succeed");
         assert!(cube.contains("LUT_3D_SIZE 2"));
         assert!(cube.contains("TITLE \"Test\""));
     }
 
     #[test]
     fn test_generate_identity() {
-        let cube = generate_identity_cube(2).unwrap();
+        let cube = generate_identity_cube(2).expect("identity LUT generation should succeed");
         assert!(cube.contains("Identity LUT"));
         assert!(cube.contains("LUT_3D_SIZE 2"));
     }

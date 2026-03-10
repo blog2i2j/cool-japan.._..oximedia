@@ -300,7 +300,10 @@ mod tests {
             .with_context("file", "test.mp4")
             .with_context("stream", "0");
         assert_eq!(err.context.len(), 2);
-        assert_eq!(err.context.get("file").unwrap(), "test.mp4");
+        assert_eq!(
+            err.context.get("file").expect("get should succeed"),
+            "test.mp4"
+        );
     }
 
     #[test]
@@ -348,7 +351,7 @@ mod tests {
         let mut reg = ErrorRegistry::new();
         reg.register(42, ErrorCategory::Io, "test error");
         assert_eq!(reg.len(), 1);
-        let (cat, desc) = reg.lookup(42).unwrap();
+        let (cat, desc) = reg.lookup(42).expect("lookup should succeed");
         assert_eq!(*cat, ErrorCategory::Io);
         assert_eq!(desc, "test error");
     }

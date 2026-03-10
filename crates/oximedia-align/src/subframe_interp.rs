@@ -370,7 +370,7 @@ mod tests {
         };
         let result = find_subframe_peak(&correlation, &config);
         assert!(result.is_some());
-        let r = result.unwrap();
+        let r = result.expect("r should be valid");
         assert_eq!(r.frame_offset, 3);
         assert!(r.fractional.abs() < 0.5);
     }
@@ -384,7 +384,7 @@ mod tests {
         };
         let result = find_subframe_peak(&correlation, &config);
         assert!(result.is_some());
-        let r = result.unwrap();
+        let r = result.expect("r should be valid");
         assert_eq!(r.frame_offset, 2);
     }
 

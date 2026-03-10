@@ -327,12 +327,12 @@ mod tests {
     use super::*;
 
     fn make_tc() -> Timecode {
-        Timecode::new(1, 2, 3, 4, FrameRate::Fps25).unwrap()
+        Timecode::new(1, 2, 3, 4, FrameRate::Fps25).expect("valid timecode")
     }
 
     #[test]
     fn test_record_date_valid() {
-        let d = RecordDate::new(2026, 3, 2).unwrap();
+        let d = RecordDate::new(2026, 3, 2).expect("valid record date");
         assert_eq!(d.to_iso_string(), "2026-03-02");
     }
 
@@ -356,9 +356,9 @@ mod tests {
 
     #[test]
     fn test_user_bits_date_encode_decode() {
-        let date = RecordDate::new(2026, 3, 15).unwrap();
+        let date = RecordDate::new(2026, 3, 15).expect("valid record date");
         let ub = UserBitsPayload::encode_date(&date);
-        let decoded = ub.decode_date().unwrap();
+        let decoded = ub.decode_date().expect("decode should succeed");
         assert_eq!(decoded.year, 2026);
         assert_eq!(decoded.month, 3);
         assert_eq!(decoded.day, 15);
@@ -395,7 +395,7 @@ mod tests {
             .with_tag("camera", "A");
         assert_eq!(meta.scene.as_deref(), Some("42A"));
         assert_eq!(meta.take, Some(3));
-        assert_eq!(meta.tags.get("camera").unwrap(), "A");
+        assert_eq!(meta.tags.get("camera").expect("key should exist"), "A");
     }
 
     #[test]
@@ -429,7 +429,7 @@ mod tests {
         tl.insert(100, meta.clone());
         tl.insert(200, meta);
         assert_eq!(tl.len(), 2);
-        let found = tl.lookup(150).unwrap();
+        let found = tl.lookup(150).expect("lookup should succeed");
         assert_eq!(found.timecode.hours, 1);
     }
 

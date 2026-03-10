@@ -316,7 +316,13 @@ mod tests {
 
         assert!(manager.select_preview(0).is_ok());
         assert!(manager.selected_preview().is_some());
-        assert_eq!(manager.selected_preview().unwrap().angle, 0);
+        assert_eq!(
+            manager
+                .selected_preview()
+                .expect("multicam test operation should succeed")
+                .angle,
+            0
+        );
     }
 
     #[test]

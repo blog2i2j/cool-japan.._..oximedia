@@ -183,7 +183,7 @@ mod tests {
     #[test]
     fn test_matrix_invert() {
         let m = [[1.0, 0.0, 0.0], [0.0, 2.0, 0.0], [0.0, 0.0, 3.0]];
-        let inv = invert_matrix_3x3(&m).unwrap();
+        let inv = invert_matrix_3x3(&m).expect("matrix inversion should succeed");
         let expected = [[1.0, 0.0, 0.0], [0.0, 0.5, 0.0], [0.0, 0.0, 1.0 / 3.0]];
 
         for i in 0..3 {

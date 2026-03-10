@@ -237,44 +237,46 @@ mod tests {
 
     #[test]
     fn test_catalog_creation() {
-        let catalog = MediaCatalog::in_memory().unwrap();
-        assert_eq!(catalog.count().unwrap(), 0);
+        let catalog = MediaCatalog::in_memory().expect("catalog should be valid");
+        assert_eq!(catalog.count().expect("count should succeed"), 0);
     }
 
     #[test]
     fn test_add_media() {
-        let catalog = MediaCatalog::in_memory().unwrap();
+        let catalog = MediaCatalog::in_memory().expect("catalog should be valid");
         let media = MediaFile::new(PathBuf::from("/test/file.mov"));
-        catalog.add(media).unwrap();
-        assert_eq!(catalog.count().unwrap(), 1);
+        catalog.add(media).expect("add should succeed");
+        assert_eq!(catalog.count().expect("count should succeed"), 1);
     }
 
     #[test]
     fn test_find_by_filename() {
-        let catalog = MediaCatalog::in_memory().unwrap();
+        let catalog = MediaCatalog::in_memory().expect("catalog should be valid");
         let media = MediaFile::new(PathBuf::from("/test/file.mov"));
-        catalog.add(media).unwrap();
+        catalog.add(media).expect("add should succeed");
 
-        let found = catalog.find_by_filename("file.mov").unwrap();
+        let found = catalog
+            .find_by_filename("file.mov")
+            .expect("found should be valid");
         assert_eq!(found.len(), 1);
     }
 
     #[test]
     fn test_clear_catalog() {
-        let catalog = MediaCatalog::in_memory().unwrap();
+        let catalog = MediaCatalog::in_memory().expect("catalog should be valid");
         let media1 = MediaFile::new(PathBuf::from("/test/file1.mov"));
         let media2 = MediaFile::new(PathBuf::from("/test/file2.mov"));
-        catalog.add(media1).unwrap();
-        catalog.add(media2).unwrap();
-        assert_eq!(catalog.count().unwrap(), 2);
+        catalog.add(media1).expect("add should succeed");
+        catalog.add(media2).expect("add should succeed");
+        assert_eq!(catalog.count().expect("count should succeed"), 2);
 
-        catalog.clear().unwrap();
-        assert_eq!(catalog.count().unwrap(), 0);
+        catalog.clear().expect("clear should succeed");
+        assert_eq!(catalog.count().expect("count should succeed"), 0);
     }
 
     #[test]
     fn test_search_query() {
-        let catalog = MediaCatalog::in_memory().unwrap();
+        let catalog = MediaCatalog::in_memory().expect("catalog should be valid");
 
         let mut media1 = MediaFile::new(PathBuf::from("/test/video.mov"));
         media1.duration = Some(10.0);
@@ -284,11 +286,11 @@ mod tests {
         let mut media2 = MediaFile::new(PathBuf::from("/test/audio.wav"));
         media2.duration = Some(5.0);
 
-        catalog.add(media1).unwrap();
-        catalog.add(media2).unwrap();
+        catalog.add(media1).expect("add should succeed");
+        catalog.add(media2).expect("add should succeed");
 
         let query = SearchQuery::new().with_duration_range(8.0, 12.0);
-        let results = catalog.search(&query).unwrap();
+        let results = catalog.search(&query).expect("results should be valid");
         assert_eq!(results.len(), 1);
         assert!(results[0].filename.contains("video"));
     }

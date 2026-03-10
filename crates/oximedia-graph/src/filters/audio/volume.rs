@@ -718,13 +718,23 @@ mod tests {
         filter.start_fade_in(1000);
         assert!(filter.config().fade.is_some());
         assert_eq!(
-            filter.config().fade.as_ref().unwrap().direction,
+            filter
+                .config()
+                .fade
+                .as_ref()
+                .expect("as_ref should succeed")
+                .direction,
             FadeDirection::In
         );
 
         filter.start_fade_out(2000);
         assert_eq!(
-            filter.config().fade.as_ref().unwrap().direction,
+            filter
+                .config()
+                .fade
+                .as_ref()
+                .expect("as_ref should succeed")
+                .direction,
             FadeDirection::Out
         );
     }
@@ -734,7 +744,7 @@ mod tests {
         let config = VolumeConfig::default();
         let mut filter = VolumeFilter::new(NodeId(0), "test", config);
 
-        let result = filter.process(None).unwrap();
+        let result = filter.process(None).expect("process should succeed");
         assert!(result.is_none());
     }
 
@@ -748,7 +758,9 @@ mod tests {
         samples.extend_from_slice(&1.0f32.to_le_bytes());
         frame.samples = AudioBuffer::Interleaved(samples.freeze());
 
-        let result = filter.process(Some(FilterFrame::Audio(frame))).unwrap();
+        let result = filter
+            .process(Some(FilterFrame::Audio(frame)))
+            .expect("process should succeed");
         assert!(result.is_some());
 
         if let Some(FilterFrame::Audio(output)) = result {
@@ -794,7 +806,9 @@ mod tests {
         samples.extend_from_slice(&0.5f32.to_le_bytes());
         frame.samples = AudioBuffer::Interleaved(samples.freeze());
 
-        let result = filter.process(Some(FilterFrame::Audio(frame))).unwrap();
+        let result = filter
+            .process(Some(FilterFrame::Audio(frame)))
+            .expect("process should succeed");
         assert!(result.is_some());
 
         if let Some(FilterFrame::Audio(output)) = result {

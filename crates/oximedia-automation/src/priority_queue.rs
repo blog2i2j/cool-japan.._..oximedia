@@ -362,7 +362,7 @@ mod tests {
         let mut q = AutomationPriorityQueue::new();
         assert!(q.enqueue("e1", PriorityTier::Normal, 1000, "event 1"));
         assert_eq!(q.len(), 1);
-        let item = q.dequeue().unwrap();
+        let item = q.dequeue().expect("dequeue should succeed");
         assert_eq!(item.id.0, "e1");
         assert!(q.is_empty());
     }
@@ -374,11 +374,11 @@ mod tests {
         q.enqueue("crit", PriorityTier::Critical, 2000, "critical");
         q.enqueue("norm", PriorityTier::Normal, 500, "normal");
 
-        let first = q.dequeue().unwrap();
+        let first = q.dequeue().expect("dequeue should succeed");
         assert_eq!(first.id.0, "crit");
-        let second = q.dequeue().unwrap();
+        let second = q.dequeue().expect("dequeue should succeed");
         assert_eq!(second.id.0, "norm");
-        let third = q.dequeue().unwrap();
+        let third = q.dequeue().expect("dequeue should succeed");
         assert_eq!(third.id.0, "low");
     }
 
@@ -388,7 +388,7 @@ mod tests {
         q.enqueue("later", PriorityTier::Normal, 2000, "later");
         q.enqueue("earlier", PriorityTier::Normal, 1000, "earlier");
 
-        let first = q.dequeue().unwrap();
+        let first = q.dequeue().expect("dequeue should succeed");
         assert_eq!(first.id.0, "earlier");
     }
 

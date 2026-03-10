@@ -72,9 +72,11 @@ impl ColorDiffReport {
 
     /// Return the pair with the highest ΔE 2000, or `None` if empty.
     pub fn worst_pair(&self) -> Option<&ColorDifference> {
-        self.differences
-            .iter()
-            .max_by(|a, b| a.delta_e_2000().partial_cmp(&b.delta_e_2000()).unwrap())
+        self.differences.iter().max_by(|a, b| {
+            a.delta_e_2000()
+                .partial_cmp(&b.delta_e_2000())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
     }
 
     /// Compute the average ΔE 2000 across all pairs.
@@ -257,7 +259,7 @@ mod tests {
         let small = ColorDifference::new(50.0, 0.0, 0.0, 50.5, 0.0, 0.0);
         let big = ColorDifference::new(0.0, 0.0, 0.0, 80.0, 50.0, -50.0);
         let report = ColorDiffReport::new(vec![small, big], 2.3);
-        let worst = report.worst_pair().unwrap();
+        let worst = report.worst_pair().expect("worst pair should be found");
         assert!(worst.delta_e_2000() > 10.0);
     }
 

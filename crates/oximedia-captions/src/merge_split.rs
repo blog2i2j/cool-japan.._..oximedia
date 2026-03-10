@@ -125,7 +125,10 @@ impl CaptionMerger {
         }
 
         let start = captions[0].start;
-        let end = captions.last().unwrap().end;
+        let end = captions
+            .last()
+            .expect("captions is non-empty: length was checked above")
+            .end;
 
         let texts: Vec<&str> = captions.iter().map(|c| c.text.as_str()).collect();
         let merged_text = texts.join(" ");
@@ -460,16 +463,18 @@ mod tests {
                 Timestamp::from_secs(2),
                 "First caption".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
         track
             .add_caption(Caption::new(
                 Timestamp::from_secs(2),
                 Timestamp::from_secs(4),
                 "Second caption".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
-        let count = merger.merge_track(&mut track).unwrap();
+        let count = merger
+            .merge_track(&mut track)
+            .expect("merge track should succeed");
         assert_eq!(count, 1);
         assert_eq!(track.captions.len(), 1);
         assert!(track.captions[0].text.contains("First"));
@@ -488,7 +493,9 @@ mod tests {
             "This is a very long caption that should be split into multiple parts".to_string(),
         );
 
-        let splits = splitter.split_caption(&caption).unwrap();
+        let splits = splitter
+            .split_caption(&caption)
+            .expect("split caption should succeed");
         assert!(splits.len() > 1);
 
         for split in &splits {
@@ -508,7 +515,7 @@ mod tests {
 
         let (first, second) = splitter
             .split_at_time(&caption, Timestamp::from_secs(5))
-            .unwrap();
+            .expect("operation should succeed in test");
 
         assert_eq!(first.start, Timestamp::from_secs(0));
         assert_eq!(first.end, Timestamp::from_secs(5));
@@ -527,9 +534,11 @@ mod tests {
                 Timestamp::from_secs(1),
                 "This is way too fast for comfortable reading speed".to_string(),
             ))
-            .unwrap();
+            .expect("operation should succeed in test");
 
-        let (merges, splits) = optimizer.optimize_track(&mut track).unwrap();
+        let (merges, splits) = optimizer
+            .optimize_track(&mut track)
+            .expect("optimize track should succeed");
         assert!(merges > 0 || splits > 0);
     }
 

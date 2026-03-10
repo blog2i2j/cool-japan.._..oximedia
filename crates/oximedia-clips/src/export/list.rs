@@ -89,7 +89,7 @@ mod tests {
 
         let clips = vec![clip];
         let exporter = ClipListExporter::new();
-        let csv = exporter.to_csv(&clips).unwrap();
+        let csv = exporter.to_csv(&clips).expect("to_csv should succeed");
 
         assert!(csv.contains("ID,Name,File Path"));
         assert!(csv.contains("Test Clip"));
@@ -101,7 +101,7 @@ mod tests {
         let clips = vec![clip];
 
         let exporter = ClipListExporter::new();
-        let json = exporter.to_json(&clips).unwrap();
+        let json = exporter.to_json(&clips).expect("to_json should succeed");
 
         assert!(json.contains("file_path"));
     }

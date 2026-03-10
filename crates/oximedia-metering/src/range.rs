@@ -101,7 +101,8 @@ impl LraCalculator {
         }
 
         // Sort histogram
-        self.histogram.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        self.histogram
+            .sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         // Calculate percentiles
         let percentiles = self.calculate_percentiles();
@@ -135,7 +136,8 @@ impl LraCalculator {
         }
 
         // Sort histogram
-        self.histogram.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        self.histogram
+            .sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         self.calculate_percentiles()
     }
@@ -234,7 +236,8 @@ impl LraCalculator {
             return vec![f64::NEG_INFINITY; percentiles.len()];
         }
 
-        self.histogram.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        self.histogram
+            .sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         let count = self.histogram.len();
 

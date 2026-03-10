@@ -174,7 +174,10 @@ impl WatermarkDetector {
             frame_index,
             signals,
         });
-        self.scan_results.last().unwrap()
+        // Safety: we just pushed an element, so last() is always Some.
+        self.scan_results
+            .last()
+            .expect("scan_results is non-empty after push")
     }
 
     /// Total number of detected signals across all scanned frames.

@@ -460,7 +460,7 @@ impl PqStatistics {
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         let min = sorted[0];
-        let max = *sorted.last().unwrap();
+        let max = *sorted.last().unwrap_or(&sorted[0]);
         let mean = sorted.iter().sum::<f32>() / sorted.len() as f32;
 
         let idx_95 = ((sorted.len() - 1) as f32 * 0.95).round() as usize;

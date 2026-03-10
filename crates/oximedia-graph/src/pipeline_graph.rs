@@ -194,7 +194,7 @@ mod tests {
         let mut g = PipelineGraph::new();
         let src = g.add_node(PipelineNodeType::Source, "src");
         let sink = g.add_node(PipelineNodeType::Sink, "sink");
-        g.connect(src, sink).unwrap();
+        g.connect(src, sink).expect("connect should succeed");
         (g, src, sink)
     }
 
@@ -255,8 +255,8 @@ mod tests {
         let mut g = PipelineGraph::new();
         let a = g.add_node(PipelineNodeType::Source, "a");
         let b = g.add_node(PipelineNodeType::Transform, "b");
-        g.connect(a, b).unwrap();
-        g.connect(b, a).unwrap(); // create cycle
+        g.connect(a, b).expect("connect should succeed");
+        g.connect(b, a).expect("connect should succeed"); // create cycle
         assert!(!g.is_valid_dag());
     }
 
@@ -295,10 +295,10 @@ mod tests {
         let b = g.add_node(PipelineNodeType::Transform, "b");
         let c = g.add_node(PipelineNodeType::Transform, "c");
         let d = g.add_node(PipelineNodeType::Sink, "d");
-        g.connect(a, b).unwrap();
-        g.connect(a, c).unwrap();
-        g.connect(b, d).unwrap();
-        g.connect(c, d).unwrap();
+        g.connect(a, b).expect("connect should succeed");
+        g.connect(a, c).expect("connect should succeed");
+        g.connect(b, d).expect("connect should succeed");
+        g.connect(c, d).expect("connect should succeed");
         assert!(g.is_valid_dag());
     }
 
@@ -310,10 +310,10 @@ mod tests {
         let m = g.add_node(PipelineNodeType::Merge, "m");
         let k1 = g.add_node(PipelineNodeType::Sink, "k1");
         let k2 = g.add_node(PipelineNodeType::Sink, "k2");
-        g.connect(s1, m).unwrap();
-        g.connect(s2, m).unwrap();
-        g.connect(m, k1).unwrap();
-        g.connect(m, k2).unwrap();
+        g.connect(s1, m).expect("connect should succeed");
+        g.connect(s2, m).expect("connect should succeed");
+        g.connect(m, k1).expect("connect should succeed");
+        g.connect(m, k2).expect("connect should succeed");
         assert_eq!(g.sources().len(), 2);
         assert_eq!(g.sinks().len(), 2);
     }

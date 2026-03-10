@@ -273,7 +273,7 @@ mod tests {
 
     #[test]
     fn test_timecode_creation() {
-        let tc = EdlTimecode::new(1, 2, 3, 4, EdlFrameRate::Fps25).unwrap();
+        let tc = EdlTimecode::new(1, 2, 3, 4, EdlFrameRate::Fps25).expect("failed to create");
         assert_eq!(tc.hours(), 1);
         assert_eq!(tc.minutes(), 2);
         assert_eq!(tc.seconds(), 3);
@@ -282,7 +282,7 @@ mod tests {
 
     #[test]
     fn test_timecode_parsing() {
-        let tc = EdlTimecode::parse("01:02:03:04", EdlFrameRate::Fps25).unwrap();
+        let tc = EdlTimecode::parse("01:02:03:04", EdlFrameRate::Fps25).expect("failed to parse");
         assert_eq!(tc.hours(), 1);
         assert_eq!(tc.minutes(), 2);
         assert_eq!(tc.seconds(), 3);
@@ -291,46 +291,54 @@ mod tests {
 
     #[test]
     fn test_drop_frame_parsing() {
-        let tc = EdlTimecode::parse("01:02:03;04", EdlFrameRate::Fps2997DF).unwrap();
+        let tc =
+            EdlTimecode::parse("01:02:03;04", EdlFrameRate::Fps2997DF).expect("failed to parse");
         assert_eq!(tc.hours(), 1);
         assert!(tc.is_drop_frame());
     }
 
     #[test]
     fn test_timecode_display() {
-        let tc = EdlTimecode::new(1, 2, 3, 4, EdlFrameRate::Fps25).unwrap();
+        let tc = EdlTimecode::new(1, 2, 3, 4, EdlFrameRate::Fps25).expect("failed to create");
         assert_eq!(tc.to_string(), "01:02:03:04");
     }
 
     #[test]
     fn test_drop_frame_display() {
-        let tc = EdlTimecode::new(1, 2, 3, 4, EdlFrameRate::Fps2997DF).unwrap();
+        let tc = EdlTimecode::new(1, 2, 3, 4, EdlFrameRate::Fps2997DF).expect("failed to create");
         assert_eq!(tc.to_string(), "01:02:03;04");
     }
 
     #[test]
     fn test_frame_rate_parsing() {
-        assert_eq!("25".parse::<EdlFrameRate>().unwrap(), EdlFrameRate::Fps25);
         assert_eq!(
-            "DROP FRAME".parse::<EdlFrameRate>().unwrap(),
+            "25".parse::<EdlFrameRate>()
+                .expect("operation should succeed"),
+            EdlFrameRate::Fps25
+        );
+        assert_eq!(
+            "DROP FRAME"
+                .parse::<EdlFrameRate>()
+                .expect("operation should succeed"),
             EdlFrameRate::Fps2997DF
         );
     }
 
     #[test]
     fn test_timecode_comparison() {
-        let tc1 = EdlTimecode::new(0, 0, 0, 10, EdlFrameRate::Fps25).unwrap();
-        let tc2 = EdlTimecode::new(0, 0, 0, 20, EdlFrameRate::Fps25).unwrap();
+        let tc1 = EdlTimecode::new(0, 0, 0, 10, EdlFrameRate::Fps25).expect("failed to create");
+        let tc2 = EdlTimecode::new(0, 0, 0, 20, EdlFrameRate::Fps25).expect("failed to create");
         assert!(tc1 < tc2);
     }
 
     #[test]
     fn test_frame_conversion() {
-        let tc = EdlTimecode::new(0, 0, 1, 0, EdlFrameRate::Fps25).unwrap();
+        let tc = EdlTimecode::new(0, 0, 1, 0, EdlFrameRate::Fps25).expect("failed to create");
         let frames = tc.to_frames();
         assert_eq!(frames, 25);
 
-        let tc2 = EdlTimecode::from_frames(frames, EdlFrameRate::Fps25).unwrap();
+        let tc2 = EdlTimecode::from_frames(frames, EdlFrameRate::Fps25)
+            .expect("operation should succeed");
         assert_eq!(tc, tc2);
     }
 }

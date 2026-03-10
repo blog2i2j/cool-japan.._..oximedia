@@ -438,7 +438,7 @@ mod tests {
         let cfg2 = NdiSenderConfig::new("Cam1", SenderType::VideoAudio).with_resolution(1280, 720);
         assert!(reg.update(cfg2));
         assert_eq!(reg.version("Cam1"), Some(1));
-        assert_eq!(reg.get("Cam1").unwrap().width, 1280);
+        assert_eq!(reg.get("Cam1").expect("expected key to exist").width, 1280);
     }
 
     #[test]

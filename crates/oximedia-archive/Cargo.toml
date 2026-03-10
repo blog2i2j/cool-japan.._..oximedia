@@ -24,6 +24,8 @@ anyhow = "1.0"
 tracing = { workspace = true }
 hex = "0.4"
 sha2 = { workspace = true }
+sha1 = { workspace = true }
+xxhash-rust = { workspace = true }
 md-5 = "0.10"
 crc32fast = "1.5"
 rayon = { workspace = true }

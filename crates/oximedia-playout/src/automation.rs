@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{debug, info};
 use uuid::Uuid;
 
 /// Automation rule configuration
@@ -252,11 +252,7 @@ impl SmartScheduler {
                 context.remaining_time_ms >= *min_ms && context.remaining_time_ms <= *max_ms
             }
             Condition::MetadataMatch { key, value } => context.metadata.get(key) == Some(value),
-            Condition::Script { script: _ } => {
-                // In real implementation, this would execute Lua script
-                warn!("Script conditions not yet implemented");
-                false
-            }
+            Condition::Script { script } => evaluate_script_condition(script, context),
         }
     }
 
@@ -341,6 +337,361 @@ pub enum FillStrategy {
     RemoveContent { duration_ms: u64 },
 }
 
+// ---------------------------------------------------------------------------
+// Script condition evaluator
+// ---------------------------------------------------------------------------
+
+/// Token produced by the script condition lexer.
+#[derive(Debug, Clone, PartialEq)]
+enum Token {
+    Ident(String),
+    StringLit(String),
+    NumberLit(f64),
+    TimeLit(String), // "HH:MM" or "HH:MM:SS"
+    Eq,              // ==
+    Ne,              // !=
+    Lt,              // <
+    Le,              // <=
+    Gt,              // >
+    Ge,              // >=
+    And,             // &&  or  and
+    Or,              // ||  or  or
+    Not,             // !   or  not
+    LParen,
+    RParen,
+}
+
+/// Lex a script condition string into tokens.
+fn lex_condition(input: &str) -> Vec<Token> {
+    let mut tokens = Vec::new();
+    let chars: Vec<char> = input.chars().collect();
+    let mut i = 0;
+
+    while i < chars.len() {
+        match chars[i] {
+            c if c.is_whitespace() => i += 1,
+            '(' => {
+                tokens.push(Token::LParen);
+                i += 1;
+            }
+            ')' => {
+                tokens.push(Token::RParen);
+                i += 1;
+            }
+            '!' => {
+                if i + 1 < chars.len() && chars[i + 1] == '=' {
+                    tokens.push(Token::Ne);
+                    i += 2;
+                } else {
+                    tokens.push(Token::Not);
+                    i += 1;
+                }
+            }
+            '=' => {
+                if i + 1 < chars.len() && chars[i + 1] == '=' {
+                    tokens.push(Token::Eq);
+                    i += 2;
+                } else {
+                    // bare '=' treated as ==
+                    tokens.push(Token::Eq);
+                    i += 1;
+                }
+            }
+            '<' => {
+                if i + 1 < chars.len() && chars[i + 1] == '=' {
+                    tokens.push(Token::Le);
+                    i += 2;
+                } else {
+                    tokens.push(Token::Lt);
+                    i += 1;
+                }
+            }
+            '>' => {
+                if i + 1 < chars.len() && chars[i + 1] == '=' {
+                    tokens.push(Token::Ge);
+                    i += 2;
+                } else {
+                    tokens.push(Token::Gt);
+                    i += 1;
+                }
+            }
+            '&' => {
+                if i + 1 < chars.len() && chars[i + 1] == '&' {
+                    tokens.push(Token::And);
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+            '|' => {
+                if i + 1 < chars.len() && chars[i + 1] == '|' {
+                    tokens.push(Token::Or);
+                    i += 2;
+                } else {
+                    i += 1;
+                }
+            }
+            '\'' | '"' => {
+                let quote = chars[i];
+                i += 1;
+                let mut s = String::new();
+                while i < chars.len() && chars[i] != quote {
+                    s.push(chars[i]);
+                    i += 1;
+                }
+                if i < chars.len() {
+                    i += 1; // consume closing quote
+                }
+                tokens.push(Token::StringLit(s));
+            }
+            c if c.is_ascii_digit() => {
+                let start = i;
+                while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == '.') {
+                    i += 1;
+                }
+                // Detect HH:MM or HH:MM:SS time literal after digits
+                if i < chars.len() && chars[i] == ':' {
+                    // Collect as time literal
+                    while i < chars.len() && (chars[i].is_ascii_digit() || chars[i] == ':') {
+                        i += 1;
+                    }
+                    let s: String = chars[start..i].iter().collect();
+                    tokens.push(Token::TimeLit(s));
+                } else {
+                    let s: String = chars[start..i].iter().collect();
+                    if let Ok(v) = s.parse::<f64>() {
+                        tokens.push(Token::NumberLit(v));
+                    }
+                }
+            }
+            c if c.is_alphabetic() || c == '_' => {
+                let start = i;
+                while i < chars.len() && (chars[i].is_alphanumeric() || chars[i] == '_') {
+                    i += 1;
+                }
+                let word: String = chars[start..i].iter().collect();
+                match word.to_lowercase().as_str() {
+                    "and" => tokens.push(Token::And),
+                    "or" => tokens.push(Token::Or),
+                    "not" => tokens.push(Token::Not),
+                    "true" => tokens.push(Token::NumberLit(1.0)),
+                    "false" => tokens.push(Token::NumberLit(0.0)),
+                    _ => tokens.push(Token::Ident(word)),
+                }
+            }
+            _ => i += 1,
+        }
+    }
+    tokens
+}
+
+/// Resolve a named field from the evaluation context to a comparable string.
+fn resolve_field(name: &str, context: &EvaluationContext) -> Option<String> {
+    match name {
+        "time" => Some(context.current_time.format("%H:%M:%S").to_string()),
+        "date" => Some(context.current_time.format("%Y-%m-%d").to_string()),
+        "day" => Some(format!("{}", context.current_time.weekday())),
+        "duration" => context.content_duration_ms.map(|d| (d / 1000).to_string()),
+        "duration_ms" => context.content_duration_ms.map(|d| d.to_string()),
+        "gap" => context.gap_duration_ms.map(|g| (g / 1000).to_string()),
+        "gap_ms" => context.gap_duration_ms.map(|g| g.to_string()),
+        "remaining" => Some((context.remaining_time_ms / 1000).to_string()),
+        "remaining_ms" => Some(context.remaining_time_ms.to_string()),
+        other => context.metadata.get(other).cloned(),
+    }
+}
+
+/// Compare two string values lexicographically (with numeric fallback).
+fn compare_values(left: &str, op: &Token, right: &str) -> bool {
+    // Try numeric comparison first
+    if let (Ok(l), Ok(r)) = (left.parse::<f64>(), right.parse::<f64>()) {
+        return match op {
+            Token::Eq => (l - r).abs() < f64::EPSILON,
+            Token::Ne => (l - r).abs() >= f64::EPSILON,
+            Token::Lt => l < r,
+            Token::Le => l <= r,
+            Token::Gt => l > r,
+            Token::Ge => l >= r,
+            _ => false,
+        };
+    }
+    // String comparison (supports "HH:MM:SS" time strings lexicographically)
+    match op {
+        Token::Eq => left == right,
+        Token::Ne => left != right,
+        Token::Lt => left < right,
+        Token::Le => left <= right,
+        Token::Gt => left > right,
+        Token::Ge => left >= right,
+        _ => false,
+    }
+}
+
+/// Recursive-descent parser / evaluator for boolean script condition expressions.
+///
+/// Grammar (simplified):
+///   expr      ::= or_expr
+///   or_expr   ::= and_expr ( ('||'|'or') and_expr )*
+///   and_expr  ::= not_expr ( ('&&'|'and') not_expr )*
+///   not_expr  ::= ('!'|'not') not_expr | atom
+///   atom      ::= '(' expr ')' | comparison
+///   comparison::= value ( op value )?
+///   value     ::= Ident | StringLit | NumberLit | TimeLit
+struct ConditionParser<'a> {
+    tokens: &'a [Token],
+    pos: usize,
+    context: &'a EvaluationContext,
+}
+
+impl<'a> ConditionParser<'a> {
+    fn new(tokens: &'a [Token], context: &'a EvaluationContext) -> Self {
+        Self {
+            tokens,
+            pos: 0,
+            context,
+        }
+    }
+
+    fn peek(&self) -> Option<&Token> {
+        self.tokens.get(self.pos)
+    }
+
+    fn consume(&mut self) -> Option<&Token> {
+        let t = self.tokens.get(self.pos);
+        self.pos += 1;
+        t
+    }
+
+    fn parse_expr(&mut self) -> bool {
+        self.parse_or()
+    }
+
+    fn parse_or(&mut self) -> bool {
+        let mut val = self.parse_and();
+        while matches!(self.peek(), Some(Token::Or)) {
+            self.consume();
+            let right = self.parse_and();
+            val = val || right;
+        }
+        val
+    }
+
+    fn parse_and(&mut self) -> bool {
+        let mut val = self.parse_not();
+        while matches!(self.peek(), Some(Token::And)) {
+            self.consume();
+            let right = self.parse_not();
+            val = val && right;
+        }
+        val
+    }
+
+    fn parse_not(&mut self) -> bool {
+        if matches!(self.peek(), Some(Token::Not)) {
+            self.consume();
+            return !self.parse_not();
+        }
+        self.parse_atom()
+    }
+
+    fn parse_atom(&mut self) -> bool {
+        if matches!(self.peek(), Some(Token::LParen)) {
+            self.consume();
+            let val = self.parse_expr();
+            if matches!(self.peek(), Some(Token::RParen)) {
+                self.consume();
+            }
+            return val;
+        }
+        self.parse_comparison()
+    }
+
+    fn parse_comparison(&mut self) -> bool {
+        let left = match self.parse_value() {
+            Some(v) => v,
+            None => return false,
+        };
+
+        let op = match self.peek() {
+            Some(Token::Eq) | Some(Token::Ne) | Some(Token::Lt) | Some(Token::Le)
+            | Some(Token::Gt) | Some(Token::Ge) => {
+                let t = self.tokens[self.pos].clone();
+                self.consume();
+                t
+            }
+            _ => {
+                // Boolean coercion: non-empty, non-zero string → true
+                if left.is_empty() || left == "0" || left.eq_ignore_ascii_case("false") {
+                    return false;
+                }
+                return true;
+            }
+        };
+
+        let right = match self.parse_value() {
+            Some(v) => v,
+            None => return false,
+        };
+
+        compare_values(&left, &op, &right)
+    }
+
+    fn parse_value(&mut self) -> Option<String> {
+        match self.peek()?.clone() {
+            Token::Ident(name) => {
+                self.consume();
+                Some(resolve_field(&name, self.context).unwrap_or_default())
+            }
+            Token::StringLit(s) => {
+                self.consume();
+                Some(s)
+            }
+            Token::NumberLit(n) => {
+                self.consume();
+                Some(n.to_string())
+            }
+            Token::TimeLit(t) => {
+                self.consume();
+                // Normalise to HH:MM:SS
+                let parts: Vec<&str> = t.split(':').collect();
+                if parts.len() == 2 {
+                    Some(format!("{}:{}:00", parts[0], parts[1]))
+                } else {
+                    Some(t)
+                }
+            }
+            _ => None,
+        }
+    }
+}
+
+/// Evaluate a simple boolean condition expression against the evaluation context.
+///
+/// Supported syntax examples:
+/// - `"time > 18:00"`
+/// - `"duration < 30"`
+/// - `"title == 'News'"`
+/// - `"time >= 06:00 && time < 18:00"`
+/// - `"remaining_ms > 5000 || gap > 0"`
+fn evaluate_script_condition(script: &str, context: &EvaluationContext) -> bool {
+    let tokens = lex_condition(script.trim());
+    if tokens.is_empty() {
+        debug!(
+            "Script condition '{}' produced no tokens, defaulting to false",
+            script
+        );
+        return false;
+    }
+    let mut parser = ConditionParser::new(&tokens, context);
+    let result = parser.parse_expr();
+    debug!("Script condition '{}' evaluated to {}", script, result);
+    result
+}
+
+// ---------------------------------------------------------------------------
+// Script executor
+// ---------------------------------------------------------------------------
+
 /// Script executor for Lua scripts
 pub struct ScriptExecutor {
     #[allow(dead_code)]
@@ -353,16 +704,29 @@ impl ScriptExecutor {
         Self { timeout_sec }
     }
 
-    /// Execute Lua script
+    /// Execute a script expression against the evaluation context.
+    ///
+    /// The script is evaluated as a boolean expression using the same
+    /// recursive-descent parser as the condition evaluator (see
+    /// [`evaluate_script_condition`]).  A `true` result is represented as
+    /// `{"result": true, "value": 1}` and `false` as `{"result": false,
+    /// "value": 0}`.  Complex Lua-style assignments or multi-statement scripts
+    /// are not supported; they are treated as a single boolean predicate.
     pub async fn execute(
         &self,
-        _script: &str,
-        _context: &EvaluationContext,
+        script: &str,
+        context: &EvaluationContext,
     ) -> Result<serde_json::Value> {
-        // In real implementation, this would use a Lua interpreter
-        // For now, return a placeholder
-        warn!("Script execution not yet implemented");
-        Ok(serde_json::json!({"result": "not_implemented"}))
+        let result = evaluate_script_condition(script, context);
+        info!(
+            "Script executed in {} s timeout budget: '{}' → {}",
+            self.timeout_sec, script, result
+        );
+        Ok(serde_json::json!({
+            "result": result,
+            "value": if result { 1 } else { 0 },
+            "script": script,
+        }))
     }
 }
 

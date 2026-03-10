@@ -619,7 +619,7 @@ impl AutoDiscovery {
 
 impl Default for AutoDiscovery {
     fn default() -> Self {
-        Self::new().expect("Failed to create auto-discovery")
+        Self::new().expect("invariant: mDNS daemon must be available for auto-discovery")
     }
 }
 
@@ -663,7 +663,7 @@ mod tests {
 
     #[test]
     fn test_source_info_creation() {
-        let addr = "127.0.0.1:5960".parse().unwrap();
+        let addr = "127.0.0.1:5960".parse().expect("expected valid parse");
         let info = NdiSourceInfo::new("Test Source".to_string(), addr);
 
         assert_eq!(info.name, "Test Source");
@@ -675,7 +675,7 @@ mod tests {
 
     #[test]
     fn test_source_filter() {
-        let addr = "127.0.0.1:5960".parse().unwrap();
+        let addr = "127.0.0.1:5960".parse().expect("expected valid parse");
         let info = NdiSourceInfo::new("Test Source".to_string(), addr)
             .with_groups(vec!["test".to_string()])
             .with_audio(true)
@@ -693,7 +693,7 @@ mod tests {
 
     #[test]
     fn test_source_filter_name_pattern() {
-        let addr = "127.0.0.1:5960".parse().unwrap();
+        let addr = "127.0.0.1:5960".parse().expect("expected valid parse");
         let info = NdiSourceInfo::new("Test Source".to_string(), addr);
 
         let filter = SourceFilter::new().with_name_pattern("Test".to_string());
@@ -705,7 +705,7 @@ mod tests {
 
     #[test]
     fn test_find_available_port() {
-        let port = find_available_port().unwrap();
+        let port = find_available_port().expect("expected available port");
         assert!(port > 0);
     }
 }

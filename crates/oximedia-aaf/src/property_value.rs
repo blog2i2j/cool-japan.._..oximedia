@@ -213,13 +213,13 @@ mod tests {
     #[test]
     fn test_value_as_f64_float() {
         let v = PropertyValue::Float64(3.14);
-        assert!((v.as_f64().unwrap() - 3.14).abs() < 1e-9);
+        assert!((v.as_f64().expect("as_f64 should succeed") - 3.14).abs() < 1e-9);
     }
 
     #[test]
     fn test_value_as_f64_from_int32() {
         let v = PropertyValue::Int32(7);
-        assert!((v.as_f64().unwrap() - 7.0).abs() < 1e-9);
+        assert!((v.as_f64().expect("as_f64 should succeed") - 7.0).abs() < 1e-9);
     }
 
     #[test]

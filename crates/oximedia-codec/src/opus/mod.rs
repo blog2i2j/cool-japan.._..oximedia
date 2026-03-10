@@ -383,7 +383,7 @@ mod tests {
 
     #[test]
     fn test_opus_decoder_reset() {
-        let mut decoder = OpusDecoder::new(48000, 2).unwrap();
+        let mut decoder = OpusDecoder::new(48000, 2).expect("should succeed");
         decoder.reset();
         assert_eq!(decoder.frame_count(), 0);
     }

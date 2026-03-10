@@ -622,8 +622,8 @@ mod tests {
         let input = create_test_frame(640, 480);
         let result = filter
             .process(Some(FilterFrame::Video(input)))
-            .unwrap()
-            .unwrap();
+            .expect("operation should succeed")
+            .expect("operation should succeed");
 
         if let FilterFrame::Video(frame) = result {
             assert_eq!(frame.width, 320);
@@ -682,7 +682,9 @@ mod tests {
         let mut filter = CropFilter::new(NodeId(0), "crop", config);
 
         assert_eq!(filter.state(), NodeState::Idle);
-        filter.set_state(NodeState::Processing).unwrap();
+        filter
+            .set_state(NodeState::Processing)
+            .expect("set_state should succeed");
         assert_eq!(filter.state(), NodeState::Processing);
     }
 
@@ -691,7 +693,7 @@ mod tests {
         let config = CropConfig::centered(320, 240);
         let mut filter = CropFilter::new(NodeId(0), "crop", config);
 
-        let result = filter.process(None).unwrap();
+        let result = filter.process(None).expect("process should succeed");
         assert!(result.is_none());
     }
 }

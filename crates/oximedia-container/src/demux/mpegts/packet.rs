@@ -418,7 +418,7 @@ mod tests {
         data[2] = 0x00; // PID=0x0000 (PAT)
         data[3] = 0x10; // AFC=01 (payload only), CC=0
 
-        let packet = TsPacket::parse(&data).unwrap();
+        let packet = TsPacket::parse(&data).expect("operation should succeed");
         assert_eq!(packet.pid, PAT_PID);
         assert!(packet.payload_unit_start);
         assert!(!packet.transport_error);
@@ -442,11 +442,11 @@ mod tests {
         // PCR (6 bytes) - simplified example
         data[6..12].copy_from_slice(&[0x12, 0x34, 0x56, 0x78, 0x9A, 0xBC]);
 
-        let packet = TsPacket::parse(&data).unwrap();
+        let packet = TsPacket::parse(&data).expect("operation should succeed");
         assert_eq!(packet.pid, 0x0100);
         assert!(packet.adaptation_field.is_some());
 
-        let af = packet.adaptation_field.unwrap();
+        let af = packet.adaptation_field.expect("operation should succeed");
         assert!(af.random_access);
         assert!(af.pcr.is_some());
     }
@@ -482,7 +482,7 @@ mod tests {
         data[2] = 0xFF; // PID=0x1FFF (null)
         data[3] = 0x10;
 
-        let packet = TsPacket::parse(&data).unwrap();
+        let packet = TsPacket::parse(&data).expect("operation should succeed");
         assert!(packet.is_null());
         assert_eq!(packet.pid, NULL_PID);
     }

@@ -446,13 +446,13 @@ mod tests {
         let reg = FormatRegistry::default_registry();
         assert!(reg.container_count() >= 3);
         assert!(reg.codec_count() >= 3);
-        assert!(reg.codec("av1").unwrap().can_decode());
+        assert!(reg.codec("av1").expect("codec should succeed").can_decode());
     }
 
     #[test]
     fn test_find_by_extension() {
         let reg = FormatRegistry::default_registry();
-        let c = reg.find_by_extension("mkv").unwrap();
+        let c = reg.find_by_extension("mkv").expect("c should be valid");
         assert_eq!(c.kind, ContainerKind::Matroska);
     }
 

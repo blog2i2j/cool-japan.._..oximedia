@@ -4,8 +4,8 @@
 //! based on the difference between original and smoothed trajectories.
 
 use crate::error::{StabilizeError, StabilizeResult};
+use crate::motion::model::Matrix3x3;
 use crate::motion::trajectory::Trajectory;
-use nalgebra as na;
 
 /// Transform calculator that computes stabilization transforms.
 #[derive(Debug)]
@@ -139,10 +139,7 @@ impl TransformCalculator {
 
     /// Convert to affine matrices.
     #[must_use]
-    pub fn to_affine_matrices(
-        &self,
-        transforms: &[StabilizationTransform],
-    ) -> Vec<na::Matrix3<f64>> {
+    pub fn to_affine_matrices(&self, transforms: &[StabilizationTransform]) -> Vec<Matrix3x3> {
         transforms
             .iter()
             .map(|t| {
@@ -150,7 +147,7 @@ impl TransformCalculator {
                 let sin_a = t.angle.sin();
                 let s = t.scale;
 
-                na::Matrix3::new(
+                Matrix3x3::new(
                     s * cos_a,
                     -s * sin_a,
                     t.dx,
@@ -195,12 +192,12 @@ impl TransformCalculator {
     }
 
     /// Convert transform to matrix.
-    fn transform_to_matrix(&self, transform: &StabilizationTransform) -> na::Matrix3<f64> {
+    fn transform_to_matrix(&self, transform: &StabilizationTransform) -> Matrix3x3 {
         let cos_a = transform.angle.cos();
         let sin_a = transform.angle.sin();
         let s = transform.scale;
 
-        na::Matrix3::new(
+        Matrix3x3::new(
             s * cos_a,
             -s * sin_a,
             transform.dx,
@@ -216,14 +213,14 @@ impl TransformCalculator {
     /// Convert matrix to transform.
     fn matrix_to_transform(
         &self,
-        matrix: &na::Matrix3<f64>,
+        matrix: &Matrix3x3,
         frame_index: usize,
     ) -> StabilizationTransform {
-        let dx = matrix[(0, 2)];
-        let dy = matrix[(1, 2)];
+        let dx = matrix.get(0, 2);
+        let dy = matrix.get(1, 2);
 
-        let a = matrix[(0, 0)];
-        let b = matrix[(0, 1)];
+        let a = matrix.get(0, 0);
+        let b = matrix.get(0, 1);
 
         let scale = (a * a + b * b).sqrt();
         let angle = b.atan2(a);

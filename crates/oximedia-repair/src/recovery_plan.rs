@@ -401,8 +401,8 @@ mod tests {
             RepairStep::new(1, RepairAction::FixHeader, "fix hdr"),
         ];
         let plan = RecoveryPlan::build(steps);
-        let hdr_pos = plan.execution_order.iter().position(|&id| id == 1).unwrap();
-        let idx_pos = plan.execution_order.iter().position(|&id| id == 2).unwrap();
+        let hdr_pos = plan.execution_order.iter().position(|&id| id == 1).expect("unexpected None/Err");
+        let idx_pos = plan.execution_order.iter().position(|&id| id == 2).expect("unexpected None/Err");
         assert!(hdr_pos < idx_pos, "Header must come before index rebuild");
     }
 

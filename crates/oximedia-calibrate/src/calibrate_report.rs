@@ -456,7 +456,9 @@ mod tests {
             .with_gray_data(vec![(0.5, -0.3), (0.2, 0.1)])
             .build();
         assert!(report.gray_balance.is_some());
-        let gb = report.gray_balance.unwrap();
+        let gb = report
+            .gray_balance
+            .expect("expected gray_balance to be Some/Ok");
         assert_eq!(gb.neutral_patch_count, 2);
         assert!(gb.max_chroma_error > 0.0);
     }
@@ -469,8 +471,20 @@ mod tests {
             .add_metadata("camera", "Sony A7")
             .add_metadata("illuminant", "D65")
             .build();
-        assert_eq!(report.metadata.get("camera").unwrap(), "Sony A7");
-        assert_eq!(report.metadata.get("illuminant").unwrap(), "D65");
+        assert_eq!(
+            report
+                .metadata
+                .get("camera")
+                .expect("expected key to exist"),
+            "Sony A7"
+        );
+        assert_eq!(
+            report
+                .metadata
+                .get("illuminant")
+                .expect("expected key to exist"),
+            "D65"
+        );
     }
 
     #[test]

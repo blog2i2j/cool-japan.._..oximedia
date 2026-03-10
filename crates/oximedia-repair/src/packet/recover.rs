@@ -775,7 +775,7 @@ mod tests {
 
     #[test]
     fn test_recover_empty() {
-        let result = recover(&[], StreamFormat::Auto).unwrap();
+        let result = recover(&[], StreamFormat::Auto).expect("recovery should succeed");
         assert!(result.packets.is_empty());
         assert_eq!(result.bytes_skipped, 0);
     }
@@ -898,7 +898,7 @@ mod tests {
         let header = [0xFF, 0xFB, 0x90, 0x00];
         let len = mp3_frame_length(&header);
         assert!(len.is_some());
-        let l = len.unwrap();
+        let l = len.expect("expected len to be Some/Ok");
         // Expected: (1152 / 8 * 128000 / 44100) + 0 = 417 bytes
         assert!((l as i64 - 417).abs() <= 2);
     }
@@ -919,7 +919,7 @@ mod tests {
                 status: PacketStatus::Valid,
             },
         ];
-        let recovered = recover_packets(&mut packets).unwrap();
+        let recovered = recover_packets(&mut packets).expect("packet recovery should succeed");
         assert_eq!(recovered, 2); // sequences 1 and 2
         assert_eq!(packets.len(), 4);
         assert_eq!(packets[1].sequence, 1);
@@ -943,7 +943,7 @@ mod tests {
         data[0] = 0x47;
         data[188] = 0x47;
         data[376] = 0x47;
-        let result = recover(&data, StreamFormat::Auto).unwrap();
+        let result = recover(&data, StreamFormat::Auto).expect("recovery should succeed");
         assert_eq!(result.packets.len(), 3);
     }
 

@@ -454,7 +454,7 @@ impl Tensor {
     ///
     /// let mut tensor = Tensor::zeros(&[1, 3, 224, 224]);
     /// // ImageNet normalization
-    /// tensor.normalize(&[0.485, 0.456, 0.406], &[0.229, 0.224, 0.225]).unwrap();
+    /// tensor.normalize(&[0.485, 0.456, 0.406], &[0.229, 0.224, 0.225])?;
     /// ```
     pub fn normalize(&mut self, mean: &[f32], std: &[f32]) -> CvResult<()> {
         let mut data_f32 = self.data.to_f32()?;
@@ -612,7 +612,7 @@ mod tests {
     #[test]
     fn test_nchw_to_nhwc_conversion() {
         let nchw = Tensor::zeros(&[1, 3, 4, 4]);
-        let nhwc = nchw.to_nhwc().unwrap();
+        let nhwc = nchw.to_nhwc().expect("to_nhwc should succeed");
         assert_eq!(nhwc.shape(), &[1, 4, 4, 3]);
         assert_eq!(nhwc.layout(), DataLayout::Nhwc);
     }
@@ -621,7 +621,7 @@ mod tests {
     fn test_nhwc_to_nchw_conversion() {
         let data = ArrayD::zeros(IxDyn(&[1, 4, 4, 3]));
         let nhwc = Tensor::new_f32(data, DataLayout::Nhwc);
-        let nchw = nhwc.to_nchw().unwrap();
+        let nchw = nhwc.to_nchw().expect("to_nchw should succeed");
         assert_eq!(nchw.shape(), &[1, 3, 4, 4]);
         assert_eq!(nchw.layout(), DataLayout::Nchw);
     }

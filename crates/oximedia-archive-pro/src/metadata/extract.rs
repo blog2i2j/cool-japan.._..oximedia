@@ -82,28 +82,43 @@ mod tests {
 
     #[test]
     fn test_extract_basic_metadata() {
-        let mut file = NamedTempFile::new().unwrap();
-        file.write_all(b"Test content").unwrap();
-        file.flush().unwrap();
+        let mut file = NamedTempFile::new().expect("operation should succeed");
+        file.write_all(b"Test content")
+            .expect("operation should succeed");
+        file.flush().expect("operation should succeed");
 
         let extractor = MetadataExtractor::new();
-        let metadata = extractor.extract(file.path()).unwrap();
+        let metadata = extractor
+            .extract(file.path())
+            .expect("operation should succeed");
 
         assert!(metadata.contains_key("size"));
-        assert_eq!(metadata.get("size").unwrap(), "12");
+        assert_eq!(
+            metadata.get("size").expect("operation should succeed"),
+            "12"
+        );
     }
 
     #[test]
     fn test_extract_sidecar() {
-        let file = NamedTempFile::new().unwrap();
+        let file = NamedTempFile::new().expect("operation should succeed");
         let sidecar_path = file.path().with_extension("json");
 
-        fs::write(&sidecar_path, r#"{"title":"Test","creator":"User"}"#).unwrap();
+        fs::write(&sidecar_path, r#"{"title":"Test","creator":"User"}"#)
+            .expect("operation should succeed");
 
         let extractor = MetadataExtractor::new();
-        let metadata = extractor.extract_sidecar(file.path()).unwrap();
+        let metadata = extractor
+            .extract_sidecar(file.path())
+            .expect("operation should succeed");
 
-        assert_eq!(metadata.get("title").unwrap(), "Test");
-        assert_eq!(metadata.get("creator").unwrap(), "User");
+        assert_eq!(
+            metadata.get("title").expect("operation should succeed"),
+            "Test"
+        );
+        assert_eq!(
+            metadata.get("creator").expect("operation should succeed"),
+            "User"
+        );
     }
 }

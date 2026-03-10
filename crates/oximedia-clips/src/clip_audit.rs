@@ -453,7 +453,7 @@ mod tests {
         let mut trail = AuditTrail::new();
         let id = trail.record(100, ChangeType::Created, "admin", 1000);
         assert_eq!(trail.entry_count(), 1);
-        let entry = trail.get_entry(id).unwrap();
+        let entry = trail.get_entry(id).expect("get_entry should succeed");
         assert_eq!(entry.clip_id, 100);
     }
 
@@ -468,7 +468,7 @@ mod tests {
             "clip-a",
             "clip-b",
         );
-        let entry = trail.get_entry(id).unwrap();
+        let entry = trail.get_entry(id).expect("get_entry should succeed");
         assert!(entry.is_undoable());
     }
 
@@ -513,8 +513,20 @@ mod tests {
         let summary = trail.summarize(&AuditFilter::default());
         assert_eq!(summary.total_changes, 3);
         assert_eq!(summary.unique_clips, 2);
-        assert_eq!(*summary.changes_by_type.get("Created").unwrap(), 2);
-        assert_eq!(*summary.changes_by_user.get("admin").unwrap(), 2);
+        assert_eq!(
+            *summary
+                .changes_by_type
+                .get("Created")
+                .expect("get should succeed"),
+            2
+        );
+        assert_eq!(
+            *summary
+                .changes_by_user
+                .get("admin")
+                .expect("get should succeed"),
+            2
+        );
     }
 
     #[test]

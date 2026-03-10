@@ -326,7 +326,7 @@ mod tests {
         }
         let ts = detect_clap(&samples, 48000);
         assert!(ts.is_some());
-        let ms = ts.unwrap();
+        let ms = ts.expect("ms should be valid");
         // Expect roughly around 1000 ms (within ±200 ms to account for smoothing)
         assert!(ms > 800 && ms < 1300, "timestamp={ms}");
     }
@@ -355,8 +355,8 @@ mod tests {
         let peak = corr
             .iter()
             .enumerate()
-            .max_by(|(_, x), (_, y)| x.partial_cmp(y).unwrap())
-            .unwrap();
+            .max_by(|(_, x), (_, y)| x.partial_cmp(y).expect("partial_cmp should succeed"))
+            .expect("test expectation failed");
         assert_eq!(peak.0, 2);
     }
 

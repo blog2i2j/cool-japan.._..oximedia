@@ -200,7 +200,7 @@ mod tests {
         logger.add_keyword(clip_id, "interview");
         logger.add_keyword(clip_id, "john-doe");
 
-        let entry = logger.get_log(&clip_id).unwrap();
+        let entry = logger.get_log(&clip_id).expect("get_log should succeed");
         assert_eq!(entry.rating, Rating::FourStars);
         assert_eq!(entry.keywords.len(), 2);
         assert_eq!(logger.count(), 1);

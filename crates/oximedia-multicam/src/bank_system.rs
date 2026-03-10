@@ -182,7 +182,11 @@ mod tests {
     fn test_assign_angle_success() {
         let mut bank = CameraBank::new(0, BankLayout::FourUp);
         bank.assign_angle(2, 7);
-        let slot = bank.slots.iter().find(|s| s.slot_id == 2).unwrap();
+        let slot = bank
+            .slots
+            .iter()
+            .find(|s| s.slot_id == 2)
+            .expect("multicam test operation should succeed");
         assert_eq!(slot.assigned_angle, Some(7));
     }
 

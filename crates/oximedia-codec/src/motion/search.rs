@@ -938,7 +938,7 @@ mod tests {
 
         let sad = ctx.calculate_sad(&mv);
         assert!(sad.is_some());
-        assert_eq!(sad.unwrap(), 640); // 64 * 10
+        assert_eq!(sad.expect("should succeed"), 640); // 64 * 10
     }
 
     #[test]

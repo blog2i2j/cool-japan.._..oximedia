@@ -341,7 +341,7 @@ mod tests {
     fn test_frame_range_intersection() {
         let a = FrameRange::new(0, 100);
         let b = FrameRange::new(50, 150);
-        let inter = a.intersection(&b).unwrap();
+        let inter = a.intersection(&b).expect("intersection should succeed");
         assert_eq!(inter.start, 50);
         assert_eq!(inter.end, 100);
     }
@@ -357,7 +357,7 @@ mod tests {
     fn test_frame_range_union() {
         let a = FrameRange::new(0, 50);
         let b = FrameRange::new(50, 100);
-        let u = a.union(&b).unwrap();
+        let u = a.union(&b).expect("union should succeed");
         assert_eq!(u.start, 0);
         assert_eq!(u.end, 100);
     }

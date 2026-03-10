@@ -413,11 +413,15 @@ mod tests {
 
     fn make_bracket() -> TournamentBracket {
         let mut b = TournamentBracket::new("Test Cup", TournamentFormat::SingleElimination);
-        b.add_participant("Alice").unwrap();
-        b.add_participant("Bob").unwrap();
-        b.add_participant("Charlie").unwrap();
-        b.add_participant("Diana").unwrap();
-        b.seal().unwrap();
+        b.add_participant("Alice")
+            .expect("add participant should succeed");
+        b.add_participant("Bob")
+            .expect("add participant should succeed");
+        b.add_participant("Charlie")
+            .expect("add participant should succeed");
+        b.add_participant("Diana")
+            .expect("add participant should succeed");
+        b.seal().expect("seal should succeed");
         b
     }
 
@@ -432,15 +436,18 @@ mod tests {
     #[test]
     fn test_add_participants() {
         let mut b = TournamentBracket::new("Cup", TournamentFormat::Swiss);
-        b.add_participant("P1").unwrap();
-        b.add_participant("P2").unwrap();
+        b.add_participant("P1")
+            .expect("add participant should succeed");
+        b.add_participant("P2")
+            .expect("add participant should succeed");
         assert_eq!(b.participant_count(), 2);
     }
 
     #[test]
     fn test_duplicate_participant_error() {
         let mut b = TournamentBracket::new("Cup", TournamentFormat::Swiss);
-        b.add_participant("P1").unwrap();
+        b.add_participant("P1")
+            .expect("add participant should succeed");
         let err = b.add_participant("P1").unwrap_err();
         assert_eq!(err, TournamentError::DuplicateParticipant("P1".into()));
     }
@@ -448,7 +455,8 @@ mod tests {
     #[test]
     fn test_seal_too_few_error() {
         let mut b = TournamentBracket::new("Cup", TournamentFormat::Swiss);
-        b.add_participant("Solo").unwrap();
+        b.add_participant("Solo")
+            .expect("add participant should succeed");
         let err = b.seal().unwrap_err();
         assert!(matches!(err, TournamentError::NotEnoughParticipants { .. }));
     }
@@ -457,11 +465,11 @@ mod tests {
     fn test_record_match_and_standings() {
         let mut b = make_bracket();
         b.record_match(MatchResult::new("Alice", "Bob", 3, 1))
-            .unwrap();
+            .expect("should succeed");
         b.record_match(MatchResult::new("Charlie", "Diana", 2, 0))
-            .unwrap();
+            .expect("should succeed");
         b.record_match(MatchResult::new("Alice", "Charlie", 2, 1))
-            .unwrap();
+            .expect("should succeed");
 
         assert_eq!(b.match_count(), 3);
         assert_eq!(b.wins_for("Alice"), 2);
@@ -474,8 +482,10 @@ mod tests {
     #[test]
     fn test_record_match_before_seal_fails() {
         let mut b = TournamentBracket::new("Cup", TournamentFormat::Swiss);
-        b.add_participant("A").unwrap();
-        b.add_participant("B").unwrap();
+        b.add_participant("A")
+            .expect("add participant should succeed");
+        b.add_participant("B")
+            .expect("add participant should succeed");
         let err = b
             .record_match(MatchResult::new("A", "B", 1, 0))
             .unwrap_err();

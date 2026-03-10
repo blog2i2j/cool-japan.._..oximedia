@@ -296,7 +296,10 @@ mod tests {
         q.push(PtsDts::new(300, 300), vec![]);
         q.push(PtsDts::new(100, 100), vec![]);
         q.push(PtsDts::new(200, 200), vec![]);
-        assert_eq!(q.earliest().unwrap().ts.pts, Some(100));
+        assert_eq!(
+            q.earliest().expect("operation should succeed").ts.pts,
+            Some(100)
+        );
     }
 
     // 12. reorder drains and sorts
@@ -307,7 +310,10 @@ mod tests {
         q.push(PtsDts::new(100, 100), vec![]);
         q.push(PtsDts::new(200, 200), vec![]);
         let sorted = q.reorder();
-        let pts_values: Vec<i64> = sorted.iter().map(|e| e.ts.pts.unwrap()).collect();
+        let pts_values: Vec<i64> = sorted
+            .iter()
+            .map(|e| e.ts.pts.expect("operation should succeed"))
+            .collect();
         assert_eq!(pts_values, vec![100, 200, 300]);
         assert!(q.is_empty());
     }

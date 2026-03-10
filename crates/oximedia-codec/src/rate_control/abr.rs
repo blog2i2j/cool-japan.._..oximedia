@@ -1085,7 +1085,7 @@ mod tests {
             controller.update(&stats);
         }
 
-        let first_pass = controller.finalize_first_pass().unwrap();
+        let first_pass = controller.finalize_first_pass().expect("should succeed");
         assert_eq!(first_pass.frame_count, 30);
     }
 
@@ -1111,7 +1111,7 @@ mod tests {
             controller.update(&stats);
         }
 
-        let first_pass_stats = controller.finalize_first_pass().unwrap();
+        let first_pass_stats = controller.finalize_first_pass().expect("should succeed");
 
         // Second pass
         let mut controller2 = AbrController::new(&config);
@@ -1260,7 +1260,7 @@ mod tests {
 
         let projected = controller.projected_file_size();
         assert!(projected.is_some());
-        assert!(projected.unwrap() > 0);
+        assert!(projected.expect("should succeed") > 0);
     }
 
     #[test]

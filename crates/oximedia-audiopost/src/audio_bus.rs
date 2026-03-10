@@ -532,7 +532,7 @@ mod tests {
         let master = mgr.create_bus("Master", BusType::Master, ChannelConfig::Stereo);
         let group = mgr.create_bus("Dialogue", BusType::Group, ChannelConfig::Stereo);
         assert!(mgr.route_to_master(group));
-        let bus = mgr.get_bus(group).unwrap();
+        let bus = mgr.get_bus(group).expect("get_bus should succeed");
         assert_eq!(bus.output_bus, Some(master));
     }
 
@@ -553,21 +553,27 @@ mod tests {
         let dlg = mgr.create_bus("DLG", BusType::Group, ChannelConfig::Stereo);
         let sfx = mgr.create_bus("SFX", BusType::Group, ChannelConfig::Stereo);
 
-        mgr.get_bus_mut(dlg).unwrap().soloed = true;
+        mgr.get_bus_mut(dlg)
+            .expect("get_bus_mut should succeed")
+            .soloed = true;
         mgr.apply_solo_logic();
 
-        assert!(!mgr.get_bus(dlg).unwrap().muted);
-        assert!(mgr.get_bus(sfx).unwrap().muted);
+        assert!(!mgr.get_bus(dlg).expect("get_bus should succeed").muted);
+        assert!(mgr.get_bus(sfx).expect("get_bus should succeed").muted);
     }
 
     #[test]
     fn test_clear_solos() {
         let mut mgr = BusManager::new();
         let id = mgr.create_bus("Bus", BusType::Group, ChannelConfig::Stereo);
-        mgr.get_bus_mut(id).unwrap().soloed = true;
-        mgr.get_bus_mut(id).unwrap().muted = true;
+        mgr.get_bus_mut(id)
+            .expect("get_bus_mut should succeed")
+            .soloed = true;
+        mgr.get_bus_mut(id)
+            .expect("get_bus_mut should succeed")
+            .muted = true;
         mgr.clear_solos();
-        let bus = mgr.get_bus(id).unwrap();
+        let bus = mgr.get_bus(id).expect("get_bus should succeed");
         assert!(!bus.soloed);
         assert!(!bus.muted);
     }

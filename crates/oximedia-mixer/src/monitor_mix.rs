@@ -371,11 +371,11 @@ mod tests {
         let id1 = mgr.create_mix("A");
         let id2 = mgr.create_mix("B");
         mgr.mute_all();
-        assert!(mgr.get_mix(id1).unwrap().muted);
-        assert!(mgr.get_mix(id2).unwrap().muted);
+        assert!(mgr.get_mix(id1).expect("get_mix should succeed").muted);
+        assert!(mgr.get_mix(id2).expect("get_mix should succeed").muted);
         mgr.unmute_all();
-        assert!(!mgr.get_mix(id1).unwrap().muted);
-        assert!(!mgr.get_mix(id2).unwrap().muted);
+        assert!(!mgr.get_mix(id1).expect("get_mix should succeed").muted);
+        assert!(!mgr.get_mix(id2).expect("get_mix should succeed").muted);
     }
 
     #[test]

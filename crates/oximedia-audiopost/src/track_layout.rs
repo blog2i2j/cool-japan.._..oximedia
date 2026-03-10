@@ -541,7 +541,7 @@ mod tests {
         let id = layout.add_track_to_group("SFX 1", TrackType::Sfx, TrackFormat::Stereo, "SFX");
         assert_eq!(layout.track_count(), 1);
         assert_eq!(layout.group_count(), 1);
-        let track = layout.get_track(id).unwrap();
+        let track = layout.get_track(id).expect("get_track should succeed");
         assert_eq!(track.group.as_deref(), Some("SFX"));
     }
 

@@ -267,16 +267,16 @@ mod tests {
     #[test]
     fn test_decode_uniform() {
         let data = vec![0x80, 0x00, 0x00, 0x00];
-        let mut decoder = RangeDecoder::new(&data).unwrap();
+        let mut decoder = RangeDecoder::new(&data).expect("should succeed");
         let symbol = decoder.decode_uniform(4);
         assert!(symbol.is_ok());
-        assert!(symbol.unwrap() < 4);
+        assert!(symbol.expect("should succeed") < 4);
     }
 
     #[test]
     fn test_decode_bit() {
         let data = vec![0xFF, 0xFF, 0xFF, 0xFF];
-        let mut decoder = RangeDecoder::new(&data).unwrap();
+        let mut decoder = RangeDecoder::new(&data).expect("should succeed");
         let bit = decoder.decode_bit(16384);
         assert!(bit.is_ok());
     }

@@ -384,8 +384,8 @@ mod tests {
         h.observe(5.0);
         h.observe(100.0);
         h.observe(50.0);
-        assert!((h.min().unwrap() - 5.0).abs() < f64::EPSILON);
-        assert!((h.max().unwrap() - 100.0).abs() < f64::EPSILON);
+        assert!((h.min().expect("min should exist") - 5.0).abs() < f64::EPSILON);
+        assert!((h.max().expect("max should exist") - 100.0).abs() < f64::EPSILON);
     }
 
     #[test]
@@ -394,9 +394,9 @@ mod tests {
         for i in 1..=100 {
             h.observe(i as f64);
         }
-        let p50 = h.percentile(0.5).unwrap();
+        let p50 = h.percentile(0.5).expect("percentile should succeed");
         assert!((p50 - 50.0).abs() < 2.0); // approximate
-        let p99 = h.percentile(0.99).unwrap();
+        let p99 = h.percentile(0.99).expect("percentile should succeed");
         assert!(p99 >= 98.0);
     }
 

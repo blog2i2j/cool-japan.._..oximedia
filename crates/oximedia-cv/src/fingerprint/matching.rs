@@ -412,7 +412,10 @@ fn find_partial_match(
                 MatchResult::new(0, similarity, similarity, similarity, None, confidence)
                     .with_offset(offset as f64 * segment_duration);
 
-            if best_match.is_none() || similarity > best_match.as_ref().unwrap().similarity {
+            if best_match
+                .as_ref()
+                .map_or(true, |m| similarity > m.similarity)
+            {
                 best_match = Some(match_result);
             }
         }
@@ -628,7 +631,8 @@ mod tests {
         let fp2 = create_test_fingerprint();
         let config = MatchingConfig::default();
 
-        let result = compare_fingerprints_with_config(&fp1, &fp2, &config).unwrap();
+        let result = compare_fingerprints_with_config(&fp1, &fp2, &config)
+            .expect("compare_fingerprints_with_config should succeed");
         assert!(result.similarity > 0.8);
         assert!(result.confidence > 0.5);
     }
@@ -654,7 +658,8 @@ mod tests {
         let database = vec![create_test_fingerprint(); 5];
         let config = MatchingConfig::default();
 
-        let matches = find_matches(&query, &database, &config).unwrap();
+        let matches =
+            find_matches(&query, &database, &config).expect("find_matches should succeed");
         assert!(!matches.is_empty());
     }
 
@@ -664,21 +669,24 @@ mod tests {
         let database = vec![create_test_fingerprint(); 3];
         let config = MatchingConfig::default();
 
-        let best = find_best_match(&query, &database, &config).unwrap();
+        let best =
+            find_best_match(&query, &database, &config).expect("find_best_match should succeed");
         assert!(best.is_some());
     }
 
     #[test]
     fn test_detect_near_duplicates() {
         let database = vec![create_test_fingerprint(); 5];
-        let duplicates = detect_near_duplicates(&database, 0.9).unwrap();
+        let duplicates =
+            detect_near_duplicates(&database, 0.9).expect("detect_near_duplicates should succeed");
         assert!(!duplicates.is_empty());
     }
 
     #[test]
     fn test_detect_near_duplicates_parallel() {
         let database = vec![create_test_fingerprint(); 5];
-        let duplicates = detect_near_duplicates_parallel(&database, 0.9).unwrap();
+        let duplicates = detect_near_duplicates_parallel(&database, 0.9)
+            .expect("detect_near_duplicates_parallel should succeed");
         assert!(!duplicates.is_empty());
     }
 
@@ -748,10 +756,11 @@ mod tests {
         let fp1 = create_test_fingerprint();
         let fp2 = create_test_fingerprint();
 
-        let sim = compare_with_offset(&fp1, &fp2, 0).unwrap();
+        let sim = compare_with_offset(&fp1, &fp2, 0).expect("compare_with_offset should succeed");
         assert!(sim > 0.9);
 
-        let sim_offset = compare_with_offset(&fp1, &fp2, 5).unwrap();
+        let sim_offset =
+            compare_with_offset(&fp1, &fp2, 5).expect("compare_with_offset should succeed");
         assert!(sim_offset >= 0.0);
     }
 }

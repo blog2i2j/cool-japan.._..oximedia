@@ -107,13 +107,13 @@ mod tests {
     #[test]
     fn test_mixer_creation() {
         let config = MixerConfig::default();
-        let mixer = AudioMixer::new(config).unwrap();
+        let mixer = AudioMixer::new(config).expect("valid audio mixer");
         assert_eq!(mixer.source_count(), 0);
     }
 
     #[test]
     fn test_add_remove_source() {
-        let mut mixer = AudioMixer::new(MixerConfig::default()).unwrap();
+        let mut mixer = AudioMixer::new(MixerConfig::default()).expect("valid audio mixer");
 
         let source = AudioSource {
             name: "Game".to_string(),
@@ -130,7 +130,7 @@ mod tests {
 
     #[test]
     fn test_set_volume() {
-        let mut mixer = AudioMixer::new(MixerConfig::default()).unwrap();
+        let mut mixer = AudioMixer::new(MixerConfig::default()).expect("valid audio mixer");
 
         mixer.add_source(AudioSource {
             name: "Game".to_string(),
@@ -138,6 +138,8 @@ mod tests {
             muted: false,
         });
 
-        mixer.set_source_volume("Game", 0.5).unwrap();
+        mixer
+            .set_source_volume("Game", 0.5)
+            .expect("set volume should succeed");
     }
 }

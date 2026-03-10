@@ -407,7 +407,7 @@ mod tests {
         let mut tl = make_timeline();
         let id = tl.add_entry(TrackId(1), 100, 0, 50);
         assert_eq!(tl.entry_count(), 1);
-        let entry = tl.get_entry(id).unwrap();
+        let entry = tl.get_entry(id).expect("get_entry should succeed");
         assert_eq!(entry.clip_ref, 100);
         assert_eq!(entry.duration, 50);
     }
@@ -454,7 +454,12 @@ mod tests {
         let mut tl = make_timeline();
         let id = tl.add_entry(TrackId(1), 100, 0, 50);
         assert!(tl.move_entry(id, 100));
-        assert_eq!(tl.get_entry(id).unwrap().timeline_start, 100);
+        assert_eq!(
+            tl.get_entry(id)
+                .expect("get_entry should succeed")
+                .timeline_start,
+            100
+        );
     }
 
     #[test]

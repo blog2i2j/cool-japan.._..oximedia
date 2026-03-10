@@ -169,14 +169,14 @@ mod tests {
     use std::io::Write;
 
     fn make_src(content: &[u8]) -> (tempfile::NamedTempFile, PathBuf) {
-        let mut f = tempfile::NamedTempFile::new().unwrap();
-        f.write_all(content).unwrap();
+        let mut f = tempfile::NamedTempFile::new().expect("failed to create temp file");
+        f.write_all(content).expect("failed to write");
         let p = f.path().to_path_buf();
         (f, p)
     }
 
     fn dst_path() -> (tempfile::NamedTempFile, PathBuf) {
-        let f = tempfile::NamedTempFile::new().unwrap();
+        let f = tempfile::NamedTempFile::new().expect("failed to create temp file");
         let p = f.path().to_path_buf();
         (f, p)
     }
@@ -187,9 +187,12 @@ mod tests {
         let (_df, dst) = dst_path();
         let engine = CopyEngine::new();
         let job = CopyJob::new(&src, &dst);
-        let result = engine.run(&job).unwrap();
+        let result = engine.run(&job).expect("copy should succeed");
         assert_eq!(result.bytes_copied, 11);
-        assert_eq!(std::fs::read(&dst).unwrap(), b"hello world");
+        assert_eq!(
+            std::fs::read(&dst).expect("failed to read file"),
+            b"hello world"
+        );
     }
 
     #[test]
@@ -201,9 +204,9 @@ mod tests {
         let job = CopyJob::new(&src, &dst)
             .with_mode(CopyMode::Chunked)
             .with_chunk_size(32);
-        let result = engine.run(&job).unwrap();
+        let result = engine.run(&job).expect("copy should succeed");
         assert_eq!(result.bytes_copied, 256);
-        assert_eq!(std::fs::read(&dst).unwrap(), data);
+        assert_eq!(std::fs::read(&dst).expect("failed to read file"), data);
     }
 
     #[test]
@@ -212,7 +215,7 @@ mod tests {
         let (_df, dst) = dst_path();
         let engine = CopyEngine::new();
         let job = CopyJob::new(&src, &dst).with_mode(CopyMode::Sparse);
-        let result = engine.run(&job).unwrap();
+        let result = engine.run(&job).expect("copy should succeed");
         assert_eq!(result.bytes_copied, 11);
     }
 
@@ -222,7 +225,9 @@ mod tests {
         let (_df, dst) = dst_path();
         let engine = CopyEngine::new();
         // First copy succeeds
-        engine.run(&CopyJob::new(&src, &dst)).unwrap();
+        engine
+            .run(&CopyJob::new(&src, &dst))
+            .expect("copy should succeed");
         // Second copy with overwrite=false should fail
         let job = CopyJob::new(&src, &dst).with_overwrite(false);
         let err = engine.run(&job).unwrap_err();
@@ -234,9 +239,13 @@ mod tests {
         let (_sf, src) = make_src(b"new content");
         let (_df, dst) = dst_path();
         let engine = CopyEngine::new();
-        engine.run(&CopyJob::new(&src, &dst)).unwrap();
+        engine
+            .run(&CopyJob::new(&src, &dst))
+            .expect("copy should succeed");
         // Overwrite enabled (default)
-        let result = engine.run(&CopyJob::new(&src, &dst)).unwrap();
+        let result = engine
+            .run(&CopyJob::new(&src, &dst))
+            .expect("copy should succeed");
         assert_eq!(result.bytes_copied, 11);
     }
 
@@ -246,7 +255,9 @@ mod tests {
         let (_sf, src) = make_src(&data);
         let (_df, dst) = dst_path();
         let engine = CopyEngine::new();
-        let result = engine.run(&CopyJob::new(&src, &dst)).unwrap();
+        let result = engine
+            .run(&CopyJob::new(&src, &dst))
+            .expect("copy should succeed");
         assert!(result.throughput_mbps() > 0.0);
     }
 
@@ -264,7 +275,9 @@ mod tests {
         let (_sf, src) = make_src(b"");
         let (_df, dst) = dst_path();
         let engine = CopyEngine::new();
-        let result = engine.run(&CopyJob::new(&src, &dst)).unwrap();
+        let result = engine
+            .run(&CopyJob::new(&src, &dst))
+            .expect("copy should succeed");
         assert_eq!(result.bytes_copied, 0);
     }
 
@@ -304,7 +317,9 @@ mod tests {
         let (_sf, src) = make_src(&data);
         let (_df, dst) = dst_path();
         let engine = CopyEngine::new();
-        let result = engine.run(&CopyJob::new(&src, &dst)).unwrap();
+        let result = engine
+            .run(&CopyJob::new(&src, &dst))
+            .expect("copy should succeed");
         assert!(result.elapsed_secs >= 0.0);
     }
 
@@ -322,7 +337,7 @@ mod tests {
         let job = CopyJob::new(&src, &dst)
             .with_mode(CopyMode::Chunked)
             .with_chunk_size(1024 * 1024);
-        let result = engine.run(&job).unwrap();
+        let result = engine.run(&job).expect("copy should succeed");
         assert_eq!(result.bytes_copied, data.len() as u64);
     }
 }

@@ -427,7 +427,7 @@ mod tests {
         assert_eq!(plan.segment_count(), 2);
         assert_eq!(plan.total_bytes, 2000);
         assert!(plan.needs_remux);
-        assert!((plan.estimated_duration_secs.unwrap() - 2.0).abs() < f64::EPSILON);
+        assert!((plan.estimated_duration_secs.expect("expected estimated_duration_secs to be Some/Ok") - 2.0).abs() < f64::EPSILON);
     }
 
     #[test]

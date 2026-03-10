@@ -483,7 +483,7 @@ mod tests {
         let mapping = PathMapping::new("/old/media", "/new/storage");
         let result = mapping.apply(Path::new("/old/media/clip.mxf"));
         assert!(result.is_some());
-        let new_path = result.unwrap();
+        let new_path = result.expect("new_path should be valid");
         assert!(new_path.to_string_lossy().contains("clip.mxf"));
     }
 

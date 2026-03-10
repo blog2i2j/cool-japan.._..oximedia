@@ -431,7 +431,7 @@ mod tests {
         let mut mixer = AudioDescriptionMixer::new(MixingStrategy::Duck, metadata, 48000.0, 2);
 
         let cue = DescriptionCue::new("cue1", 1.0, 2.0).with_text("Test description");
-        mixer.add_cue(cue).unwrap();
+        mixer.add_cue(cue).expect("should succeed");
 
         assert_eq!(mixer.timeline().cue_count(), 1);
     }
@@ -447,7 +447,7 @@ mod tests {
 
         mixer
             .process(&main_audio, &ad_audio, &mut output, false)
-            .unwrap();
+            .expect("should succeed");
 
         assert!(output.iter().any(|&s| s > 0.0));
     }
@@ -480,9 +480,9 @@ mod tests {
         mixer.enable_tts(tts_config);
 
         let cue = DescriptionCue::new("cue1", 1.0, 2.0).with_text("Test");
-        mixer.add_cue(cue).unwrap();
+        mixer.add_cue(cue).expect("should succeed");
 
-        let samples = mixer.synthesize_cue("cue1").unwrap();
+        let samples = mixer.synthesize_cue("cue1").expect("should succeed");
         assert!(!samples.is_empty());
     }
 }
