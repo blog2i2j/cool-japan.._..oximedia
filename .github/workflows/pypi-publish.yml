@@ -30,6 +30,9 @@ env:
   CARGO_TERM_COLOR: always
   MATURIN_VERSION: "1.8"
 
+permissions:
+  contents: read
+
 jobs:
   # Build wheels for Linux x86_64
   linux-x86_64:
