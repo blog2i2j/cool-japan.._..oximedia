@@ -32,7 +32,7 @@ tower = "0.5"
 tower-http = { version = "0.6", features = ["cors", "trace"] }
 hyper = { workspace = true }
 reqwest = { workspace = true }
-lettre = { version = "0.11", features = ["tokio1", "tokio1-native-tls"] }
+lettre = { version = "0.11", default-features = false, features = ["tokio1", "tokio1-rustls-tls", "builder", "smtp-transport"] }
 parking_lot = { workspace = true }
 dashmap = { workspace = true }
 flume = "0.12"
