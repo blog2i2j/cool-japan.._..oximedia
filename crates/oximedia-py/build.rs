@@ -14,6 +14,14 @@ fn main() {
     // Emit rerun guard so Cargo re-checks only when this script changes.
     println!("cargo:rerun-if-changed=build.rs");
 
+    // When PYO3_BUILD_EXTENSION_MODULE is set (e.g. during maturin wheel
+    // builds), PyO3 already suppresses linking against libpython.  We must
+    // not re-add the directive because the manylinux container does not ship
+    // a shared libpython and the linker would fail.
+    if std::env::var("PYO3_BUILD_EXTENSION_MODULE").is_ok() {
+        return;
+    }
+
     // Detect the target OS and emit the appropriate link directive.
     let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
 
