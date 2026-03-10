@@ -40,18 +40,17 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          target: x86_64
           args: --release --out dist --find-interpreter
           manylinux: manylinux_2_28
           working-directory: crates/oximedia-py
           before-script-linux: |
             # Install system deps
             if command -v dnf &>/dev/null; then
-              dnf install -y openssl-devel perl-IPC-Cmd unzip || true
+              dnf install -y openssl-devel perl-IPC-Cmd unzip python3-devel || true
             elif command -v yum &>/dev/null; then
-              yum install -y openssl-devel perl-IPC-Cmd unzip || true
+              yum install -y openssl-devel perl-IPC-Cmd unzip python3-devel || true
             elif command -v apt-get &>/dev/null; then
-              apt-get update && apt-get install -y libssl-dev unzip || true
+              apt-get update && apt-get install -y libssl-dev unzip python3-dev || true
             fi
             # Install protoc for oximedia-farm (gRPC codegen)
             curl -Lo /tmp/protoc.zip "https://github.com/protocolbuffers/protobuf/releases/download/v28.3/protoc-28.3-linux-x86_64.zip"
@@ -77,18 +76,17 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          target: aarch64
           args: --release --out dist --find-interpreter
           manylinux: manylinux_2_28
           working-directory: crates/oximedia-py
           before-script-linux: |
             # Install system deps
             if command -v dnf &>/dev/null; then
-              dnf install -y openssl-devel perl-IPC-Cmd unzip || true
+              dnf install -y openssl-devel perl-IPC-Cmd unzip python3-devel || true
             elif command -v yum &>/dev/null; then
-              yum install -y openssl-devel perl-IPC-Cmd unzip || true
+              yum install -y openssl-devel perl-IPC-Cmd unzip python3-devel || true
             elif command -v apt-get &>/dev/null; then
-              apt-get update && apt-get install -y libssl-dev unzip || true
+              apt-get update && apt-get install -y libssl-dev unzip python3-dev || true
             fi
             # Install protoc for oximedia-farm (gRPC codegen)
             curl -Lo /tmp/protoc.zip "https://github.com/protocolbuffers/protobuf/releases/download/v28.3/protoc-28.3-linux-aarch_64.zip"
