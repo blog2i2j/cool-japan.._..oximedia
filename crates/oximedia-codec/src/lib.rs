@@ -192,6 +192,9 @@ pub mod png;
 // GIF codec
 pub mod gif;
 
+// WebP codec
+pub mod webp;
+
 // JPEG-XL codec
 #[cfg(feature = "jpegxl")]
 pub mod jpegxl;

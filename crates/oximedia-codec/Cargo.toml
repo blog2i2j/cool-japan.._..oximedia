@@ -294,7 +294,7 @@ h263 = []
 opus = []
 ffv1 = []
 jpegxl = []
-image-io = ["png", "jpeg-decoder", "webp"]
+image-io = ["png", "jpeg-decoder"]
 
 [dependencies]
 oximedia-core.workspace = true
@@ -308,7 +308,6 @@ flate2.workspace = true
 # Image I/O support (patent-free codecs only)
 png = { version = "0.18", optional = true }
 jpeg-decoder = { version = "0.3", optional = true }
-webp = { version = "0.3", optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "macros"] }

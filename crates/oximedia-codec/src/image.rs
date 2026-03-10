@@ -342,23 +342,100 @@ impl ImageDecoder {
 
     #[cfg(feature = "image-io")]
     fn decode_webp(&self) -> CodecResult<VideoFrame> {
-        // Decode WebP using the webp crate
-        let decoder = webp::Decoder::new(&self.data);
-        let decoded = decoder
-            .decode()
-            .ok_or_else(|| CodecError::DecoderError("WebP decode error".into()))?;
+        use crate::webp::riff::{WebPContainer, WebPEncoding};
+        use crate::webp::vp8l_decoder::Vp8lDecoder;
+        use crate::webp::alpha::decode_alpha;
 
-        let width = decoded.width();
-        let height = decoded.height();
+        let container = WebPContainer::parse(&self.data)?;
+        let (width, height) = container.dimensions()?;
 
-        // WebP decoder outputs RGBA
-        let data = decoded.to_owned();
-        let format = if decoded.is_alpha() {
-            PixelFormat::Rgba32
-        } else {
-            // Convert RGBA to RGB if no alpha
-            let mut rgb = Vec::with_capacity((width * height * 3) as usize);
-            for chunk in data.chunks_exact(4) {
+        match container.encoding {
+            WebPEncoding::Lossless => {
+                let chunk = container.bitstream_chunk().ok_or_else(|| {
+                    CodecError::DecoderError("No VP8L bitstream chunk found".into())
+                })?;
+                let mut decoder = Vp8lDecoder::new();
+                let decoded = decoder.decode(&chunk.data)?;
+                Self::decoded_image_to_frame(&decoded)
+            }
+            WebPEncoding::Lossy => {
+                let chunk = container.bitstream_chunk().ok_or_else(|| {
+                    CodecError::DecoderError("No VP8 bitstream chunk found".into())
+                })?;
+                Self::decode_vp8_to_frame(&chunk.data, width, height)
+            }
+            WebPEncoding::Extended => {
+                // Check for VP8L (lossless) bitstream first
+                let vp8l_chunk = container.chunks.iter().find(|c| {
+                    c.chunk_type == crate::webp::riff::ChunkType::Vp8L
+                });
+                let vp8_chunk = container.chunks.iter().find(|c| {
+                    c.chunk_type == crate::webp::riff::ChunkType::Vp8
+                });
+                let alpha_chunk = container.alpha_chunk();
+
+                if let Some(vp8l) = vp8l_chunk {
+                    // Extended with VP8L (lossless with alpha)
+                    let mut decoder = Vp8lDecoder::new();
+                    let decoded = decoder.decode(&vp8l.data)?;
+                    Self::decoded_image_to_frame(&decoded)
+                } else if let Some(vp8) = vp8_chunk {
+                    // Extended with VP8 (lossy, possibly with separate alpha)
+                    let mut frame = Self::decode_vp8_to_frame(&vp8.data, width, height)?;
+
+                    // Merge ALPH chunk alpha into the frame if present
+                    if let Some(alph) = alpha_chunk {
+                        let alpha_plane = decode_alpha(&alph.data, width, height)?;
+                        // Convert RGB24 frame to RGBA32 with the decoded alpha
+                        if frame.format == PixelFormat::Rgb24 && !frame.planes.is_empty() {
+                            let rgb = &frame.planes[0].data;
+                            let mut rgba = Vec::with_capacity((width as usize) * (height as usize) * 4);
+                            for (i, rgb_chunk) in rgb.chunks_exact(3).enumerate() {
+                                rgba.extend_from_slice(rgb_chunk);
+                                let a = alpha_plane.get(i).copied().unwrap_or(255);
+                                rgba.push(a);
+                            }
+                            let stride = (width as usize) * 4;
+                            frame = VideoFrame::new(PixelFormat::Rgba32, width, height);
+                            frame.planes = vec![Plane {
+                                data: rgba,
+                                stride,
+                                width,
+                                height,
+                            }];
+                        }
+                    }
+                    Ok(frame)
+                } else {
+                    Err(CodecError::DecoderError(
+                        "Extended WebP has no VP8 or VP8L bitstream".into(),
+                    ))
+                }
+            }
+        }
+    }
+
+    /// Convert a VP8L `DecodedImage` (ARGB u32 pixels) to a `VideoFrame`.
+    fn decoded_image_to_frame(
+        decoded: &crate::webp::vp8l_decoder::DecodedImage,
+    ) -> CodecResult<VideoFrame> {
+        let width = decoded.width;
+        let height = decoded.height;
+        let has_alpha = decoded.has_alpha;
+
+        let mut rgba = Vec::with_capacity((width as usize) * (height as usize) * 4);
+        for &pixel in &decoded.pixels {
+            let a = ((pixel >> 24) & 0xFF) as u8;
+            let r = ((pixel >> 16) & 0xFF) as u8;
+            let g = ((pixel >> 8) & 0xFF) as u8;
+            let b = (pixel & 0xFF) as u8;
+            rgba.extend_from_slice(&[r, g, b, a]);
+        }
+
+        if !has_alpha {
+            // Convert to RGB24
+            let mut rgb = Vec::with_capacity((width as usize) * (height as usize) * 3);
+            for chunk in rgba.chunks_exact(4) {
                 rgb.extend_from_slice(&chunk[..3]);
             }
             let stride = rgb.len() / height as usize;
@@ -370,21 +447,53 @@ impl ImageDecoder {
             };
             let mut frame = VideoFrame::new(PixelFormat::Rgb24, width, height);
             frame.planes = vec![plane];
-            return Ok(frame);
-        };
+            Ok(frame)
+        } else {
+            let stride = rgba.len() / height as usize;
+            let plane = Plane {
+                data: rgba,
+                stride,
+                width,
+                height,
+            };
+            let mut frame = VideoFrame::new(PixelFormat::Rgba32, width, height);
+            frame.planes = vec![plane];
+            Ok(frame)
+        }
+    }
 
-        let stride = data.len() / height as usize;
-        let plane = Plane {
-            data,
-            stride,
-            width,
-            height,
-        };
+    /// Decode a VP8 lossy bitstream to an RGB24 `VideoFrame`.
+    #[cfg(feature = "vp8")]
+    fn decode_vp8_to_frame(data: &[u8], _width: u32, _height: u32) -> CodecResult<VideoFrame> {
+        use crate::traits::{DecoderConfig, VideoDecoder};
+        use crate::vp8::Vp8Decoder;
 
-        let mut frame = VideoFrame::new(format, width, height);
-        frame.planes = vec![plane];
+        let config = DecoderConfig::default();
+        let mut decoder = Vp8Decoder::new(config)?;
+        decoder.send_packet(data, 0)?;
+        let yuv_frame = decoder.receive_frame()?.ok_or_else(|| {
+            CodecError::DecoderError("VP8 decoder produced no frame".into())
+        })?;
 
-        Ok(frame)
+        // VP8 decoder produces YUV420p; convert to RGB24
+        if yuv_frame.format == PixelFormat::Yuv420p {
+            convert_yuv420p_to_rgb(&yuv_frame)
+        } else if yuv_frame.format == PixelFormat::Rgb24 {
+            Ok(yuv_frame)
+        } else {
+            Err(CodecError::UnsupportedFeature(format!(
+                "VP8 decoder produced unexpected format: {}",
+                yuv_frame.format
+            )))
+        }
+    }
+
+    /// Decode a VP8 lossy bitstream to an RGB24 `VideoFrame` (stub when vp8 feature disabled).
+    #[cfg(not(feature = "vp8"))]
+    fn decode_vp8_to_frame(_data: &[u8], _width: u32, _height: u32) -> CodecResult<VideoFrame> {
+        Err(CodecError::UnsupportedFeature(
+            "VP8 lossy decoding requires the 'vp8' feature".into(),
+        ))
     }
 
     #[cfg(not(feature = "image-io"))]
@@ -507,7 +616,6 @@ impl ImageEncoder {
         self.encode_webp_rgb(width, height, data, has_alpha)
     }
 
-    #[cfg(feature = "image-io")]
     fn encode_webp_rgb(
         &self,
         width: u32,
@@ -515,20 +623,55 @@ impl ImageEncoder {
         data: &[u8],
         has_alpha: bool,
     ) -> CodecResult<Vec<u8>> {
-        let encoder = if has_alpha {
-            webp::Encoder::from_rgba(data, width, height)
-        } else {
-            webp::Encoder::from_rgb(data, width, height)
-        };
+        use crate::webp::encoder::WebPLossyEncoder;
+        use crate::webp::vp8l_encoder::Vp8lEncoder;
+        use crate::webp::riff::WebPWriter;
+        use crate::webp::alpha::encode_alpha;
 
-        let encoded = if self.config.lossless {
-            encoder.encode_lossless()
+        if self.config.lossless {
+            // Convert RGB/RGBA bytes to ARGB u32 pixels
+            let pixel_count = (width as usize) * (height as usize);
+            let mut pixels = Vec::with_capacity(pixel_count);
+
+            if has_alpha {
+                for chunk in data.chunks_exact(4) {
+                    let r = u32::from(chunk[0]);
+                    let g = u32::from(chunk[1]);
+                    let b = u32::from(chunk[2]);
+                    let a = u32::from(chunk[3]);
+                    pixels.push((a << 24) | (r << 16) | (g << 8) | b);
+                }
+            } else {
+                for chunk in data.chunks_exact(3) {
+                    let r = u32::from(chunk[0]);
+                    let g = u32::from(chunk[1]);
+                    let b = u32::from(chunk[2]);
+                    pixels.push((0xFF << 24) | (r << 16) | (g << 8) | b);
+                }
+            }
+
+            let encoder = Vp8lEncoder::new(100);
+            let vp8l_data = encoder.encode(&pixels, width, height, has_alpha)?;
+            Ok(WebPWriter::write_lossless(&vp8l_data))
         } else {
             let quality = self.config.quality.clamp(0, 100);
-            encoder.encode(f32::from(quality))
-        };
+            let lossy_encoder = WebPLossyEncoder::new(quality);
 
-        Ok(encoded.to_vec())
+            if has_alpha {
+                let (vp8_data, alpha_data) =
+                    lossy_encoder.encode_rgba(data, width, height)?;
+                let alpha_chunk = encode_alpha(&alpha_data, width, height)?;
+                Ok(WebPWriter::write_extended(
+                    &vp8_data,
+                    Some(&alpha_chunk),
+                    width,
+                    height,
+                ))
+            } else {
+                let vp8_data = lossy_encoder.encode_rgb(data, width, height)?;
+                Ok(WebPWriter::write_lossy(&vp8_data))
+            }
+        }
     }
 
     #[cfg(not(feature = "image-io"))]

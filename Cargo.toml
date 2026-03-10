@@ -547,4 +547,4 @@ oximedia-renderfarm = { version = "0.1.1", path = "crates/oximedia-renderfarm" }
 oximedia-compat-ffmpeg = { version = "0.1.1", path = "crates/oximedia-compat-ffmpeg" }
 oximedia-plugin = { version = "0.1.1", path = "crates/oximedia-plugin" }
 numpy = "0.27"
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp", "tiff", "webp"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "bmp", "tiff"] }
