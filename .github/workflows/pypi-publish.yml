@@ -40,18 +40,22 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          args: --release --out dist --find-interpreter
+          target: x86_64
+          args: --release --out dist -i python3.8 python3.9 python3.10 python3.11 python3.12 python3.13
           manylinux: manylinux_2_28
           working-directory: crates/oximedia-py
           before-script-linux: |
             # Install system deps
             if command -v dnf &>/dev/null; then
-              dnf install -y openssl-devel perl-IPC-Cmd unzip python3-devel || true
+              dnf install -y openssl-devel perl-IPC-Cmd unzip || true
             elif command -v yum &>/dev/null; then
-              yum install -y openssl-devel perl-IPC-Cmd unzip python3-devel || true
+              yum install -y openssl-devel perl-IPC-Cmd unzip || true
             elif command -v apt-get &>/dev/null; then
-              apt-get update && apt-get install -y libssl-dev unzip python3-dev || true
+              apt-get update && apt-get install -y libssl-dev unzip || true
             fi
+            # Remove system Python 3.6 libpython to prevent manylinux compliance failures
+            find /usr/lib64 /usr/lib /lib64 /lib -name 'libpython3.6*' -delete 2>/dev/null || true
+            ldconfig 2>/dev/null || true
             # Install protoc for oximedia-farm (gRPC codegen)
             curl -Lo /tmp/protoc.zip "https://github.com/protocolbuffers/protobuf/releases/download/v28.3/protoc-28.3-linux-x86_64.zip"
             if command -v unzip &>/dev/null; then
@@ -67,7 +71,7 @@ jobs:
           name: wheels-linux-x86_64
           path: crates/oximedia-py/dist
 
-  # Build wheels for Linux aarch64 (native ARM runner — no cross-compilation)
+  # Build wheels for Linux aarch64 (native ARM runner)
   linux-aarch64:
     runs-on: ubuntu-24.04-arm
     steps:
@@ -76,18 +80,21 @@ jobs:
       - name: Build wheels
         uses: PyO3/maturin-action@v1
         with:
-          args: --release --out dist --find-interpreter
+          args: --release --out dist -i python3.8 python3.9 python3.10 python3.11 python3.12 python3.13
           manylinux: manylinux_2_28
           working-directory: crates/oximedia-py
           before-script-linux: |
             # Install system deps
             if command -v dnf &>/dev/null; then
-              dnf install -y openssl-devel perl-IPC-Cmd unzip python3-devel || true
+              dnf install -y openssl-devel perl-IPC-Cmd unzip || true
             elif command -v yum &>/dev/null; then
-              yum install -y openssl-devel perl-IPC-Cmd unzip python3-devel || true
+              yum install -y openssl-devel perl-IPC-Cmd unzip || true
             elif command -v apt-get &>/dev/null; then
-              apt-get update && apt-get install -y libssl-dev unzip python3-dev || true
+              apt-get update && apt-get install -y libssl-dev unzip || true
             fi
+            # Remove system Python 3.6 libpython to prevent manylinux compliance failures
+            find /usr/lib64 /usr/lib /lib64 /lib -name 'libpython3.6*' -delete 2>/dev/null || true
+            ldconfig 2>/dev/null || true
             # Install protoc for oximedia-farm (gRPC codegen)
             curl -Lo /tmp/protoc.zip "https://github.com/protocolbuffers/protobuf/releases/download/v28.3/protoc-28.3-linux-aarch_64.zip"
             if command -v unzip &>/dev/null; then
