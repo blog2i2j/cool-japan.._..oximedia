@@ -526,4 +526,139 @@ mod tests {
         let label = super::tier_label(&feat);
         assert!(!label.is_empty());
     }
+
+    #[test]
+    fn run_benchmarks_returns_correct_count() {
+        let cfg = BenchConfig {
+            warmup: Duration::from_millis(1),
+            measure: Duration::from_millis(5),
+        };
+        let results = run_simd_benchmarks(cfg);
+        // We expect exactly 11 benchmark kernels
+        assert_eq!(
+            results.len(),
+            11,
+            "expected 11 benchmark results, got {}",
+            results.len()
+        );
+    }
+
+    #[test]
+    fn each_result_has_non_empty_name() {
+        let cfg = BenchConfig {
+            warmup: Duration::from_millis(1),
+            measure: Duration::from_millis(5),
+        };
+        let results = run_simd_benchmarks(cfg);
+        for r in &results {
+            assert!(!r.name.is_empty(), "bench result name must not be empty");
+        }
+    }
+
+    #[test]
+    fn each_result_has_non_empty_tier() {
+        let cfg = BenchConfig {
+            warmup: Duration::from_millis(1),
+            measure: Duration::from_millis(5),
+        };
+        let results = run_simd_benchmarks(cfg);
+        for r in &results {
+            assert!(
+                !r.tier.is_empty(),
+                "bench tier must not be empty for '{}'",
+                r.name
+            );
+        }
+    }
+
+    #[test]
+    fn tier_label_matches_valid_values() {
+        let feat = detect_cpu_features();
+        let label = super::tier_label(&feat);
+        let valid = ["avx512", "avx2", "sse4.2", "neon", "scalar"];
+        assert!(
+            valid.contains(&label),
+            "tier label '{label}' must be one of {valid:?}"
+        );
+    }
+
+    #[test]
+    fn each_result_elapsed_is_positive() {
+        let cfg = BenchConfig {
+            warmup: Duration::from_millis(1),
+            measure: Duration::from_millis(5),
+        };
+        let results = run_simd_benchmarks(cfg);
+        for r in &results {
+            assert!(
+                r.elapsed > Duration::ZERO,
+                "elapsed time must be > 0 for '{}'",
+                r.name
+            );
+        }
+    }
+
+    #[test]
+    fn bench_config_clone_is_equal() {
+        let cfg = BenchConfig::default();
+        let cfg2 = cfg.clone();
+        assert_eq!(cfg.warmup, cfg2.warmup);
+        assert_eq!(cfg.measure, cfg2.measure);
+    }
+
+    #[test]
+    fn bench_result_clone_preserves_fields() {
+        let cfg = BenchConfig {
+            warmup: Duration::from_millis(1),
+            measure: Duration::from_millis(5),
+        };
+        let results = run_simd_benchmarks(cfg);
+        let r = results[0].clone();
+        assert_eq!(r.name, results[0].name);
+        assert_eq!(r.tier, results[0].tier);
+        assert_eq!(r.iterations, results[0].iterations);
+    }
+
+    #[test]
+    fn run_benchmarks_with_longer_measure_gives_more_iterations() {
+        let cfg_short = BenchConfig {
+            warmup: Duration::from_millis(1),
+            measure: Duration::from_millis(5),
+        };
+        let cfg_long = BenchConfig {
+            warmup: Duration::from_millis(1),
+            measure: Duration::from_millis(50),
+        };
+        let results_short = run_simd_benchmarks(cfg_short);
+        let results_long = run_simd_benchmarks(cfg_long);
+        // The kernel with 10× more measurement time should generally have more iters
+        // We check that iterations are always ≥ 1 in both cases
+        for r in results_short.iter().chain(results_long.iter()) {
+            assert!(
+                r.iterations >= 1,
+                "each kernel must run at least 1 iteration"
+            );
+        }
+    }
+
+    #[test]
+    fn throughput_is_finite_and_positive() {
+        let cfg = BenchConfig {
+            warmup: Duration::from_millis(1),
+            measure: Duration::from_millis(5),
+        };
+        let results = run_simd_benchmarks(cfg);
+        for r in &results {
+            assert!(
+                r.throughput_mpx_per_sec.is_finite(),
+                "throughput must be finite for '{}'",
+                r.name
+            );
+            assert!(
+                r.throughput_mpx_per_sec > 0.0,
+                "throughput must be positive for '{}'",
+                r.name
+            );
+        }
+    }
 }

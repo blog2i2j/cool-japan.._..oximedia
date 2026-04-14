@@ -208,7 +208,9 @@ impl PixelWatermark {
         let mut state = self.seed.wrapping_add(frame_index);
         for gy in 0..self.grid_h {
             for gx in 0..self.grid_w {
-                state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+                state = state
+                    .wrapping_mul(6_364_136_223_846_793_005)
+                    .wrapping_add(1);
                 let bit = (state >> 33) & 1;
                 let delta = if bit == 1 {
                     (self.strength * 2.0) as i8

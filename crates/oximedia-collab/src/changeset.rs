@@ -193,6 +193,132 @@ impl Changeset {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Incremental (delta) serialization
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A compact representation of a single change operation for delta encoding.
+///
+/// Positions are stored as delta-encoded offsets from the previous operation's
+/// position, enabling smaller payloads for typical edit patterns.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub enum CompactOp {
+    /// Retain `n` characters from the current position.
+    Retain(u32),
+    /// Insert the given text at the current position.
+    Insert(String),
+    /// Delete `n` characters at the current position.
+    Delete(u32),
+}
+
+impl CompactOp {
+    /// Convert a full `Change` to a `CompactOp`.
+    pub fn from_change(change: &Change) -> Self {
+        match change {
+            Change::Retain(n) => CompactOp::Retain(*n as u32),
+            Change::Insert(s) => CompactOp::Insert(s.clone()),
+            Change::Delete(n) => CompactOp::Delete(*n as u32),
+        }
+    }
+
+    /// Convert back to a full `Change`.
+    pub fn to_change(&self) -> Change {
+        match self {
+            CompactOp::Retain(n) => Change::Retain(*n as usize),
+            CompactOp::Insert(s) => Change::Insert(s.clone()),
+            CompactOp::Delete(n) => Change::Delete(*n as usize),
+        }
+    }
+}
+
+/// A delta changeset that only encodes the operations that differ from the base
+/// version, reducing sync payload size for incremental updates.
+///
+/// The `base_version` field identifies which full `Changeset` this delta
+/// is relative to, allowing receivers to reconstruct the full state.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DeltaChangeset {
+    /// The version number of the base changeset.
+    pub base_version: u64,
+    /// Compact operations that transform the base into the new state.
+    pub ops: Vec<CompactOp>,
+    /// Author of the new changeset.
+    pub author: Uuid,
+    /// Unique identifier for this delta.
+    pub id: Uuid,
+}
+
+impl DeltaChangeset {
+    /// Create a delta from a base and a current changeset.
+    ///
+    /// Only operations that are *new* in `current` (beyond `base`) are encoded.
+    /// If `current` extends `base` (same author, additional ops), the delta
+    /// contains only the suffix operations.
+    pub fn delta_from(base: &Changeset, current: &Changeset) -> Self {
+        // Strategy: encode only the ops in `current` that are not in `base`.
+        // We compare lengths of the change lists and encode the suffix.
+        let base_len = base.changes.len();
+        let suffix: Vec<CompactOp> = current
+            .changes
+            .iter()
+            .skip(base_len)
+            .map(CompactOp::from_change)
+            .collect();
+
+        // If all ops overlap (same length), encode the full current state but
+        // only for operations that differ from base.
+        let ops = if suffix.is_empty() && current.changes.len() == base.changes.len() {
+            // Re-encode only differing ops
+            current
+                .changes
+                .iter()
+                .zip(base.changes.iter())
+                .filter_map(|(cur, bas)| {
+                    if cur != bas {
+                        Some(CompactOp::from_change(cur))
+                    } else {
+                        None
+                    }
+                })
+                .collect()
+        } else {
+            suffix
+        };
+
+        DeltaChangeset {
+            base_version: 0, // callers set this to their version counter
+            ops,
+            author: current.author,
+            id: Uuid::new_v4(),
+        }
+    }
+
+    /// Apply a delta to a base changeset, producing a new changeset that
+    /// appends the delta's operations after the base's existing operations.
+    pub fn apply_delta(base: &Changeset, delta: &DeltaChangeset) -> Changeset {
+        let mut result = Changeset {
+            id: delta.id,
+            author: delta.author,
+            changes: base.changes.clone(),
+            base_length: base.base_length,
+        };
+        for op in &delta.ops {
+            result.changes.push(op.to_change());
+        }
+        result
+    }
+
+    /// Serialize the delta to JSON bytes.
+    pub fn to_bytes(&self) -> Result<Vec<u8>, serde_json::Error> {
+        serde_json::to_vec(self)
+    }
+
+    /// Deserialize a delta from JSON bytes.
+    pub fn from_bytes(data: &[u8]) -> Result<Self, serde_json::Error> {
+        serde_json::from_slice(data)
+    }
+}
+
 /// A stack of changesets forming the document history.
 #[derive(Debug, Default)]
 pub struct ChangeHistory {
@@ -396,5 +522,161 @@ mod tests {
                 .id,
             id
         );
+    }
+
+    // ── DeltaChangeset tests ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_compact_op_round_trip_retain() {
+        let change = Change::Retain(42);
+        let compact = CompactOp::from_change(&change);
+        assert_eq!(compact.to_change(), change);
+    }
+
+    #[test]
+    fn test_compact_op_round_trip_insert() {
+        let change = Change::Insert("hello world".to_string());
+        let compact = CompactOp::from_change(&change);
+        assert_eq!(compact.to_change(), change);
+    }
+
+    #[test]
+    fn test_compact_op_round_trip_delete() {
+        let change = Change::Delete(7);
+        let compact = CompactOp::from_change(&change);
+        assert_eq!(compact.to_change(), change);
+    }
+
+    #[test]
+    fn test_delta_changeset_suffix_only() {
+        let a = author();
+        let mut base = Changeset::new(a, 5);
+        base.retain(5);
+
+        // Current adds an insert after the retain.
+        let mut current = Changeset::new(a, 5);
+        current.retain(5);
+        current.insert("!!");
+
+        let delta = DeltaChangeset::delta_from(&base, &current);
+        // Delta should encode only the Insert("!!") suffix.
+        assert_eq!(delta.ops.len(), 1);
+        assert_eq!(delta.ops[0], CompactOp::Insert("!!".to_string()));
+    }
+
+    #[test]
+    fn test_apply_delta_reconstructs_changeset() {
+        let a = author();
+        let mut base = Changeset::new(a, 5);
+        base.retain(5);
+
+        let mut current = Changeset::new(a, 5);
+        current.retain(5);
+        current.insert("appended");
+
+        let delta = DeltaChangeset::delta_from(&base, &current);
+        let reconstructed = DeltaChangeset::apply_delta(&base, &delta);
+
+        assert_eq!(reconstructed.changes.len(), 2);
+        assert_eq!(
+            reconstructed.changes[1],
+            Change::Insert("appended".to_string())
+        );
+    }
+
+    #[test]
+    fn test_delta_is_smaller_than_full_for_typical_edits() {
+        let a = author();
+        // Simulate a large document with many retains.
+        let mut base = Changeset::new(a, 1000);
+        for _ in 0..50 {
+            base.retain(20);
+        }
+
+        // Only one new operation added on top.
+        let mut current = base.clone();
+        current.insert("new text");
+
+        let full_bytes = serde_json::to_vec(&current).expect("serialization should succeed");
+        let delta = DeltaChangeset::delta_from(&base, &current);
+        let delta_bytes = serde_json::to_vec(&delta).expect("serialization should succeed");
+
+        // Delta should be strictly smaller than the full changeset.
+        assert!(
+            delta_bytes.len() < full_bytes.len(),
+            "delta ({} bytes) should be smaller than full ({} bytes)",
+            delta_bytes.len(),
+            full_bytes.len()
+        );
+    }
+
+    #[test]
+    fn test_delta_serialize_deserialize_round_trip() {
+        let a = author();
+        let mut base = Changeset::new(a, 3);
+        base.retain(3);
+        let mut current = Changeset::new(a, 3);
+        current.retain(3);
+        current.insert("X");
+
+        let delta = DeltaChangeset::delta_from(&base, &current);
+        let bytes = delta.to_bytes().expect("serialization should succeed");
+        let restored: DeltaChangeset =
+            DeltaChangeset::from_bytes(&bytes).expect("deserialization should succeed");
+
+        assert_eq!(restored.ops.len(), delta.ops.len());
+        assert_eq!(restored.author, delta.author);
+        assert_eq!(restored.id, delta.id);
+    }
+
+    #[test]
+    fn test_delta_empty_ops_when_no_change() {
+        let a = author();
+        let mut base = Changeset::new(a, 5);
+        base.retain(5);
+
+        // Current is identical to base.
+        let current = base.clone();
+        let delta = DeltaChangeset::delta_from(&base, &current);
+        // No new ops in delta.
+        assert!(delta.ops.is_empty());
+    }
+
+    #[test]
+    fn test_apply_delta_preserves_base_operations() {
+        let a = author();
+        let mut base = Changeset::new(a, 10);
+        base.retain(5);
+        base.delete(5);
+
+        let mut current = base.clone();
+        current.insert("end");
+
+        let delta = DeltaChangeset::delta_from(&base, &current);
+        let reconstructed = DeltaChangeset::apply_delta(&base, &delta);
+
+        // Base ops are preserved.
+        assert_eq!(reconstructed.changes[0], Change::Retain(5));
+        assert_eq!(reconstructed.changes[1], Change::Delete(5));
+        // Delta op appended.
+        assert_eq!(reconstructed.changes[2], Change::Insert("end".to_string()));
+    }
+
+    #[test]
+    fn test_delta_multiple_ops() {
+        let a = author();
+        let mut base = Changeset::new(a, 0);
+        base.insert("hello");
+
+        let mut current = base.clone();
+        current.retain(5);
+        current.insert(" world");
+        current.delete(2);
+
+        let delta = DeltaChangeset::delta_from(&base, &current);
+        assert_eq!(delta.ops.len(), 3);
+        assert_eq!(delta.ops[0], CompactOp::Retain(5));
+        assert_eq!(delta.ops[1], CompactOp::Insert(" world".to_string()));
+        assert_eq!(delta.ops[2], CompactOp::Delete(2));
     }
 }

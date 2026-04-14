@@ -37,6 +37,14 @@ async fn main() {
         std::process::exit(0);
     }
 
+    if args.iter().any(|a| a == "--version" || a == "-version") {
+        println!(
+            "oximedia-ff {} (OxiMedia FFmpeg-compat layer)",
+            env!("CARGO_PKG_VERSION")
+        );
+        std::process::exit(0);
+    }
+
     match run(&args).await {
         Ok(()) => std::process::exit(0),
         Err(e) => {

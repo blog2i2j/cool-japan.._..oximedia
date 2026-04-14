@@ -255,11 +255,7 @@ impl ExecutionTrace {
     /// Compute total trace duration (from earliest start to latest end).
     pub fn total_duration(&self) -> Option<Duration> {
         let earliest = self.spans.values().map(|s| s.start_time).min()?;
-        let latest = self
-            .spans
-            .values()
-            .filter_map(|s| s.end_time)
-            .max()?;
+        let latest = self.spans.values().filter_map(|s| s.end_time).max()?;
         latest.duration_since(earliest).ok()
     }
 
@@ -331,7 +327,13 @@ mod tests {
         let parent_id = SpanId::new("parent");
         let span = TraceSpan::start_child(SpanId::new("child"), &parent_id, "child op");
         assert!(!span.is_root());
-        assert_eq!(span.parent.as_ref().expect("should succeed in test").as_str(), "parent");
+        assert_eq!(
+            span.parent
+                .as_ref()
+                .expect("should succeed in test")
+                .as_str(),
+            "parent"
+        );
     }
 
     #[test]
@@ -363,7 +365,9 @@ mod tests {
         trace.finish_span(&SpanId::new("s1"), SpanStatus::Ok);
 
         assert_eq!(trace.running_count(), 0);
-        let span = trace.get_span(&SpanId::new("s1")).expect("should succeed in test");
+        let span = trace
+            .get_span(&SpanId::new("s1"))
+            .expect("should succeed in test");
         assert_eq!(span.status, SpanStatus::Ok);
     }
 
@@ -373,10 +377,7 @@ mod tests {
         trace.start_span(SpanId::new("s1"), "good");
         trace.start_span(SpanId::new("s2"), "bad");
         trace.finish_span(&SpanId::new("s1"), SpanStatus::Ok);
-        trace.finish_span(
-            &SpanId::new("s2"),
-            SpanStatus::Error("timeout".into()),
-        );
+        trace.finish_span(&SpanId::new("s2"), SpanStatus::Error("timeout".into()));
 
         assert_eq!(trace.error_count(), 1);
     }
@@ -424,10 +425,7 @@ mod tests {
         trace.start_span(SpanId::new("s1"), "a");
         trace.start_span(SpanId::new("s2"), "b");
         trace.finish_span(&SpanId::new("s1"), SpanStatus::Ok);
-        trace.finish_span(
-            &SpanId::new("s2"),
-            SpanStatus::Error("fail".into()),
-        );
+        trace.finish_span(&SpanId::new("s2"), SpanStatus::Error("fail".into()));
 
         let summary = trace.summary();
         assert_eq!(summary.total_spans, 2);

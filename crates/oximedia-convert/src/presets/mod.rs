@@ -123,33 +123,6 @@ impl Preset {
             "archive-intermediate" => archive::intermediate(),
             "archive-long-term" => archive::long_term(),
 
-            // Social media presets
-            "youtube-shorts"
-            | "youtube-1080p-60"
-            | "youtube-1080p-60fps"
-            | "youtube-4k-hdr"
-            | "youtube-live"
-            | "tiktok-standard"
-            | "tiktok-std"
-            | "tiktok-hd"
-            | "tiktok-ads"
-            | "instagram-feed-square"
-            | "ig-square"
-            | "instagram-feed-portrait"
-            | "ig-portrait"
-            | "instagram-feed-landscape"
-            | "ig-landscape"
-            | "instagram-reels"
-            | "ig-reels"
-            | "instagram-stories"
-            | "ig-stories"
-            | "twitter-landscape"
-            | "x-landscape"
-            | "twitter-portrait"
-            | "x-portrait"
-            | "twitter-square"
-            | "x-square" => social_media::social_media_preset(name),
-
             _ => Err(ConversionError::InvalidProfile(format!(
                 "Unknown preset: {name}"
             ))),
@@ -197,22 +170,6 @@ impl Preset {
             "archive-near-lossless",
             "archive-intermediate",
             "archive-long-term",
-            // Social Media
-            "youtube-shorts",
-            "youtube-1080p-60",
-            "youtube-4k-hdr",
-            "youtube-live",
-            "tiktok-standard",
-            "tiktok-hd",
-            "tiktok-ads",
-            "instagram-feed-square",
-            "instagram-feed-portrait",
-            "instagram-feed-landscape",
-            "instagram-reels",
-            "instagram-stories",
-            "twitter-landscape",
-            "twitter-portrait",
-            "twitter-square",
         ]
     }
 }
@@ -241,11 +198,9 @@ mod tests {
 
     #[test]
     fn test_youtube_preset_properties() {
-        let preset = Preset::from_name("youtube-1080p").expect("youtube-1080p preset should exist");
+        let preset = Preset::from_name("youtube-1080p").unwrap();
         assert!(preset.video.is_some());
-        let video = preset
-            .video
-            .expect("youtube preset should have video settings");
+        let video = preset.video.unwrap();
         assert_eq!(video.height, Some(1080));
     }
 }

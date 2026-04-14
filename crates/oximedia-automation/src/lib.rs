@@ -122,7 +122,7 @@ pub use channel::playout::{PlayoutEngine, PlayoutState};
 pub use device::control::{DeviceController, DeviceType};
 pub use eas::alert::{EasAlert, EasAlertType};
 pub use failover::manager::{FailoverConfig, FailoverManager};
-pub use logging::asrun::{AsRunEntry, AsRunLog};
+pub use logging::asrun::{AsRunEntry, AsRunLog, BatchedAsRunLogger};
 pub use master::control::{MasterControl, MasterControlConfig};
 pub use master::state::{SystemState, SystemStatus};
 pub use monitor::system::{MonitorConfig, SystemMonitor};

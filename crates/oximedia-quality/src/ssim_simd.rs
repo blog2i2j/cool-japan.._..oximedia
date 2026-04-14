@@ -226,9 +226,9 @@ impl SimdSsimCalculator {
 
 /// Computes SSIM at a single (cx, cy) position using the Gaussian kernel.
 ///
-/// Dispatches to the AVX2-accelerated path at runtime when available on x86-64,
-/// falling back to the scalar path on all other targets.
-#[inline]
+/// The inner loop uses 8-wide f32 chunks to encourage LLVM auto-vectorisation
+/// to AVX-2 / NEON / SSE4.2 without requiring unsafe target-feature dispatch.
+#[inline(always)]
 fn ssim_at(
     ref_plane: &[u8],
     dist_plane: &[u8],
@@ -240,55 +240,17 @@ fn ssim_at(
     c1: f32,
     c2: f32,
 ) -> f32 {
-    #[cfg(target_arch = "x86_64")]
-    {
-        if is_x86_feature_detected!("avx2") {
-            // SAFETY: we just verified AVX2 is available at runtime.
-            return unsafe {
-                ssim_at_avx2(ref_plane, dist_plane, cx, cy, ref_stride, dist_stride, kernel, c1, c2)
-            };
-        }
-    }
-    ssim_at_scalar(ref_plane, dist_plane, cx, cy, ref_stride, dist_stride, kernel, c1, c2)
-}
-
-/// AVX2-optimised SSIM accumulation (x86-64 only).
-///
-/// Uses `#[target_feature(enable = "avx2")]` so the compiler is free to emit
-/// 256-bit SIMD instructions for the inner dot-product loop.
-#[cfg(target_arch = "x86_64")]
-#[target_feature(enable = "avx2")]
-unsafe fn ssim_at_avx2(
-    ref_plane: &[u8],
-    dist_plane: &[u8],
-    cx: usize,
-    cy: usize,
-    ref_stride: usize,
-    dist_stride: usize,
-    kernel: &GaussianKernelCache,
-    c1: f32,
-    c2: f32,
-) -> f32 {
-    // The inner loop body is identical to the scalar version, but the
-    // `#[target_feature]` annotation unlocks AVX-2 autovectorisation for
-    // the compiler.  LLVM will typically emit vmovups/vfmadd231ps sequences.
-    ssim_at_inner(ref_plane, dist_plane, cx, cy, ref_stride, dist_stride, kernel, c1, c2)
-}
-
-/// Scalar SSIM accumulation — used as fallback and on non-x86 targets.
-#[inline(always)]
-fn ssim_at_scalar(
-    ref_plane: &[u8],
-    dist_plane: &[u8],
-    cx: usize,
-    cy: usize,
-    ref_stride: usize,
-    dist_stride: usize,
-    kernel: &GaussianKernelCache,
-    c1: f32,
-    c2: f32,
-) -> f32 {
-    ssim_at_inner(ref_plane, dist_plane, cx, cy, ref_stride, dist_stride, kernel, c1, c2)
+    ssim_at_inner(
+        ref_plane,
+        dist_plane,
+        cx,
+        cy,
+        ref_stride,
+        dist_stride,
+        kernel,
+        c1,
+        c2,
+    )
 }
 
 /// Shared inner loop for SSIM accumulation.

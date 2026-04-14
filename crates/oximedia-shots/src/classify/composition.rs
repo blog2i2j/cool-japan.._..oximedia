@@ -613,6 +613,18 @@ impl Default for CompositionAnalyzer {
 mod tests {
     use super::*;
 
+    fn make_frame(h: usize, w: usize, r: u8, g: u8, b: u8) -> FrameBuffer {
+        let mut frame = FrameBuffer::zeros(h, w, 3);
+        for y in 0..h {
+            for x in 0..w {
+                frame.set(y, x, 0, r);
+                frame.set(y, x, 1, g);
+                frame.set(y, x, 2, b);
+            }
+        }
+        frame
+    }
+
     #[test]
     fn test_composition_analyzer_creation() {
         let _analyzer = CompositionAnalyzer::new();
@@ -635,5 +647,198 @@ mod tests {
         let frame = FrameBuffer::zeros(100, 100, 3);
         let result = analyzer.analyze(&frame);
         assert!(result.is_ok());
+    }
+
+    // ── Golden ratio / phi grid extension tests (TODO item 3) ──────────────
+
+    /// `analyze_extended` must succeed on a valid frame.
+    #[test]
+    fn test_analyze_extended_returns_ok() {
+        let analyzer = CompositionAnalyzer::new();
+        let frame = make_frame(80, 80, 150, 100, 50);
+        let result = analyzer.analyze_extended(&frame);
+        assert!(
+            result.is_ok(),
+            "analyze_extended should succeed on a valid frame"
+        );
+    }
+
+    /// All extended scores must be in [0.0, 1.0].
+    #[test]
+    fn test_analyze_extended_scores_in_range() {
+        let analyzer = CompositionAnalyzer::new();
+        let frame = make_frame(100, 120, 80, 80, 200);
+        let ext = analyzer.analyze_extended(&frame).expect("should succeed");
+        assert!(
+            ext.golden_ratio >= 0.0 && ext.golden_ratio <= 1.0,
+            "golden_ratio out of range: {}",
+            ext.golden_ratio
+        );
+        assert!(
+            ext.phi_grid >= 0.0 && ext.phi_grid <= 1.0,
+            "phi_grid out of range: {}",
+            ext.phi_grid
+        );
+        assert!(
+            ext.golden_spiral >= 0.0 && ext.golden_spiral <= 1.0,
+            "golden_spiral out of range: {}",
+            ext.golden_spiral
+        );
+        assert!(
+            ext.diagonal_dominance >= 0.0 && ext.diagonal_dominance <= 1.0,
+            "diagonal_dominance out of range: {}",
+            ext.diagonal_dominance
+        );
+    }
+
+    /// `analyze_extended` returns an error for a frame with fewer than 3 channels.
+    #[test]
+    fn test_analyze_extended_wrong_channels_error() {
+        let analyzer = CompositionAnalyzer::new();
+        let frame = FrameBuffer::zeros(50, 50, 1);
+        assert!(
+            analyzer.analyze_extended(&frame).is_err(),
+            "should fail on 1-channel frame"
+        );
+    }
+
+    /// The `base` field in `ExtendedComposition` contains the standard analysis.
+    #[test]
+    fn test_analyze_extended_base_field_populated() {
+        let analyzer = CompositionAnalyzer::new();
+        // A uniform frame should have high symmetry in the base result.
+        let frame = make_frame(64, 64, 200, 200, 200);
+        let ext = analyzer.analyze_extended(&frame).expect("should succeed");
+        assert!(
+            ext.base.symmetry > 0.8,
+            "uniform frame base symmetry should be high: {}",
+            ext.base.symmetry
+        );
+    }
+
+    /// A frame with content at the phi-grid intersection (≈38.2% / 61.8%) should
+    /// score higher on golden_ratio than a completely uniform frame, because the
+    /// luminance-weighted energy is aligned with the phi divisions.
+    #[test]
+    fn test_analyze_extended_phi_grid_vs_uniform() {
+        let analyzer = CompositionAnalyzer::new();
+
+        // Uniform frame — no specific edge alignment
+        let uniform = make_frame(100, 100, 128, 128, 128);
+
+        // Frame with a bright vertical band at the phi-grid split (≈38.2% of width)
+        let phi_x = 38usize; // ≈38.2% of 100
+        let mut phi_frame = FrameBuffer::zeros(100, 100, 3);
+        for y in 0..100 {
+            for x in 0..100 {
+                // Bright band of 2 pixels centred on the phi column
+                let v = if x == phi_x || x == phi_x + 1 {
+                    255
+                } else {
+                    50
+                };
+                phi_frame.set(y, x, 0, v);
+                phi_frame.set(y, x, 1, v);
+                phi_frame.set(y, x, 2, v);
+            }
+        }
+
+        let ext_uniform = analyzer.analyze_extended(&uniform).expect("uniform ok");
+        let ext_phi = analyzer.analyze_extended(&phi_frame).expect("phi_frame ok");
+
+        // The phi-aligned frame should have at least as high a phi_grid score as uniform.
+        assert!(
+            ext_phi.phi_grid >= ext_uniform.phi_grid - 0.05,
+            "phi-aligned frame should not score lower than uniform: phi_frame={}, uniform={}",
+            ext_phi.phi_grid,
+            ext_uniform.phi_grid
+        );
+    }
+
+    /// The extended analysis is consistent: calling it twice on the same frame
+    /// must return identical results.
+    #[test]
+    fn test_analyze_extended_deterministic() {
+        let analyzer = CompositionAnalyzer::new();
+        let frame = make_frame(80, 80, 90, 120, 60);
+        let r1 = analyzer.analyze_extended(&frame).expect("first call ok");
+        let r2 = analyzer.analyze_extended(&frame).expect("second call ok");
+        assert!(
+            (r1.golden_ratio - r2.golden_ratio).abs() < f32::EPSILON,
+            "golden_ratio not deterministic"
+        );
+        assert!(
+            (r1.phi_grid - r2.phi_grid).abs() < f32::EPSILON,
+            "phi_grid not deterministic"
+        );
+        assert!(
+            (r1.golden_spiral - r2.golden_spiral).abs() < f32::EPSILON,
+            "golden_spiral not deterministic"
+        );
+    }
+
+    /// A frame with a clear diagonal edge should have higher diagonal_dominance
+    /// than a completely uniform frame.
+    #[test]
+    fn test_analyze_extended_diagonal_frame_higher_dominance() {
+        let analyzer = CompositionAnalyzer::new();
+        let uniform = make_frame(80, 80, 100, 100, 100);
+
+        // Diagonal split: upper-left half white, lower-right half black
+        let mut diag = FrameBuffer::zeros(80, 80, 3);
+        for y in 0..80 {
+            for x in 0..80 {
+                let v = if x + y < 80 { 255 } else { 0 };
+                diag.set(y, x, 0, v);
+                diag.set(y, x, 1, v);
+                diag.set(y, x, 2, v);
+            }
+        }
+
+        let ext_uniform = analyzer.analyze_extended(&uniform).expect("uniform ok");
+        let ext_diag = analyzer.analyze_extended(&diag).expect("diag ok");
+
+        assert!(
+            ext_diag.diagonal_dominance >= ext_uniform.diagonal_dominance,
+            "diagonal frame should have >= diagonal_dominance vs uniform: diag={}, uniform={}",
+            ext_diag.diagonal_dominance,
+            ext_uniform.diagonal_dominance
+        );
+    }
+
+    /// Works on a minimal 4×4 frame without panicking.
+    #[test]
+    fn test_analyze_extended_tiny_frame() {
+        let analyzer = CompositionAnalyzer::new();
+        let frame = make_frame(4, 4, 200, 100, 50);
+        let result = analyzer.analyze_extended(&frame);
+        assert!(result.is_ok(), "should handle 4×4 frame without error");
+    }
+
+    /// Works on a non-square frame (landscape aspect ratio).
+    #[test]
+    fn test_analyze_extended_landscape_frame() {
+        let analyzer = CompositionAnalyzer::new();
+        let frame = make_frame(54, 96, 100, 150, 200);
+        let ext = analyzer.analyze_extended(&frame).expect("landscape frame");
+        assert!(ext.golden_ratio >= 0.0 && ext.golden_ratio <= 1.0);
+        assert!(ext.phi_grid >= 0.0 && ext.phi_grid <= 1.0);
+    }
+
+    /// `ExtendedComposition` preserves the base rule_of_thirds from `analyze()`.
+    #[test]
+    fn test_analyze_extended_base_matches_analyze() {
+        let analyzer = CompositionAnalyzer::new();
+        let frame = make_frame(100, 100, 50, 50, 50);
+        let base = analyzer.analyze(&frame).expect("analyze ok");
+        let ext = analyzer
+            .analyze_extended(&frame)
+            .expect("analyze_extended ok");
+        assert!(
+            (ext.base.rule_of_thirds - base.rule_of_thirds).abs() < 0.001,
+            "extended base.rule_of_thirds should match analyze(): {} vs {}",
+            ext.base.rule_of_thirds,
+            base.rule_of_thirds
+        );
     }
 }

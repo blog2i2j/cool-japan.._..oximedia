@@ -191,14 +191,14 @@ async fn main() -> Result<()> {
     let result = match cli.command {
         Commands::Probe {
             input,
-            verbose,
+            detail,
             streams,
             hash: _hash,
             quality_snapshot: _quality_snapshot,
             format,
             chapters,
             metadata,
-        } => probe_file(&input, verbose, streams, &format, chapters, metadata).await,
+        } => probe_file(&input, detail, streams, &format, chapters, metadata).await,
 
         Commands::Info => {
             show_info();

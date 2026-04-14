@@ -1,12 +1,12 @@
 # oximedia-timeline
 
-![Status: Alpha](https://img.shields.io/badge/status-alpha-yellow)
+![Status: Stable](https://img.shields.io/badge/status-stable-green)
 
 Multi-track timeline editor for OxiMedia. Provides a professional-grade timeline editor with support for multi-track video/audio editing, frame-accurate operations, keyframe animation, transitions, professional editing tools, and EDL/XML/AAF import/export.
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.1 — 2026-03-10
+Version: 0.1.3 — 2026-04-15
 
 ## Features
 
@@ -48,7 +48,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-timeline = "0.1.1"
+oximedia-timeline = "0.1.3"
 ```
 
 ```rust

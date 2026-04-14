@@ -94,8 +94,8 @@ pub async fn compute_checksums(
 
     Ok(ChecksumSet {
         blake3: blake3_hasher.map(|h| h.finalize().to_hex().to_string()),
-        md5: md5_hasher.map(|h| format!("{:x}", h.finalize())),
-        sha256: sha256_hasher.map(|h| format!("{:x}", h.finalize())),
+        md5: md5_hasher.map(|h| hex::encode(h.finalize())),
+        sha256: sha256_hasher.map(|h| hex::encode(h.finalize())),
         crc32: crc32_hasher.map(|h| format!("{:08x}", h.finalize())),
     })
 }
@@ -133,7 +133,7 @@ pub async fn compute_md5(path: &Path) -> ArchiveResult<String> {
         hasher.update(&buffer[..bytes_read]);
     }
 
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(hex::encode(hasher.finalize()))
 }
 
 /// Compute SHA-256 checksum
@@ -151,7 +151,7 @@ pub async fn compute_sha256(path: &Path) -> ArchiveResult<String> {
         hasher.update(&buffer[..bytes_read]);
     }
 
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(hex::encode(hasher.finalize()))
 }
 
 /// Compute CRC32 checksum (fast)
@@ -235,8 +235,8 @@ impl IncrementalHasher {
     pub fn finalize(self) -> ChecksumSet {
         ChecksumSet {
             blake3: self.blake3.map(|h| h.finalize().to_hex().to_string()),
-            md5: self.md5.map(|h| format!("{:x}", h.finalize())),
-            sha256: self.sha256.map(|h| format!("{:x}", h.finalize())),
+            md5: self.md5.map(|h| hex::encode(h.finalize())),
+            sha256: self.sha256.map(|h| hex::encode(h.finalize())),
             crc32: self.crc32.map(|h| format!("{:08x}", h.finalize())),
         }
     }
@@ -787,17 +787,17 @@ pub fn verify_checksum(record: &ChecksumEntry, data: &[u8]) -> bool {
         ChecksumAlgo::Md5 => {
             let mut h = Md5::new();
             h.update(data);
-            format!("{:x}", h.finalize())
+            hex::encode(h.finalize())
         }
         ChecksumAlgo::Sha1 => {
             let mut h = Sha1::new();
             h.update(data);
-            format!("{:x}", h.finalize())
+            hex::encode(h.finalize())
         }
         ChecksumAlgo::Sha256 => {
             let mut h = Sha256::new();
             h.update(data);
-            format!("{:x}", h.finalize())
+            hex::encode(h.finalize())
         }
         ChecksumAlgo::Xxhash => {
             let hash_value = xxhash_rust::xxh64::xxh64(data, 0);
@@ -909,7 +909,7 @@ mod checksum_algo_tests {
         let data = b"hello world";
         let mut h = Md5::new();
         h.update(data);
-        let hex = format!("{:x}", h.finalize());
+        let hex = hex::encode(h.finalize());
         let r = make_record("test.bin", ChecksumAlgo::Md5, &hex);
         assert!(verify_checksum(&r, data));
     }
@@ -920,7 +920,7 @@ mod checksum_algo_tests {
         let data = b"hello world";
         let mut h = Sha256::new();
         h.update(data);
-        let hex = format!("{:x}", h.finalize());
+        let hex = hex::encode(h.finalize());
         let r = make_record("test.bin", ChecksumAlgo::Sha256, &hex);
         assert!(verify_checksum(&r, data));
     }
@@ -931,7 +931,7 @@ mod checksum_algo_tests {
         let data = b"hello world";
         let mut h = Sha1::new();
         h.update(data);
-        let hex = format!("{:x}", h.finalize());
+        let hex = hex::encode(h.finalize());
         let r = make_record("test.bin", ChecksumAlgo::Sha1, &hex);
         assert!(verify_checksum(&r, data));
     }

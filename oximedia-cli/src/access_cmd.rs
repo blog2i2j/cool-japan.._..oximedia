@@ -162,7 +162,7 @@ pub enum AccessCommand {
 
         /// Show detailed reasoning
         #[arg(long)]
-        verbose: bool,
+        detail: bool,
     },
 }
 
@@ -265,14 +265,14 @@ pub async fn handle_access_command(command: AccessCommand, json_output: bool) ->
             principal,
             permission,
             territory,
-            verbose,
+            detail,
         } => {
             check_permission(
                 &asset,
                 &principal,
                 &permission,
                 territory.as_deref(),
-                verbose,
+                detail,
                 json_output,
             )
             .await
@@ -571,7 +571,7 @@ async fn check_permission(
     principal: &str,
     permission: &str,
     territory: Option<&str>,
-    verbose: bool,
+    detail: bool,
     json_output: bool,
 ) -> Result<()> {
     validate_permission(permission)?;
@@ -608,7 +608,7 @@ async fn check_permission(
         } else {
             println!("{}", "DENIED".red().bold());
         }
-        if verbose {
+        if detail {
             println!("{:25} {}", "Reason:", reason);
         }
     }
@@ -661,7 +661,7 @@ mod tests {
             principal: "editor@studio.com".to_string(),
             permission: "write".to_string(),
             territory: Some("US".to_string()),
-            verbose: true,
+            detail: true,
         };
         assert!(matches!(cmd, AccessCommand::Check { .. }));
     }

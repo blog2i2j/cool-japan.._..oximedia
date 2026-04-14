@@ -646,4 +646,143 @@ mod tests {
         assert!(!JobStatus::Running.is_terminal());
         assert!(!JobStatus::Pending.is_terminal());
     }
+
+    // ── Additional comprehensive tests ────────────────────────────────────
+
+    #[test]
+    fn test_export_config_default_resolution() {
+        let cfg = ExportConfig::default();
+        assert_eq!(cfg.width, 1920);
+        assert_eq!(cfg.height, 1080);
+        assert_eq!(cfg.fps, 30.0);
+    }
+
+    #[test]
+    fn test_export_config_new_sets_path() {
+        let cfg = ExportConfig::new("/tmp/test_output.webm");
+        assert_eq!(cfg.output_path, "/tmp/test_output.webm");
+        assert!(cfg.export_video);
+        assert!(cfg.export_audio);
+    }
+
+    #[test]
+    fn test_timeline_snapshot_fields() {
+        let snap = TimelineSnapshot::new("My Timeline", 60_000, 3, 12);
+        assert_eq!(snap.name, "My Timeline");
+        assert_eq!(snap.duration_ms, 60_000);
+        assert_eq!(snap.track_count, 3);
+        assert_eq!(snap.clip_count, 12);
+    }
+
+    #[test]
+    fn test_render_job_initial_progress_is_zero() {
+        let job = make_job(0);
+        assert_eq!(job.progress, 0);
+        assert!(job.error_message.is_none());
+    }
+
+    #[test]
+    fn test_render_job_is_pending_after_creation() {
+        let job = make_job(5);
+        assert!(job.is_pending());
+        assert!(!job.is_done());
+    }
+
+    #[test]
+    fn test_render_queue_get_job_mut() {
+        let mut q = RenderQueue::new();
+        let id = q.add_job(make_job(0));
+        if let Some(job) = q.get_job_mut(id) {
+            job.label = Some("mutated".to_string());
+        }
+        assert_eq!(
+            q.get_job(id).and_then(|j| j.label.as_deref()),
+            Some("mutated")
+        );
+    }
+
+    #[test]
+    fn test_fail_job_error_message_stored() {
+        let mut q = RenderQueue::new();
+        let id = q.add_job(make_job(0));
+        q.next_job();
+        q.fail_job(id, "encoder crashed");
+        let job = q.get_job(id).expect("job should exist");
+        assert_eq!(job.error_message.as_deref(), Some("encoder crashed"));
+        assert_eq!(job.status, JobStatus::Failed);
+    }
+
+    #[test]
+    fn test_complete_job_sets_progress_100() {
+        let mut q = RenderQueue::new();
+        let id = q.add_job(make_job(0));
+        q.next_job();
+        q.set_progress(id, 75);
+        q.complete_job(id);
+        assert_eq!(q.get_job(id).map(|j| j.progress), Some(100));
+    }
+
+    #[test]
+    fn test_cancel_running_job_via_update_status() {
+        let mut q = RenderQueue::new();
+        let id = q.add_job(make_job(0));
+        q.next_job(); // → Running
+        assert!(q.update_status(id, JobStatus::Cancelled));
+        assert_eq!(q.get_job(id).map(|j| j.status), Some(JobStatus::Cancelled));
+    }
+
+    #[test]
+    fn test_next_job_skips_cancelled_pending() {
+        let mut q = RenderQueue::new();
+        let id1 = q.add_job(make_job(5));
+        let id2 = q.add_job(make_job(3));
+        // Cancel the highest priority job before it starts
+        q.update_status(id1, JobStatus::Cancelled);
+        let next = q.next_job().expect("id2 should be next");
+        assert_eq!(next, id2);
+    }
+
+    #[test]
+    fn test_purge_completed_retains_pending_and_running() {
+        let mut q = RenderQueue::new();
+        let id_pending = q.add_job(make_job(1));
+        let id_running = q.add_job(make_job(2));
+        let id_done = q.add_job(make_job(3));
+
+        // Start and complete id_done
+        let started = q.next_job().expect("should start id_done (priority 3)");
+        assert_eq!(started, id_done);
+        q.complete_job(id_done);
+
+        q.purge_completed();
+        assert_eq!(q.len(), 2);
+        assert!(q.get_job(id_pending).is_some());
+        assert!(q.get_job(id_running).is_some());
+        assert!(q.get_job(id_done).is_none());
+    }
+
+    #[test]
+    fn test_status_counts_all_statuses() {
+        let mut q = RenderQueue::new();
+        // Add enough jobs to exercise every status
+        let id_a = q.add_job(make_job(10));
+        let id_b = q.add_job(make_job(9));
+        let id_c = q.add_job(make_job(8));
+        let _id_d = q.add_job(make_job(1)); // stays pending
+
+        q.next_job(); // id_a → Running
+        q.complete_job(id_a);
+
+        q.next_job(); // id_b → Running
+        q.fail_job(id_b, "oops");
+
+        q.next_job(); // id_c → Running
+        q.update_status(id_c, JobStatus::Cancelled);
+
+        let counts = q.status_counts();
+        assert_eq!(counts.get(&JobStatus::Completed), Some(&1));
+        assert_eq!(counts.get(&JobStatus::Failed), Some(&1));
+        assert_eq!(counts.get(&JobStatus::Cancelled), Some(&1));
+        assert_eq!(counts.get(&JobStatus::Pending), Some(&1));
+    }
 }

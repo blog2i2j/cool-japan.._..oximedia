@@ -182,9 +182,7 @@ mod tests {
         metrics.increment_completed();
         metrics.add_processing_time(Duration::from_secs(20));
 
-        let avg = metrics
-            .average_processing_time()
-            .expect("average_processing_time should succeed");
+        let avg = metrics.average_processing_time().unwrap();
         assert_eq!(avg.as_secs(), 15);
     }
 

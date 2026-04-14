@@ -262,6 +262,130 @@ impl BoundaryDetector {
 }
 
 // ---------------------------------------------------------------------------
+// DetectionSensitivity and BoundaryDetectorBuilder
+// ---------------------------------------------------------------------------
+
+/// Named sensitivity presets for [`BoundaryDetectorBuilder`].
+///
+/// Each preset corresponds to a pair of `(cut_threshold, gradual_threshold)`:
+///
+/// | Variant       | cut   | gradual |
+/// |---------------|-------|---------|
+/// | Conservative  | 0.65  | 0.35    |
+/// | Balanced      | 0.50  | 0.20    |
+/// | Sensitive     | 0.25  | 0.08    |
+/// | Custom        | user-defined (falls back to `Balanced` if not overridden) |
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DetectionSensitivity {
+    /// High thresholds — only unambiguous scene changes are detected.
+    Conservative,
+    /// Moderate thresholds suitable for most content.
+    Balanced,
+    /// Low thresholds — detects subtle cuts and soft dissolves.
+    Sensitive,
+    /// The caller will provide explicit threshold values via
+    /// [`BoundaryDetectorBuilder::cut_threshold`] and/or
+    /// [`BoundaryDetectorBuilder::gradual_threshold`].
+    Custom,
+}
+
+/// Fluent builder for [`BoundaryDetector`] that accepts a named
+/// [`DetectionSensitivity`] preset and optional per-field overrides.
+///
+/// # Example
+///
+/// ```
+/// use oximedia_scene::scene_boundary::{BoundaryDetectorBuilder, DetectionSensitivity};
+///
+/// let detector = BoundaryDetectorBuilder::new()
+///     .sensitivity(DetectionSensitivity::Sensitive)
+///     .gradual_min_frames(4)
+///     .build();
+///
+/// assert!(detector.cut_threshold < 0.50);
+/// ```
+#[derive(Debug, Clone)]
+pub struct BoundaryDetectorBuilder {
+    sensitivity: DetectionSensitivity,
+    cut_threshold: Option<f32>,
+    gradual_threshold: Option<f32>,
+    gradual_min_frames: usize,
+}
+
+impl BoundaryDetectorBuilder {
+    /// Create a new builder with [`DetectionSensitivity::Balanced`] defaults.
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            sensitivity: DetectionSensitivity::Balanced,
+            cut_threshold: None,
+            gradual_threshold: None,
+            gradual_min_frames: 3,
+        }
+    }
+
+    /// Set the named sensitivity preset.
+    #[must_use]
+    pub fn sensitivity(mut self, s: DetectionSensitivity) -> Self {
+        self.sensitivity = s;
+        self
+    }
+
+    /// Override the hard-cut threshold (ignores the preset value for this field).
+    #[must_use]
+    pub fn cut_threshold(mut self, t: f32) -> Self {
+        self.cut_threshold = Some(t.clamp(0.0, 1.0));
+        self
+    }
+
+    /// Override the gradual-transition threshold.
+    #[must_use]
+    pub fn gradual_threshold(mut self, t: f32) -> Self {
+        self.gradual_threshold = Some(t.clamp(0.0, 1.0));
+        self
+    }
+
+    /// Set the minimum number of consecutive frames required to declare a gradual
+    /// transition.  Clamped to a minimum of 2.
+    #[must_use]
+    pub fn gradual_min_frames(mut self, n: usize) -> Self {
+        self.gradual_min_frames = n;
+        self
+    }
+
+    /// Build a [`BoundaryDetector`] using the configured parameters.
+    #[must_use]
+    pub fn build(self) -> BoundaryDetector {
+        let (preset_cut, preset_gradual) = self.preset_thresholds();
+        let cut = self.cut_threshold.unwrap_or(preset_cut);
+        let gradual = self.gradual_threshold.unwrap_or(preset_gradual);
+        // Ensure cut > gradual to maintain invariant
+        let (cut, gradual) = if cut > gradual {
+            (cut, gradual)
+        } else {
+            (gradual + 0.05, gradual)
+        };
+        BoundaryDetector::new(cut, gradual, self.gradual_min_frames)
+    }
+
+    /// Return `(cut, gradual)` thresholds for the active sensitivity preset.
+    fn preset_thresholds(&self) -> (f32, f32) {
+        match self.sensitivity {
+            DetectionSensitivity::Conservative => (0.65, 0.35),
+            DetectionSensitivity::Balanced => (0.50, 0.20),
+            DetectionSensitivity::Sensitive => (0.25, 0.08),
+            DetectionSensitivity::Custom => (0.50, 0.20), // balanced fallback
+        }
+    }
+}
+
+impl Default for BoundaryDetectorBuilder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
@@ -473,5 +597,155 @@ mod tests {
         // Extreme percentiles should not panic
         let (cut_max, _) = det.estimate_thresholds(100.0, 0.0);
         assert!(cut_max > 0.0);
+    }
+
+    // ── BoundaryDetectorBuilder / DetectionSensitivity ───────────────────────
+
+    #[test]
+    fn test_builder_balanced_preset() {
+        let det = BoundaryDetectorBuilder::new()
+            .sensitivity(DetectionSensitivity::Balanced)
+            .build();
+        assert!(
+            (det.cut_threshold - 0.50).abs() < 0.01,
+            "cut={}",
+            det.cut_threshold
+        );
+        assert!(
+            (det.gradual_threshold - 0.20).abs() < 0.01,
+            "grad={}",
+            det.gradual_threshold
+        );
+    }
+
+    #[test]
+    fn test_builder_conservative_higher_than_sensitive() {
+        let conservative = BoundaryDetectorBuilder::new()
+            .sensitivity(DetectionSensitivity::Conservative)
+            .build();
+        let sensitive = BoundaryDetectorBuilder::new()
+            .sensitivity(DetectionSensitivity::Sensitive)
+            .build();
+        assert!(
+            conservative.cut_threshold > sensitive.cut_threshold,
+            "conservative cut={} should exceed sensitive cut={}",
+            conservative.cut_threshold,
+            sensitive.cut_threshold
+        );
+    }
+
+    #[test]
+    fn test_builder_sensitive_detects_small_cuts() {
+        let mut det = BoundaryDetectorBuilder::new()
+            .sensitivity(DetectionSensitivity::Sensitive)
+            .build();
+        for i in 0..5u64 {
+            det.add_frame(i, 0.01);
+        }
+        det.add_frame(5, 0.30); // above sensitive cut threshold (~0.25)
+        for i in 6..10u64 {
+            det.add_frame(i, 0.01);
+        }
+        let bounds = det.detect_boundaries();
+        assert!(
+            bounds.iter().any(|b| b.start_frame == 5),
+            "sensitive detector should catch diff=0.30"
+        );
+    }
+
+    #[test]
+    fn test_builder_conservative_ignores_small_cuts() {
+        let mut det = BoundaryDetectorBuilder::new()
+            .sensitivity(DetectionSensitivity::Conservative)
+            .build();
+        for i in 0..5u64 {
+            det.add_frame(i, 0.01);
+        }
+        det.add_frame(5, 0.30); // below conservative cut threshold (~0.65)
+        for i in 6..10u64 {
+            det.add_frame(i, 0.01);
+        }
+        let bounds = det.detect_boundaries();
+        assert!(
+            bounds.is_empty(),
+            "conservative detector should ignore diff=0.30, got {:?}",
+            bounds.iter().map(|b| b.start_frame).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn test_builder_explicit_threshold_overrides_preset() {
+        let det = BoundaryDetectorBuilder::new()
+            .sensitivity(DetectionSensitivity::Balanced)
+            .cut_threshold(0.80)
+            .build();
+        assert!(
+            (det.cut_threshold - 0.80).abs() < 0.01,
+            "explicit override ignored"
+        );
+    }
+
+    #[test]
+    fn test_builder_gradual_min_frames_respected() {
+        let det = BoundaryDetectorBuilder::new().gradual_min_frames(7).build();
+        assert_eq!(det.gradual_min_frames, 7);
+    }
+
+    #[test]
+    fn test_builder_gradual_min_frames_clamped_to_two() {
+        let det = BoundaryDetectorBuilder::new().gradual_min_frames(0).build();
+        // BoundaryDetector::new clamps gradual_min_frames to .max(2)
+        assert!(det.gradual_min_frames >= 2);
+    }
+
+    #[test]
+    fn test_builder_cut_always_greater_than_gradual() {
+        for sens in [
+            DetectionSensitivity::Conservative,
+            DetectionSensitivity::Balanced,
+            DetectionSensitivity::Sensitive,
+            DetectionSensitivity::Custom,
+        ] {
+            let det = BoundaryDetectorBuilder::new().sensitivity(sens).build();
+            assert!(
+                det.cut_threshold > det.gradual_threshold,
+                "cut={} must exceed gradual={} for {:?}",
+                det.cut_threshold,
+                det.gradual_threshold,
+                sens
+            );
+        }
+    }
+
+    #[test]
+    fn test_builder_default_is_balanced() {
+        let det = BoundaryDetectorBuilder::default().build();
+        assert!((det.cut_threshold - 0.50).abs() < 0.01);
+        assert!((det.gradual_threshold - 0.20).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_builder_sensitive_detects_dissolve() {
+        let mut det = BoundaryDetectorBuilder::new()
+            .sensitivity(DetectionSensitivity::Sensitive)
+            .gradual_min_frames(3)
+            .build();
+        for i in 0..5u64 {
+            det.add_frame(i, 0.01);
+        }
+        // Sustained moderate diff — above sensitive gradual threshold (~0.08)
+        for i in 5..9u64 {
+            det.add_frame(i, 0.15);
+        }
+        for i in 9..15u64 {
+            det.add_frame(i, 0.01);
+        }
+        let bounds = det.detect_boundaries();
+        assert!(
+            bounds
+                .iter()
+                .any(|b| b.boundary_type == BoundaryType::Dissolve),
+            "sensitive detector should detect dissolve"
+        );
     }
 }

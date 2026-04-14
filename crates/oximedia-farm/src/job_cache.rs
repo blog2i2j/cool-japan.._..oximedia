@@ -84,7 +84,7 @@ impl CacheMetrics {
 /// A capacity-bounded, TTL-aware, LRU eviction cache keyed by `K`.
 ///
 /// This is a general-purpose cache; see [`JobStateCache`] for the
-/// farm-specific wrapper around [`crate::coordinator::job_queue::Job`].
+/// farm-specific wrapper around [`crate::coordinator::Job`].
 pub struct LruCache<K, V> {
     entries: HashMap<K, CacheEntry<V>>,
     capacity: usize,

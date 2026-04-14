@@ -1,20 +1,19 @@
 #![allow(dead_code)]
-//! Worker pool management with grouping, tagging, and health monitoring.
+//! Worker pool management with grouping and tagging.
 //!
-//! Provides two complementary abstractions:
-//!
-//! ## Pool grouping (`WorkerPool` / `PoolManager`)
+//! Provides a logical grouping layer on top of individual workers:
 //! - Worker groups (pools) with shared properties and tags
 //! - Pool-level capacity tracking and utilization metrics
 //! - Worker assignment and removal from pools
 //! - Pool-based job routing (match job requirements to pool capabilities)
 //! - Drain and maintenance mode for individual pools
 //!
-//! ## Health-monitored node tracking (`WorkerNode` / `WorkerNodePool`)
-//! - Per-node heartbeat tracking with configurable timeout
-//! - Automatic stale-node detection and offline promotion
-//! - Capability and tag-based node queries
-//! - Drain mode to stop new job assignment without killing existing work
+//! # Auto-scaling
+//!
+//! `PoolManager` supports queue-depth-driven auto-scaling via
+//! [`PoolManager::evaluate_scaling`] and [`PoolManager::apply_scale_decision`].
+//! A [`PoolAutoScaleConfig`] per pool specifies the thresholds, step sizes, and
+//! a cooldown period to prevent oscillation.
 
 use std::collections::{HashMap, HashSet};
 
@@ -224,11 +223,81 @@ impl WorkerPool {
     }
 }
 
+// ── Auto-scaling ──────────────────────────────────────────────────────────────
+
+/// Configuration for queue-depth-driven auto-scaling of a single pool.
+///
+/// The scaling decision is based on the ratio of pending queue depth to the
+/// current number of active workers.  If the ratio exceeds `scale_up_threshold`,
+/// the pool should grow; if it falls below `scale_down_threshold`, the pool
+/// should shrink.
+#[derive(Debug, Clone, PartialEq)]
+pub struct PoolAutoScaleConfig {
+    /// Minimum number of workers this pool should maintain.
+    pub min_workers: usize,
+    /// Maximum number of workers this pool may ever hold (`0` = no cap).
+    pub max_workers: usize,
+    /// Queue-depth-per-worker ratio above which a scale-up is recommended.
+    pub scale_up_threshold: f64,
+    /// Queue-depth-per-worker ratio below which a scale-down is recommended.
+    pub scale_down_threshold: f64,
+    /// Number of worker slots to add per scale-up action.
+    pub scale_up_step: usize,
+    /// Number of worker slots to remove per scale-down action.
+    pub scale_down_step: usize,
+    /// Minimum seconds between consecutive scale actions (prevents oscillation).
+    pub cooldown_secs: u64,
+}
+
+impl PoolAutoScaleConfig {
+    /// Sensible defaults: min=1, max=unlimited, thresholds 2.0/0.5, step=1, cooldown=60 s.
+    #[must_use]
+    pub fn default_config() -> Self {
+        Self {
+            min_workers: 1,
+            max_workers: 0,
+            scale_up_threshold: 2.0,
+            scale_down_threshold: 0.5,
+            scale_up_step: 1,
+            scale_down_step: 1,
+            cooldown_secs: 60,
+        }
+    }
+}
+
+impl Default for PoolAutoScaleConfig {
+    fn default() -> Self {
+        Self::default_config()
+    }
+}
+
+/// The scaling action recommended by [`PoolManager::evaluate_scaling`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PoolScaleDecision {
+    /// No change needed; the pool is appropriately sized.
+    NoChange,
+    /// Increase pool capacity by `n` worker slots.
+    ScaleUp(usize),
+    /// Decrease pool capacity by `n` worker slots.
+    ScaleDown(usize),
+}
+
+/// Per-pool auto-scale runtime state (cooldown tracking).
+#[derive(Debug, Default, Clone)]
+struct AutoScaleState {
+    /// Epoch-seconds timestamp of the last scale action (0 = never scaled).
+    last_action_epoch: u64,
+}
+
 /// Manages multiple worker pools.
 #[derive(Debug, Default)]
 pub struct PoolManager {
     /// Map of pool ID to pool.
     pools: HashMap<String, WorkerPool>,
+    /// Per-pool auto-scale configuration.
+    autoscale_configs: HashMap<String, PoolAutoScaleConfig>,
+    /// Per-pool auto-scale runtime state.
+    autoscale_state: HashMap<String, AutoScaleState>,
 }
 
 impl PoolManager {
@@ -264,6 +333,8 @@ impl PoolManager {
 
     /// Remove a pool.
     pub fn remove_pool(&mut self, pool_id: &str) -> Option<WorkerPool> {
+        self.autoscale_configs.remove(pool_id);
+        self.autoscale_state.remove(pool_id);
         self.pools.remove(pool_id)
     }
 
@@ -306,11 +377,192 @@ impl PoolManager {
     pub fn list_pool_ids(&self) -> Vec<&str> {
         self.pools.keys().map(String::as_str).collect()
     }
+
+    // ── Auto-scaling ──────────────────────────────────────────────────────────
+
+    /// Attach an auto-scale configuration to a pool.
+    ///
+    /// # Errors
+    ///
+    /// Returns `PoolError::PoolNotFound` if the pool does not exist.
+    pub fn set_autoscale_config(
+        &mut self,
+        pool_id: &str,
+        config: PoolAutoScaleConfig,
+    ) -> Result<()> {
+        if !self.pools.contains_key(pool_id) {
+            return Err(PoolError::PoolNotFound(pool_id.to_string()));
+        }
+        self.autoscale_configs.insert(pool_id.to_string(), config);
+        self.autoscale_state.entry(pool_id.to_string()).or_default();
+        Ok(())
+    }
+
+    /// Evaluate whether a pool should scale up or down given the current
+    /// `queue_depth` (number of pending jobs) and `now_secs` (epoch seconds).
+    ///
+    /// Returns [`PoolScaleDecision::NoChange`] if:
+    /// - the pool has no auto-scale config,
+    /// - the pool does not exist,
+    /// - the cooldown period has not elapsed since the last scale action, or
+    /// - the current worker count already satisfies the thresholds.
+    ///
+    /// The decision is based solely on the *current* state; callers must invoke
+    /// [`Self::apply_scale_decision`] to actually mutate the pool.
+    #[must_use]
+    pub fn evaluate_scaling(
+        &self,
+        pool_id: &str,
+        queue_depth: usize,
+        now_secs: u64,
+    ) -> PoolScaleDecision {
+        let config = match self.autoscale_configs.get(pool_id) {
+            Some(c) => c,
+            None => return PoolScaleDecision::NoChange,
+        };
+        let pool = match self.pools.get(pool_id) {
+            Some(p) => p,
+            None => return PoolScaleDecision::NoChange,
+        };
+        let state = match self.autoscale_state.get(pool_id) {
+            Some(s) => s,
+            None => return PoolScaleDecision::NoChange,
+        };
+
+        // Enforce cooldown.
+        if state.last_action_epoch > 0
+            && now_secs.saturating_sub(state.last_action_epoch) < config.cooldown_secs
+        {
+            return PoolScaleDecision::NoChange;
+        }
+
+        let worker_count = pool.worker_count();
+
+        // Avoid division by zero: treat 0 workers as 1 for ratio calculation so
+        // that a non-zero queue depth always triggers a scale-up.
+        let effective_workers = worker_count.max(1) as f64;
+        let ratio = queue_depth as f64 / effective_workers;
+
+        if ratio > config.scale_up_threshold {
+            // Do not exceed max_workers (if capped).
+            let headroom = if config.max_workers == 0 {
+                config.scale_up_step
+            } else {
+                config.max_workers.saturating_sub(worker_count)
+            };
+            if headroom == 0 {
+                return PoolScaleDecision::NoChange;
+            }
+            let step = config.scale_up_step.min(headroom);
+            PoolScaleDecision::ScaleUp(step)
+        } else if ratio < config.scale_down_threshold {
+            // Do not go below min_workers.
+            let removable = worker_count.saturating_sub(config.min_workers);
+            if removable == 0 {
+                return PoolScaleDecision::NoChange;
+            }
+            let step = config.scale_down_step.min(removable);
+            PoolScaleDecision::ScaleDown(step)
+        } else {
+            PoolScaleDecision::NoChange
+        }
+    }
+
+    /// Apply a previously evaluated `PoolScaleDecision` to the pool.
+    ///
+    /// - `ScaleUp(n)` — adds `n` placeholder worker IDs (`autoscale-<pool>-<seq>`) to
+    ///   the pool's worker set and updates the pool's `max_workers` limit if needed.
+    /// - `ScaleDown(n)` — transitions `n` workers to Draining by removing them from
+    ///   the worker set (the actual worker processes are responsible for graceful
+    ///   shutdown; this only updates the logical pool accounting).
+    /// - `NoChange` — no-op.
+    ///
+    /// Records the current time for cooldown enforcement.
+    ///
+    /// # Errors
+    ///
+    /// Returns `PoolError::PoolNotFound` if the pool does not exist.
+    pub fn apply_scale_decision(
+        &mut self,
+        pool_id: &str,
+        decision: &PoolScaleDecision,
+        now_secs: u64,
+    ) -> Result<()> {
+        if !self.pools.contains_key(pool_id) {
+            return Err(PoolError::PoolNotFound(pool_id.to_string()));
+        }
+
+        match decision {
+            PoolScaleDecision::NoChange => {}
+            PoolScaleDecision::ScaleUp(n) => {
+                let pool = self
+                    .pools
+                    .get_mut(pool_id)
+                    .ok_or_else(|| PoolError::PoolNotFound(pool_id.to_string()))?;
+                let start_seq = pool.workers.len();
+                for i in 0..*n {
+                    let wid = format!("autoscale-{pool_id}-{}", start_seq + i);
+                    // Temporarily raise max_workers if the pool is capped and the
+                    // auto-scale config explicitly asks for more slots.
+                    if pool.max_workers > 0 && pool.workers.len() >= pool.max_workers {
+                        pool.max_workers += 1;
+                    }
+                    // Best-effort: ignore duplicate-worker errors from repeated calls.
+                    let _ = pool.add_worker(&wid);
+                }
+                self.autoscale_state
+                    .entry(pool_id.to_string())
+                    .or_default()
+                    .last_action_epoch = now_secs;
+            }
+            PoolScaleDecision::ScaleDown(n) => {
+                let pool = self
+                    .pools
+                    .get_mut(pool_id)
+                    .ok_or_else(|| PoolError::PoolNotFound(pool_id.to_string()))?;
+                // Collect worker IDs to drain — take the last `n` from a sorted list
+                // so the behaviour is deterministic in tests.
+                let mut worker_ids: Vec<String> = pool.workers.iter().cloned().collect();
+                worker_ids.sort();
+                let drain_start = worker_ids.len().saturating_sub(*n);
+                let to_drain: Vec<String> = worker_ids.drain(drain_start..).collect();
+                for wid in to_drain {
+                    let _ = pool.remove_worker(&wid);
+                }
+                self.autoscale_state
+                    .entry(pool_id.to_string())
+                    .or_default()
+                    .last_action_epoch = now_secs;
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Return the auto-scale config for a pool, if any.
+    #[must_use]
+    pub fn autoscale_config(&self, pool_id: &str) -> Option<&PoolAutoScaleConfig> {
+        self.autoscale_configs.get(pool_id)
+    }
+
+    /// Return the epoch-seconds timestamp of the last scale action for a pool.
+    /// Returns `0` if the pool has never been scaled or has no config.
+    #[must_use]
+    pub fn last_scale_action_epoch(&self, pool_id: &str) -> u64 {
+        self.autoscale_state
+            .get(pool_id)
+            .map(|s| s.last_action_epoch)
+            .unwrap_or(0)
+    }
 }
+
+// ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // --- WorkerPool basic tests ---
 
     #[test]
     fn test_pool_creation() {
@@ -337,12 +589,11 @@ mod tests {
     #[test]
     fn test_add_remove_worker() {
         let mut pool = WorkerPool::new("p1", "Pool 1").with_max_workers(2);
-        pool.add_worker("w1").expect("add_worker should succeed");
-        pool.add_worker("w2").expect("add_worker should succeed");
+        pool.add_worker("w1").expect("add_worker failed");
+        pool.add_worker("w2").expect("add_worker failed");
         assert_eq!(pool.worker_count(), 2);
         assert!(!pool.has_capacity());
-        pool.remove_worker("w1")
-            .expect("remove_worker should succeed");
+        pool.remove_worker("w1").expect("remove_worker failed");
         assert_eq!(pool.worker_count(), 1);
         assert!(pool.has_capacity());
     }
@@ -350,16 +601,16 @@ mod tests {
     #[test]
     fn test_add_worker_duplicate() {
         let mut pool = WorkerPool::new("p1", "Pool 1");
-        pool.add_worker("w1").expect("add_worker should succeed");
-        let err = pool.add_worker("w1").unwrap_err();
+        pool.add_worker("w1").expect("add_worker failed");
+        let err = pool.add_worker("w1").expect_err("expected error");
         assert_eq!(err, PoolError::WorkerAlreadyInPool("w1".to_string()));
     }
 
     #[test]
     fn test_add_worker_capacity_exceeded() {
         let mut pool = WorkerPool::new("p1", "Pool 1").with_max_workers(1);
-        pool.add_worker("w1").expect("add_worker should succeed");
-        let err = pool.add_worker("w2").unwrap_err();
+        pool.add_worker("w1").expect("add_worker failed");
+        let err = pool.add_worker("w2").expect_err("expected error");
         assert_eq!(
             err,
             PoolError::CapacityExceeded {
@@ -372,7 +623,7 @@ mod tests {
     #[test]
     fn test_remove_worker_not_found() {
         let mut pool = WorkerPool::new("p1", "Pool 1");
-        let err = pool.remove_worker("w_none").unwrap_err();
+        let err = pool.remove_worker("w_none").expect_err("expected error");
         assert_eq!(err, PoolError::WorkerNotFound("w_none".to_string()));
     }
 
@@ -401,11 +652,13 @@ mod tests {
         assert!(!pool.has_all_tags(&["gpu".to_string(), "ssd".to_string()]));
     }
 
+    // --- PoolManager basic tests ---
+
     #[test]
     fn test_pool_manager_add_and_get() {
         let mut mgr = PoolManager::new();
         mgr.add_pool(WorkerPool::new("p1", "Pool 1"))
-            .expect("failed to create");
+            .expect("add_pool failed");
         assert_eq!(mgr.pool_count(), 1);
         assert!(mgr.get_pool("p1").is_some());
         assert!(mgr.get_pool("p2").is_none());
@@ -415,10 +668,10 @@ mod tests {
     fn test_pool_manager_duplicate() {
         let mut mgr = PoolManager::new();
         mgr.add_pool(WorkerPool::new("p1", "Pool 1"))
-            .expect("failed to create");
+            .expect("add_pool failed");
         let err = mgr
             .add_pool(WorkerPool::new("p1", "Pool 1 dup"))
-            .unwrap_err();
+            .expect_err("expected error");
         assert_eq!(err, PoolError::PoolAlreadyExists("p1".to_string()));
     }
 
@@ -426,9 +679,9 @@ mod tests {
     fn test_pool_manager_find_by_tags() {
         let mut mgr = PoolManager::new();
         mgr.add_pool(WorkerPool::new("gpu", "GPU").with_tag("gpu"))
-            .expect("operation should succeed");
+            .expect("add_pool failed");
         mgr.add_pool(WorkerPool::new("cpu", "CPU").with_tag("cpu"))
-            .expect("operation should succeed");
+            .expect("add_pool failed");
         let found = mgr.find_pools_by_tags(&["gpu".to_string()]);
         assert_eq!(found.len(), 1);
         assert_eq!(found[0].id.as_str(), "gpu");
@@ -438,12 +691,12 @@ mod tests {
     fn test_pool_manager_total_workers() {
         let mut mgr = PoolManager::new();
         let mut p1 = WorkerPool::new("p1", "P1");
-        p1.add_worker("w1").expect("add_worker should succeed");
-        p1.add_worker("w2").expect("add_worker should succeed");
+        p1.add_worker("w1").expect("add_worker failed");
+        p1.add_worker("w2").expect("add_worker failed");
         let mut p2 = WorkerPool::new("p2", "P2");
-        p2.add_worker("w3").expect("add_worker should succeed");
-        mgr.add_pool(p1).expect("add_pool should succeed");
-        mgr.add_pool(p2).expect("add_pool should succeed");
+        p2.add_worker("w3").expect("add_worker failed");
+        mgr.add_pool(p1).expect("add_pool failed");
+        mgr.add_pool(p2).expect("add_pool failed");
         assert_eq!(mgr.total_workers(), 3);
     }
 
@@ -451,11 +704,11 @@ mod tests {
     fn test_pool_manager_set_status() {
         let mut mgr = PoolManager::new();
         mgr.add_pool(WorkerPool::new("p1", "P1"))
-            .expect("failed to create");
+            .expect("add_pool failed");
         mgr.set_pool_status("p1", PoolStatus::Draining)
-            .expect("set_pool_status should succeed");
+            .expect("set_pool_status failed");
         assert_eq!(
-            mgr.get_pool("p1").expect("get_pool should succeed").status,
+            mgr.get_pool("p1").expect("pool not found").status,
             PoolStatus::Draining
         );
     }
@@ -465,339 +718,202 @@ mod tests {
         let err = PoolError::PoolNotFound("missing".to_string());
         assert_eq!(err.to_string(), "pool not found: missing");
     }
-}
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// Health-monitored worker node tracking
-// ═══════════════════════════════════════════════════════════════════════════════
+    // --- Auto-scaling tests ---
 
-use std::time::{Duration, Instant};
-
-/// Operational status of a worker node inside a [`WorkerNodePool`].
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum WorkerStatus {
-    /// Node is online and accepting new jobs.
-    Online,
-    /// Node is unreachable or has timed out; not accepting jobs.
-    Offline,
-    /// Node is gracefully winding down; existing jobs complete but no new ones accepted.
-    Draining,
-    /// Node is undergoing maintenance; no jobs accepted.
-    Maintenance,
-}
-
-/// A single worker node tracked by a [`WorkerNodePool`].
-#[derive(Debug, Clone)]
-pub struct WorkerNode {
-    /// Unique identifier for this node.
-    pub id: String,
-    /// DNS name or IP address of the node.
-    pub hostname: String,
-    /// Port on which the node listens for work assignments.
-    pub port: u16,
-    /// Current operational status.
-    pub status: WorkerStatus,
-    /// Wall-clock time when the node first registered.
-    pub registered_at: Instant,
-    /// Wall-clock time of the most recent heartbeat received from the node.
-    pub last_heartbeat: Instant,
-    /// How often the node is expected to send heartbeats.
-    pub heartbeat_interval: Duration,
-    /// Capability tags advertised by the node (e.g. `"gpu"`, `"high-memory"`).
-    pub capabilities: Vec<String>,
-    /// Arbitrary key-value metadata attached to the node.
-    pub tags: HashMap<String, String>,
-}
-
-impl WorkerNode {
-    /// Create a new node that is immediately `Online`.
-    #[must_use]
-    pub fn new(
-        id: impl Into<String>,
-        hostname: impl Into<String>,
-        port: u16,
-        heartbeat_interval: Duration,
-    ) -> Self {
-        let now = Instant::now();
-        Self {
-            id: id.into(),
-            hostname: hostname.into(),
-            port,
-            status: WorkerStatus::Online,
-            registered_at: now,
-            last_heartbeat: now,
-            heartbeat_interval,
-            capabilities: Vec::new(),
-            tags: HashMap::new(),
+    fn make_pool_with_workers(id: &str, worker_count: usize) -> WorkerPool {
+        let mut p = WorkerPool::new(id, id);
+        for i in 0..worker_count {
+            p.add_worker(format!("w{i}")).expect("add_worker failed");
         }
-    }
-
-    /// Return `true` when the node is `Online` (can accept new jobs).
-    #[must_use]
-    pub fn is_online(&self) -> bool {
-        self.status == WorkerStatus::Online
-    }
-}
-
-/// A pool of [`WorkerNode`]s with integrated heartbeat monitoring.
-///
-/// The pool does **not** spawn background tasks; callers are responsible for
-/// driving liveness checks by periodically calling [`WorkerNodePool::prune_stale`].
-pub struct WorkerNodePool {
-    workers: HashMap<String, WorkerNode>,
-    /// How long a node may go without a heartbeat before being marked `Offline`.
-    heartbeat_timeout: Duration,
-}
-
-impl WorkerNodePool {
-    /// Create an empty pool.  Nodes whose heartbeat exceeds `heartbeat_timeout`
-    /// will be marked `Offline` during the next [`prune_stale`] call.
-    ///
-    /// [`prune_stale`]: WorkerNodePool::prune_stale
-    #[must_use]
-    pub fn new(heartbeat_timeout: Duration) -> Self {
-        Self {
-            workers: HashMap::new(),
-            heartbeat_timeout,
-        }
-    }
-
-    /// Register a new node.  If a node with the same ID already exists, its
-    /// entry is replaced.
-    pub fn register(&mut self, node: WorkerNode) {
-        self.workers.insert(node.id.clone(), node);
-    }
-
-    /// Remove a node from the pool.  Returns `true` if the node was present.
-    pub fn deregister(&mut self, id: &str) -> bool {
-        self.workers.remove(id).is_some()
-    }
-
-    /// Record a heartbeat for the identified node.
-    ///
-    /// Returns `true` on success.  Returns `false` when `id` is not registered,
-    /// so callers can decide whether to auto-register or log a warning.
-    pub fn heartbeat(&mut self, id: &str) -> bool {
-        if let Some(node) = self.workers.get_mut(id) {
-            node.last_heartbeat = Instant::now();
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Scan all nodes and promote any node whose heartbeat has not arrived
-    /// within `heartbeat_timeout` to `Offline`.
-    ///
-    /// Returns the IDs of every node that was transitioned to `Offline` during
-    /// this call (already-offline nodes are not repeated).
-    pub fn prune_stale(&mut self) -> Vec<String> {
-        let now = Instant::now();
-        let timeout = self.heartbeat_timeout;
-        let mut newly_offline = Vec::new();
-
-        for node in self.workers.values_mut() {
-            if node.status != WorkerStatus::Offline
-                && now.duration_since(node.last_heartbeat) > timeout
-            {
-                node.status = WorkerStatus::Offline;
-                newly_offline.push(node.id.clone());
-            }
-        }
-        newly_offline
-    }
-
-    /// Return references to all nodes whose status is `Online`.
-    #[must_use]
-    pub fn online_workers(&self) -> Vec<&WorkerNode> {
-        self.workers
-            .values()
-            .filter(|n| n.status == WorkerStatus::Online)
-            .collect()
-    }
-
-    /// Return references to all nodes that advertise the given capability.
-    #[must_use]
-    pub fn workers_with_capability(&self, cap: &str) -> Vec<&WorkerNode> {
-        self.workers
-            .values()
-            .filter(|n| n.capabilities.iter().any(|c| c == cap))
-            .collect()
-    }
-
-    /// Transition a node to `Draining` so that no new jobs are assigned to it.
-    ///
-    /// Returns `true` if the node exists (regardless of its previous status).
-    /// Returns `false` when the node is not registered.
-    pub fn drain_worker(&mut self, id: &str) -> bool {
-        if let Some(node) = self.workers.get_mut(id) {
-            node.status = WorkerStatus::Draining;
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Calculate the maximum number of jobs the pool can accept, assuming each
-    /// `Online` worker can run up to `max_jobs_per_worker` concurrent jobs.
-    #[must_use]
-    pub fn total_capacity(&self, max_jobs_per_worker: u32) -> u32 {
-        let online_count = self
-            .workers
-            .values()
-            .filter(|n| n.status == WorkerStatus::Online)
-            .count() as u32;
-        online_count.saturating_mul(max_jobs_per_worker)
-    }
-}
-
-#[cfg(test)]
-mod node_pool_tests {
-    use super::*;
-
-    fn make_node(id: &str) -> WorkerNode {
-        WorkerNode::new(id, "localhost", 9000, Duration::from_secs(30))
-    }
-
-    fn make_node_with_capabilities(id: &str, caps: Vec<&str>) -> WorkerNode {
-        let mut n = make_node(id);
-        n.capabilities = caps.into_iter().map(|s| s.to_string()).collect();
-        n
-    }
-
-    // ── Register / deregister ─────────────────────────────────────────────────
-
-    #[test]
-    fn test_register_and_online_count() {
-        let mut pool = WorkerNodePool::new(Duration::from_secs(60));
-        pool.register(make_node("n1"));
-        pool.register(make_node("n2"));
-        assert_eq!(pool.online_workers().len(), 2);
+        p
     }
 
     #[test]
-    fn test_deregister_removes_node() {
-        let mut pool = WorkerNodePool::new(Duration::from_secs(60));
-        pool.register(make_node("n1"));
-        assert!(pool.deregister("n1"));
-        assert!(!pool.deregister("n1")); // second call → false
-        assert!(pool.online_workers().is_empty());
+    fn test_autoscale_no_config_returns_no_change() {
+        let mut mgr = PoolManager::new();
+        mgr.add_pool(make_pool_with_workers("p1", 2))
+            .expect("add_pool failed");
+        // No auto-scale config set.
+        let decision = mgr.evaluate_scaling("p1", 10, 1000);
+        assert_eq!(decision, PoolScaleDecision::NoChange);
     }
 
     #[test]
-    fn test_deregister_nonexistent_returns_false() {
-        let mut pool = WorkerNodePool::new(Duration::from_secs(60));
-        assert!(!pool.deregister("ghost"));
-    }
-
-    // ── Heartbeat ─────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_heartbeat_known_node_returns_true() {
-        let mut pool = WorkerNodePool::new(Duration::from_secs(60));
-        pool.register(make_node("n1"));
-        assert!(pool.heartbeat("n1"));
-    }
-
-    #[test]
-    fn test_heartbeat_unknown_node_returns_false() {
-        let mut pool = WorkerNodePool::new(Duration::from_secs(60));
-        assert!(!pool.heartbeat("ghost"));
-    }
-
-    // ── Stale pruning ─────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_prune_stale_marks_timed_out_nodes_offline() {
-        let mut pool = WorkerNodePool::new(Duration::from_nanos(1));
-        pool.register(make_node("n1"));
-        // Sleep just long enough for the timeout to trigger.
-        std::thread::sleep(Duration::from_millis(5));
-        let stale = pool.prune_stale();
-        assert!(stale.contains(&"n1".to_string()));
-        assert_eq!(pool.online_workers().len(), 0);
+    fn test_autoscale_scale_up_when_ratio_exceeds_threshold() {
+        let mut mgr = PoolManager::new();
+        mgr.add_pool(make_pool_with_workers("p1", 2))
+            .expect("add_pool failed");
+        let config = PoolAutoScaleConfig {
+            min_workers: 1,
+            max_workers: 0,
+            scale_up_threshold: 2.0,
+            scale_down_threshold: 0.5,
+            scale_up_step: 1,
+            scale_down_step: 1,
+            cooldown_secs: 0,
+        };
+        mgr.set_autoscale_config("p1", config)
+            .expect("set_autoscale_config failed");
+        // 2 workers, 10 queued → ratio=5.0 > 2.0 → ScaleUp
+        let decision = mgr.evaluate_scaling("p1", 10, 0);
+        assert_eq!(decision, PoolScaleDecision::ScaleUp(1));
     }
 
     #[test]
-    fn test_prune_stale_does_not_double_report() {
-        let mut pool = WorkerNodePool::new(Duration::from_nanos(1));
-        pool.register(make_node("n1"));
-        std::thread::sleep(Duration::from_millis(5));
-        let first = pool.prune_stale();
-        let second = pool.prune_stale(); // already offline
-        assert_eq!(first.len(), 1);
-        assert!(second.is_empty());
+    fn test_autoscale_scale_down_when_ratio_below_threshold() {
+        let mut mgr = PoolManager::new();
+        mgr.add_pool(make_pool_with_workers("p1", 4))
+            .expect("add_pool failed");
+        let config = PoolAutoScaleConfig {
+            min_workers: 1,
+            max_workers: 0,
+            scale_up_threshold: 2.0,
+            scale_down_threshold: 0.5,
+            scale_up_step: 1,
+            scale_down_step: 1,
+            cooldown_secs: 0,
+        };
+        mgr.set_autoscale_config("p1", config)
+            .expect("set_autoscale_config failed");
+        // 4 workers, 1 queued → ratio=0.25 < 0.5 → ScaleDown
+        let decision = mgr.evaluate_scaling("p1", 1, 0);
+        assert_eq!(decision, PoolScaleDecision::ScaleDown(1));
     }
 
     #[test]
-    fn test_prune_stale_skips_fresh_nodes() {
-        let mut pool = WorkerNodePool::new(Duration::from_secs(3600));
-        pool.register(make_node("n1"));
-        let stale = pool.prune_stale();
-        assert!(stale.is_empty());
-        assert_eq!(pool.online_workers().len(), 1);
-    }
-
-    // ── Capability queries ────────────────────────────────────────────────────
-
-    #[test]
-    fn test_workers_with_capability_filters_correctly() {
-        let mut pool = WorkerNodePool::new(Duration::from_secs(60));
-        pool.register(make_node_with_capabilities("n1", vec!["gpu", "fast-disk"]));
-        pool.register(make_node_with_capabilities("n2", vec!["fast-disk"]));
-        pool.register(make_node_with_capabilities("n3", vec!["gpu"]));
-
-        let gpu_workers = pool.workers_with_capability("gpu");
-        assert_eq!(gpu_workers.len(), 2);
-        let disk_workers = pool.workers_with_capability("fast-disk");
-        assert_eq!(disk_workers.len(), 2);
-        let rare = pool.workers_with_capability("fpga");
-        assert!(rare.is_empty());
-    }
-
-    // ── Drain ─────────────────────────────────────────────────────────────────
-
-    #[test]
-    fn test_drain_worker_transitions_to_draining() {
-        let mut pool = WorkerNodePool::new(Duration::from_secs(60));
-        pool.register(make_node("n1"));
-        assert!(pool.drain_worker("n1"));
-        let online = pool.online_workers();
-        assert!(online.is_empty()); // draining ≠ online
-                                    // Node is still registered.
-        assert!(pool.workers_with_capability("").is_empty() || true); // just check no panic
+    fn test_autoscale_no_change_within_band() {
+        let mut mgr = PoolManager::new();
+        mgr.add_pool(make_pool_with_workers("p1", 4))
+            .expect("add_pool failed");
+        let config = PoolAutoScaleConfig::default_config();
+        mgr.set_autoscale_config("p1", config)
+            .expect("set_autoscale_config failed");
+        // 4 workers, 6 queued → ratio=1.5; 0.5 < 1.5 < 2.0 → NoChange
+        let decision = mgr.evaluate_scaling("p1", 6, 0);
+        assert_eq!(decision, PoolScaleDecision::NoChange);
     }
 
     #[test]
-    fn test_drain_nonexistent_worker_returns_false() {
-        let mut pool = WorkerNodePool::new(Duration::from_secs(60));
-        assert!(!pool.drain_worker("ghost"));
+    fn test_autoscale_cooldown_prevents_rapid_scaling() {
+        let mut mgr = PoolManager::new();
+        mgr.add_pool(make_pool_with_workers("p1", 2))
+            .expect("add_pool failed");
+        let config = PoolAutoScaleConfig {
+            cooldown_secs: 60,
+            ..PoolAutoScaleConfig::default_config()
+        };
+        mgr.set_autoscale_config("p1", config)
+            .expect("set_autoscale_config failed");
+        // First scale action at t=100.
+        let d = mgr.evaluate_scaling("p1", 20, 100);
+        assert_eq!(d, PoolScaleDecision::ScaleUp(1));
+        mgr.apply_scale_decision("p1", &d, 100)
+            .expect("apply_scale_decision failed");
+        // At t=140 (only 40 s later, inside the 60-s cooldown) → NoChange.
+        let d2 = mgr.evaluate_scaling("p1", 20, 140);
+        assert_eq!(d2, PoolScaleDecision::NoChange);
+        // At t=161 (cooldown elapsed) → ScaleUp again.
+        let d3 = mgr.evaluate_scaling("p1", 20, 161);
+        assert_eq!(d3, PoolScaleDecision::ScaleUp(1));
     }
 
-    // ── Capacity ──────────────────────────────────────────────────────────────
-
     #[test]
-    fn test_total_capacity_counts_only_online() {
-        let mut pool = WorkerNodePool::new(Duration::from_secs(60));
-        pool.register(make_node("n1")); // online
-        pool.register(make_node("n2")); // will drain
-        pool.drain_worker("n2");
-
-        assert_eq!(pool.total_capacity(4), 4); // only n1 counts
+    fn test_autoscale_apply_scale_up_adds_workers() {
+        let mut mgr = PoolManager::new();
+        mgr.add_pool(make_pool_with_workers("p1", 2))
+            .expect("add_pool failed");
+        let config = PoolAutoScaleConfig {
+            scale_up_step: 2,
+            cooldown_secs: 0,
+            ..PoolAutoScaleConfig::default_config()
+        };
+        mgr.set_autoscale_config("p1", config)
+            .expect("set_autoscale_config failed");
+        let before = mgr.get_pool("p1").expect("pool not found").worker_count();
+        mgr.apply_scale_decision("p1", &PoolScaleDecision::ScaleUp(2), 0)
+            .expect("apply_scale_decision failed");
+        let after = mgr.get_pool("p1").expect("pool not found").worker_count();
+        assert_eq!(after, before + 2);
     }
 
     #[test]
-    fn test_total_capacity_empty_pool_is_zero() {
-        let pool = WorkerNodePool::new(Duration::from_secs(60));
-        assert_eq!(pool.total_capacity(10), 0);
+    fn test_autoscale_apply_scale_down_removes_workers() {
+        let mut mgr = PoolManager::new();
+        mgr.add_pool(make_pool_with_workers("p1", 4))
+            .expect("add_pool failed");
+        let config = PoolAutoScaleConfig::default_config();
+        mgr.set_autoscale_config("p1", config)
+            .expect("set_autoscale_config failed");
+        let before = mgr.get_pool("p1").expect("pool not found").worker_count();
+        mgr.apply_scale_decision("p1", &PoolScaleDecision::ScaleDown(2), 0)
+            .expect("apply_scale_decision failed");
+        let after = mgr.get_pool("p1").expect("pool not found").worker_count();
+        assert_eq!(after, before - 2);
     }
 
     #[test]
-    fn test_total_capacity_saturating_mul() {
-        let mut pool = WorkerNodePool::new(Duration::from_secs(60));
-        for i in 0..3 {
-            pool.register(make_node(&format!("n{i}")));
-        }
-        assert_eq!(pool.total_capacity(5), 15);
+    fn test_autoscale_respects_min_workers() {
+        let mut mgr = PoolManager::new();
+        mgr.add_pool(make_pool_with_workers("p1", 2))
+            .expect("add_pool failed");
+        let config = PoolAutoScaleConfig {
+            min_workers: 2,
+            scale_down_threshold: 0.5,
+            scale_down_step: 1,
+            cooldown_secs: 0,
+            ..PoolAutoScaleConfig::default_config()
+        };
+        mgr.set_autoscale_config("p1", config)
+            .expect("set_autoscale_config failed");
+        // 2 workers, 0 queued → ratio=0 < 0.5, but min=2, removable=0 → NoChange.
+        let decision = mgr.evaluate_scaling("p1", 0, 0);
+        assert_eq!(decision, PoolScaleDecision::NoChange);
+    }
+
+    #[test]
+    fn test_autoscale_respects_max_workers() {
+        let mut mgr = PoolManager::new();
+        mgr.add_pool(make_pool_with_workers("p1", 3))
+            .expect("add_pool failed");
+        let config = PoolAutoScaleConfig {
+            max_workers: 3, // already at max
+            scale_up_threshold: 1.0,
+            scale_up_step: 1,
+            cooldown_secs: 0,
+            ..PoolAutoScaleConfig::default_config()
+        };
+        mgr.set_autoscale_config("p1", config)
+            .expect("set_autoscale_config failed");
+        // Ratio is high, but pool is at max_workers → NoChange.
+        let decision = mgr.evaluate_scaling("p1", 100, 0);
+        assert_eq!(decision, PoolScaleDecision::NoChange);
+    }
+
+    #[test]
+    fn test_autoscale_last_scale_epoch_updated() {
+        let mut mgr = PoolManager::new();
+        mgr.add_pool(make_pool_with_workers("p1", 2))
+            .expect("add_pool failed");
+        let config = PoolAutoScaleConfig::default_config();
+        mgr.set_autoscale_config("p1", config)
+            .expect("set_autoscale_config failed");
+        assert_eq!(mgr.last_scale_action_epoch("p1"), 0);
+        mgr.apply_scale_decision("p1", &PoolScaleDecision::ScaleUp(1), 9999)
+            .expect("apply_scale_decision failed");
+        assert_eq!(mgr.last_scale_action_epoch("p1"), 9999);
+    }
+
+    #[test]
+    fn test_autoscale_no_change_decision_does_not_update_epoch() {
+        let mut mgr = PoolManager::new();
+        mgr.add_pool(make_pool_with_workers("p1", 2))
+            .expect("add_pool failed");
+        let config = PoolAutoScaleConfig::default_config();
+        mgr.set_autoscale_config("p1", config)
+            .expect("set_autoscale_config failed");
+        mgr.apply_scale_decision("p1", &PoolScaleDecision::NoChange, 5000)
+            .expect("apply_scale_decision failed");
+        assert_eq!(mgr.last_scale_action_epoch("p1"), 0);
     }
 }

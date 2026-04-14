@@ -2,10 +2,10 @@
 
 use crate::checksum::{ChecksumAlgorithm, ChecksumGenerator};
 use crate::{Error, Result};
+use oxiarc_archive::{TarReader, TarWriter};
 use std::fs::File;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
-use tar::{Archive, Builder};
 
 /// TAR archiver with checksum support
 pub struct TarArchiver {
@@ -45,15 +45,20 @@ impl TarArchiver {
         files: &[(PathBuf, PathBuf)], // (source, path_in_archive)
     ) -> Result<String> {
         let file = File::create(output)?;
-        let mut builder = Builder::new(file);
+        let mut tar_writer = TarWriter::new(file);
 
         for (source, dest) in files {
-            builder
-                .append_path_with_name(source, dest)
+            let dest_str = dest
+                .to_str()
+                .ok_or_else(|| Error::Archive("Non-UTF8 path in archive".to_string()))?;
+            let file_data = std::fs::read(source)
+                .map_err(|e| Error::Archive(format!("Failed to read file: {e}")))?;
+            tar_writer
+                .add_file(dest_str, &file_data)
                 .map_err(|e| Error::Archive(format!("Failed to add file: {e}")))?;
         }
 
-        builder
+        tar_writer
             .finish()
             .map_err(|e| Error::Archive(format!("Failed to finalize archive: {e}")))?;
 
@@ -96,11 +101,31 @@ impl TarArchiver {
     /// Returns an error if extraction fails
     pub fn extract_archive(archive_path: &Path, output_dir: &Path) -> Result<()> {
         let file = File::open(archive_path)?;
-        let mut archive = Archive::new(file);
+        // TarReader requires Read+Seek, so read file into memory and use Cursor
+        let mut file_data = Vec::new();
+        {
+            let mut f = file;
+            f.read_to_end(&mut file_data)?;
+        }
+        let cursor = std::io::Cursor::new(file_data);
+        let mut tar_reader = TarReader::new(cursor)
+            .map_err(|e| Error::Archive(format!("Failed to read archive: {e}")))?;
 
-        archive
-            .unpack(output_dir)
-            .map_err(|e| Error::Archive(format!("Failed to extract archive: {e}")))?;
+        let entries = tar_reader.entries().to_vec();
+        for entry in &entries {
+            let target_path = output_dir.join(&entry.name);
+            if entry.is_dir() {
+                std::fs::create_dir_all(&target_path)?;
+            } else if entry.is_file() {
+                if let Some(parent) = target_path.parent() {
+                    std::fs::create_dir_all(parent)?;
+                }
+                let data = tar_reader
+                    .extract_to_vec(entry)
+                    .map_err(|e| Error::Archive(format!("Failed to extract entry: {e}")))?;
+                std::fs::write(&target_path, &data)?;
+            }
+        }
 
         Ok(())
     }
@@ -112,15 +137,20 @@ impl TarArchiver {
     /// Returns an error if the archive cannot be read
     pub fn list_contents(archive_path: &Path) -> Result<Vec<PathBuf>> {
         let file = File::open(archive_path)?;
-        let mut archive = Archive::new(file);
-
-        let mut contents = Vec::new();
-        for entry in archive.entries()? {
-            let entry = entry.map_err(|e| Error::Archive(format!("Failed to read entry: {e}")))?;
-            if let Ok(path) = entry.path() {
-                contents.push(path.to_path_buf());
-            }
+        let mut file_data = Vec::new();
+        {
+            let mut f = file;
+            f.read_to_end(&mut file_data)?;
         }
+        let cursor = std::io::Cursor::new(file_data);
+        let tar_reader = TarReader::new(cursor)
+            .map_err(|e| Error::Archive(format!("Failed to read archive: {e}")))?;
+
+        let contents = tar_reader
+            .entries()
+            .iter()
+            .map(|e| PathBuf::from(&e.name))
+            .collect();
 
         Ok(contents)
     }

@@ -226,7 +226,7 @@ mod tests {
     use std::collections::HashMap;
 
     fn create_test_service() -> FarmCoordinatorService {
-        let db = Arc::new(Database::in_memory().expect("failed to create"));
+        let db = Arc::new(Database::in_memory().unwrap());
         let job_queue = Arc::new(JobQueue::new(db, 100, 100));
         let worker_registry = Arc::new(WorkerRegistry::new(std::time::Duration::from_secs(60)));
         let scheduler = Arc::new(Scheduler::new(
@@ -256,10 +256,7 @@ mod tests {
             metadata: HashMap::new(),
         });
 
-        let response = service
-            .register_worker(request)
-            .await
-            .expect("await should be valid");
+        let response = service.register_worker(request).await.unwrap();
         assert!(response.into_inner().success);
     }
 
@@ -284,10 +281,7 @@ mod tests {
             metadata: HashMap::new(),
         });
 
-        service
-            .register_worker(reg_request)
-            .await
-            .expect("await should be valid");
+        service.register_worker(reg_request).await.unwrap();
 
         // Send heartbeat
         let hb_request = Request::new(HeartbeatRequest {
@@ -303,10 +297,7 @@ mod tests {
             active_task_ids: vec![],
         });
 
-        let response = service
-            .heartbeat(hb_request)
-            .await
-            .expect("await should be valid");
+        let response = service.heartbeat(hb_request).await.unwrap();
         assert!(response.into_inner().success);
     }
 
@@ -331,10 +322,7 @@ mod tests {
             metadata: HashMap::new(),
         });
 
-        service
-            .register_worker(reg_request)
-            .await
-            .expect("await should be valid");
+        service.register_worker(reg_request).await.unwrap();
 
         // Unregister
         let unreg_request = Request::new(UnregisterWorkerRequest {
@@ -342,10 +330,7 @@ mod tests {
             reason: "test shutdown".to_string(),
         });
 
-        let response = service
-            .unregister_worker(unreg_request)
-            .await
-            .expect("await should be valid");
+        let response = service.unregister_worker(unreg_request).await.unwrap();
         assert!(response.into_inner().success);
     }
 }

@@ -483,6 +483,82 @@ impl CloudStorage for LocalStorage {
     }
 }
 
+// ─── MmapReader ───────────────────────────────────────────────────────────────
+
+/// A file reader that uses memory-mapped I/O for large files to reduce copy
+/// overhead, and falls back to regular `std::fs` reads for small files.
+///
+/// The `mmap` feature must be enabled for memory-mapped reads; without it the
+/// implementation always uses regular reads.
+pub struct MmapReader {
+    file_size: u64,
+    path: std::path::PathBuf,
+    mmap_threshold: u64,
+}
+
+impl MmapReader {
+    /// Open a file for reading.  Files larger than `mmap_threshold` bytes will
+    /// use memory-mapped I/O when the `mmap` feature is enabled.
+    pub fn open(path: &Path, mmap_threshold: u64) -> std::io::Result<Self> {
+        let meta = std::fs::metadata(path)?;
+        Ok(Self {
+            file_size: meta.len(),
+            path: path.to_path_buf(),
+            mmap_threshold,
+        })
+    }
+
+    /// Total file size in bytes.
+    pub fn file_size(&self) -> u64 {
+        self.file_size
+    }
+
+    /// Read bytes in the range `[offset, offset + length)`.
+    ///
+    /// Returns an error if the range extends past the end of the file.
+    pub fn read_range(&self, offset: u64, length: u64) -> std::io::Result<Vec<u8>> {
+        let end = offset.checked_add(length).ok_or_else(|| {
+            std::io::Error::new(std::io::ErrorKind::InvalidInput, "range overflow")
+        })?;
+        if end > self.file_size {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::UnexpectedEof,
+                format!("range {offset}..{end} exceeds file size {}", self.file_size),
+            ));
+        }
+
+        #[cfg(feature = "mmap")]
+        if self.file_size >= self.mmap_threshold {
+            return self.read_range_mmap(offset, length);
+        }
+
+        self.read_range_regular(offset, length)
+    }
+
+    /// Read via regular `std::fs::File` + `seek`.
+    fn read_range_regular(&self, offset: u64, length: u64) -> std::io::Result<Vec<u8>> {
+        use std::io::{Read, Seek, SeekFrom};
+        let mut file = std::fs::File::open(&self.path)?;
+        file.seek(SeekFrom::Start(offset))?;
+        let mut buf = vec![0u8; length as usize];
+        file.read_exact(&mut buf)?;
+        Ok(buf)
+    }
+
+    /// Read via `memmap2` for large files (only available with the `mmap` feature).
+    #[cfg(feature = "mmap")]
+    #[allow(unsafe_code)]
+    fn read_range_mmap(&self, offset: u64, length: u64) -> std::io::Result<Vec<u8>> {
+        let file = std::fs::File::open(&self.path)?;
+        // SAFETY: The file is opened read-only; we do not mutate the mapping.
+        // The file handle outlives the mmap reference and data is copied before return.
+        let mmap = unsafe { memmap2::MmapOptions::new().map(&file)? };
+        let start = offset as usize;
+        let end = start + length as usize;
+        Ok(mmap[start..end].to_vec())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -748,5 +824,94 @@ mod tests {
         let k1 = StorageKey::content_addressed("same/path", b"data1");
         let k2 = StorageKey::content_addressed("same/path", b"data2");
         assert_ne!(k1.content_hash, k2.content_hash);
+    }
+
+    // ─── MmapReader tests ────────────────────────────────────────────────────
+
+    fn write_temp_file(data: &[u8]) -> (std::path::PathBuf, tempfile::TempDir) {
+        let dir = tempfile::TempDir::new().expect("temp dir");
+        let path = dir.path().join("test.bin");
+        std::fs::write(&path, data).expect("write temp file");
+        (path, dir)
+    }
+
+    #[test]
+    fn test_mmap_reader_open_small_file() {
+        let data = b"small file content";
+        let (path, _dir) = write_temp_file(data);
+        let reader = MmapReader::open(&path, 1024 * 1024).expect("open should succeed");
+        assert_eq!(reader.file_size(), data.len() as u64);
+    }
+
+    #[test]
+    fn test_mmap_reader_read_range_full_file() {
+        let data = b"abcdefghijklmnopqrstuvwxyz";
+        let (path, _dir) = write_temp_file(data);
+        let reader = MmapReader::open(&path, 1024 * 1024).expect("open");
+        let read = reader.read_range(0, data.len() as u64).expect("read_range");
+        assert_eq!(read, data);
+    }
+
+    #[test]
+    fn test_mmap_reader_read_range_with_offset() {
+        let data = b"0123456789";
+        let (path, _dir) = write_temp_file(data);
+        let reader = MmapReader::open(&path, 1024 * 1024).expect("open");
+        let read = reader.read_range(3, 4).expect("read_range with offset");
+        assert_eq!(read, b"3456");
+    }
+
+    #[test]
+    fn test_mmap_reader_read_range_beyond_eof_returns_error() {
+        let data = b"short";
+        let (path, _dir) = write_temp_file(data);
+        let reader = MmapReader::open(&path, 1024 * 1024).expect("open");
+        let result = reader.read_range(0, 100); // 100 > file size (5)
+        assert!(result.is_err(), "reading beyond EOF must return an error");
+    }
+
+    #[test]
+    fn test_mmap_reader_threshold_getter() {
+        let data = b"x";
+        let (path, _dir) = write_temp_file(data);
+        let threshold = 512 * 1024;
+        let reader = MmapReader::open(&path, threshold).expect("open");
+        // Verify the threshold is stored and influences path selection
+        // (We can't directly read the field, but we can call read_range to verify it works)
+        let result = reader.read_range(0, 1);
+        assert!(result.is_ok());
+        assert_eq!(result.expect("read"), b"x");
+    }
+
+    #[test]
+    fn test_mmap_reader_read_range_offset_at_end_zero_len() {
+        let data = b"content";
+        let (path, _dir) = write_temp_file(data);
+        let reader = MmapReader::open(&path, 1024 * 1024).expect("open");
+        // Reading 0 bytes at offset 7 (exactly at EOF) should succeed
+        let read = reader.read_range(7, 0).expect("zero-length read at EOF");
+        assert!(read.is_empty());
+    }
+
+    #[test]
+    fn test_mmap_reader_large_file_simulation() {
+        // Create a file larger than the typical mmap threshold (4KB)
+        let data: Vec<u8> = (0u8..=255).cycle().take(8 * 1024).collect(); // 8KB
+        let (path, _dir) = write_temp_file(&data);
+        let reader = MmapReader::open(&path, 4 * 1024).expect("open"); // threshold = 4KB
+                                                                       // File is 8KB >= threshold=4KB → would use mmap when feature enabled
+        assert_eq!(reader.file_size(), 8 * 1024);
+        // Read a middle chunk
+        let chunk = reader.read_range(1024, 512).expect("read middle chunk");
+        assert_eq!(chunk, &data[1024..1536]);
+    }
+
+    #[test]
+    fn test_mmap_reader_nonexistent_file_returns_error() {
+        let result = MmapReader::open(std::path::Path::new("/nonexistent/path/file.bin"), 1024);
+        assert!(
+            result.is_err(),
+            "opening a nonexistent file must return an error"
+        );
     }
 }

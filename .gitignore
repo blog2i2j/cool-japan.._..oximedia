@@ -29,8 +29,12 @@ Desktop.ini
 target_align_only/
 target_archive/
 **/target_*/*
+**/.claude/
 
 # Rustc ICE dumps
 rustc-ice-*.txt
+
+# glibc compat object (pre-compiled, not needed in Pure Rust builds)
+compat/glibc_compat.o
 
 

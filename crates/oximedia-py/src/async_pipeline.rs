@@ -126,14 +126,14 @@ impl FilterSpec {
 ///
 /// Example
 /// -------
-/// .. code-block:: python
-///
-///     pipeline = oximedia.AsyncPipeline()
-///     pipeline.add_source("/path/to/video.mkv")
-///     pipeline.add_filter("scale", width="1280", height="720")
-///     pipeline.add_sink("/tmp/output.mkv")
-///     result = pipeline.run()
-///     print(result.frames_processed, result.duration_ms)
+/// ```python
+/// pipeline = oximedia.AsyncPipeline()
+/// pipeline.add_source("/path/to/video.mkv")
+/// pipeline.add_filter("scale", width="1280", height="720")
+/// pipeline.add_sink("/tmp/output.mkv")
+/// result = pipeline.run()
+/// print(result.frames_processed, result.duration_ms)
+/// ```
 #[pyclass]
 pub struct AsyncPipeline {
     source: Option<String>,

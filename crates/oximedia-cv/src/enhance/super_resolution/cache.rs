@@ -1,8 +1,7 @@
 //! Model cache for reusing loaded ONNX sessions.
 
 use crate::error::{CvError, CvResult};
-use ort::session::builder::GraphOptimizationLevel;
-use ort::session::Session;
+use oxionnx::Session;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
@@ -47,10 +46,8 @@ impl ModelCache {
 
         // Load new session
         let session = Session::builder()
-            .map_err(|e| CvError::onnx_runtime(format!("Failed to create session builder: {e}")))?
-            .with_optimization_level(GraphOptimizationLevel::Level3)
-            .map_err(|e| CvError::onnx_runtime(format!("Failed to set optimization level: {e}")))?
-            .commit_from_file(&path)
+            .with_optimization_level(oxionnx::OptLevel::All)
+            .load(&path)
             .map_err(|e| CvError::model_load(format!("Failed to load model: {e}")))?;
 
         let session = Arc::new(Mutex::new(session));

@@ -1,12 +1,12 @@
 # oximedia-stabilize
 
-![Status: Alpha](https://img.shields.io/badge/status-alpha-yellow)
+![Status: Stable](https://img.shields.io/badge/status-stable-green)
 
 Professional video stabilization for OxiMedia. Provides comprehensive video stabilization algorithms including motion estimation, trajectory smoothing, rolling shutter correction, 3D stabilization, and horizon leveling.
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.1 — 2026-03-10
+Version: 0.1.3 — 2026-04-15
 
 ## Features
 
@@ -37,7 +37,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-stabilize = "0.1.1"
+oximedia-stabilize = "0.1.3"
 ```
 
 ```rust

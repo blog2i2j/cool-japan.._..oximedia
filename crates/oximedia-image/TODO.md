@@ -10,7 +10,7 @@
 - Pipeline: pixel_pipeline, filter, filters, format_detect, sequence (SequencePattern), thumbnail_cache
 - Metadata: exif_parser, metadata_xmp, icc_embed, raw, raw_decode
 - Pixel types: U8, U10, U12, U16, U32, F16, F32; 9 color spaces; 12 compression methods
-- Dependencies: oximedia-core, byteorder, half, tiff, flate2, miniz_oxide, weezl, rayon
+- Dependencies: oximedia-core, byteorder, half, tiff, flate2, oxiarc-deflate, weezl, rayon
 
 ## Enhancements
 - [ ] Add multi-layer/multi-part support to `exr.rs` for compositing workflows (read/write individual layers)
@@ -18,9 +18,9 @@
 - [ ] Implement full TIFF tag roundtrip in `tiff.rs` (preserve unknown tags during read-modify-write)
 - [ ] Add adaptive thresholding modes (Otsu, triangle) to `segmentation.rs`
 - [ ] Extend `convolution.rs` with separable kernel optimization (apply 1D horizontal then vertical)
-- [ ] Add bilateral filter implementation to `filters.rs` for edge-preserving denoising
-- [ ] Implement guided filter in `inpainting.rs` for structure-aware inpainting
-- [ ] Add sub-pixel alignment to `stitch.rs` for higher-accuracy panorama stitching
+- [x] Add bilateral filter implementation to `filters.rs` for edge-preserving denoising
+- [x] Implement guided filter in `inpainting.rs` for structure-aware inpainting
+- [x] Add sub-pixel alignment to `stitch.rs` for higher-accuracy panorama stitching
 
 ## New Features
 - [ ] Add a `webp.rs` module for WebP image decode/encode (lossy and lossless)

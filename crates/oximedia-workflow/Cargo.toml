@@ -31,7 +31,7 @@ serde_yaml = "0.9"
 
 # Time and scheduling
 chrono = { workspace = true, features = ["serde"] }
-cron = "0.15"
+cron = "0.16"
 
 # Logging and tracing
 tracing = { workspace = true }
@@ -43,7 +43,7 @@ uuid = { workspace = true }
 url = { version = "2.5", features = ["serde"] }
 
 # Collections
-indexmap = { version = "2.13", features = ["serde"] }
+indexmap = { version = "2.14", features = ["serde"] }
 dashmap = { workspace = true }
 
 # Concurrency

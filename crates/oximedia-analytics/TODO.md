@@ -1,13 +1,19 @@
 # oximedia-analytics TODO
 
 ## Current Status
-- 5 modules: `session`, `retention`, `ab_testing`, `engagement`, `error`
-- 6 source files total
-- Viewer session tracking with playback events and attention heatmaps
-- Audience retention curve computation with drop-off detection and re-watch identification
-- A/B testing with FNV-1a variant assignment and two-proportion z-test
-- Engagement scoring with linear regression trend analysis and content ranking
-- Minimal dependencies (only `thiserror`, `uuid`)
+- 22 modules: `session`, `retention`, `ab_testing`, `engagement`, `error`, `bandit`, `cohort`,
+  `funnel`, `quantile`, `attribution`, `realtime`, `geo_device`, `anomaly`, `ctr`,
+  `event_buffer`, `fingerprint`, `heatmap`, `multivariate`, `percentile`, `recommendation`,
+  `segment_retention`, `weighted_retention`
+- 23 source files total
+- 327 unit tests passing (+ 6 doc-tests)
+- Viewer session tracking with playback events, attention heatmaps, reservoir-sampled heatmaps
+- Audience retention curves, segment retention, weighted demographic retention, incremental computation
+- A/B testing (frequentist + Bayesian), multi-armed bandit (epsilon-greedy + Thompson sampling)
+- Engagement scoring, linear regression + EMA trend analysis, time-series decomposition
+- Cohort analysis, funnel analysis, churn prediction, loyalty scoring
+- Real-time sliding-window aggregation, CTR tracking, geographic/device breakdowns
+- Watch-time attribution, multivariate testing, content recommendation
 
 ## Enhancements
 - [ ] Add configurable significance level (alpha) to `winning_variant` in `ab_testing` (currently hardcoded)
@@ -16,7 +22,7 @@
 - [ ] Implement segment-level retention analysis in `retention` (retention by content chapter/segment)
 - [ ] Add weighted retention curves in `retention` accounting for viewer demographics
 - [ ] Implement time-series decomposition (trend + seasonality) in `engagement` trend analysis
-- [ ] Add exponential moving average option alongside linear regression in `linear_regression_slope`
+- [x] Add exponential moving average option alongside linear regression in `linear_regression_slope`
 - [ ] Implement funnel analysis in `session` (track viewer progression through content milestones)
 - [ ] Add session replay reconstruction from `PlaybackEvent` sequences for debugging
 
@@ -25,7 +31,7 @@
 - [ ] Implement churn prediction based on engagement score decline patterns
 - [ ] Add real-time analytics aggregation: sliding window metrics (concurrent viewers, bitrate stats)
 - [ ] Implement content recommendation scoring based on engagement similarity
-- [ ] Add geographic/device breakdowns for session metrics
+- [x] Add geographic/device breakdowns for session metrics
 - [ ] Implement watch time attribution: allocate credit to content segments for total engagement
 - [ ] Add multivariate testing support (test multiple variables simultaneously) in `ab_testing`
 - [ ] Implement click-through rate (CTR) tracking for thumbnails and previews
@@ -36,7 +42,7 @@
 - [ ] Implement approximate quantile computation (t-digest) for percentile metrics at scale
 - [ ] Use integer arithmetic for `assign_variant` FNV-1a hash instead of string operations
 - [ ] Add batch processing for `analyze_session` across multiple sessions in parallel
-- [ ] Implement reservoir sampling for memory-bounded attention heatmap generation
+- [x] Implement reservoir sampling for memory-bounded attention heatmap generation
 
 ## Testing
 - [ ] Test `assign_variant` distribution uniformity with chi-squared test over 10K+ assignments

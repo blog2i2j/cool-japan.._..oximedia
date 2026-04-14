@@ -21,18 +21,18 @@ thiserror = { workspace = true }
 uuid = { workspace = true }
 async-trait = { workspace = true }
 futures = "0.3"
-tokio-tungstenite = "0.28"
+tokio-tungstenite = "0.29"
 bytes = { workspace = true }
 chrono = { workspace = true }
 dashmap = { workspace = true }
 tracing = { workspace = true }
 parking_lot = { workspace = true }
-flate2 = { workspace = true }
-lz4 = "1.28"
+oxiarc-deflate = { workspace = true }
+lz4_flex = { workspace = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
-proptest = "1.10"
+proptest = "1.11"
 
 [lib]
 name = "oximedia_collab"

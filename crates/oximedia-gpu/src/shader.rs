@@ -76,8 +76,8 @@ impl ShaderCompiler {
             .device
             .create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: Some(&format!("{label} Layout")),
-                bind_group_layouts: &[bind_group_layout],
-                push_constant_ranges: &[],
+                bind_group_layouts: &[Some(bind_group_layout)],
+                immediate_size: 0,
             });
 
         Ok(self
@@ -221,6 +221,9 @@ pub mod embedded {
 
     /// Transform operations shader source
     pub const TRANSFORM_SHADER: &str = include_str!("shaders/transform.wgsl");
+
+    /// Bilateral filter denoising shader source
+    pub const BILATERAL_SHADER: &str = include_str!("shaders/bilateral.wgsl");
 }
 
 #[cfg(test)]

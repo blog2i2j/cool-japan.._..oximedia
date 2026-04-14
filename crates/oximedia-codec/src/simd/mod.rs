@@ -72,6 +72,9 @@ pub mod sad;
 // Pixel format conversion (YUV ↔ RGB, all subsampling modes)
 pub mod pixel_convert;
 
+// YUV subsampling format conversion (4:2:0 ↔ 4:2:2 ↔ 4:4:4, NV12 ↔ I420)
+pub mod yuv_convert;
+
 // Re-exports
 pub use blend::{blend_ops, BlendOps};
 pub use dct::{dct_ops, DctOps};

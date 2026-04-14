@@ -209,7 +209,7 @@ pub fn create_preset_interactive() -> Result<Preset> {
     };
 
     // Get audio codec
-    print!("Audio codec (opus, vorbis, flac): ");
+    print!("Audio codec (opus, vorbis, flac, pcm, aac, mp3): ");
     io::stdout().flush()?;
     let mut audio_codec = String::new();
     io::stdin().read_line(&mut audio_codec)?;
@@ -298,7 +298,7 @@ min_keyframe_interval = 24
 aspect_ratio = "16:9"
 
 [audio]
-codec = "opus"       # opus, vorbis, flac, pcm
+codec = "opus"       # opus, vorbis, flac, pcm, aac, mp3
 bitrate = "128k"     # Audio bitrate (e.g., "128k", "192k", "256k")
 sample_rate = 48000  # 8000, 11025, 16000, 22050, 32000, 44100, 48000, 88200, 96000
 channels = 2         # 1 (mono), 2 (stereo), 6 (5.1), 8 (7.1)

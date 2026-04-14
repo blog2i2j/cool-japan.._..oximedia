@@ -18,7 +18,7 @@
 - [ ] Implement weighted round-robin routing strategy in `multi_cdn` alongside latency-based selection
 - [ ] Add EXT-X-DATERANGE and EXT-X-SKIP tags in `manifest_builder` for HLS low-latency
 - [ ] Extend `stream_packager` to support fMP4 (fragmented MP4) segment output alongside TS segments
-- [ ] Add CDN health check with configurable probe interval and failure threshold in `multi_cdn`
+- [x] Add CDN health check with configurable probe interval and failure threshold in `multi_cdn`
 
 ## New Features
 - [ ] Implement `ll_hls` module for Low-Latency HLS with partial segments and preload hints
@@ -29,14 +29,14 @@
 - [ ] Add `subtitle_track` module for WebVTT subtitle segment packaging and manifest integration
 - [ ] Implement `stream_recorder` module for capturing live streams to VOD with DVR window management
 - [ ] Add `stream_analytics` module for collecting viewer-side playback metrics (buffer health, quality switches, errors)
-- [ ] Implement `srt_ingest` module for SRT protocol ingest as input to the streaming pipeline
+- [x] Implement `srt_ingest` module for SRT protocol ingest as input to the streaming pipeline
 
 ## Performance
 - [ ] Use zero-copy segment writing in `stream_packager::FileSegmentWriter` with pre-allocated buffers
 - [ ] Implement async manifest generation in `manifest_builder` to avoid blocking the segment pipeline
 - [ ] Add segment caching in `segment_manager` to serve repeated requests without disk I/O
 - [ ] Pool `MediaUnit` allocations in `stream_packager` to reduce allocation overhead during live streaming
-- [ ] Implement parallel multi-CDN upload for segment distribution to reduce end-to-end latency
+- [x] Implement parallel multi-CDN upload for segment distribution to reduce end-to-end latency
 
 ## Testing
 - [ ] Add SCTE-35 round-trip tests: encode splice_insert, parse back, verify all fields match

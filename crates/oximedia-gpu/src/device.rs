@@ -87,7 +87,7 @@ impl GpuDevice {
             force_fallback_adapter: true,
         }));
 
-        if let Some(adapter) = maybe_adapter {
+        if let Ok(adapter) = maybe_adapter {
             let info = Self::adapter_info(&adapter);
             if let Ok((device, queue)) = pollster::block_on(Self::request_device(&adapter)) {
                 return Ok(Self {
@@ -135,11 +135,10 @@ impl GpuDevice {
         }
 
         // Attempt 1: GL / software backend with force_fallback.
-        let gl_instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::GL,
-            ..Default::default()
-        });
-        if let Some(adapter) =
+        let mut gl_desc = wgpu::InstanceDescriptor::new_without_display_handle();
+        gl_desc.backends = wgpu::Backends::GL;
+        let gl_instance = wgpu::Instance::new(gl_desc);
+        if let Ok(adapter) =
             pollster::block_on(gl_instance.request_adapter(&RequestAdapterOptions {
                 power_preference: PowerPreference::None,
                 compatible_surface: None,
@@ -153,7 +152,7 @@ impl GpuDevice {
         }
 
         // Attempt 2: enumerate all adapters from the GL instance and try the first.
-        let adapters = gl_instance.enumerate_adapters(wgpu::Backends::all());
+        let adapters = pollster::block_on(gl_instance.enumerate_adapters(wgpu::Backends::all()));
         for adapter in adapters {
             let info = Self::adapter_info(&adapter);
             if let Some(dev) = try_adapter(adapter, info) {
@@ -162,8 +161,9 @@ impl GpuDevice {
         }
 
         // Attempt 3: default instance with force_fallback.
-        let default_instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
-        if let Some(adapter) =
+        let default_instance =
+            wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
+        if let Ok(adapter) =
             pollster::block_on(default_instance.request_adapter(&RequestAdapterOptions {
                 power_preference: PowerPreference::None,
                 compatible_surface: None,
@@ -177,7 +177,8 @@ impl GpuDevice {
         }
 
         // Attempt 4: enumerate all adapters from the default instance.
-        let adapters = default_instance.enumerate_adapters(wgpu::Backends::all());
+        let adapters =
+            pollster::block_on(default_instance.enumerate_adapters(wgpu::Backends::all()));
         for adapter in adapters {
             let info = Self::adapter_info(&adapter);
             if let Some(dev) = try_adapter(adapter, info) {
@@ -196,7 +197,7 @@ impl GpuDevice {
 
         #[cfg(not(target_arch = "wasm32"))]
         {
-            let adapters = instance.enumerate_adapters(wgpu::Backends::all());
+            let adapters = pollster::block_on(instance.enumerate_adapters(wgpu::Backends::all()));
             Ok(adapters.iter().map(Self::adapter_info).collect())
         }
 
@@ -209,8 +210,8 @@ impl GpuDevice {
                 force_fallback_adapter: false,
             }));
             match adapter {
-                Some(a) => Ok(vec![Self::adapter_info(&a)]),
-                None => Ok(Vec::new()),
+                Ok(a) => Ok(vec![Self::adapter_info(&a)]),
+                Err(_) => Ok(Vec::new()),
             }
         }
     }
@@ -235,21 +236,18 @@ impl GpuDevice {
 
     /// Wait for all GPU operations to complete
     pub fn wait(&self) {
-        self.device.poll(wgpu::Maintain::Wait);
+        let _ = self.device.poll(wgpu::PollType::wait_indefinitely());
     }
 
     fn create_instance() -> Instance {
-        Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
-            ..Default::default()
-        })
+        Instance::new(wgpu::InstanceDescriptor::new_without_display_handle())
     }
 
     async fn select_adapter(instance: &Instance, device_index: Option<usize>) -> Result<Adapter> {
         if let Some(index) = device_index {
             #[cfg(not(target_arch = "wasm32"))]
             {
-                let adapters = instance.enumerate_adapters(wgpu::Backends::all());
+                let adapters = instance.enumerate_adapters(wgpu::Backends::all()).await;
                 return adapters.into_iter().nth(index).ok_or(GpuError::NoAdapter);
             }
 
@@ -266,7 +264,7 @@ impl GpuDevice {
                         force_fallback_adapter: false,
                     })
                     .await
-                    .ok_or(GpuError::NoAdapter);
+                    .map_err(|_| GpuError::NoAdapter);
             }
         } else {
             // Select high-performance adapter by default
@@ -277,21 +275,20 @@ impl GpuDevice {
                     force_fallback_adapter: false,
                 })
                 .await
-                .ok_or(GpuError::NoAdapter)
+                .map_err(|_| GpuError::NoAdapter)
         }
     }
 
     async fn request_device(adapter: &Adapter) -> Result<(Device, Queue)> {
         adapter
-            .request_device(
-                &DeviceDescriptor {
-                    label: Some("OxiMedia GPU Device"),
-                    required_features: Features::empty(),
-                    required_limits: Limits::default(),
-                    memory_hints: wgpu::MemoryHints::default(),
-                },
-                None,
-            )
+            .request_device(&DeviceDescriptor {
+                label: Some("OxiMedia GPU Device"),
+                required_features: Features::empty(),
+                required_limits: Limits::default(),
+                memory_hints: wgpu::MemoryHints::default(),
+                experimental_features: wgpu::ExperimentalFeatures::disabled(),
+                trace: wgpu::Trace::Off,
+            })
             .await
             .map_err(|e| GpuError::DeviceRequest(e.to_string()))
     }

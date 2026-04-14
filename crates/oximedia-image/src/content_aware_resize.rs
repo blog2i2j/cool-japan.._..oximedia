@@ -40,11 +40,18 @@ impl CarvingImage {
         let expected = width * height * channels;
         if data.len() != expected {
             return Err(ImageError::invalid_format(format!(
-                "Buffer length {} != expected {}", data.len(), expected
+                "Buffer length {} != expected {}",
+                data.len(),
+                expected
             )));
         }
         let float_data = data.iter().map(|&v| v as f32 / 255.0).collect();
-        Ok(Self { width, height, channels, data: float_data })
+        Ok(Self {
+            width,
+            height,
+            channels,
+            data: float_data,
+        })
     }
 
     /// Sample a pixel channel at (x, y).
@@ -67,7 +74,8 @@ impl CarvingImage {
     /// Convert to u8 bytes.
     #[must_use]
     pub fn to_u8(&self) -> Vec<u8> {
-        self.data.iter()
+        self.data
+            .iter()
             .map(|&v| (v.clamp(0.0, 1.0) * 255.0).round() as u8)
             .collect()
     }
@@ -107,9 +115,13 @@ pub fn compute_energy_map(image: &CarvingImage) -> Vec<f32> {
             let yd = if y + 1 < h { y + 1 } else { h - 1 };
 
             let gx = image.luma(xr, yu) + 2.0 * image.luma(xr, y) + image.luma(xr, yd)
-                   - image.luma(xl, yu) - 2.0 * image.luma(xl, y) - image.luma(xl, yd);
+                - image.luma(xl, yu)
+                - 2.0 * image.luma(xl, y)
+                - image.luma(xl, yd);
             let gy = image.luma(xl, yd) + 2.0 * image.luma(x, yd) + image.luma(xr, yd)
-                   - image.luma(xl, yu) - 2.0 * image.luma(x, yu) - image.luma(xr, yu);
+                - image.luma(xl, yu)
+                - 2.0 * image.luma(x, yu)
+                - image.luma(xr, yu);
 
             energy[y * w + x] = (gx * gx + gy * gy).sqrt();
         }
@@ -150,7 +162,11 @@ pub fn compute_forward_energy(image: &CarvingImage) -> Vec<f32> {
 /// Returns a `(dp, parent)` pair where `dp[y*w+x]` is the minimum energy
 /// to reach pixel (x, y) from the top, and `parent[y*w+x]` is the x-offset
 /// of the parent pixel in row `y-1` (0=left, 1=straight, 2=right from centre).
-pub fn cumulative_energy_vertical(energy: &[f32], width: usize, height: usize) -> (Vec<f32>, Vec<i8>) {
+pub fn cumulative_energy_vertical(
+    energy: &[f32],
+    width: usize,
+    height: usize,
+) -> (Vec<f32>, Vec<i8>) {
     let mut dp = energy.to_vec();
     let mut parent = vec![0i8; width * height];
 
@@ -159,9 +175,9 @@ pub fn cumulative_energy_vertical(energy: &[f32], width: usize, height: usize) -
             let xl = if x > 0 { x - 1 } else { x };
             let xr = if x + 1 < width { x + 1 } else { x };
 
-            let el = dp[(y-1) * width + xl];
-            let ec = dp[(y-1) * width + x];
-            let er = dp[(y-1) * width + xr];
+            let el = dp[(y - 1) * width + xl];
+            let ec = dp[(y - 1) * width + x];
+            let er = dp[(y - 1) * width + xr];
 
             let (min_e, px) = if el <= ec && el <= er {
                 (el, -1i8)
@@ -180,7 +196,11 @@ pub fn cumulative_energy_vertical(energy: &[f32], width: usize, height: usize) -
 }
 
 /// Compute the cumulative minimum energy for horizontal seam carving.
-pub fn cumulative_energy_horizontal(energy: &[f32], width: usize, height: usize) -> (Vec<f32>, Vec<i8>) {
+pub fn cumulative_energy_horizontal(
+    energy: &[f32],
+    width: usize,
+    height: usize,
+) -> (Vec<f32>, Vec<i8>) {
     let mut dp = energy.to_vec();
     let mut parent = vec![0i8; width * height];
 
@@ -189,9 +209,9 @@ pub fn cumulative_energy_horizontal(energy: &[f32], width: usize, height: usize)
             let yt = if y > 0 { y - 1 } else { y };
             let yb = if y + 1 < height { y + 1 } else { y };
 
-            let et = dp[yt * width + (x-1)];
-            let ec = dp[y  * width + (x-1)];
-            let eb = dp[yb * width + (x-1)];
+            let et = dp[yt * width + (x - 1)];
+            let ec = dp[y * width + (x - 1)];
+            let eb = dp[yb * width + (x - 1)];
 
             let (min_e, py) = if et <= ec && et <= eb {
                 (et, -1i8)
@@ -220,15 +240,18 @@ pub fn trace_vertical_seam(dp: &[f32], parent: &[i8], width: usize, height: usiz
     // Find minimum in last row
     let last_row_start = (height - 1) * width;
     let min_x = (0..width)
-        .min_by(|&a, &b| dp[last_row_start + a].partial_cmp(&dp[last_row_start + b])
-            .unwrap_or(std::cmp::Ordering::Equal))
+        .min_by(|&a, &b| {
+            dp[last_row_start + a]
+                .partial_cmp(&dp[last_row_start + b])
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
         .unwrap_or(0);
     seam[height - 1] = min_x;
 
     // Back-trace
-    for y in (0..height-1).rev() {
-        let px = parent[(y+1) * width + seam[y+1]];
-        let x = seam[y+1] as isize + px as isize;
+    for y in (0..height - 1).rev() {
+        let px = parent[(y + 1) * width + seam[y + 1]];
+        let x = seam[y + 1] as isize + px as isize;
         seam[y] = x.clamp(0, width as isize - 1) as usize;
     }
 
@@ -241,14 +264,17 @@ pub fn trace_horizontal_seam(dp: &[f32], parent: &[i8], width: usize, height: us
 
     // Find minimum in last column
     let min_y = (0..height)
-        .min_by(|&a, &b| dp[a * width + (width-1)].partial_cmp(&dp[b * width + (width-1)])
-            .unwrap_or(std::cmp::Ordering::Equal))
+        .min_by(|&a, &b| {
+            dp[a * width + (width - 1)]
+                .partial_cmp(&dp[b * width + (width - 1)])
+                .unwrap_or(std::cmp::Ordering::Equal)
+        })
         .unwrap_or(0);
     seam[width - 1] = min_y;
 
-    for x in (0..width-1).rev() {
-        let py = parent[seam[x+1] * width + (x+1)];
-        let y = seam[x+1] as isize + py as isize;
+    for x in (0..width - 1).rev() {
+        let py = parent[seam[x + 1] * width + (x + 1)];
+        let y = seam[x + 1] as isize + py as isize;
         seam[x] = y.clamp(0, height as isize - 1) as usize;
     }
 
@@ -267,14 +293,21 @@ pub fn remove_vertical_seam(image: &CarvingImage, seam: &[usize]) -> CarvingImag
     for y in 0..h {
         let skip_x = seam[y];
         for x in 0..image.width {
-            if x == skip_x { continue; }
+            if x == skip_x {
+                continue;
+            }
             for ch in 0..c {
                 data.push(image.get(x, y, ch));
             }
         }
     }
 
-    CarvingImage { width: w, height: h, channels: c, data }
+    CarvingImage {
+        width: w,
+        height: h,
+        channels: c,
+        data,
+    }
 }
 
 /// Remove a horizontal seam from an image (reduces height by 1).
@@ -287,7 +320,9 @@ pub fn remove_horizontal_seam(image: &CarvingImage, seam: &[usize]) -> CarvingIm
     for x in 0..w {
         let skip_y = seam[x];
         for y in 0..image.height {
-            if y == skip_y { continue; }
+            if y == skip_y {
+                continue;
+            }
             for ch in 0..c {
                 data.push(image.get(x, y, ch));
             }
@@ -308,7 +343,12 @@ pub fn remove_horizontal_seam(image: &CarvingImage, seam: &[usize]) -> CarvingIm
         }
     }
 
-    CarvingImage { width: w, height: h, channels: c, data: row_major }
+    CarvingImage {
+        width: w,
+        height: h,
+        channels: c,
+        data: row_major,
+    }
 }
 
 // ── Energy visualisation ──────────────────────────────────────────────────────
@@ -319,7 +359,10 @@ pub fn energy_to_u8(energy: &[f32]) -> Vec<u8> {
     if max_e < f32::EPSILON {
         return vec![0u8; energy.len()];
     }
-    energy.iter().map(|&e| ((e / max_e) * 255.0).round() as u8).collect()
+    energy
+        .iter()
+        .map(|&e| ((e / max_e) * 255.0).round() as u8)
+        .collect()
 }
 
 // ── Seam carver ───────────────────────────────────────────────────────────────
@@ -335,7 +378,10 @@ pub struct SeamCarvingConfig {
 
 impl Default for SeamCarvingConfig {
     fn default() -> Self {
-        Self { use_forward_energy: true, batch_size: 1 }
+        Self {
+            use_forward_energy: true,
+            batch_size: 1,
+        }
     }
 }
 
@@ -348,7 +394,9 @@ impl SeamCarver {
     /// Create a new carver with default configuration.
     #[must_use]
     pub fn new() -> Self {
-        Self { config: SeamCarvingConfig::default() }
+        Self {
+            config: SeamCarvingConfig::default(),
+        }
     }
 
     /// Create with custom config.
@@ -433,7 +481,9 @@ impl Default for SeamCarver {
 
 /// Highlight a vertical seam in red in an RGB image (for visualisation).
 pub fn highlight_vertical_seam(image: &mut CarvingImage, seam: &[usize]) {
-    if image.channels < 3 { return; }
+    if image.channels < 3 {
+        return;
+    }
     for (y, &x) in seam.iter().enumerate() {
         image.set(x, y, 0, 1.0); // R=1
         image.set(x, y, 1, 0.0); // G=0
@@ -458,12 +508,19 @@ mod tests {
                 }
             }
         }
-        CarvingImage { width: w, height: h, channels: c, data }
+        CarvingImage {
+            width: w,
+            height: h,
+            channels: c,
+            data,
+        }
     }
 
     fn uniform_image(w: usize, h: usize, val: f32) -> CarvingImage {
         CarvingImage {
-            width: w, height: h, channels: 3,
+            width: w,
+            height: h,
+            channels: 3,
             data: vec![val; w * h * 3],
         }
     }
@@ -490,7 +547,10 @@ mod tests {
         let img = CarvingImage::from_u8(&data, 4, 1, 3).expect("from_u8");
         let back = img.to_u8();
         for (i, (&a, &b)) in data.iter().zip(back.iter()).enumerate() {
-            assert!((a as i32 - b as i32).abs() <= 1, "mismatch at {i}: {a} vs {b}");
+            assert!(
+                (a as i32 - b as i32).abs() <= 1,
+                "mismatch at {i}: {a} vs {b}"
+            );
         }
     }
 
@@ -505,7 +565,9 @@ mod tests {
     #[test]
     fn test_luma_rgb() {
         let img = CarvingImage {
-            width: 1, height: 1, channels: 3,
+            width: 1,
+            height: 1,
+            channels: 3,
             data: vec![1.0, 0.0, 0.0],
         };
         // Pure red → luma = 0.2126
@@ -645,7 +707,10 @@ mod tests {
         let carver = SeamCarver::new();
         let result = carver.resize(&img, 6, 6).expect("carve");
         for &v in &result.data {
-            assert!((v - 0.5).abs() < 1e-3, "Uniform values should be preserved: {v}");
+            assert!(
+                (v - 0.5).abs() < 1e-3,
+                "Uniform values should be preserved: {v}"
+            );
         }
     }
 
@@ -653,9 +718,7 @@ mod tests {
     fn test_energy_to_u8_range() {
         let energy = vec![0.0f32, 0.5, 1.0, 2.0, 0.25];
         let u8_vals = energy_to_u8(&energy);
-        for &v in &u8_vals {
-            assert!(v <= 255);
-        }
+        assert_eq!(u8_vals.len(), energy.len());
         assert_eq!(u8_vals[0], 0);
         assert!((u8_vals[2] as i32 - 127).abs() <= 1); // 1.0 / 2.0 * 255 ≈ 127-128
     }

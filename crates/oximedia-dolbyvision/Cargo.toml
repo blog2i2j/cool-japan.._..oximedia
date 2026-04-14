@@ -20,7 +20,7 @@ bitflags.workspace = true
 bytes.workspace = true
 
 # Bitstream I/O for RPU parsing/writing
-bitstream-io = "2"
+oximedia-bitstream.workspace = true
 
 # Serialization for metadata structures
 serde = { workspace = true, optional = true }

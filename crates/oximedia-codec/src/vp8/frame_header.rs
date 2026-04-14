@@ -59,6 +59,7 @@ pub enum ClampingType {
 /// ```
 /// use oximedia_codec::vp8::{FrameHeader, FrameType};
 ///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// // Parse a VP8 keyframe header
 /// let data = [
 ///     0x00,       // frame_type=0, version=0, show=0
@@ -72,6 +73,8 @@ pub enum ClampingType {
 /// assert!(header.is_keyframe());
 /// assert_eq!(header.width, 320);
 /// assert_eq!(header.height, 240);
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Clone, Debug, Default)]
 #[allow(clippy::struct_excessive_bools)]
@@ -152,6 +155,7 @@ impl FrameHeader {
     /// ```
     /// use oximedia_codec::vp8::FrameHeader;
     ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let data = [
     ///     0x00, 0x00, 0x00,       // frame tag
     ///     0x9D, 0x01, 0x2A,       // sync code
@@ -159,6 +163,8 @@ impl FrameHeader {
     /// ];
     /// let header = FrameHeader::parse(&data)?;
     /// assert!(header.is_keyframe());
+    /// # Ok(())
+    /// # }
     /// ```
     #[allow(clippy::cast_possible_truncation)]
     pub fn parse(data: &[u8]) -> CodecResult<Self> {

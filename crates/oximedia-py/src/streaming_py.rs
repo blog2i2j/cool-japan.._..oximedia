@@ -120,11 +120,11 @@ fn build_packager_config(cfg: &PackagingConfig) -> PyResult<PackagerConfig> {
 ///
 /// Example
 /// -------
-/// .. code-block:: python
-///
-///     config = oximedia.PackagingConfig(format="hls", segment_duration=6, output_dir="/tmp/out")
-///     packager = oximedia.PyPackager(config)
-///     packager.package("/path/to/input.mkv")
+/// ```python
+/// config = oximedia.PackagingConfig(format="hls", segment_duration=6, output_dir="/tmp/out")
+/// packager = oximedia.PyPackager(config)
+/// packager.package("/path/to/input.mkv")
+/// ```
 #[pyclass]
 pub struct PyPackager {
     config: PackagingConfig,

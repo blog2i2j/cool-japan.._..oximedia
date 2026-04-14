@@ -1104,7 +1104,7 @@ mod tests {
         let c = CodecConstraints::av1_main();
         let r = CodecConstraints::validate_video(&c, 20_000, 1080, 30.0, 5_000);
         assert!(r.is_err());
-        let v = r.err().expect("validation should return errors");
+        let v = r.expect_err("validation should return errors");
         assert!(v.iter().any(|s| s.contains("width")));
     }
 
@@ -1143,7 +1143,7 @@ mod tests {
         let c = CodecConstraints::opus_audio();
         let r = CodecConstraints::validate_audio(&c, 48_000, 2, 1_000);
         assert!(r.is_err());
-        let v = r.err().expect("validation should return errors");
+        let v = r.expect_err("validation should return errors");
         assert!(v.iter().any(|s| s.contains("bitrate")));
     }
 
@@ -1164,7 +1164,7 @@ mod tests {
         // Width + height + fps all exceed VP9 Profile 0 limits.
         let r = CodecConstraints::validate_video(&c, 99_999, 99_999, 9999.0, 99_999);
         assert!(r.is_err());
-        let v = r.err().expect("validation should return errors");
+        let v = r.expect_err("validation should return errors");
         // Expect at least three violations (width, height, fps or bitrate).
         assert!(
             v.len() >= 3,

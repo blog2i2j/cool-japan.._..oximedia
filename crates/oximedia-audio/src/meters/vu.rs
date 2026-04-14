@@ -88,8 +88,10 @@ impl VuMeter {
                     // Compute RMS
                     let rms = self.rms_windows[ch].process(sample);
 
-                    // Convert to dBFS
-                    let db_fs = linear_to_db(rms);
+                    // Convert to dBFS, clamping to a finite floor so that
+                    // -inf (from silence / zero-crossings) does not poison
+                    // the ballistics IIR filter.
+                    let db_fs = linear_to_db(rms).max(-100.0);
 
                     // Convert to dBVU (relative to reference)
                     let db_vu = db_fs - self.reference_level_dbfs;

@@ -646,4 +646,149 @@ mod tests {
         let mut g = TaskGraph::new();
         assert!(g.start_task(TaskId(999)).is_err());
     }
+
+    // ── Scheduling overhead and large graph tests ──────────────────────────
+
+    #[test]
+    #[ignore] // slow
+    fn task_graph_100_node_chain_schedules_quickly() {
+        let mut g = TaskGraph::new();
+        let ids: Vec<_> = (0..100)
+            .map(|i| g.add_task(&format!("task_{i}"), TaskBackend::Auto))
+            .collect();
+        for i in 0..99 {
+            g.add_dependency(ids[i + 1], ids[i])
+                .expect("add_dependency should succeed");
+        }
+
+        let start = std::time::Instant::now();
+        let order = g.topological_sort().expect("sort should succeed");
+        let elapsed = start.elapsed();
+
+        assert!(
+            elapsed.as_millis() < 100,
+            "100-node topological sort took {}ms (must be < 100ms)",
+            elapsed.as_millis()
+        );
+        assert_eq!(order.len(), 100);
+    }
+
+    #[test]
+    fn task_graph_single_task() {
+        let mut g = TaskGraph::new();
+        let id = g.add_task("solo", TaskBackend::Auto);
+        let order = g.topological_sort().expect("sort should succeed");
+        assert_eq!(order.len(), 1);
+        assert_eq!(order[0], id);
+    }
+
+    #[test]
+    fn task_graph_two_task_dependency_order() {
+        let mut g = TaskGraph::new();
+        let a = g.add_task("a", TaskBackend::Cpu);
+        let b = g.add_task("b", TaskBackend::Cpu);
+        g.add_dependency(b, a)
+            .expect("add_dependency should succeed");
+
+        let order = g.topological_sort().expect("sort should succeed");
+        let pos_a = order.iter().position(|&x| x == a).expect("a in order");
+        let pos_b = order.iter().position(|&x| x == b).expect("b in order");
+        assert!(pos_a < pos_b, "a must come before b");
+    }
+
+    #[test]
+    fn task_graph_diamond_dag_correct_order() {
+        // Diamond: A → (B, C) → D
+        let mut g = TaskGraph::new();
+        let a = g.add_task("A", TaskBackend::Auto);
+        let b = g.add_task("B", TaskBackend::Auto);
+        let c = g.add_task("C", TaskBackend::Auto);
+        let d = g.add_task("D", TaskBackend::Auto);
+
+        g.add_dependency(b, a).expect("B depends on A");
+        g.add_dependency(c, a).expect("C depends on A");
+        g.add_dependency(d, b).expect("D depends on B");
+        g.add_dependency(d, c).expect("D depends on C");
+
+        let order = g.topological_sort().expect("diamond has no cycle");
+        assert_eq!(order.len(), 4);
+
+        let pos = |id: TaskId| order.iter().position(|&x| x == id).expect("id in order");
+        assert!(pos(a) < pos(b), "A before B");
+        assert!(pos(a) < pos(c), "A before C");
+        assert!(pos(b) < pos(d), "B before D");
+        assert!(pos(c) < pos(d), "C before D");
+    }
+
+    #[test]
+    fn task_graph_cycle_detection_returns_error() {
+        let mut g = TaskGraph::new();
+        let a = g.add_task("a", TaskBackend::Auto);
+        let b = g.add_task("b", TaskBackend::Auto);
+        let c = g.add_task("c", TaskBackend::Auto);
+
+        g.add_dependency(b, a).expect("b depends on a");
+        g.add_dependency(c, b).expect("c depends on b");
+
+        // Adding a → c would create cycle a→b→c→a
+        let result = g.add_dependency(a, c);
+        assert_eq!(
+            result,
+            Err(TaskGraphError::CycleDetected),
+            "should detect cycle"
+        );
+    }
+
+    #[test]
+    fn task_graph_50_node_fan_out_in() {
+        // Fan-out from root to 48 leaves, then fan-in to a sink
+        let mut g = TaskGraph::new();
+        let root = g.add_task("root", TaskBackend::Gpu);
+        let leaves: Vec<_> = (0..48)
+            .map(|i| g.add_task(&format!("leaf_{i}"), TaskBackend::Cpu))
+            .collect();
+        let sink = g.add_task("sink", TaskBackend::Auto);
+
+        for &leaf in &leaves {
+            g.add_dependency(leaf, root).expect("leaf depends on root");
+            g.add_dependency(sink, leaf).expect("sink depends on leaf");
+        }
+
+        let order = g.topological_sort().expect("no cycle in fan graph");
+        assert_eq!(order.len(), 50);
+
+        let pos_root = order.iter().position(|&x| x == root).expect("root");
+        let pos_sink = order.iter().position(|&x| x == sink).expect("sink");
+        assert_eq!(pos_root, 0, "root must be first");
+        assert_eq!(pos_sink, 49, "sink must be last");
+    }
+
+    #[test]
+    fn task_graph_get_task_mut_updates_state() {
+        let mut g = TaskGraph::new();
+        let id = g.add_task("task", TaskBackend::Auto);
+        if let Some(task) = g.get_task_mut(id) {
+            task.estimated_cost = 999;
+        }
+        assert_eq!(
+            g.get_task(id).expect("task should exist").estimated_cost,
+            999
+        );
+    }
+
+    #[test]
+    fn task_graph_pending_dependency_count() {
+        let mut g = TaskGraph::new();
+        let a = g.add_task("a", TaskBackend::Auto);
+        let b = g.add_task("b", TaskBackend::Auto);
+        g.add_dependency(b, a).expect("b depends on a");
+
+        let completed = std::collections::HashSet::new();
+        let node_b = g.get_task(b).expect("b exists");
+        assert_eq!(node_b.pending_dependency_count(&completed), 1);
+
+        let mut completed2 = std::collections::HashSet::new();
+        completed2.insert(a);
+        assert_eq!(node_b.pending_dependency_count(&completed2), 0);
+    }
 }

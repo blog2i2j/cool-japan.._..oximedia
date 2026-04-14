@@ -193,10 +193,7 @@ impl DensityAnalyzer {
         let bursts = self.detect_bursts(&windows);
 
         let total_shots = shots.len();
-        let total_duration = shots
-            .iter()
-            .map(|s| s.end)
-            .fold(0.0_f64, f64::max);
+        let total_duration = shots.iter().map(|s| s.end).fold(0.0_f64, f64::max);
 
         if windows.is_empty() {
             return DensitySummary {
@@ -307,13 +304,7 @@ mod tests {
     fn test_detect_burst() {
         // Many short shots create high density.
         let a = DensityAnalyzer::new(2.0, 1.0, 1.5);
-        let shots = make_shots(&[
-            (0.0, 0.5),
-            (0.5, 1.0),
-            (1.0, 1.5),
-            (1.5, 2.0),
-            (10.0, 15.0),
-        ]);
+        let shots = make_shots(&[(0.0, 0.5), (0.5, 1.0), (1.0, 1.5), (1.5, 2.0), (10.0, 15.0)]);
         let windows = a.compute_windows(&shots);
         let bursts = a.detect_bursts(&windows);
         assert!(!bursts.is_empty());

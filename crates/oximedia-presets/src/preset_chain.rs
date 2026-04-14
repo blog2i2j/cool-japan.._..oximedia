@@ -310,6 +310,197 @@ impl PresetChain {
     }
 }
 
+// ── ContainerFormat ────────────────────────────────────────────────────────
+
+/// A container / wrapper format for encoded media.
+///
+/// Used by [`ChainedPreset`] to declare which formats a step can accept as
+/// input and which it produces as output.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ContainerFormat {
+    /// MPEG-4 container (H.264, AAC, MP4A-LATM …)
+    Mp4,
+    /// Matroska / WebM container (VP9, AV1, Opus …)
+    Mkv,
+    /// WebM container.
+    WebM,
+    /// Raw transport stream (MPEG-TS).
+    Ts,
+    /// Fragmented MP4 (DASH / CMAF).
+    FragmentedMp4,
+    /// HTTP Live Streaming segment.
+    Hls,
+    /// FLAC audio container.
+    Flac,
+    /// Opus audio in an Ogg container.
+    Ogg,
+    /// PCM / WAV audio.
+    Wav,
+    /// A user-defined format token.
+    Custom(String),
+}
+
+impl ContainerFormat {
+    /// Return a human-readable name for the format.
+    pub fn as_str(&self) -> &str {
+        match self {
+            Self::Mp4 => "MP4",
+            Self::Mkv => "MKV",
+            Self::WebM => "WebM",
+            Self::Ts => "TS",
+            Self::FragmentedMp4 => "fMP4",
+            Self::Hls => "HLS",
+            Self::Flac => "FLAC",
+            Self::Ogg => "OGG",
+            Self::Wav => "WAV",
+            Self::Custom(s) => s.as_str(),
+        }
+    }
+}
+
+// ── ChainedPreset ──────────────────────────────────────────────────────────
+
+/// A preset in a pipeline chain, carrying its format contract.
+#[derive(Debug, Clone)]
+pub struct ChainedPreset {
+    /// Human-readable identifier (e.g. "YouTube 1080p").
+    pub name: String,
+    /// Formats this preset can accept as input (empty = accepts any).
+    pub input_formats: Vec<ContainerFormat>,
+    /// Format this preset produces as output.
+    pub output_format: ContainerFormat,
+    /// Codec used by this preset step (informational).
+    pub codec: String,
+}
+
+impl ChainedPreset {
+    /// Create a new chained preset.
+    pub fn new(
+        name: impl Into<String>,
+        codec: impl Into<String>,
+        input_formats: Vec<ContainerFormat>,
+        output_format: ContainerFormat,
+    ) -> Self {
+        Self {
+            name: name.into(),
+            codec: codec.into(),
+            input_formats,
+            output_format,
+        }
+    }
+}
+
+// ── CompatibilityError ─────────────────────────────────────────────────────
+
+/// Describes a format mismatch between two consecutive chain steps.
+#[derive(Debug, Clone, PartialEq)]
+pub struct CompatibilityError {
+    /// Zero-based index of the step where the mismatch occurs (the *first*
+    /// of the pair; the next step is `step + 1`).
+    pub step: usize,
+    /// Name of the producing preset at `step`.
+    pub from_preset: String,
+    /// Name of the consuming preset at `step + 1`.
+    pub to_preset: String,
+    /// Human-readable description of why the pair is incompatible.
+    pub reason: String,
+}
+
+// ── ChainCompatibilityValidator ────────────────────────────────────────────
+
+/// Validates that the output format of each step is accepted by the next step.
+pub struct ChainCompatibilityValidator;
+
+impl ChainCompatibilityValidator {
+    /// Check that consecutive preset pairs in `chain` are format-compatible.
+    ///
+    /// Returns `Ok(())` when the chain is empty, has a single step, or all
+    /// consecutive pairs are compatible.  Returns `Err(Vec<CompatibilityError>)`
+    /// when one or more mismatches are detected; the vec is never empty in the
+    /// `Err` case.
+    ///
+    /// # Rules
+    ///
+    /// 1. For each pair `(N, N+1)`: the output format of step N must appear in
+    ///    `step[N+1].input_formats` (or `step[N+1].input_formats` must be empty,
+    ///    meaning "accepts any format").
+    /// 2. Audio-only codecs (FLAC, Ogg/Opus) may not chain into video-output
+    ///    presets.
+    pub fn validate(chain: &[ChainedPreset]) -> std::result::Result<(), Vec<CompatibilityError>> {
+        if chain.len() <= 1 {
+            return Ok(());
+        }
+
+        let mut errors: Vec<CompatibilityError> = Vec::new();
+
+        for i in 0..(chain.len() - 1) {
+            let from = &chain[i];
+            let to = &chain[i + 1];
+
+            // Rule 1: format must be accepted.
+            let format_ok =
+                to.input_formats.is_empty() || to.input_formats.contains(&from.output_format);
+
+            if !format_ok {
+                errors.push(CompatibilityError {
+                    step: i,
+                    from_preset: from.name.clone(),
+                    to_preset: to.name.clone(),
+                    reason: format!(
+                        "output format {} from '{}' is not accepted by '{}' (accepts: {})",
+                        from.output_format.as_str(),
+                        from.name,
+                        to.name,
+                        if to.input_formats.is_empty() {
+                            "any".to_string()
+                        } else {
+                            to.input_formats
+                                .iter()
+                                .map(|f| f.as_str())
+                                .collect::<Vec<_>>()
+                                .join(", ")
+                        }
+                    ),
+                });
+            }
+
+            // Rule 2: audio-only codec cannot feed a video preset.
+            let from_audio_only = matches!(
+                from.output_format,
+                ContainerFormat::Flac | ContainerFormat::Ogg | ContainerFormat::Wav
+            );
+            let to_has_video = matches!(
+                to.output_format,
+                ContainerFormat::Mp4
+                    | ContainerFormat::Mkv
+                    | ContainerFormat::WebM
+                    | ContainerFormat::Ts
+                    | ContainerFormat::FragmentedMp4
+                    | ContainerFormat::Hls
+            );
+            if format_ok && from_audio_only && to_has_video {
+                errors.push(CompatibilityError {
+                    step: i,
+                    from_preset: from.name.clone(),
+                    to_preset: to.name.clone(),
+                    reason: format!(
+                        "audio-only output ({}) from '{}' cannot feed video preset '{}'",
+                        from.output_format.as_str(),
+                        from.name,
+                        to.name,
+                    ),
+                });
+            }
+        }
+
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+}
+
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -519,5 +710,146 @@ mod tests {
         let removed = chain.remove(1);
         assert_eq!(removed.label, "mid");
         assert_eq!(chain.len(), 2);
+    }
+
+    // ── ChainCompatibilityValidator ──────────────────────────────────────────
+
+    fn mp4_preset(name: &str) -> ChainedPreset {
+        ChainedPreset::new(
+            name,
+            "h264",
+            vec![ContainerFormat::Mp4],
+            ContainerFormat::Mp4,
+        )
+    }
+
+    fn mkv_preset(name: &str) -> ChainedPreset {
+        ChainedPreset::new(
+            name,
+            "vp9",
+            vec![ContainerFormat::Mkv],
+            ContainerFormat::Mkv,
+        )
+    }
+
+    fn any_input_preset(name: &str) -> ChainedPreset {
+        ChainedPreset::new(
+            name,
+            "h264",
+            vec![], // empty = accepts any
+            ContainerFormat::Mp4,
+        )
+    }
+
+    fn flac_preset(name: &str) -> ChainedPreset {
+        ChainedPreset::new(
+            name,
+            "flac",
+            vec![ContainerFormat::Flac],
+            ContainerFormat::Flac,
+        )
+    }
+
+    #[test]
+    fn test_single_preset_always_compatible() {
+        let chain = vec![mp4_preset("step1")];
+        assert!(ChainCompatibilityValidator::validate(&chain).is_ok());
+    }
+
+    #[test]
+    fn test_empty_chain_compatible() {
+        let chain: Vec<ChainedPreset> = vec![];
+        assert!(ChainCompatibilityValidator::validate(&chain).is_ok());
+    }
+
+    #[test]
+    fn test_compatible_chain_mp4_to_mp4() {
+        let chain = vec![mp4_preset("ingest"), mp4_preset("deliver")];
+        assert!(ChainCompatibilityValidator::validate(&chain).is_ok());
+    }
+
+    #[test]
+    fn test_compatible_chain_any_input() {
+        // "any_input" accepts everything, so mp4 output feeds it fine.
+        let chain = vec![mp4_preset("ingest"), any_input_preset("deliver")];
+        assert!(ChainCompatibilityValidator::validate(&chain).is_ok());
+    }
+
+    #[test]
+    fn test_incompatible_chain_mp4_to_mkv_input() {
+        let chain = vec![mp4_preset("step1"), mkv_preset("step2")];
+        let result = ChainCompatibilityValidator::validate(&chain);
+        assert!(result.is_err(), "MP4 output should not feed MKV-only input");
+        let errors = result.expect_err("should have errors");
+        assert_eq!(errors[0].step, 0);
+        assert_eq!(errors[0].from_preset, "step1");
+        assert_eq!(errors[0].to_preset, "step2");
+    }
+
+    #[test]
+    fn test_incompatible_chain_reports_all_errors() {
+        // step0→step1 ok (both mp4); step1→step2 fail (mp4→mkv-only).
+        let chain = vec![mp4_preset("s0"), mp4_preset("s1"), mkv_preset("s2")];
+        let errors = ChainCompatibilityValidator::validate(&chain).expect_err("should have errors");
+        assert_eq!(errors.len(), 1, "Only one mismatch at step 1→2");
+        assert_eq!(errors[0].step, 1);
+    }
+
+    #[test]
+    fn test_audio_only_cannot_feed_video_preset() {
+        // FLAC → MP4 video preset: should be caught by codec rule.
+        let chain = vec![
+            flac_preset("audio-encode"),
+            any_input_preset("mp4-mux"), // accepts any, outputs MP4
+        ];
+        let errors = ChainCompatibilityValidator::validate(&chain)
+            .expect_err("audio-only feeding video should be an error");
+        assert!(!errors.is_empty());
+        assert!(
+            errors[0].reason.contains("audio-only"),
+            "Reason should mention audio-only"
+        );
+    }
+
+    #[test]
+    fn test_compatibility_error_fields() {
+        let chain = vec![mp4_preset("A"), mkv_preset("B")];
+        let errors = ChainCompatibilityValidator::validate(&chain).expect_err("should have errors");
+        let err = &errors[0];
+        assert_eq!(err.step, 0);
+        assert_eq!(err.from_preset, "A");
+        assert_eq!(err.to_preset, "B");
+        assert!(!err.reason.is_empty());
+    }
+
+    #[test]
+    fn test_three_step_all_compatible() {
+        let chain = vec![
+            mp4_preset("ingest"),
+            mp4_preset("transcode"),
+            mp4_preset("deliver"),
+        ];
+        assert!(ChainCompatibilityValidator::validate(&chain).is_ok());
+    }
+
+    #[test]
+    fn test_container_format_as_str() {
+        assert_eq!(ContainerFormat::Mp4.as_str(), "MP4");
+        assert_eq!(ContainerFormat::Flac.as_str(), "FLAC");
+        assert_eq!(ContainerFormat::Custom("xyz".to_string()).as_str(), "xyz");
+    }
+
+    #[test]
+    fn test_chained_preset_construction() {
+        let p = ChainedPreset::new(
+            "test",
+            "av1",
+            vec![ContainerFormat::WebM],
+            ContainerFormat::Mkv,
+        );
+        assert_eq!(p.name, "test");
+        assert_eq!(p.codec, "av1");
+        assert_eq!(p.output_format, ContainerFormat::Mkv);
+        assert_eq!(p.input_formats.len(), 1);
     }
 }

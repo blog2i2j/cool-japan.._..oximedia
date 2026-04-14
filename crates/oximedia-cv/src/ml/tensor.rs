@@ -5,7 +5,6 @@
 
 use crate::error::{CvError, CvResult};
 use ndarray::{Array, ArrayD, IxDyn};
-use ort::value::Value;
 use oximedia_codec::VideoFrame;
 use oximedia_core::PixelFormat;
 
@@ -452,9 +451,12 @@ impl Tensor {
     /// ```
     /// use oximedia_cv::ml::Tensor;
     ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut tensor = Tensor::zeros(&[1, 3, 224, 224]);
     /// // ImageNet normalization
     /// tensor.normalize(&[0.485, 0.456, 0.406], &[0.229, 0.224, 0.225])?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn normalize(&mut self, mean: &[f32], std: &[f32]) -> CvResult<()> {
         let mut data_f32 = self.data.to_f32()?;
@@ -514,67 +516,42 @@ impl Tensor {
         Ok(())
     }
 
-    /// Convert to ONNX Runtime value.
+    /// Convert to oxionnx Tensor.
+    ///
+    /// All data variants are cast to f32, which is the native type for oxionnx tensors.
     ///
     /// # Errors
     ///
     /// Returns an error if conversion fails.
     #[cfg(feature = "onnx")]
-    pub fn to_ort_value(&self) -> CvResult<ort::value::DynValue> {
-        match &self.data {
-            TensorData::F32(arr) => {
-                let val = Value::from_array(arr.clone()).map_err(|e| {
-                    CvError::tensor_error(format!("Failed to create ORT value: {e}"))
-                })?;
-                Ok(val.into_dyn())
-            }
-            TensorData::U8(arr) => {
-                // Convert u8 to f32 since ORT may not support u8 directly
-                let f32_arr: ArrayD<f32> = arr.mapv(f32::from);
-                let val = Value::from_array(f32_arr).map_err(|e| {
-                    CvError::tensor_error(format!("Failed to create ORT value: {e}"))
-                })?;
-                Ok(val.into_dyn())
-            }
-            TensorData::F64(arr) => {
-                let val = Value::from_array(arr.clone()).map_err(|e| {
-                    CvError::tensor_error(format!("Failed to create ORT value: {e}"))
-                })?;
-                Ok(val.into_dyn())
-            }
-            TensorData::I32(arr) => {
-                let val = Value::from_array(arr.clone()).map_err(|e| {
-                    CvError::tensor_error(format!("Failed to create ORT value: {e}"))
-                })?;
-                Ok(val.into_dyn())
-            }
-            TensorData::I64(arr) => {
-                let val = Value::from_array(arr.clone()).map_err(|e| {
-                    CvError::tensor_error(format!("Failed to create ORT value: {e}"))
-                })?;
-                Ok(val.into_dyn())
-            }
-        }
+    pub fn to_oxionnx_tensor(&self) -> CvResult<oxionnx_core::Tensor> {
+        let flat: Vec<f32> = match &self.data {
+            TensorData::F32(arr) => arr.iter().copied().collect(),
+            TensorData::U8(arr) => arr.iter().map(|&x| f32::from(x)).collect(),
+            TensorData::F64(arr) => arr.iter().map(|&x| x as f32).collect(),
+            TensorData::I32(arr) => arr.iter().map(|&x| x as f32).collect(),
+            TensorData::I64(arr) => arr.iter().map(|&x| x as f32).collect(),
+        };
+        let shape = match &self.data {
+            TensorData::F32(arr) => arr.shape().to_vec(),
+            TensorData::U8(arr) => arr.shape().to_vec(),
+            TensorData::F64(arr) => arr.shape().to_vec(),
+            TensorData::I32(arr) => arr.shape().to_vec(),
+            TensorData::I64(arr) => arr.shape().to_vec(),
+        };
+        Ok(oxionnx_core::Tensor::new(flat, shape))
     }
 
-    /// Create tensor from ONNX Runtime value.
+    /// Create tensor from oxionnx Tensor.
     ///
     /// # Errors
     ///
-    /// Returns an error if the value type is not supported.
+    /// Returns an error if the shape is inconsistent with the data length.
     #[cfg(feature = "onnx")]
-    pub fn from_ort_value(value: &ort::value::DynValue) -> CvResult<Self> {
-        // Extract the tensor data
-        let (shape, data) = value
-            .try_extract_tensor::<f32>()
-            .map_err(|e| CvError::tensor_error(format!("Failed to extract f32 tensor: {e}")))?;
-
-        let shape: Vec<usize> = shape.iter().map(|&x| x as usize).collect();
-        let data_vec: Vec<f32> = data.to_vec();
-
-        let arr = ArrayD::from_shape_vec(IxDyn(&shape), data_vec)
-            .map_err(|e| CvError::tensor_error(format!("Failed to create array: {e}")))?;
-
+    pub fn from_oxionnx_tensor(tensor: &oxionnx_core::Tensor) -> CvResult<Self> {
+        let shape: Vec<usize> = tensor.shape.clone();
+        let arr = ArrayD::from_shape_vec(IxDyn(&shape), tensor.data.clone())
+            .map_err(|e| CvError::tensor_error(format!("shape error: {e}")))?;
         Ok(Self {
             data: TensorData::F32(arr),
             layout: DataLayout::Nchw,

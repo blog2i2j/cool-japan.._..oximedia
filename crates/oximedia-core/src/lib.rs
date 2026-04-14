@@ -50,33 +50,45 @@
 #![warn(missing_docs)]
 
 pub mod alloc;
+pub mod bitrate;
 pub mod buffer_pool;
 pub mod channel_layout;
 pub mod codec_info;
+pub mod codec_matrix;
 pub mod codec_negotiation;
+pub mod codec_params;
 pub mod color_metadata;
 pub mod convert;
+pub mod downmix;
 pub mod error;
 pub mod error_context;
 pub mod event_queue;
+pub mod event_stream;
 pub mod fourcc;
 pub mod frame_info;
 pub mod frame_pool;
 pub mod frame_sharing;
 pub mod hdr;
+pub mod media_clock;
+pub mod media_props;
+pub mod media_segment;
 pub mod media_time;
 pub mod memory;
 pub mod pixel_format;
+pub mod pixel_format_color;
 pub mod rational;
 pub mod resource_handle;
 pub mod ring_buffer;
+pub mod sample_conv;
 pub mod sample_format;
 pub mod sync;
+pub mod timestamp_arith;
 pub mod traits;
 pub mod type_registry;
 pub mod types;
 pub mod version;
 pub mod work_queue;
+pub mod work_steal;
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm;

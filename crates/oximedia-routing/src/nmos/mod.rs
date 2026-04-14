@@ -1119,4 +1119,244 @@ mod tests {
         let _ = bus.drain();
         assert_eq!(bus.pending_count(), 0);
     }
+
+    // ── Mock-registry integration tests (IS-04 / IS-05 lifecycle) ────────────
+
+    /// Build a complete IS-04 hierarchy: node → device → source → flow →
+    /// sender → receivers.  Returns the populated registry plus the key IDs.
+    fn build_full_hierarchy() -> (NmosRegistry, &'static str, &'static str, &'static str) {
+        let mut reg = NmosRegistry::new();
+
+        // IS-04: Node
+        reg.add_node(NmosNode::new("node-prod", "Production Node"));
+
+        // IS-04: Device owned by the node
+        reg.add_device(NmosDevice::new(
+            "dev-cam1",
+            "node-prod",
+            "Camera 1",
+            NmosDeviceType::Input,
+        ));
+
+        // IS-04: Source
+        reg.add_source(NmosSource::new(
+            "src-cam1",
+            "dev-cam1",
+            "Camera 1 Video",
+            NmosFormat::Video,
+            "clk-ptp",
+        ));
+
+        // IS-04: Flow (25 fps)
+        reg.add_flow(NmosFlow::new(
+            "flow-cam1",
+            "src-cam1",
+            "Camera 1 Flow",
+            NmosFormat::Video,
+            (25, 1),
+        ));
+
+        // IS-04: Sender
+        reg.add_sender(NmosSender::new(
+            "sender-cam1",
+            "flow-cam1",
+            "Camera 1 Sender",
+            NmosTransport::RtpMulticast,
+        ));
+
+        // IS-04: Two video receivers + one audio receiver
+        reg.add_receiver(NmosReceiver::new(
+            "rx-mon-a",
+            "dev-cam1",
+            "Monitor A",
+            NmosFormat::Video,
+        ));
+        reg.add_receiver(NmosReceiver::new(
+            "rx-mon-b",
+            "dev-cam1",
+            "Monitor B",
+            NmosFormat::Video,
+        ));
+        reg.add_receiver(NmosReceiver::new(
+            "rx-audio",
+            "dev-cam1",
+            "Audio In",
+            NmosFormat::Audio,
+        ));
+
+        (reg, "sender-cam1", "rx-mon-a", "rx-mon-b")
+    }
+
+    #[test]
+    fn test_full_is04_hierarchy_registration() {
+        let (reg, sender_id, rx_a, rx_b) = build_full_hierarchy();
+
+        assert_eq!(reg.node_count(), 1, "one node");
+        assert_eq!(reg.sender_count(), 1, "one sender");
+        assert_eq!(reg.receiver_count(), 3, "three receivers");
+
+        assert!(reg.get_node("node-prod").is_some());
+        assert!(reg.get_device("dev-cam1").is_some());
+        assert!(reg.get_source("src-cam1").is_some());
+        assert!(reg.get_flow("flow-cam1").is_some());
+        assert!(reg.get_sender(sender_id).is_some());
+        assert!(reg.get_receiver(rx_a).is_some());
+        assert!(reg.get_receiver(rx_b).is_some());
+    }
+
+    #[test]
+    fn test_find_compatible_receivers_returns_video_only() {
+        let (reg, sender_id, _, _) = build_full_hierarchy();
+        let compatible = reg.find_compatible_receivers(sender_id);
+        // Only video receivers (rx-mon-a, rx-mon-b) should be compatible
+        assert_eq!(compatible.len(), 2);
+        for r in &compatible {
+            assert_eq!(
+                r.format,
+                NmosFormat::Video,
+                "all compatible receivers must accept Video"
+            );
+        }
+    }
+
+    #[test]
+    fn test_is05_connection_lifecycle() {
+        let (reg, sender_id, rx_a, rx_b) = build_full_hierarchy();
+        let _ = &reg; // registry validates the resource IDs exist
+
+        let mut mgr = NmosConnectionManager::new();
+
+        // Connect sender → monitor A
+        mgr.connect(sender_id, rx_a);
+        assert_eq!(mgr.active_connections().len(), 1);
+        assert_eq!(mgr.total_connections(), 1);
+
+        // Connect sender → monitor B  (multi-cast: one sender → many receivers)
+        mgr.connect(sender_id, rx_b);
+        assert_eq!(mgr.active_connections().len(), 2);
+        assert_eq!(mgr.total_connections(), 2);
+
+        // Disconnect sender → monitor A
+        mgr.disconnect(sender_id, rx_a);
+        assert_eq!(
+            mgr.active_connections().len(),
+            1,
+            "after disconnect only one active connection remains"
+        );
+        // Inactive record is preserved (IS-05 semantics)
+        assert_eq!(mgr.total_connections(), 2);
+
+        // Reconnect monitor A — should reuse the existing inactive slot
+        mgr.connect(sender_id, rx_a);
+        assert_eq!(mgr.active_connections().len(), 2);
+        assert_eq!(
+            mgr.total_connections(),
+            2,
+            "reconnect should reuse the existing slot, not add a new one"
+        );
+    }
+
+    #[test]
+    fn test_registry_overwrite_same_id() {
+        // Registering a new resource under an already-used ID replaces the old one.
+        let mut reg = NmosRegistry::new();
+        reg.add_node(NmosNode::new("node-1", "Original Label"));
+        assert_eq!(
+            reg.get_node("node-1").expect("node present").label,
+            "Original Label"
+        );
+
+        reg.add_node(NmosNode::new("node-1", "Updated Label"));
+        assert_eq!(
+            reg.get_node("node-1").expect("node still present").label,
+            "Updated Label",
+            "re-registering with the same ID must overwrite the old resource"
+        );
+        assert_eq!(reg.node_count(), 1, "no duplicate node should be created");
+    }
+
+    #[test]
+    fn test_lookup_unknown_id_returns_none() {
+        let reg = NmosRegistry::new();
+        assert!(reg.get_node("does-not-exist").is_none());
+        assert!(reg.get_sender("does-not-exist").is_none());
+        assert!(reg.get_receiver("does-not-exist").is_none());
+        assert!(reg.get_flow("does-not-exist").is_none());
+        assert!(reg.get_device("does-not-exist").is_none());
+        assert!(reg.get_source("does-not-exist").is_none());
+    }
+
+    #[test]
+    fn test_find_compatible_receivers_unknown_sender_is_empty() {
+        let (reg, _, _, _) = build_full_hierarchy();
+        let result = reg.find_compatible_receivers("no-such-sender");
+        assert!(
+            result.is_empty(),
+            "unknown sender should yield no compatible receivers"
+        );
+    }
+
+    #[test]
+    fn test_all_senders_and_receivers_enumeration() {
+        let (reg, _, _, _) = build_full_hierarchy();
+        let senders = reg.all_senders();
+        let receivers = reg.all_receivers();
+        assert_eq!(senders.len(), 1);
+        assert_eq!(receivers.len(), 3);
+    }
+
+    #[test]
+    fn test_multiple_devices_under_one_node() {
+        let mut reg = NmosRegistry::new();
+        reg.add_node(NmosNode::new("node-1", "Master Node"));
+
+        for i in 0..5 {
+            reg.add_device(NmosDevice::new(
+                &format!("dev-{i}"),
+                "node-1",
+                &format!("Device {i}"),
+                NmosDeviceType::Generic,
+            ));
+        }
+
+        let devices = reg.all_devices();
+        assert_eq!(devices.len(), 5, "all 5 devices should be registered");
+        for d in &devices {
+            assert_eq!(d.node_id, "node-1", "all devices should belong to node-1");
+        }
+    }
+
+    #[test]
+    fn test_is05_disconnect_nonexistent_pair_is_noop() {
+        let mut mgr = NmosConnectionManager::new();
+        // Disconnecting a pair that was never connected must not panic or error.
+        mgr.disconnect("sender-x", "rx-y");
+        assert_eq!(mgr.total_connections(), 0);
+        assert_eq!(mgr.active_connections().len(), 0);
+    }
+
+    #[test]
+    fn test_registry_audio_sender_compatible_receivers() {
+        let mut reg = NmosRegistry::new();
+        reg.add_node(NmosNode::new("n", "N"));
+        reg.add_device(NmosDevice::new("d", "n", "D", NmosDeviceType::Generic));
+        reg.add_source(NmosSource::new("s", "d", "S", NmosFormat::Audio, "clk"));
+        reg.add_flow(NmosFlow::new("f", "s", "F", NmosFormat::Audio, (48000, 1)));
+        reg.add_sender(NmosSender::new("tx", "f", "TX", NmosTransport::RtpUnicast));
+
+        // Two audio receivers, one video receiver
+        reg.add_receiver(NmosReceiver::new("rx-a1", "d", "A1", NmosFormat::Audio));
+        reg.add_receiver(NmosReceiver::new("rx-a2", "d", "A2", NmosFormat::Audio));
+        reg.add_receiver(NmosReceiver::new("rx-v", "d", "V", NmosFormat::Video));
+
+        let compatible = reg.find_compatible_receivers("tx");
+        assert_eq!(
+            compatible.len(),
+            2,
+            "audio sender should match only audio receivers"
+        );
+        for r in &compatible {
+            assert_eq!(r.format, NmosFormat::Audio);
+        }
+    }
 }

@@ -13,9 +13,9 @@
 - [ ] Implement actual gRPC call in `DistributedEncoder::job_status()` (currently returns `Pending`)
 - [ ] Implement actual gRPC call in `DistributedEncoder::cancel_job()` (currently no-op)
 - [ ] Add connection pooling and retry logic to coordinator client connections
-- [ ] Enhance `load_balancer.rs` with weighted round-robin based on worker capability scores
-- [ ] Add job dependency DAG support in `task_distribution.rs` for multi-step encoding pipelines
-- [ ] Implement graceful worker draining in `worker.rs` for rolling updates
+- [x] Enhance `load_balancer.rs` with weighted round-robin based on worker capability scores
+- [x] Add job dependency DAG support in `task_distribution.rs` for multi-step encoding pipelines
+- [x] Implement graceful worker draining in `worker.rs` for rolling updates
 - [ ] Add configurable backpressure thresholds in `backpressure.rs` per worker capacity
 - [ ] Enhance `circuit_breaker.rs` with half-open state and configurable failure window
 - [ ] Add job progress percentage tracking and ETA estimation in `job_tracker.rs`

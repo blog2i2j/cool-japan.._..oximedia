@@ -627,6 +627,109 @@ pub fn gaussian_blur_separable(
     Ok(())
 }
 
+use rayon::prelude::*;
+
+/// CPU-side separable Gaussian blur with Rayon parallel row/column processing.
+///
+/// This is an optimised variant of [`gaussian_blur_separable`] that
+/// parallelises both the horizontal and vertical passes using Rayon.
+///
+/// # Arguments
+///
+/// * `input`  — source RGBA bytes (`width × height × 4`)
+/// * `output` — destination RGBA bytes (same size as input)
+/// * `width`, `height` — image dimensions
+/// * `sigma`  — Gaussian standard deviation in pixels (> 0)
+///
+/// # Errors
+///
+/// Returns an error if buffer sizes do not match `width × height × 4`.
+pub fn gaussian_blur_separable_parallel(
+    input: &[u8],
+    output: &mut [u8],
+    width: u32,
+    height: u32,
+    sigma: f32,
+) -> crate::Result<()> {
+    utils::validate_dimensions(width, height)?;
+    utils::validate_buffer_size(input, width, height, 4)?;
+    utils::validate_buffer_size(output, width, height, 4)?;
+
+    let w = width as usize;
+    let h = height as usize;
+    let kernel = gaussian_kernel_1d(sigma);
+    let radius = kernel.len() / 2;
+
+    // Horizontal pass (parallel over rows)
+    let mut h_pass = vec![0.0_f32; w * h * 4];
+    h_pass
+        .par_chunks_exact_mut(w * 4)
+        .enumerate()
+        .for_each(|(row, row_out)| {
+            for col in 0..w {
+                let mut acc = [0.0_f32; 4];
+                let mut wsum = 0.0_f32;
+                for (ki, &kw) in kernel.iter().enumerate() {
+                    let sc = col as isize + ki as isize - radius as isize;
+                    if sc < 0 || sc >= w as isize {
+                        continue;
+                    }
+                    let src = (row * w + sc as usize) * 4;
+                    for c in 0..4 {
+                        acc[c] += kw * input[src + c] as f32;
+                    }
+                    wsum += kw;
+                }
+                let inv = if wsum > 0.0 { 1.0 / wsum } else { 1.0 };
+                let dst = col * 4;
+                for c in 0..4 {
+                    row_out[dst + c] = acc[c] * inv;
+                }
+            }
+        });
+
+    // Vertical pass (parallel over columns)
+    output
+        .par_chunks_exact_mut(4)
+        .enumerate()
+        .for_each(|(px_idx, px_out)| {
+            let row = px_idx / w;
+            let col = px_idx % w;
+            let mut acc = [0.0_f32; 4];
+            let mut wsum = 0.0_f32;
+            for (ki, &kw) in kernel.iter().enumerate() {
+                let sr = row as isize + ki as isize - radius as isize;
+                if sr < 0 || sr >= h as isize {
+                    continue;
+                }
+                let src = (sr as usize * w + col) * 4;
+                for c in 0..4 {
+                    acc[c] += kw * h_pass[src + c];
+                }
+                wsum += kw;
+            }
+            let inv = if wsum > 0.0 { 1.0 / wsum } else { 1.0 };
+            for c in 0..4 {
+                px_out[c] = (acc[c] * inv).round().clamp(0.0, 255.0) as u8;
+            }
+        });
+
+    Ok(())
+}
+
+/// Compare two RGBA u8 buffers and return the maximum absolute channel difference.
+///
+/// Useful for verifying that the separable serial and parallel implementations
+/// produce bit-identical (or near-identical) results.
+#[must_use]
+pub fn max_channel_diff(a: &[u8], b: &[u8]) -> u32 {
+    a.iter()
+        .zip(b.iter())
+        .map(|(&x, &y)| (x as i32 - y as i32).unsigned_abs())
+        .max()
+        .unwrap_or(0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -740,5 +843,169 @@ mod tests {
         assert_eq!(output[1], 150);
         assert_eq!(output[2], 200);
         assert_eq!(output[3], 255);
+    }
+
+    // ── Parallel blur tests ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_parallel_blur_matches_serial_uniform_image() {
+        let w = 16u32;
+        let h = 16u32;
+        let input: Vec<u8> = vec![128u8; (w * h * 4) as usize];
+        let mut serial = vec![0u8; (w * h * 4) as usize];
+        let mut parallel = vec![0u8; (w * h * 4) as usize];
+        gaussian_blur_separable(&input, &mut serial, w, h, 1.5).expect("serial blur");
+        gaussian_blur_separable_parallel(&input, &mut parallel, w, h, 1.5).expect("parallel blur");
+        assert_eq!(
+            max_channel_diff(&serial, &parallel),
+            0,
+            "serial and parallel must agree on uniform image"
+        );
+    }
+
+    #[test]
+    fn test_parallel_blur_matches_serial_random_image() {
+        let w = 8u32;
+        let h = 8u32;
+        let input: Vec<u8> = (0..(w * h * 4) as usize)
+            .map(|i| ((i * 37 + 13) % 256) as u8)
+            .collect();
+        let mut serial = vec![0u8; (w * h * 4) as usize];
+        let mut parallel = vec![0u8; (w * h * 4) as usize];
+        gaussian_blur_separable(&input, &mut serial, w, h, 1.0).expect("serial blur");
+        gaussian_blur_separable_parallel(&input, &mut parallel, w, h, 1.0).expect("parallel blur");
+        let max_diff = max_channel_diff(&serial, &parallel);
+        assert_eq!(max_diff, 0, "serial and parallel outputs must be identical");
+    }
+
+    #[test]
+    fn test_parallel_blur_single_pixel_passthrough() {
+        let input = vec![77u8, 88, 99, 255];
+        let mut output = vec![0u8; 4];
+        gaussian_blur_separable_parallel(&input, &mut output, 1, 1, 2.0)
+            .expect("single pixel parallel blur");
+        assert_eq!(output[0], 77);
+        assert_eq!(output[1], 88);
+        assert_eq!(output[2], 99);
+        assert_eq!(output[3], 255);
+    }
+
+    #[test]
+    fn test_parallel_blur_size_mismatch_returns_error() {
+        let input = vec![0u8; 4 * 4 * 4];
+        let mut output = vec![0u8; 5]; // wrong
+        let res = gaussian_blur_separable_parallel(&input, &mut output, 4, 4, 1.0);
+        assert!(res.is_err());
+    }
+
+    #[test]
+    fn test_parallel_blur_reduces_contrast() {
+        let w = 8u32;
+        let h = 8u32;
+        let mut input = vec![0u8; (w * h * 4) as usize];
+        for row in 0..h as usize {
+            for col in 0..w as usize {
+                let v = if (row + col) % 2 == 0 { 255u8 } else { 0u8 };
+                let base = (row * w as usize + col) * 4;
+                input[base] = v;
+                input[base + 1] = v;
+                input[base + 2] = v;
+                input[base + 3] = 255;
+            }
+        }
+        let mut output = vec![0u8; (w * h * 4) as usize];
+        gaussian_blur_separable_parallel(&input, &mut output, w, h, 1.5)
+            .expect("parallel contrast blur");
+        let max_rgb = output
+            .chunks(4)
+            .flat_map(|px| &px[..3])
+            .copied()
+            .max()
+            .unwrap_or(0);
+        assert!(
+            max_rgb < 255,
+            "parallel blur should reduce max brightness; got {max_rgb}"
+        );
+    }
+
+    #[test]
+    fn test_parallel_blur_large_sigma_heavy_smoothing() {
+        let w = 16u32;
+        let h = 16u32;
+        // Alternating black/white checkerboard
+        let input: Vec<u8> = (0..(w * h) as usize)
+            .flat_map(|i| {
+                let row = i / w as usize;
+                let col = i % w as usize;
+                let v = if (row + col) % 2 == 0 { 255u8 } else { 0u8 };
+                [v, v, v, 255u8]
+            })
+            .collect();
+        let mut out_small = vec![0u8; (w * h * 4) as usize];
+        let mut out_large = vec![0u8; (w * h * 4) as usize];
+        gaussian_blur_separable_parallel(&input, &mut out_small, w, h, 0.5).expect("small sigma");
+        gaussian_blur_separable_parallel(&input, &mut out_large, w, h, 3.0).expect("large sigma");
+
+        let range_small: u32 = out_small
+            .chunks(4)
+            .map(|px| px[0] as u32)
+            .max()
+            .unwrap_or(0)
+            - out_small
+                .chunks(4)
+                .map(|px| px[0] as u32)
+                .min()
+                .unwrap_or(0);
+        let range_large: u32 = out_large
+            .chunks(4)
+            .map(|px| px[0] as u32)
+            .max()
+            .unwrap_or(0)
+            - out_large
+                .chunks(4)
+                .map(|px| px[0] as u32)
+                .min()
+                .unwrap_or(0);
+        assert!(
+            range_large <= range_small,
+            "larger sigma should produce smaller contrast range; small={range_small}, large={range_large}"
+        );
+    }
+
+    #[test]
+    fn test_parallel_blur_wide_image() {
+        let w = 32u32;
+        let h = 4u32;
+        let input: Vec<u8> = (0..(w * h * 4) as usize).map(|i| (i % 256) as u8).collect();
+        let mut output = vec![0u8; (w * h * 4) as usize];
+        gaussian_blur_separable_parallel(&input, &mut output, w, h, 1.0)
+            .expect("wide image parallel blur");
+        assert_eq!(output.len(), (w * h * 4) as usize);
+    }
+
+    #[test]
+    fn test_parallel_blur_tall_image() {
+        let w = 4u32;
+        let h = 32u32;
+        let input: Vec<u8> = (0..(w * h * 4) as usize).map(|i| (i % 256) as u8).collect();
+        let mut output = vec![0u8; (w * h * 4) as usize];
+        gaussian_blur_separable_parallel(&input, &mut output, w, h, 1.0)
+            .expect("tall image parallel blur");
+        assert_eq!(output.len(), (w * h * 4) as usize);
+    }
+
+    #[test]
+    fn test_max_channel_diff_identical() {
+        let a = vec![128u8; 16];
+        let diff = max_channel_diff(&a, &a);
+        assert_eq!(diff, 0);
+    }
+
+    #[test]
+    fn test_max_channel_diff_known_values() {
+        let a = vec![100u8, 200, 50, 255];
+        let b = vec![90u8, 210, 50, 255];
+        let diff = max_channel_diff(&a, &b);
+        assert_eq!(diff, 10);
     }
 }

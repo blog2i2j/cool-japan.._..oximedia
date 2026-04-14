@@ -114,6 +114,7 @@
 
 #![forbid(unsafe_code)]
 
+pub mod abr;
 pub mod allocation;
 pub mod analysis;
 pub mod aq;
@@ -124,11 +125,15 @@ pub mod cqp;
 pub mod crf;
 pub mod lookahead;
 pub mod quantizer;
+pub mod scene_adaptive;
 pub mod simple_rc;
 pub mod types;
 pub mod vbr;
 
 // Re-export main types
+pub use abr::{
+    AbrController, FirstPassStats as AbrFirstPassStats, FramePassStats as AbrFramePassStats,
+};
 pub use allocation::{AllocationResult, AllocationStrategy, BitrateAllocator, GopAllocationStatus};
 pub use analysis::{
     AnalysisResult, ContentAnalyzer, ContentType, SceneChangeThreshold, TextureMetrics,
@@ -144,6 +149,10 @@ pub use lookahead::{
     MiniGopInfo, SceneChangeDetector, SceneContentType,
 };
 pub use quantizer::{BlockQpMap, QpResult, QpSelector, QpStrategy};
+pub use scene_adaptive::{
+    FrameBitTarget, FrameContentMetrics, Scene as AdaptiveScene, SceneAdaptiveAllocator,
+    SceneAdaptiveConfig, SceneContentType as SceneAdaptiveContentType,
+};
 pub use simple_rc::{
     SimpleRateControlConfig, SimpleRateControlMode, SimpleRateControlStats, SimpleRateController,
 };

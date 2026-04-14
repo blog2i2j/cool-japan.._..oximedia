@@ -96,10 +96,16 @@ impl DitherConfig {
     /// Validates the configuration and returns an error message if invalid.
     pub fn validate(&self) -> Result<(), String> {
         if self.target_bits == 0 || self.target_bits > 16 {
-            return Err(format!("target_bits must be 1..=16, got {}", self.target_bits));
+            return Err(format!(
+                "target_bits must be 1..=16, got {}",
+                self.target_bits
+            ));
         }
         if self.source_bits == 0 || self.source_bits > 32 {
-            return Err(format!("source_bits must be 1..=32, got {}", self.source_bits));
+            return Err(format!(
+                "source_bits must be 1..=32, got {}",
+                self.source_bits
+            ));
         }
         if self.target_bits >= self.source_bits {
             return Err(format!(
@@ -364,7 +370,8 @@ impl DitherEngine {
 /// with blue-noise-like spectral properties.
 #[allow(clippy::cast_precision_loss)]
 fn blue_noise_hash(x: u32, y: u32) -> f64 {
-    let mut h = x.wrapping_mul(374_761_393)
+    let mut h = x
+        .wrapping_mul(374_761_393)
         .wrapping_add(y.wrapping_mul(668_265_263));
     h = (h ^ (h >> 13)).wrapping_mul(1_274_126_177);
     h ^= h >> 16;
@@ -422,7 +429,11 @@ pub fn u16_to_f64_buffer(src: &[u16], source_bits: u8) -> Vec<f64> {
 }
 
 /// Converts a buffer of f64 (0.0..1.0) to u16 values at the given target bit depth.
-#[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_sign_loss
+)]
 pub fn f64_to_u16_buffer(src: &[f64], target_bits: u8) -> Vec<u16> {
     let max_val = ((1_u32 << target_bits) - 1) as f64;
     src.iter()
@@ -476,7 +487,10 @@ mod tests {
         let mut vals: Vec<f64> = m.iter().flatten().copied().collect();
         vals.sort_by(|a, b| a.partial_cmp(b).expect("should succeed in test"));
         for i in 1..vals.len() {
-            assert!((vals[i] - vals[i - 1]).abs() > 1e-10, "duplicate bayer values");
+            assert!(
+                (vals[i] - vals[i - 1]).abs() > 1e-10,
+                "duplicate bayer values"
+            );
         }
     }
 

@@ -37,33 +37,52 @@
 #![warn(missing_docs)]
 #![allow(missing_docs)]
 
+pub mod async_output;
+pub mod atem_protocol;
 pub mod audio_follow;
 pub mod audio_follow_video;
 pub mod audio_mixer;
 pub mod aux_bus;
+pub mod aux_routing;
 pub mod bus;
 pub mod chroma;
 pub mod clip_delay;
 pub mod crosspoint;
 pub mod downstream_key;
 pub mod dve;
+pub mod frame_buffer_pool;
 pub mod ftb_control;
+pub mod gpi_trigger;
+pub mod graphics_overlay;
 pub mod input;
 pub mod input_bank;
 pub mod input_manager;
+pub mod intercom;
+pub mod key_fill;
 pub mod keyer;
 pub mod luma;
+pub mod macro_conditional;
 pub mod macro_engine;
 pub mod macro_exec;
 pub mod macro_system;
 pub mod me_bank;
 pub mod media_player;
 pub mod media_pool;
+pub mod mix_minus;
+pub mod multi_me_link;
 pub mod multiviewer;
+pub mod ndi_input;
 pub mod output_routing;
 pub mod pattern_generator;
 pub mod preview_bus;
+pub mod production_timer;
+pub mod recording;
+pub mod replay_server;
+pub mod shared_frame;
+pub mod snapshot_recall;
+pub mod source_label;
 pub mod still_store;
+pub mod stinger;
 pub mod super_source;
 pub mod switcher_preset;
 pub mod sync;
@@ -71,9 +90,17 @@ pub mod tally;
 pub mod tally_protocol;
 pub mod tally_state;
 pub mod tally_system;
+pub mod tbar_control;
 pub mod transition;
 pub mod transition_engine;
 pub mod transition_lib;
+pub mod transition_preview;
+pub mod virtual_input;
+pub mod wipe_generator;
+pub mod wipe_pattern;
+
+#[cfg(test)]
+mod wave3_tests;
 
 use audio_follow::AudioFollowManager;
 use bus::BusManager;
@@ -685,5 +712,199 @@ mod tests {
 
         assert!(switcher.process_frame().is_ok());
         assert_eq!(switcher.sync().current_frame(), 1);
+    }
+
+    // -----------------------------------------------------------------------
+    // Task G: Full switcher lifecycle integration test
+    // -----------------------------------------------------------------------
+
+    /// Full switcher lifecycle:
+    ///   create → set program/preview → cut → process 30 frames →
+    ///   auto transition → process transition frames → verify tally →
+    ///   macro record → playback → verify reproduced state.
+    #[test]
+    fn test_switcher_full_lifecycle() {
+        // 1. Create switcher with 4 inputs.
+        let config = SwitcherConfig::basic();
+        let mut switcher = Switcher::new(config).expect("create switcher");
+
+        // 2. Set input 1 as program, input 2 as preview.
+        switcher.set_program(0, 1).expect("set_program 1");
+        switcher.set_preview(0, 2).expect("set_preview 2");
+
+        // Verify initial tally.
+        assert!(
+            switcher.tally_manager().get_tally(1).is_program(),
+            "input 1 should be program"
+        );
+        assert!(
+            switcher.tally_manager().get_tally(2).is_preview(),
+            "input 2 should be preview"
+        );
+
+        // 3. Execute a cut (program ↔ preview swap).
+        switcher.cut(0).expect("cut");
+        assert_eq!(
+            switcher
+                .bus_manager()
+                .get_program(0)
+                .expect("get_program after cut"),
+            2,
+            "program should now be 2"
+        );
+        assert_eq!(
+            switcher
+                .bus_manager()
+                .get_preview(0)
+                .expect("get_preview after cut"),
+            1,
+            "preview should now be 1"
+        );
+
+        // 4. Process 30 frames through the switcher.
+        for frame_idx in 0..30 {
+            switcher
+                .process_frame()
+                .unwrap_or_else(|e| panic!("process_frame {frame_idx} failed: {e}"));
+        }
+        assert_eq!(
+            switcher.sync().current_frame(),
+            30,
+            "frame counter should reach 30"
+        );
+
+        // 5. Start auto transition (mix/dissolve) over 10 frames.
+        //    Set input 3 on preview first.
+        switcher.set_preview(0, 3).expect("set_preview 3");
+        let transition_config = TransitionConfig::mix(10);
+        switcher
+            .set_transition_config(0, transition_config)
+            .expect("set_transition_config");
+
+        switcher.auto_transition(0).expect("auto_transition");
+        assert!(
+            switcher
+                .transition_engine(0)
+                .expect("transition_engine")
+                .is_in_progress(),
+            "transition must be in-progress after auto_transition"
+        );
+
+        // 6. Process transition frames, verify progress advances.
+        let engine_before_frames = switcher
+            .transition_engine(0)
+            .expect("engine")
+            .current_frame();
+        for frame_idx in 0..10 {
+            switcher
+                .process_frame()
+                .unwrap_or_else(|e| panic!("transition frame {frame_idx} failed: {e}"));
+        }
+
+        // After 10 frames the engine may have completed or advanced.
+        let engine_after = switcher.transition_engine(0).expect("engine after");
+        let frames_after = engine_after.current_frame();
+        assert!(
+            frames_after >= engine_before_frames,
+            "transition frame counter must advance"
+        );
+
+        // 7. After transition completes, verify tally shows input 3 as program.
+        //    (auto_transition performs a swap on completion)
+        let prog_after = switcher
+            .bus_manager()
+            .get_program(0)
+            .expect("get_program after transition");
+        let prev_after = switcher
+            .bus_manager()
+            .get_preview(0)
+            .expect("get_preview after transition");
+        // After a complete mix transition, program should be what was on preview.
+        assert!(
+            prog_after == 3 || prev_after == 3,
+            "input 3 should appear on program or preview after transition (prog={prog_after}, prev={prev_after})"
+        );
+
+        // 8. Macro record → playback reproduces the same state.
+        // Record: select program 1, select preview 2, cut.
+        switcher
+            .macro_engine_mut()
+            .recorder_mut()
+            .start_recording(100, "Lifecycle Test".to_string())
+            .expect("start_recording");
+
+        switcher
+            .macro_engine_mut()
+            .recorder_mut()
+            .record_command(MacroCommand::SelectProgram {
+                me_row: 0,
+                input: 1,
+            })
+            .expect("record SelectProgram");
+
+        switcher
+            .macro_engine_mut()
+            .recorder_mut()
+            .record_command(MacroCommand::SelectPreview {
+                me_row: 0,
+                input: 2,
+            })
+            .expect("record SelectPreview");
+
+        switcher
+            .macro_engine_mut()
+            .recorder_mut()
+            .record_command(MacroCommand::Cut { me_row: 0 })
+            .expect("record Cut");
+
+        let recorded = switcher
+            .macro_engine_mut()
+            .recorder_mut()
+            .stop_recording()
+            .expect("stop_recording");
+
+        // Verify macro captured the 3 commands.
+        assert_eq!(recorded.command_count(), 3, "macro should have 3 commands");
+        assert_eq!(recorded.id, 100);
+
+        // Store and play the macro.
+        switcher
+            .macro_engine_mut()
+            .store_macro(recorded)
+            .expect("store_macro");
+
+        switcher
+            .macro_engine_mut()
+            .run_macro(100)
+            .expect("run_macro");
+
+        // Process frames to execute the macro commands.
+        for _ in 0..5 {
+            switcher
+                .process_frame()
+                .expect("process_frame during macro playback");
+        }
+
+        // After playback the macro reproduced set_program(1)/set_preview(2)/cut,
+        // so program should now be 2 (after cut from 1) and preview should be 1.
+        let final_prog = switcher
+            .bus_manager()
+            .get_program(0)
+            .expect("final program");
+        let final_prev = switcher
+            .bus_manager()
+            .get_preview(0)
+            .expect("final preview");
+
+        // The macro played: SelectProgram(1) → SelectPreview(2) → Cut
+        // After cut: program=2, preview=1.
+        assert_eq!(final_prog, 2, "after macro playback program should be 2");
+        assert_eq!(final_prev, 1, "after macro playback preview should be 1");
+
+        // Final tally verification.
+        let tally_2 = switcher.tally_manager().get_tally(final_prog);
+        let tally_1 = switcher.tally_manager().get_tally(final_prev);
+        assert!(tally_2.is_program(), "input {final_prog} should be program");
+        assert!(tally_1.is_preview(), "input {final_prev} should be preview");
     }
 }

@@ -99,9 +99,8 @@ impl Fingerprint {
     /// Computes the similarity score (0.0 to 1.0) between two fingerprints.
     #[allow(clippy::cast_precision_loss)]
     pub fn similarity(&self, other: &Fingerprint) -> Option<f64> {
-        self.hamming_distance(other).map(|d| {
-            1.0 - (d as f64 / self.bit_length as f64)
-        })
+        self.hamming_distance(other)
+            .map(|d| 1.0 - (d as f64 / self.bit_length as f64))
     }
 
     /// Returns true if two fingerprints are considered a match at the given threshold.
@@ -155,7 +154,9 @@ impl FingerprintRecord {
 
     /// Returns fingerprints for a given algorithm.
     pub fn get_fingerprint(&self, algorithm: FingerprintAlgorithm) -> Option<&Fingerprint> {
-        self.fingerprints.iter().find(|fp| fp.algorithm == algorithm)
+        self.fingerprints
+            .iter()
+            .find(|fp| fp.algorithm == algorithm)
     }
 }
 
@@ -370,15 +371,28 @@ mod tests {
     #[test]
     fn test_fingerprint_algorithm_display() {
         assert_eq!(FingerprintAlgorithm::AverageHash.to_string(), "AverageHash");
-        assert_eq!(FingerprintAlgorithm::DifferenceHash.to_string(), "DifferenceHash");
-        assert_eq!(FingerprintAlgorithm::PerceptualHash.to_string(), "PerceptualHash");
-        assert_eq!(FingerprintAlgorithm::BlockMeanHash.to_string(), "BlockMeanHash");
-        assert_eq!(FingerprintAlgorithm::AudioChromaprint.to_string(), "AudioChromaprint");
+        assert_eq!(
+            FingerprintAlgorithm::DifferenceHash.to_string(),
+            "DifferenceHash"
+        );
+        assert_eq!(
+            FingerprintAlgorithm::PerceptualHash.to_string(),
+            "PerceptualHash"
+        );
+        assert_eq!(
+            FingerprintAlgorithm::BlockMeanHash.to_string(),
+            "BlockMeanHash"
+        );
+        assert_eq!(
+            FingerprintAlgorithm::AudioChromaprint.to_string(),
+            "AudioChromaprint"
+        );
     }
 
     #[test]
     fn test_fingerprint_from_hex() {
-        let fp = Fingerprint::from_hex(FingerprintAlgorithm::AverageHash, "ff00ab").expect("fp should be valid");
+        let fp = Fingerprint::from_hex(FingerprintAlgorithm::AverageHash, "ff00ab")
+            .expect("fp should be valid");
         assert_eq!(fp.hash_bytes, vec![0xff, 0x00, 0xab]);
         assert_eq!(fp.bit_length, 24);
     }
@@ -451,8 +465,12 @@ mod tests {
         let mut record = FingerprintRecord::new(PathBuf::from("/test.mxf"), 1024);
         let fp = Fingerprint::new(FingerprintAlgorithm::AverageHash, vec![0xaa], 8);
         record.add_fingerprint(fp);
-        assert!(record.get_fingerprint(FingerprintAlgorithm::AverageHash).is_some());
-        assert!(record.get_fingerprint(FingerprintAlgorithm::DifferenceHash).is_none());
+        assert!(record
+            .get_fingerprint(FingerprintAlgorithm::AverageHash)
+            .is_some());
+        assert!(record
+            .get_fingerprint(FingerprintAlgorithm::DifferenceHash)
+            .is_none());
     }
 
     #[test]

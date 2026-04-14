@@ -31,6 +31,19 @@ pub enum BlendMode {
     Screen,
     /// Overlay: multiply for dark areas, screen for light areas.
     Overlay,
+    /// Hard Light: overlay with source and destination roles swapped.
+    /// Multiply if src < 0.5, screen otherwise.
+    HardLight,
+    /// Color Dodge: brightens the base colour to reflect the blend colour.
+    /// `dst / (1 - src)`, clamped to 1.
+    ColorDodge,
+    /// Color Burn: darkens the base colour to reflect the blend colour.
+    /// `1 - (1 - dst) / src`, clamped to 0.
+    ColorBurn,
+    /// Linear Burn: `dst + src - 1`, clamped to 0.
+    LinearBurn,
+    /// Exclusion: `dst + src - 2 * dst * src`.
+    Exclusion,
 }
 
 impl Default for BlendMode {
@@ -233,6 +246,19 @@ fn apply_blend(
         BlendMode::Multiply => (sr * dr, sg * dg, sb * db),
         BlendMode::Screen => (screen(sr, dr), screen(sg, dg), screen(sb, db)),
         BlendMode::Overlay => (overlay(dr, sr), overlay(dg, sg), overlay(db, sb)),
+        BlendMode::HardLight => (hard_light(sr, dr), hard_light(sg, dg), hard_light(sb, db)),
+        BlendMode::ColorDodge => (
+            color_dodge(sr, dr),
+            color_dodge(sg, dg),
+            color_dodge(sb, db),
+        ),
+        BlendMode::ColorBurn => (color_burn(sr, dr), color_burn(sg, dg), color_burn(sb, db)),
+        BlendMode::LinearBurn => (
+            linear_burn(sr, dr),
+            linear_burn(sg, dg),
+            linear_burn(sb, db),
+        ),
+        BlendMode::Exclusion => (exclusion(sr, dr), exclusion(sg, dg), exclusion(sb, db)),
     }
 }
 
@@ -250,6 +276,49 @@ fn overlay(base: f32, blend: f32) -> f32 {
     } else {
         1.0 - 2.0 * (1.0 - base) * (1.0 - blend)
     }
+}
+
+/// Hard Light blend: overlay with src/dst roles swapped.
+/// Multiply when src < 0.5; screen otherwise.
+#[inline(always)]
+fn hard_light(src: f32, dst: f32) -> f32 {
+    if src < 0.5 {
+        2.0 * src * dst
+    } else {
+        1.0 - 2.0 * (1.0 - src) * (1.0 - dst)
+    }
+}
+
+/// Color Dodge: `dst / (1 - src)` — brightens the destination.
+#[inline(always)]
+fn color_dodge(src: f32, dst: f32) -> f32 {
+    if src >= 1.0 {
+        1.0
+    } else {
+        (dst / (1.0 - src)).min(1.0)
+    }
+}
+
+/// Color Burn: `1 - (1 - dst) / src` — darkens the destination.
+#[inline(always)]
+fn color_burn(src: f32, dst: f32) -> f32 {
+    if src <= 0.0 {
+        0.0
+    } else {
+        (1.0 - (1.0 - dst) / src).max(0.0)
+    }
+}
+
+/// Linear Burn: `dst + src - 1`, clamped to 0.
+#[inline(always)]
+fn linear_burn(src: f32, dst: f32) -> f32 {
+    (dst + src - 1.0).max(0.0)
+}
+
+/// Exclusion: `dst + src - 2 * dst * src`.
+#[inline(always)]
+fn exclusion(src: f32, dst: f32) -> f32 {
+    dst + src - 2.0 * dst * src
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -431,5 +500,165 @@ mod tests {
         let mut out = vec![0u8; (w * h * 4) as usize];
         let result = LayerCompositor::blend_layers_cpu(&layers, &mut out, w, h);
         assert!(result.is_ok());
+    }
+
+    // ── New blend-mode tests ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_hard_light_with_mid_grey_src() {
+        // hard_light(0.5, x) = overlay(x, 0.5) which at 0.5 gives 0.5
+        let v = hard_light(0.5, 0.5);
+        assert!(
+            (v - 0.5).abs() < 1e-5,
+            "hard_light(0.5,0.5) should be 0.5, got {v}"
+        );
+    }
+
+    #[test]
+    fn test_hard_light_black_src_yields_zero() {
+        // hard_light(0, x) = 2*0*x = 0
+        assert!((hard_light(0.0, 0.8) - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_hard_light_white_src_yields_screen_like_max() {
+        // hard_light(1, x) = 1 - 2*(1-1)*(1-x) = 1
+        let v = hard_light(1.0, 0.3);
+        assert!(
+            (v - 1.0).abs() < 1e-6,
+            "hard_light(1, x) should be 1, got {v}"
+        );
+    }
+
+    #[test]
+    fn test_color_dodge_white_src_yields_one() {
+        // color_dodge(1.0, x) = 1 (src >= 1 clamp)
+        assert!((color_dodge(1.0, 0.5) - 1.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_color_dodge_black_src_yields_dst() {
+        // color_dodge(0, x) = x / 1 = x
+        let dst = 0.6;
+        let v = color_dodge(0.0, dst);
+        assert!(
+            (v - dst).abs() < 1e-6,
+            "color_dodge(0, {dst}) should be {dst}, got {v}"
+        );
+    }
+
+    #[test]
+    fn test_color_burn_white_src_yields_dst() {
+        // color_burn(1, x) = 1 - (1-x)/1 = x
+        let dst = 0.4;
+        let v = color_burn(1.0, dst);
+        assert!(
+            (v - dst).abs() < 1e-6,
+            "color_burn(1, {dst}) should be {dst}, got {v}"
+        );
+    }
+
+    #[test]
+    fn test_color_burn_black_src_yields_zero() {
+        // color_burn(0, x) = 0 (clamped)
+        assert!((color_burn(0.0, 0.8) - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_linear_burn_saturates_to_zero() {
+        // linear_burn(0.3, 0.5) = 0.3+0.5-1 = -0.2 → clamped to 0
+        assert!((linear_burn(0.3, 0.5) - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_linear_burn_normal_case() {
+        // linear_burn(0.9, 0.8) = 0.9+0.8-1 = 0.7
+        let v = linear_burn(0.9, 0.8);
+        assert!((v - 0.7).abs() < 1e-5, "expected 0.7, got {v}");
+    }
+
+    #[test]
+    fn test_exclusion_with_black_src_yields_dst() {
+        // exclusion(0, x) = x + 0 - 0 = x
+        let dst = 0.65;
+        let v = exclusion(0.0, dst);
+        assert!(
+            (v - dst).abs() < 1e-6,
+            "exclusion(0, {dst}) should be {dst}, got {v}"
+        );
+    }
+
+    #[test]
+    fn test_exclusion_midpoint_yields_zero_five() {
+        // exclusion(0.5, 0.5) = 0.5+0.5-2*0.5*0.5 = 1-0.5 = 0.5
+        let v = exclusion(0.5, 0.5);
+        assert!(
+            (v - 0.5).abs() < 1e-5,
+            "exclusion midpoint should be 0.5, got {v}"
+        );
+    }
+
+    #[test]
+    fn test_hard_light_blend_layers_round_trip() {
+        let w = 4u32;
+        let h = 4u32;
+        let bg = solid_rgba(w, h, 64, 64, 64, 255);
+        let fg = solid_rgba(w, h, 64, 64, 64, 255);
+        let layers = [
+            BlendLayer::new(&bg, w, h, 1.0, BlendMode::Normal).expect("create bg layer"),
+            BlendLayer::new(&fg, w, h, 1.0, BlendMode::HardLight).expect("create hard light layer"),
+        ];
+        let mut out = vec![0u8; (w * h * 4) as usize];
+        LayerCompositor::blend_layers_cpu(&layers, &mut out, w, h).expect("blend hard light");
+        // hard_light(64/255, 64/255) ≈ 2*(64/255)^2 ≈ 0.126 → ~32
+        for i in 0..(w * h) as usize {
+            let r = out[i * 4];
+            assert!(r < 64, "hard light with dark src should darken; got {r}");
+        }
+    }
+
+    #[test]
+    fn test_color_dodge_blend_layers_brightens() {
+        let w = 4u32;
+        let h = 4u32;
+        // bg = mid grey, fg = mid grey (almost 0.5 → dodge brightens significantly)
+        let bg = solid_rgba(w, h, 100, 100, 100, 255);
+        let fg = solid_rgba(w, h, 128, 128, 128, 255);
+        let layers = [
+            BlendLayer::new(&bg, w, h, 1.0, BlendMode::Normal).expect("create bg layer"),
+            BlendLayer::new(&fg, w, h, 1.0, BlendMode::ColorDodge).expect("create dodge layer"),
+        ];
+        let mut out = vec![0u8; (w * h * 4) as usize];
+        LayerCompositor::blend_layers_cpu(&layers, &mut out, w, h).expect("blend color dodge");
+        // Color dodge should produce brighter result than the background alone.
+        for i in 0..(w * h) as usize {
+            assert!(
+                out[i * 4] >= 100,
+                "color dodge should not darken; got {}",
+                out[i * 4]
+            );
+        }
+    }
+
+    #[test]
+    fn test_exclusion_blend_layers_round_trip() {
+        let w = 4u32;
+        let h = 4u32;
+        let bg = solid_rgba(w, h, 128, 128, 128, 255);
+        let fg = solid_rgba(w, h, 128, 128, 128, 255);
+        let layers = [
+            BlendLayer::new(&bg, w, h, 1.0, BlendMode::Normal).expect("create bg layer"),
+            BlendLayer::new(&fg, w, h, 1.0, BlendMode::Exclusion).expect("create exclusion layer"),
+        ];
+        let mut out = vec![0u8; (w * h * 4) as usize];
+        LayerCompositor::blend_layers_cpu(&layers, &mut out, w, h).expect("blend exclusion");
+        // exclusion(0.5, 0.5) = 0.5 → ~128
+        for i in 0..(w * h) as usize {
+            let r = out[i * 4];
+            assert!(
+                r >= 120 && r <= 136,
+                "exclusion(0.5,0.5) should be ~128; got {r}"
+            );
+        }
     }
 }

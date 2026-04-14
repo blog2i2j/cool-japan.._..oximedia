@@ -1,7 +1,7 @@
 # oximedia-dedup
 
 ![Status: Stable](https://img.shields.io/badge/status-stable-green)
-![Version: 0.1.1](https://img.shields.io/badge/version-0.1.1-blue)
+![Version: 0.1.3](https://img.shields.io/badge/version-0.1.3-blue)
 
 Media deduplication and duplicate detection for OxiMedia, providing cryptographic, visual, audio, and metadata-based duplicate finding with SQLite-backed indexing.
 
@@ -34,7 +34,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-dedup = "0.1.1"
+oximedia-dedup = "0.1.3"
 ```
 
 ```rust

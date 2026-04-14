@@ -203,14 +203,8 @@ impl WorkerRegistry {
     pub fn get_stale_workers(&self) -> Vec<WorkerId> {
         let workers = self.workers.read();
         let now = Utc::now();
-        // chrono::Duration::from_std fails only if the std Duration exceeds
-        // chrono's i64-nanosecond range (~292 years). heartbeat_timeout is
-        // always a small operational duration, so fall back to empty list on
-        // overflow rather than panicking.
-        let timeout = match chrono::Duration::from_std(self.heartbeat_timeout) {
-            Ok(t) => t,
-            Err(_) => return Vec::new(),
-        };
+        let timeout = chrono::Duration::from_std(self.heartbeat_timeout)
+            .unwrap_or(chrono::Duration::seconds(30));
 
         workers
             .values()
@@ -304,12 +298,10 @@ mod tests {
                 HashMap::new(),
             )
             .await
-            .expect("operation should succeed");
+            .unwrap();
 
         assert_eq!(registry.active_worker_count(), 1);
-        let worker = registry
-            .get_worker(&worker_id)
-            .expect("get_worker should succeed");
+        let worker = registry.get_worker(&worker_id).unwrap();
         assert_eq!(worker.hostname, "host1");
     }
 
@@ -326,7 +318,7 @@ mod tests {
                 HashMap::new(),
             )
             .await
-            .expect("operation should succeed");
+            .unwrap();
 
         let result = registry
             .register_worker(
@@ -353,12 +345,9 @@ mod tests {
                 HashMap::new(),
             )
             .await
-            .expect("operation should succeed");
+            .unwrap();
 
-        registry
-            .unregister_worker(&worker_id)
-            .await
-            .expect("await should be valid");
+        registry.unregister_worker(&worker_id).await.unwrap();
         assert_eq!(registry.active_worker_count(), 0);
     }
 
@@ -375,7 +364,7 @@ mod tests {
                 HashMap::new(),
             )
             .await
-            .expect("operation should succeed");
+            .unwrap();
 
         let status = WorkerStatusUpdate {
             cpu_usage: 0.5,
@@ -386,14 +375,9 @@ mod tests {
             state: WorkerState::Busy,
         };
 
-        registry
-            .heartbeat(&worker_id, status)
-            .await
-            .expect("await should be valid");
+        registry.heartbeat(&worker_id, status).await.unwrap();
 
-        let worker = registry
-            .get_worker(&worker_id)
-            .expect("get_worker should succeed");
+        let worker = registry.get_worker(&worker_id).unwrap();
         assert_eq!(worker.state, WorkerState::Busy);
         assert_eq!(worker.active_tasks, 2);
     }
@@ -413,7 +397,7 @@ mod tests {
                 HashMap::new(),
             )
             .await
-            .expect("operation should succeed");
+            .unwrap();
 
         registry
             .register_worker(
@@ -423,7 +407,7 @@ mod tests {
                 HashMap::new(),
             )
             .await
-            .expect("operation should succeed");
+            .unwrap();
 
         let status = WorkerStatusUpdate {
             cpu_usage: 0.5,
@@ -434,10 +418,7 @@ mod tests {
             state: WorkerState::Busy,
         };
 
-        registry
-            .heartbeat(&worker2, status)
-            .await
-            .expect("await should be valid");
+        registry.heartbeat(&worker2, status).await.unwrap();
 
         let idle_workers = registry.list_workers_by_state(WorkerState::Idle);
         assert_eq!(idle_workers.len(), 1);
@@ -459,24 +440,13 @@ mod tests {
                 HashMap::new(),
             )
             .await
-            .expect("operation should succeed");
+            .unwrap();
 
-        registry
-            .increment_task_completed(&worker_id)
-            .await
-            .expect("await should be valid");
-        registry
-            .increment_task_completed(&worker_id)
-            .await
-            .expect("await should be valid");
-        registry
-            .increment_task_failed(&worker_id)
-            .await
-            .expect("await should be valid");
+        registry.increment_task_completed(&worker_id).await.unwrap();
+        registry.increment_task_completed(&worker_id).await.unwrap();
+        registry.increment_task_failed(&worker_id).await.unwrap();
 
-        let worker = registry
-            .get_worker(&worker_id)
-            .expect("get_worker should succeed");
+        let worker = registry.get_worker(&worker_id).unwrap();
         assert_eq!(worker.total_tasks_completed, 2);
         assert_eq!(worker.total_tasks_failed, 1);
     }
@@ -493,7 +463,7 @@ mod tests {
                 HashMap::new(),
             )
             .await
-            .expect("operation should succeed");
+            .unwrap();
 
         registry
             .register_worker(
@@ -503,7 +473,7 @@ mod tests {
                 HashMap::new(),
             )
             .await
-            .expect("operation should succeed");
+            .unwrap();
 
         let stats = registry.get_statistics();
         assert_eq!(stats.total, 2);

@@ -289,7 +289,8 @@ mod tests {
     #[test]
     fn srt_single_block() {
         let block = make_block(1, 0, 2000, "Hello world");
-        let srt = CaptionFormatAdapter::convert(&[block], OutputFormat::Srt).expect("convert should succeed");
+        let srt = CaptionFormatAdapter::convert(&[block], OutputFormat::Srt)
+            .expect("convert should succeed");
         assert!(srt.contains("1\n"));
         assert!(srt.contains("00:00:00,000 --> 00:00:02,000"));
         assert!(srt.contains("Hello world"));
@@ -301,7 +302,8 @@ mod tests {
             make_block(1, 0, 2000, "Block one"),
             make_block(2, 2500, 4000, "Block two"),
         ];
-        let srt = CaptionFormatAdapter::convert(&blocks, OutputFormat::Srt).expect("convert should succeed");
+        let srt = CaptionFormatAdapter::convert(&blocks, OutputFormat::Srt)
+            .expect("convert should succeed");
         assert!(srt.contains("Block one"));
         assert!(srt.contains("Block two"));
         assert!(srt.contains("2\n"));
@@ -310,7 +312,8 @@ mod tests {
     #[test]
     fn srt_two_line_block_emits_two_lines() {
         let block = make_two_line_block(1, 0, 2000);
-        let srt = CaptionFormatAdapter::convert(&[block], OutputFormat::Srt).expect("convert should succeed");
+        let srt = CaptionFormatAdapter::convert(&[block], OutputFormat::Srt)
+            .expect("convert should succeed");
         assert!(srt.contains("Line one\n"));
         assert!(srt.contains("Line two\n"));
     }
@@ -318,7 +321,8 @@ mod tests {
     #[test]
     fn srt_blocks_separated_by_blank_line() {
         let blocks = vec![make_block(1, 0, 1000, "A"), make_block(2, 1500, 2500, "B")];
-        let srt = CaptionFormatAdapter::convert(&blocks, OutputFormat::Srt).expect("convert should succeed");
+        let srt = CaptionFormatAdapter::convert(&blocks, OutputFormat::Srt)
+            .expect("convert should succeed");
         // Each block ends with double newline.
         assert!(srt.contains("A\n\n"));
         assert!(srt.contains("B\n\n"));
@@ -326,7 +330,8 @@ mod tests {
 
     #[test]
     fn srt_empty_track_produces_empty_string() {
-        let srt = CaptionFormatAdapter::convert(&[], OutputFormat::Srt).expect("convert should succeed");
+        let srt =
+            CaptionFormatAdapter::convert(&[], OutputFormat::Srt).expect("convert should succeed");
         assert!(srt.is_empty());
     }
 
@@ -335,21 +340,24 @@ mod tests {
     #[test]
     fn vtt_starts_with_webvtt_header() {
         let block = make_block(1, 0, 2000, "Hello");
-        let vtt = CaptionFormatAdapter::convert(&[block], OutputFormat::Vtt).expect("convert should succeed");
+        let vtt = CaptionFormatAdapter::convert(&[block], OutputFormat::Vtt)
+            .expect("convert should succeed");
         assert!(vtt.starts_with("WEBVTT\n"));
     }
 
     #[test]
     fn vtt_uses_dot_separator_in_timestamps() {
         let block = make_block(1, 0, 2000, "Hello");
-        let vtt = CaptionFormatAdapter::convert(&[block], OutputFormat::Vtt).expect("convert should succeed");
+        let vtt = CaptionFormatAdapter::convert(&[block], OutputFormat::Vtt)
+            .expect("convert should succeed");
         assert!(vtt.contains("00:00:00.000 --> 00:00:02.000"));
     }
 
     #[test]
     fn vtt_cue_identifier_present() {
         let block = make_block(3, 0, 1000, "Test");
-        let vtt = CaptionFormatAdapter::convert(&[block], OutputFormat::Vtt).expect("convert should succeed");
+        let vtt = CaptionFormatAdapter::convert(&[block], OutputFormat::Vtt)
+            .expect("convert should succeed");
         assert!(vtt.contains("cue-3"));
     }
 
@@ -363,14 +371,16 @@ mod tests {
             speaker_id: None,
             position: CaptionPosition::Top,
         };
-        let vtt = CaptionFormatAdapter::convert(&[block], OutputFormat::Vtt).expect("convert should succeed");
+        let vtt = CaptionFormatAdapter::convert(&[block], OutputFormat::Vtt)
+            .expect("convert should succeed");
         assert!(vtt.contains("line:10%"));
     }
 
     #[test]
     fn vtt_bottom_position_no_cue_setting() {
         let block = make_block(1, 0, 1000, "Bottom");
-        let vtt = CaptionFormatAdapter::convert(&[block], OutputFormat::Vtt).expect("convert should succeed");
+        let vtt = CaptionFormatAdapter::convert(&[block], OutputFormat::Vtt)
+            .expect("convert should succeed");
         // No extra position setting on the timestamp line.
         let ts_line = vtt.lines().find(|l| l.contains("-->")).unwrap_or_default();
         assert!(!ts_line.contains("line:"));
@@ -381,14 +391,16 @@ mod tests {
     #[test]
     fn ttml_has_xml_declaration() {
         let block = make_block(1, 0, 1000, "Hello");
-        let ttml = CaptionFormatAdapter::convert(&[block], OutputFormat::Ttml).expect("convert should succeed");
+        let ttml = CaptionFormatAdapter::convert(&[block], OutputFormat::Ttml)
+            .expect("convert should succeed");
         assert!(ttml.contains(r#"<?xml version="1.0""#));
     }
 
     #[test]
     fn ttml_has_tt_element() {
         let block = make_block(1, 0, 1000, "Hello");
-        let ttml = CaptionFormatAdapter::convert(&[block], OutputFormat::Ttml).expect("convert should succeed");
+        let ttml = CaptionFormatAdapter::convert(&[block], OutputFormat::Ttml)
+            .expect("convert should succeed");
         assert!(ttml.contains("<tt "));
         assert!(ttml.contains("</tt>"));
     }
@@ -396,7 +408,8 @@ mod tests {
     #[test]
     fn ttml_has_p_element_with_timestamps() {
         let block = make_block(1, 0, 2000, "Hello world");
-        let ttml = CaptionFormatAdapter::convert(&[block], OutputFormat::Ttml).expect("convert should succeed");
+        let ttml = CaptionFormatAdapter::convert(&[block], OutputFormat::Ttml)
+            .expect("convert should succeed");
         assert!(ttml.contains(r#"begin="00:00:00.000""#));
         assert!(ttml.contains(r#"end="00:00:02.000""#));
     }
@@ -404,14 +417,16 @@ mod tests {
     #[test]
     fn ttml_multi_line_uses_br_element() {
         let block = make_two_line_block(1, 0, 2000);
-        let ttml = CaptionFormatAdapter::convert(&[block], OutputFormat::Ttml).expect("convert should succeed");
+        let ttml = CaptionFormatAdapter::convert(&[block], OutputFormat::Ttml)
+            .expect("convert should succeed");
         assert!(ttml.contains("<br/>"));
     }
 
     #[test]
     fn ttml_escapes_xml_special_chars() {
         let block = make_block(1, 0, 2000, "A & B <test>");
-        let ttml = CaptionFormatAdapter::convert(&[block], OutputFormat::Ttml).expect("convert should succeed");
+        let ttml = CaptionFormatAdapter::convert(&[block], OutputFormat::Ttml)
+            .expect("convert should succeed");
         assert!(ttml.contains("A &amp; B &lt;test&gt;"));
     }
 
@@ -446,5 +461,108 @@ mod tests {
     #[test]
     fn xml_escape_plain_text_unchanged() {
         assert_eq!(xml_escape("Hello world"), "Hello world");
+    }
+
+    // ─── Additional tests ─────────────────────────────────────────────────────
+
+    #[test]
+    fn srt_timestamp_sub_second() {
+        // 500ms should be "00:00:00,500"
+        assert_eq!(format_srt_timestamp(500), "00:00:00,500");
+    }
+
+    #[test]
+    fn vtt_timestamp_sub_second() {
+        assert_eq!(format_vtt_timestamp(500), "00:00:00.500");
+    }
+
+    #[test]
+    fn srt_timestamp_large_hours() {
+        // 10h exactly = 36_000_000ms
+        assert_eq!(format_srt_timestamp(36_000_000), "10:00:00,000");
+    }
+
+    #[test]
+    fn srt_output_sequence_numbers_sequential() {
+        let blocks = vec![
+            make_block(1, 0, 1000, "A"),
+            make_block(2, 1000, 2000, "B"),
+            make_block(3, 2000, 3000, "C"),
+        ];
+        let srt = CaptionFormatAdapter::convert(&blocks, OutputFormat::Srt).expect("convert");
+        assert!(srt.contains("1\n"));
+        assert!(srt.contains("2\n"));
+        assert!(srt.contains("3\n"));
+    }
+
+    #[test]
+    fn vtt_empty_track_has_webvtt_header_only() {
+        let vtt = CaptionFormatAdapter::convert(&[], OutputFormat::Vtt).expect("convert");
+        assert!(vtt.starts_with("WEBVTT\n"));
+        // No cue entries.
+        assert!(!vtt.contains("-->"));
+    }
+
+    #[test]
+    fn ttml_empty_track_produces_valid_xml_skeleton() {
+        let ttml = CaptionFormatAdapter::convert(&[], OutputFormat::Ttml).expect("convert");
+        assert!(ttml.contains("<tt "));
+        assert!(ttml.contains("</tt>"));
+        assert!(ttml.contains("<body>"));
+        assert!(ttml.contains("</body>"));
+        // No <p> elements for an empty track.
+        assert!(!ttml.contains("<p "));
+    }
+
+    #[test]
+    fn custom_position_block_vtt_has_position_setting() {
+        let block = CaptionBlock {
+            id: 1,
+            start_ms: 0,
+            end_ms: 1000,
+            lines: vec!["Custom".to_string()],
+            speaker_id: None,
+            position: CaptionPosition::Custom(50.0, 75.0),
+        };
+        let vtt = CaptionFormatAdapter::convert(&[block], OutputFormat::Vtt).expect("convert");
+        assert!(vtt.contains("position:"));
+        assert!(vtt.contains("line:"));
+    }
+
+    #[test]
+    fn srt_unicode_text_preserved() {
+        let block = make_block(1, 0, 2000, "日本語テキスト");
+        let srt = CaptionFormatAdapter::convert(&[block], OutputFormat::Srt).expect("convert");
+        assert!(srt.contains("日本語テキスト"));
+    }
+
+    #[test]
+    fn ttml_block_xml_id_uses_block_id() {
+        let block = make_block(7, 0, 1000, "Test");
+        let ttml = CaptionFormatAdapter::convert(&[block], OutputFormat::Ttml).expect("convert");
+        assert!(ttml.contains(r#"xml:id="s7""#));
+    }
+
+    #[test]
+    fn output_format_variants_are_eq() {
+        assert_eq!(OutputFormat::Srt, OutputFormat::Srt);
+        assert_ne!(OutputFormat::Srt, OutputFormat::Vtt);
+        assert_ne!(OutputFormat::Vtt, OutputFormat::Ttml);
+    }
+
+    #[test]
+    fn invalid_timestamp_zero_zero_is_allowed() {
+        // start_ms == end_ms == 0 is treated as a degenerate "empty" block,
+        // not flagged as an error (the guard is start >= end AND not (0,0)).
+        let block = CaptionBlock {
+            id: 1,
+            start_ms: 0,
+            end_ms: 0,
+            lines: vec!["zero".to_string()],
+            speaker_id: None,
+            position: CaptionPosition::Bottom,
+        };
+        let result = CaptionFormatAdapter::convert(&[block], OutputFormat::Srt);
+        assert!(result.is_ok());
     }
 }

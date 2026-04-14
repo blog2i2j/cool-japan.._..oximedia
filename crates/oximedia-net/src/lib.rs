@@ -62,28 +62,39 @@
 )]
 
 pub mod abr;
+pub mod abr_buffer;
 pub mod bandwidth_estimator;
+pub mod bandwidth_probe;
 pub mod bandwidth_throttle;
+pub mod bandwidth_trigger;
+pub mod buffer_model;
 pub mod cdn;
 pub mod connection_pool;
 pub mod dash;
 pub mod error;
 pub mod fec;
+pub mod fec_interleave;
 pub mod flow_control;
 pub mod hls;
 pub mod http2;
 pub mod ice;
 pub mod live;
+pub mod ll_dash;
+pub mod ll_dash_config;
 pub mod manifest_cache;
 pub mod mdns;
 pub mod multicast;
+pub mod multicast_manager;
 pub mod multipath;
 pub mod network_path;
+pub mod network_simulator;
 pub mod pacing;
 pub mod packet_buffer;
+pub mod playlist_parser;
 pub mod protocol_detect;
 pub mod qos_monitor;
 pub mod quic;
+pub mod quic_datagram;
 pub mod relay;
 pub mod retry_policy;
 pub mod rist;
@@ -93,10 +104,18 @@ pub mod session_tracker;
 pub mod smpte2022_7;
 pub mod smpte2110;
 pub mod srt;
+pub mod srt_aes256gcm;
+pub mod srt_config;
+pub mod srt_group;
+pub mod stream_health_monitor;
 pub mod stream_mux;
 pub mod webrtc;
 pub mod websocket;
+pub mod whep_client;
+pub mod whip;
 pub mod whip_whep;
+pub mod zero_copy_serve;
+pub mod zixi;
 
 // Re-export commonly used items
 pub use error::{NetError, NetResult};

@@ -123,7 +123,21 @@ impl VaryingValue {
         self.control_points.sort_by_key(|c| c.time);
     }
 
-    /// Evaluate the parameter at the given time using the interpolation method
+    /// Evaluate the parameter at the given time using the interpolation method.
+    ///
+    /// # Interpolation modes
+    ///
+    /// * **Constant** — step function: returns the value of the left-hand
+    ///   control point unchanged.
+    /// * **Linear** — lerp between the two surrounding control points.
+    /// * **BSpline** — Catmull-Rom cubic spline.  When the surrounding
+    ///   segment has tangent data stored in [`ControlPoint::tangent_out`] /
+    ///   [`ControlPoint::tangent_in`] those tangents are used directly (scaled
+    ///   by the segment duration); otherwise the tangents are estimated from
+    ///   the neighbouring control points (or mirrored at the endpoints).
+    /// * **Log** — geometric (exponential) interpolation:
+    ///   `v0 * (v1/v0)^frac`.  Falls back to linear if `v0 == 0`.
+    /// * **Power** — ease-in quadratic: `v0 + (v1 − v0) * frac²`.
     #[must_use]
     pub fn evaluate(&self, time: i64) -> Option<f64> {
         if self.control_points.is_empty() {
@@ -147,17 +161,89 @@ impl VaryingValue {
         let t0 = cp0.time as f64;
         let t1 = cp1.time as f64;
         let t = time as f64;
+        // Normalised parameter in [0, 1]
+        let frac = (t - t0) / (t1 - t0);
         match self.interpolation {
             Interpolation::Constant => Some(v0),
-            Interpolation::Linear
-            | Interpolation::BSpline
-            | Interpolation::Log
-            | Interpolation::Power => {
-                // Linear fallback for all non-constant modes
-                let frac = (t - t0) / (t1 - t0);
-                Some(v0 + frac * (v1 - v0))
+            Interpolation::Linear => Some(v0 + frac * (v1 - v0)),
+            Interpolation::BSpline => Some(self.eval_catmull_rom(pos, v0, v1, t0, t1, t)),
+            Interpolation::Log => {
+                // Geometric interpolation: v0 * (v1/v0)^frac
+                // Falls back to linear when v0 == 0 to avoid division by zero.
+                if v0.abs() < f64::EPSILON {
+                    Some(v0 + frac * (v1 - v0))
+                } else {
+                    Some(v0 * (v1 / v0).powf(frac))
+                }
+            }
+            Interpolation::Power => {
+                // Ease-in quadratic (power-of-2 curve)
+                Some(v0 + (v1 - v0) * frac * frac)
             }
         }
+    }
+
+    /// Catmull-Rom cubic spline evaluation between control points at `pos-1`
+    /// and `pos`.
+    ///
+    /// Uses tangents stored on the control points when available; otherwise
+    /// estimates them from neighbouring points (finite differences).
+    fn eval_catmull_rom(&self, pos: usize, v0: f64, v1: f64, t0: f64, t1: f64, t: f64) -> f64 {
+        let dt = t1 - t0;
+        if dt.abs() < f64::EPSILON {
+            return v0;
+        }
+        let frac = (t - t0) / dt;
+
+        // Estimate tangents from the stored tangent_out/tangent_in, or from
+        // finite differences of neighbouring values.
+        let m0 = if let Some((_, dy)) = self.control_points[pos - 1].tangent_out {
+            // Stored tangent is in (dt_units, dv_units); scale to value/unit
+            dy / dt
+        } else {
+            // Finite difference: average of [p-2..p-1] and [p-1..p]
+            if pos >= 2 {
+                let vp = self.control_points[pos - 2].value.as_f64().unwrap_or(v0);
+                let tp = self.control_points[pos - 2].time as f64;
+                let d_left = if (t0 - tp).abs() > f64::EPSILON {
+                    (v0 - vp) / (t0 - tp)
+                } else {
+                    0.0
+                };
+                let d_right = (v1 - v0) / dt;
+                0.5 * (d_left + d_right)
+            } else {
+                // At the first segment mirror the right derivative
+                (v1 - v0) / dt
+            }
+        };
+
+        let m1 = if let Some((_, dy)) = self.control_points[pos].tangent_in {
+            dy / dt
+        } else {
+            if pos + 1 < self.control_points.len() {
+                let vn = self.control_points[pos + 1].value.as_f64().unwrap_or(v1);
+                let tn = self.control_points[pos + 1].time as f64;
+                let d_right = if (tn - t1).abs() > f64::EPSILON {
+                    (vn - v1) / (tn - t1)
+                } else {
+                    0.0
+                };
+                let d_left = (v1 - v0) / dt;
+                0.5 * (d_left + d_right)
+            } else {
+                // At the last segment mirror the left derivative
+                (v1 - v0) / dt
+            }
+        };
+
+        // Hermite basis: h00, h10, h01, h11
+        let h00 = 2.0 * frac.powi(3) - 3.0 * frac.powi(2) + 1.0;
+        let h10 = frac.powi(3) - 2.0 * frac.powi(2) + frac;
+        let h01 = -2.0 * frac.powi(3) + 3.0 * frac.powi(2);
+        let h11 = frac.powi(3) - frac.powi(2);
+
+        h00 * v0 + h10 * dt * m0 + h01 * v1 + h11 * dt * m1
     }
 }
 
@@ -400,5 +486,138 @@ mod tests {
         // Should be sorted: first point at time=0
         assert_eq!(vv.control_points[0].time, 0);
         assert_eq!(vv.control_points[1].time, 100);
+    }
+
+    // ── BSpline (Catmull-Rom) ────────────────────────────────────────────────
+
+    #[test]
+    fn test_bspline_at_endpoints_returns_endpoint_values() {
+        let mut vv = VaryingValue::new(Interpolation::BSpline);
+        vv.add_control_point(ControlPoint::new(0, ParameterValue::Float(0.0)));
+        vv.add_control_point(ControlPoint::new(100, ParameterValue::Float(10.0)));
+        // Exactly at t0
+        let at_start = vv.evaluate(0).expect("at start");
+        assert!((at_start - 0.0).abs() < 1e-6, "expected 0 got {at_start}");
+        // Just before t1 (last point is returned by the ≥len guard)
+        let at_end = vv.evaluate(100).expect("at end");
+        assert!((at_end - 10.0).abs() < 1e-6, "expected 10 got {at_end}");
+    }
+
+    #[test]
+    fn test_bspline_midpoint_between_two_linear_points() {
+        // With only two control points the Catmull-Rom tangents are mirrors of
+        // (v1-v0)/dt, so the spline degenerates to linear.
+        let mut vv = VaryingValue::new(Interpolation::BSpline);
+        vv.add_control_point(ControlPoint::new(0, ParameterValue::Float(0.0)));
+        vv.add_control_point(ControlPoint::new(100, ParameterValue::Float(100.0)));
+        let mid = vv.evaluate(50).expect("midpoint");
+        // For a degenerate (2-point) Catmull-Rom the midpoint is exactly linear
+        assert!((mid - 50.0).abs() < 1e-4, "expected ~50.0 got {mid}");
+    }
+
+    #[test]
+    fn test_bspline_three_points_smooth() {
+        let mut vv = VaryingValue::new(Interpolation::BSpline);
+        vv.add_control_point(ControlPoint::new(0, ParameterValue::Float(0.0)));
+        vv.add_control_point(ControlPoint::new(50, ParameterValue::Float(5.0)));
+        vv.add_control_point(ControlPoint::new(100, ParameterValue::Float(0.0)));
+        // The curve must be at 5.0 exactly at t=50 (control point)
+        let at_peak = vv.evaluate(50).expect("peak");
+        assert!((at_peak - 5.0).abs() < 1e-4, "expected 5.0 got {at_peak}");
+        // Mid of first segment should be > 0 and <= 5
+        let q1 = vv.evaluate(25).expect("q1");
+        assert!(q1 > 0.0 && q1 <= 5.0, "q1={q1} out of range");
+    }
+
+    #[test]
+    fn test_bspline_with_stored_tangents() {
+        let mut vv = VaryingValue::new(Interpolation::BSpline);
+        // tangent_out = (dt=100, dv=0) means flat exit tangent
+        let cp0 = ControlPoint::new(0, ParameterValue::Float(0.0))
+            .with_tangents((0.0, 0.0), (100.0, 0.0));
+        // tangent_in = (dt=100, dv=0) means flat entry tangent
+        let cp1 = ControlPoint::new(100, ParameterValue::Float(10.0))
+            .with_tangents((100.0, 0.0), (0.0, 0.0));
+        vv.add_control_point(cp0);
+        vv.add_control_point(cp1);
+        // With m0=0, m1=0 the Hermite polynomial is a smooth S-curve from 0→10
+        let at_zero = vv.evaluate(0).expect("t=0");
+        let at_end = vv.evaluate(100).expect("t=100");
+        assert!((at_zero - 0.0).abs() < 1e-4);
+        assert!((at_end - 10.0).abs() < 1e-4);
+    }
+
+    // ── Log interpolation ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_log_interpolation_midpoint() {
+        let mut vv = VaryingValue::new(Interpolation::Log);
+        vv.add_control_point(ControlPoint::new(0, ParameterValue::Float(1.0)));
+        vv.add_control_point(ControlPoint::new(100, ParameterValue::Float(100.0)));
+        // Geometric midpoint: sqrt(1 * 100) = 10.0
+        let mid = vv.evaluate(50).expect("log mid");
+        assert!((mid - 10.0).abs() < 1e-4, "expected 10.0 got {mid}");
+    }
+
+    #[test]
+    fn test_log_interpolation_v0_zero_falls_back_to_linear() {
+        let mut vv = VaryingValue::new(Interpolation::Log);
+        vv.add_control_point(ControlPoint::new(0, ParameterValue::Float(0.0)));
+        vv.add_control_point(ControlPoint::new(100, ParameterValue::Float(10.0)));
+        // v0==0 → linear fallback
+        let mid = vv.evaluate(50).expect("fallback mid");
+        assert!((mid - 5.0).abs() < 1e-6, "expected 5.0 got {mid}");
+    }
+
+    #[test]
+    fn test_log_interpolation_at_start_and_end() {
+        let mut vv = VaryingValue::new(Interpolation::Log);
+        vv.add_control_point(ControlPoint::new(0, ParameterValue::Float(2.0)));
+        vv.add_control_point(ControlPoint::new(100, ParameterValue::Float(8.0)));
+        // At t=0 (exactly on first point) partition_point returns 1, frac=0
+        let at_start = vv.evaluate(0).expect("start");
+        assert!((at_start - 2.0).abs() < 1e-6, "expected 2.0 got {at_start}");
+    }
+
+    // ── Power interpolation ──────────────────────────────────────────────────
+
+    #[test]
+    fn test_power_interpolation_ease_in() {
+        let mut vv = VaryingValue::new(Interpolation::Power);
+        vv.add_control_point(ControlPoint::new(0, ParameterValue::Float(0.0)));
+        vv.add_control_point(ControlPoint::new(100, ParameterValue::Float(100.0)));
+        // At t=50, frac=0.5, result = 0 + 100 * 0.25 = 25.0
+        let mid = vv.evaluate(50).expect("power mid");
+        assert!((mid - 25.0).abs() < 1e-6, "expected 25.0 got {mid}");
+    }
+
+    #[test]
+    fn test_power_interpolation_at_endpoints() {
+        let mut vv = VaryingValue::new(Interpolation::Power);
+        vv.add_control_point(ControlPoint::new(0, ParameterValue::Float(5.0)));
+        vv.add_control_point(ControlPoint::new(200, ParameterValue::Float(25.0)));
+        // At exact start (frac=0) → v0
+        let start = vv.evaluate(0).expect("start");
+        assert!((start - 5.0).abs() < 1e-6, "expected 5.0 got {start}");
+        // At exact end → v1
+        let end = vv.evaluate(200).expect("end");
+        assert!((end - 25.0).abs() < 1e-6, "expected 25.0 got {end}");
+    }
+
+    #[test]
+    fn test_power_curve_is_slower_than_linear_at_midpoint() {
+        // Ease-in: at the midpoint the power curve lags behind linear
+        let mut vv_pow = VaryingValue::new(Interpolation::Power);
+        let mut vv_lin = VaryingValue::new(Interpolation::Linear);
+        for vv in [&mut vv_pow, &mut vv_lin] {
+            vv.add_control_point(ControlPoint::new(0, ParameterValue::Float(0.0)));
+            vv.add_control_point(ControlPoint::new(100, ParameterValue::Float(100.0)));
+        }
+        let pow_mid = vv_pow.evaluate(50).expect("power");
+        let lin_mid = vv_lin.evaluate(50).expect("linear");
+        assert!(
+            pow_mid < lin_mid,
+            "power ({pow_mid}) should be < linear ({lin_mid}) at midpoint"
+        );
     }
 }

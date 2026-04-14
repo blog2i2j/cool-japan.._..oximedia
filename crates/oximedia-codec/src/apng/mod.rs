@@ -46,7 +46,7 @@
 #![allow(clippy::cast_possible_truncation)]
 
 use crate::error::CodecError;
-use flate2::{read::ZlibDecoder, write::ZlibEncoder, Compression};
+use oxiarc_deflate::{ZlibStreamDecoder, ZlibStreamEncoder};
 use std::io::{Read, Write};
 
 // =============================================================================
@@ -577,7 +577,7 @@ fn compress_frame(rgba: &[u8], width: usize, height: usize) -> Result<Vec<u8>, C
             filtered.push(pixel.wrapping_sub(prev));
         }
     }
-    let mut enc = ZlibEncoder::new(Vec::new(), Compression::default());
+    let mut enc = ZlibStreamEncoder::new(Vec::new(), 6);
     enc.write_all(&filtered).map_err(CodecError::Io)?;
     enc.finish().map_err(CodecError::Io)
 }
@@ -588,7 +588,7 @@ fn decompress_rgba(compressed: &[u8], width: usize, height: usize) -> Result<Vec
     let row_stride = width * 4; // bytes per row (no filter byte here)
     let expected_filtered = (row_stride + 1) * height;
     let mut filtered = Vec::with_capacity(expected_filtered);
-    let mut decoder = ZlibDecoder::new(compressed);
+    let mut decoder = ZlibStreamDecoder::new(compressed);
     decoder
         .read_to_end(&mut filtered)
         .map_err(|e| CodecError::InvalidBitstream(format!("APNG inflate error: {e}")))?;

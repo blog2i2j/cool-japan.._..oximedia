@@ -5,6 +5,10 @@
 //! recall, etc.) is recorded as an [`AuditEntry`] in an [`AuditLog`].
 //! The log supports querying by time range, action type, and source/dest
 //! identifiers, and can generate summary reports.
+//!
+//! In addition to the event log, this module provides [`RoutingSnapshot`] for
+//! capturing a point-in-time view of all active routing connections and
+//! [`SnapshotDiff`] for comparing two snapshots to understand what changed.
 
 use std::fmt;
 
@@ -357,6 +361,309 @@ impl Default for AuditLog {
     }
 }
 
+// ---------------------------------------------------------------------------
+// RoutingSnapshot — a point-in-time capture of the full routing state
+// ---------------------------------------------------------------------------
+
+/// A connection stored in a routing snapshot.
+///
+/// Gain is stored as an integer (dBFS × 100) to allow exact equality
+/// comparison without floating-point rounding surprises.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SnapshotConnection {
+    /// Source (input) index.
+    pub source: u32,
+    /// Destination (output) index.
+    pub destination: u32,
+    /// Gain in dBFS × 100 (i.e. −6 dB stored as −600).
+    pub gain_db_x100: i32,
+}
+
+impl SnapshotConnection {
+    /// Creates a new connection record from floating-point dB.
+    pub fn new(source: u32, destination: u32, gain_db: f32) -> Self {
+        Self {
+            source,
+            destination,
+            gain_db_x100: (gain_db * 100.0).round() as i32,
+        }
+    }
+
+    /// Returns the gain as a floating-point dB value.
+    pub fn gain_db(&self) -> f32 {
+        self.gain_db_x100 as f32 / 100.0
+    }
+}
+
+/// Metadata stored alongside a routing snapshot.
+#[derive(Debug, Clone)]
+pub struct SnapshotMeta {
+    /// Human-readable label.
+    pub label: String,
+    /// Snapshot timestamp in microseconds.
+    pub timestamp_us: u64,
+    /// Operator who created the snapshot.
+    pub user: String,
+}
+
+/// A point-in-time capture of all active routing connections and their gains.
+///
+/// Snapshots can be compared with [`RoutingSnapshot::diff`] to produce a
+/// [`SnapshotDiff`] that describes exactly what changed between the two states.
+#[derive(Debug, Clone)]
+pub struct RoutingSnapshot {
+    /// Metadata for this snapshot.
+    pub meta: SnapshotMeta,
+    /// Sorted list of active connections.
+    connections: Vec<SnapshotConnection>,
+}
+
+impl RoutingSnapshot {
+    /// Creates an empty snapshot.
+    pub fn new(label: impl Into<String>, timestamp_us: u64, user: impl Into<String>) -> Self {
+        Self {
+            meta: SnapshotMeta {
+                label: label.into(),
+                timestamp_us,
+                user: user.into(),
+            },
+            connections: Vec::new(),
+        }
+    }
+
+    /// Inserts a connection into the snapshot.
+    ///
+    /// If a connection with the same `(source, destination)` already exists it
+    /// is replaced; otherwise the new connection is inserted and the list is
+    /// re-sorted.
+    pub fn insert(&mut self, conn: SnapshotConnection) {
+        if let Some(existing) = self
+            .connections
+            .iter_mut()
+            .find(|c| c.source == conn.source && c.destination == conn.destination)
+        {
+            *existing = conn;
+        } else {
+            self.connections.push(conn);
+            self.connections.sort();
+        }
+    }
+
+    /// Convenience wrapper around [`Self::insert`] that builds the connection.
+    pub fn add(&mut self, source: u32, destination: u32, gain_db: f32) {
+        self.insert(SnapshotConnection::new(source, destination, gain_db));
+    }
+
+    /// Returns the sorted slice of all connections.
+    pub fn connections(&self) -> &[SnapshotConnection] {
+        &self.connections
+    }
+
+    /// Number of active connections in this snapshot.
+    pub fn len(&self) -> usize {
+        self.connections.len()
+    }
+
+    /// Returns `true` if the snapshot has no connections.
+    pub fn is_empty(&self) -> bool {
+        self.connections.is_empty()
+    }
+
+    /// Returns the connection for the given source/destination pair, if any.
+    pub fn find(&self, source: u32, destination: u32) -> Option<&SnapshotConnection> {
+        self.connections
+            .iter()
+            .find(|c| c.source == source && c.destination == destination)
+    }
+
+    /// Computes a diff between `self` (the "before" snapshot) and `other`
+    /// (the "after" snapshot).
+    ///
+    /// - **Added**: connections present in `other` but absent in `self`.
+    /// - **Removed**: connections present in `self` but absent in `other`.
+    /// - **Changed**: connections present in both, but with a different gain.
+    pub fn diff<'a>(&'a self, other: &'a RoutingSnapshot) -> SnapshotDiff<'a> {
+        let mut added: Vec<&'a SnapshotConnection> = Vec::new();
+        let mut removed: Vec<&'a SnapshotConnection> = Vec::new();
+        let mut changed: Vec<GainChanged> = Vec::new();
+
+        for after_conn in &other.connections {
+            match self.find(after_conn.source, after_conn.destination) {
+                None => added.push(after_conn),
+                Some(before_conn) => {
+                    if before_conn.gain_db_x100 != after_conn.gain_db_x100 {
+                        changed.push(GainChanged {
+                            source: after_conn.source,
+                            destination: after_conn.destination,
+                            before_gain_db: before_conn.gain_db(),
+                            after_gain_db: after_conn.gain_db(),
+                        });
+                    }
+                }
+            }
+        }
+
+        for before_conn in &self.connections {
+            if other
+                .find(before_conn.source, before_conn.destination)
+                .is_none()
+            {
+                removed.push(before_conn);
+            }
+        }
+
+        SnapshotDiff {
+            before: self,
+            after: other,
+            added,
+            removed,
+            changed,
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
+// GainChanged — a gain change record within a diff
+// ---------------------------------------------------------------------------
+
+/// Records a gain change on an existing connection between two snapshots.
+#[derive(Debug, Clone, PartialEq)]
+pub struct GainChanged {
+    /// Source index.
+    pub source: u32,
+    /// Destination index.
+    pub destination: u32,
+    /// Gain before the change in dB.
+    pub before_gain_db: f32,
+    /// Gain after the change in dB.
+    pub after_gain_db: f32,
+}
+
+impl GainChanged {
+    /// Returns the change delta (after − before) in dB.
+    pub fn delta_db(&self) -> f32 {
+        self.after_gain_db - self.before_gain_db
+    }
+}
+
+// ---------------------------------------------------------------------------
+// SnapshotDiff — result of comparing two snapshots
+// ---------------------------------------------------------------------------
+
+/// The result of diffing two [`RoutingSnapshot`]s.
+///
+/// Captures which connections were **added**, **removed**, and which had their
+/// **gain changed** between the before and after states.
+pub struct SnapshotDiff<'a> {
+    /// The snapshot taken before the change.
+    pub before: &'a RoutingSnapshot,
+    /// The snapshot taken after the change.
+    pub after: &'a RoutingSnapshot,
+    /// Connections present in `after` that were absent in `before`.
+    pub added: Vec<&'a SnapshotConnection>,
+    /// Connections present in `before` that are absent in `after`.
+    pub removed: Vec<&'a SnapshotConnection>,
+    /// Connections present in both but with different gain.
+    pub changed: Vec<GainChanged>,
+}
+
+impl SnapshotDiff<'_> {
+    /// Returns `true` if there are no differences between the two snapshots.
+    pub fn is_identical(&self) -> bool {
+        self.added.is_empty() && self.removed.is_empty() && self.changed.is_empty()
+    }
+
+    /// Total number of changes (added + removed + gain-changed).
+    pub fn change_count(&self) -> usize {
+        self.added.len() + self.removed.len() + self.changed.len()
+    }
+
+    /// Generates a human-readable diff report.
+    pub fn report(&self) -> String {
+        let mut lines = Vec::new();
+        lines.push(format!(
+            "Routing diff: '{}' \u{2192} '{}' ({} changes)",
+            self.before.meta.label,
+            self.after.meta.label,
+            self.change_count()
+        ));
+        for conn in &self.added {
+            lines.push(format!(
+                "  + ADDED   src={} dst={} gain={:.1} dB",
+                conn.source,
+                conn.destination,
+                conn.gain_db()
+            ));
+        }
+        for conn in &self.removed {
+            lines.push(format!(
+                "  - REMOVED src={} dst={} gain={:.1} dB",
+                conn.source,
+                conn.destination,
+                conn.gain_db()
+            ));
+        }
+        for change in &self.changed {
+            lines.push(format!(
+                "  ~ CHANGED src={} dst={} {:.1}\u{2192}{:.1} dB (\u{0394}{:.1})",
+                change.source,
+                change.destination,
+                change.before_gain_db,
+                change.after_gain_db,
+                change.delta_db()
+            ));
+        }
+        lines.join("\n")
+    }
+
+    /// Records each change in this diff into the supplied audit log.
+    ///
+    /// Added connections are recorded as [`AuditAction::Connect`], removed as
+    /// [`AuditAction::Disconnect`], and gain changes as
+    /// [`AuditAction::GainChange`].
+    pub fn record_to_log(&self, log: &mut AuditLog, timestamp_us: u64, user: &str) {
+        for conn in &self.added {
+            log.record_route(
+                timestamp_us,
+                AuditAction::Connect,
+                conn.source,
+                conn.destination,
+                &format!(
+                    "snapshot diff: added src={} dst={}",
+                    conn.source, conn.destination
+                ),
+                user,
+            );
+        }
+        for conn in &self.removed {
+            log.record_route(
+                timestamp_us,
+                AuditAction::Disconnect,
+                conn.source,
+                conn.destination,
+                &format!(
+                    "snapshot diff: removed src={} dst={}",
+                    conn.source, conn.destination
+                ),
+                user,
+            );
+        }
+        for change in &self.changed {
+            log.record_route(
+                timestamp_us,
+                AuditAction::GainChange,
+                change.source,
+                change.destination,
+                &format!(
+                    "snapshot diff: gain {:.1}\u{2192}{:.1} dB",
+                    change.before_gain_db, change.after_gain_db
+                ),
+                user,
+            );
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -515,5 +822,202 @@ mod tests {
     fn test_audit_action_display() {
         assert_eq!(format!("{}", AuditAction::Failover), "FAILOVER");
         assert_eq!(format!("{}", AuditAction::PresetRecall), "PRESET_RECALL");
+    }
+
+    // -----------------------------------------------------------------------
+    // RoutingSnapshot tests
+    // -----------------------------------------------------------------------
+
+    fn make_before() -> RoutingSnapshot {
+        let mut snap = RoutingSnapshot::new("before", 1_000_000, "admin");
+        snap.add(0, 0, 0.0);
+        snap.add(1, 1, -6.0);
+        snap.add(2, 2, -12.0);
+        snap
+    }
+
+    fn make_after() -> RoutingSnapshot {
+        let mut snap = RoutingSnapshot::new("after", 2_000_000, "admin");
+        // src 0→0 removed
+        // src 1→1 gain changed from -6 to -3
+        snap.add(1, 1, -3.0);
+        // src 2→2 unchanged
+        snap.add(2, 2, -12.0);
+        // src 3→3 added
+        snap.add(3, 3, 0.0);
+        snap
+    }
+
+    #[test]
+    fn test_snapshot_new_empty() {
+        let snap = RoutingSnapshot::new("test", 0, "op");
+        assert!(snap.is_empty());
+        assert_eq!(snap.len(), 0);
+        assert_eq!(snap.meta.label, "test");
+    }
+
+    #[test]
+    fn test_snapshot_add_and_find() {
+        let mut snap = RoutingSnapshot::new("s", 0, "op");
+        snap.add(1, 2, -3.0);
+        let conn = snap.find(1, 2);
+        assert!(conn.is_some());
+        assert!((conn.expect("should find").gain_db() - (-3.0)).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_snapshot_find_missing() {
+        let snap = RoutingSnapshot::new("s", 0, "op");
+        assert!(snap.find(99, 99).is_none());
+    }
+
+    #[test]
+    fn test_snapshot_insert_replaces_existing() {
+        let mut snap = RoutingSnapshot::new("s", 0, "op");
+        snap.add(0, 0, -6.0);
+        snap.add(0, 0, -12.0); // same src/dst, different gain
+        assert_eq!(snap.len(), 1);
+        assert!((snap.find(0, 0).expect("exists").gain_db() - (-12.0)).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_snapshot_connections_sorted() {
+        let mut snap = RoutingSnapshot::new("s", 0, "op");
+        snap.add(3, 3, 0.0);
+        snap.add(1, 1, 0.0);
+        snap.add(2, 2, 0.0);
+        let conns = snap.connections();
+        assert!(conns[0].source <= conns[1].source);
+        assert!(conns[1].source <= conns[2].source);
+    }
+
+    #[test]
+    fn test_diff_identical_snapshots() {
+        let before = make_before();
+        let after = make_before(); // same data
+        let diff = before.diff(&after);
+        assert!(diff.is_identical());
+        assert_eq!(diff.change_count(), 0);
+    }
+
+    #[test]
+    fn test_diff_added_connection() {
+        let before = make_before();
+        let after = make_after();
+        let diff = before.diff(&after);
+        assert_eq!(diff.added.len(), 1);
+        assert_eq!(diff.added[0].source, 3);
+        assert_eq!(diff.added[0].destination, 3);
+    }
+
+    #[test]
+    fn test_diff_removed_connection() {
+        let before = make_before();
+        let after = make_after();
+        let diff = before.diff(&after);
+        assert_eq!(diff.removed.len(), 1);
+        assert_eq!(diff.removed[0].source, 0);
+        assert_eq!(diff.removed[0].destination, 0);
+    }
+
+    #[test]
+    fn test_diff_gain_changed() {
+        let before = make_before();
+        let after = make_after();
+        let diff = before.diff(&after);
+        assert_eq!(diff.changed.len(), 1);
+        assert_eq!(diff.changed[0].source, 1);
+        assert!((diff.changed[0].before_gain_db - (-6.0)).abs() < 0.01);
+        assert!((diff.changed[0].after_gain_db - (-3.0)).abs() < 0.01);
+        assert!((diff.changed[0].delta_db() - 3.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_diff_change_count() {
+        let before = make_before();
+        let after = make_after();
+        let diff = before.diff(&after);
+        // 1 added + 1 removed + 1 changed = 3
+        assert_eq!(diff.change_count(), 3);
+    }
+
+    #[test]
+    fn test_diff_report_contains_keywords() {
+        let before = make_before();
+        let after = make_after();
+        let diff = before.diff(&after);
+        let report = diff.report();
+        assert!(report.contains("ADDED"));
+        assert!(report.contains("REMOVED"));
+        assert!(report.contains("CHANGED"));
+        assert!(report.contains("before"));
+        assert!(report.contains("after"));
+    }
+
+    #[test]
+    fn test_diff_record_to_log() {
+        let before = make_before();
+        let after = make_after();
+        let diff = before.diff(&after);
+        let mut log = AuditLog::new();
+        diff.record_to_log(&mut log, 9_000_000, "system");
+        // 1 Connect + 1 Disconnect + 1 GainChange = 3 entries
+        assert_eq!(log.len(), 3);
+        let connects = log.query(&AuditQuery::all().with_action(AuditAction::Connect));
+        assert_eq!(connects.len(), 1);
+        let disconnects = log.query(&AuditQuery::all().with_action(AuditAction::Disconnect));
+        assert_eq!(disconnects.len(), 1);
+        let gains = log.query(&AuditQuery::all().with_action(AuditAction::GainChange));
+        assert_eq!(gains.len(), 1);
+    }
+
+    #[test]
+    fn test_snapshot_connection_gain_db_x100() {
+        let conn = SnapshotConnection::new(0, 1, -6.5);
+        assert_eq!(conn.gain_db_x100, -650);
+        assert!((conn.gain_db() - (-6.5)).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_gain_changed_delta_db() {
+        let gc = GainChanged {
+            source: 0,
+            destination: 1,
+            before_gain_db: -12.0,
+            after_gain_db: -6.0,
+        };
+        assert!((gc.delta_db() - 6.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_diff_empty_snapshots_identical() {
+        let before = RoutingSnapshot::new("a", 0, "op");
+        let after = RoutingSnapshot::new("b", 1, "op");
+        let diff = before.diff(&after);
+        assert!(diff.is_identical());
+    }
+
+    #[test]
+    fn test_diff_all_added_when_before_empty() {
+        let before = RoutingSnapshot::new("empty", 0, "op");
+        let mut after = RoutingSnapshot::new("full", 1, "op");
+        after.add(0, 0, 0.0);
+        after.add(1, 1, -3.0);
+        let diff = before.diff(&after);
+        assert_eq!(diff.added.len(), 2);
+        assert!(diff.removed.is_empty());
+        assert!(diff.changed.is_empty());
+    }
+
+    #[test]
+    fn test_diff_all_removed_when_after_empty() {
+        let mut before = RoutingSnapshot::new("full", 0, "op");
+        before.add(0, 0, 0.0);
+        before.add(1, 1, -3.0);
+        let after = RoutingSnapshot::new("empty", 1, "op");
+        let diff = before.diff(&after);
+        assert!(diff.added.is_empty());
+        assert_eq!(diff.removed.len(), 2);
+        assert!(diff.changed.is_empty());
     }
 }

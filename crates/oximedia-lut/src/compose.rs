@@ -320,16 +320,10 @@ fn find_inverse(lut: &Lut3d, target: &Rgb, iterations: u32) -> Rgb {
     for _ in 0..iterations {
         // Current residual: forward(x) - target
         let fx = lut.apply(&x, LutInterpolation::Tetrahedral);
-        let residual = [
-            fx[0] - target[0],
-            fx[1] - target[1],
-            fx[2] - target[2],
-        ];
+        let residual = [fx[0] - target[0], fx[1] - target[1], fx[2] - target[2]];
 
         // Check convergence
-        let err = residual[0] * residual[0]
-            + residual[1] * residual[1]
-            + residual[2] * residual[2];
+        let err = residual[0] * residual[0] + residual[1] * residual[1] + residual[2] * residual[2];
         if err < 1e-12 {
             break;
         }
@@ -471,7 +465,11 @@ pub fn apply_lut_to_image_rgba8(
     pixels: &[u8],
     interpolation: LutInterpolation,
 ) -> Vec<u8> {
-    assert_eq!(pixels.len() % 4, 0, "pixel data must be a multiple of 4 bytes");
+    assert_eq!(
+        pixels.len() % 4,
+        0,
+        "pixel data must be a multiple of 4 bytes"
+    );
     let mut output = vec![0u8; pixels.len()];
 
     for (chunk_in, chunk_out) in pixels.chunks_exact(4).zip(output.chunks_exact_mut(4)) {
@@ -518,7 +516,11 @@ pub fn apply_lut_to_image_rgb8(
     pixels: &[u8],
     interpolation: LutInterpolation,
 ) -> Vec<u8> {
-    assert_eq!(pixels.len() % 3, 0, "pixel data must be a multiple of 3 bytes");
+    assert_eq!(
+        pixels.len() % 3,
+        0,
+        "pixel data must be a multiple of 3 bytes"
+    );
     let mut output = vec![0u8; pixels.len()];
 
     for (chunk_in, chunk_out) in pixels.chunks_exact(3).zip(output.chunks_exact_mut(3)) {
@@ -650,7 +652,8 @@ pub fn max_error(lut_a: &Lut3d, lut_b: &Lut3d) -> f64 {
             for b in 0..size {
                 let va = lut_a.get(r, g, b);
                 let vb = lut_b.get(r, g, b);
-                let err = (va[0] - vb[0]).abs()
+                let err = (va[0] - vb[0])
+                    .abs()
                     .max((va[1] - vb[1]).abs())
                     .max((va[2] - vb[2]).abs());
                 if err > max_err {
@@ -696,7 +699,11 @@ mod tests {
             [rgb[0] * 0.5, rgb[1] * 0.5, rgb[2] * 0.5]
         });
         let lut2 = Lut3d::from_fn(LutSize::Size17, |rgb| {
-            [(rgb[0] * 2.0).min(1.0), (rgb[1] * 2.0).min(1.0), (rgb[2] * 2.0).min(1.0)]
+            [
+                (rgb[0] * 2.0).min(1.0),
+                (rgb[1] * 2.0).min(1.0),
+                (rgb[2] * 2.0).min(1.0),
+            ]
         });
 
         let composed = compose_3d(&lut1, &lut2, LutSize::Size17);
@@ -752,9 +759,7 @@ mod tests {
     #[test]
     fn test_bake_1d_3d_identity_pre() {
         let pre = Lut1d::identity(256);
-        let main_lut = Lut3d::from_fn(LutSize::Size17, |rgb| {
-            [rgb[0] * 0.5, rgb[1], rgb[2]]
-        });
+        let main_lut = Lut3d::from_fn(LutSize::Size17, |rgb| [rgb[0] * 0.5, rgb[1], rgb[2]]);
         let baked = bake_1d_3d(&pre, &main_lut, LutSize::Size17);
 
         let input = [0.8, 0.6, 0.4];

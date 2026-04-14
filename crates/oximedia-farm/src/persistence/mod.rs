@@ -100,7 +100,10 @@ impl Database {
                 "UPDATE jobs SET state = ?1, started_at = ?2 WHERE id = ?3",
                 params![state.to_string(), now, job_id.to_string()],
             )?,
-            JobState::Completed | JobState::Failed | JobState::Cancelled => conn.execute(
+            JobState::Completed
+            | JobState::CompletedWithWarnings
+            | JobState::Failed
+            | JobState::Cancelled => conn.execute(
                 "UPDATE jobs SET state = ?1, completed_at = ?2 WHERE id = ?3",
                 params![state.to_string(), now, job_id.to_string()],
             )?,
@@ -138,55 +141,54 @@ impl Database {
                     let deadline: Option<i64> = row.get(11)?;
 
                     let id_str: String = row.get(0)?;
-                    let uuid = uuid::Uuid::parse_str(&id_str).map_err(|e| {
-                        rusqlite::Error::FromSqlConversionFailure(
+                    let id_uuid = uuid::Uuid::parse_str(&id_str).map_err(|_| {
+                        rusqlite::Error::InvalidColumnType(
                             0,
+                            id_str.clone(),
                             rusqlite::types::Type::Text,
-                            Box::new(e),
                         )
                     })?;
-                    let priority_i: i32 = row.get(3)?;
-                    let priority = Priority::try_from(priority_i).map_err(|e| {
-                        rusqlite::Error::FromSqlConversionFailure(
+                    let priority_i = row.get::<_, i32>(3)?;
+                    let priority = Priority::try_from(priority_i).map_err(|_| {
+                        rusqlite::Error::InvalidColumnType(
                             3,
+                            "priority".to_string(),
                             rusqlite::types::Type::Integer,
-                            Box::new(e),
                         )
                     })?;
-                    let params_val: HashMap<String, serde_json::Value> =
-                        serde_json::from_str(&parameters).map_err(|e| {
-                            rusqlite::Error::FromSqlConversionFailure(
+                    let params_map: HashMap<String, serde_json::Value> =
+                        serde_json::from_str(&parameters).map_err(|_| {
+                            rusqlite::Error::InvalidColumnType(
                                 6,
+                                "parameters".to_string(),
                                 rusqlite::types::Type::Text,
-                                Box::new(e),
                             )
                         })?;
-                    let meta_val: HashMap<String, String> = serde_json::from_str(&metadata)
-                        .map_err(|e| {
-                            rusqlite::Error::FromSqlConversionFailure(
+                    let meta_map: HashMap<String, String> = serde_json::from_str(&metadata)
+                        .map_err(|_| {
+                            rusqlite::Error::InvalidColumnType(
                                 7,
+                                "metadata".to_string(),
                                 rusqlite::types::Type::Text,
-                                Box::new(e),
                             )
                         })?;
                     let created = DateTime::from_timestamp(created_at, 0).ok_or_else(|| {
-                        rusqlite::Error::FromSqlConversionFailure(
+                        rusqlite::Error::InvalidColumnType(
                             8,
+                            "created_at".to_string(),
                             rusqlite::types::Type::Integer,
-                            Box::<dyn std::error::Error + Send + Sync>::from(
-                                "invalid timestamp".to_string(),
-                            ),
                         )
                     })?;
+
                     Ok(JobRecord {
-                        id: JobId::from_uuid(uuid),
+                        id: JobId::from_uuid(id_uuid),
                         job_type: parse_job_type(&row.get::<_, String>(1)?),
                         state: parse_job_state(&row.get::<_, String>(2)?),
                         priority,
                         input_path: row.get(4)?,
                         output_path: row.get(5)?,
-                        parameters: params_val,
-                        metadata: meta_val,
+                        parameters: params_map,
+                        metadata: meta_map,
                         created_at: created,
                         started_at: started_at.and_then(|ts| DateTime::from_timestamp(ts, 0)),
                         completed_at: completed_at.and_then(|ts| DateTime::from_timestamp(ts, 0)),
@@ -248,55 +250,54 @@ impl Database {
                 let deadline: Option<i64> = row.get(11)?;
 
                 let id_str: String = row.get(0)?;
-                let uuid = uuid::Uuid::parse_str(&id_str).map_err(|e| {
-                    rusqlite::Error::FromSqlConversionFailure(
+                let id_uuid = uuid::Uuid::parse_str(&id_str).map_err(|_| {
+                    rusqlite::Error::InvalidColumnType(
                         0,
+                        id_str.clone(),
                         rusqlite::types::Type::Text,
-                        Box::new(e),
                     )
                 })?;
-                let priority_i: i32 = row.get(3)?;
-                let priority = Priority::try_from(priority_i).map_err(|e| {
-                    rusqlite::Error::FromSqlConversionFailure(
+                let priority_i = row.get::<_, i32>(3)?;
+                let priority = Priority::try_from(priority_i).map_err(|_| {
+                    rusqlite::Error::InvalidColumnType(
                         3,
+                        "priority".to_string(),
                         rusqlite::types::Type::Integer,
-                        Box::new(e),
                     )
                 })?;
-                let params_val: HashMap<String, serde_json::Value> =
-                    serde_json::from_str(&parameters).map_err(|e| {
-                        rusqlite::Error::FromSqlConversionFailure(
+                let params_map: HashMap<String, serde_json::Value> =
+                    serde_json::from_str(&parameters).map_err(|_| {
+                        rusqlite::Error::InvalidColumnType(
                             6,
+                            "parameters".to_string(),
                             rusqlite::types::Type::Text,
-                            Box::new(e),
                         )
                     })?;
-                let meta_val: HashMap<String, String> =
-                    serde_json::from_str(&metadata).map_err(|e| {
-                        rusqlite::Error::FromSqlConversionFailure(
+                let meta_map: HashMap<String, String> =
+                    serde_json::from_str(&metadata).map_err(|_| {
+                        rusqlite::Error::InvalidColumnType(
                             7,
+                            "metadata".to_string(),
                             rusqlite::types::Type::Text,
-                            Box::new(e),
                         )
                     })?;
                 let created = DateTime::from_timestamp(created_at, 0).ok_or_else(|| {
-                    rusqlite::Error::FromSqlConversionFailure(
+                    rusqlite::Error::InvalidColumnType(
                         8,
+                        "created_at".to_string(),
                         rusqlite::types::Type::Integer,
-                        Box::<dyn std::error::Error + Send + Sync>::from(
-                            "invalid timestamp".to_string(),
-                        ),
                     )
                 })?;
+
                 Ok(JobRecord {
-                    id: JobId::from_uuid(uuid),
+                    id: JobId::from_uuid(id_uuid),
                     job_type: parse_job_type(&row.get::<_, String>(1)?),
                     state: parse_job_state(&row.get::<_, String>(2)?),
                     priority,
                     input_path: row.get(4)?,
                     output_path: row.get(5)?,
-                    parameters: params_val,
-                    metadata: meta_val,
+                    parameters: params_map,
+                    metadata: meta_map,
                     created_at: created,
                     started_at: started_at.and_then(|ts| DateTime::from_timestamp(ts, 0)),
                     completed_at: completed_at.and_then(|ts| DateTime::from_timestamp(ts, 0)),
@@ -383,7 +384,55 @@ impl Database {
         )?;
 
         let tasks = stmt
-            .query_map(params![limit as i64], |row| map_row_to_task_record(row))?
+            .query_map(params![limit as i64], |row| {
+                let created_at: i64 = row.get(7)?;
+                let assigned_at: Option<i64> = row.get(8)?;
+
+                let id_str: String = row.get(0)?;
+                let id_uuid = uuid::Uuid::parse_str(&id_str).map_err(|_| {
+                    rusqlite::Error::InvalidColumnType(
+                        0,
+                        id_str.clone(),
+                        rusqlite::types::Type::Text,
+                    )
+                })?;
+                let job_id_str: String = row.get(1)?;
+                let job_id_uuid = uuid::Uuid::parse_str(&job_id_str).map_err(|_| {
+                    rusqlite::Error::InvalidColumnType(
+                        1,
+                        job_id_str.clone(),
+                        rusqlite::types::Type::Text,
+                    )
+                })?;
+                let priority_i = row.get::<_, i32>(6)?;
+                let priority = Priority::try_from(priority_i).map_err(|_| {
+                    rusqlite::Error::InvalidColumnType(
+                        6,
+                        "priority".to_string(),
+                        rusqlite::types::Type::Integer,
+                    )
+                })?;
+                let created = DateTime::from_timestamp(created_at, 0).ok_or_else(|| {
+                    rusqlite::Error::InvalidColumnType(
+                        7,
+                        "created_at".to_string(),
+                        rusqlite::types::Type::Integer,
+                    )
+                })?;
+
+                Ok(TaskRecord {
+                    id: TaskId::from_uuid(id_uuid),
+                    job_id: JobId::from_uuid(job_id_uuid),
+                    state: parse_task_state(&row.get::<_, String>(2)?),
+                    worker_id: row.get::<_, Option<String>>(3)?.map(WorkerId::new),
+                    task_type: row.get(4)?,
+                    payload: row.get(5)?,
+                    priority,
+                    created_at: created,
+                    assigned_at: assigned_at.and_then(|ts| DateTime::from_timestamp(ts, 0)),
+                    retry_count: row.get(9)?,
+                })
+            })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
         Ok(tasks)
@@ -404,7 +453,53 @@ impl Database {
 
         let tasks = stmt
             .query_map(params![job_id.to_string()], |row| {
-                map_row_to_task_record(row)
+                let created_at: i64 = row.get(7)?;
+                let assigned_at: Option<i64> = row.get(8)?;
+
+                let id_str: String = row.get(0)?;
+                let id_uuid = uuid::Uuid::parse_str(&id_str).map_err(|_| {
+                    rusqlite::Error::InvalidColumnType(
+                        0,
+                        id_str.clone(),
+                        rusqlite::types::Type::Text,
+                    )
+                })?;
+                let job_id_str: String = row.get(1)?;
+                let job_id_uuid = uuid::Uuid::parse_str(&job_id_str).map_err(|_| {
+                    rusqlite::Error::InvalidColumnType(
+                        1,
+                        job_id_str.clone(),
+                        rusqlite::types::Type::Text,
+                    )
+                })?;
+                let priority_i = row.get::<_, i32>(6)?;
+                let priority = Priority::try_from(priority_i).map_err(|_| {
+                    rusqlite::Error::InvalidColumnType(
+                        6,
+                        "priority".to_string(),
+                        rusqlite::types::Type::Integer,
+                    )
+                })?;
+                let created = DateTime::from_timestamp(created_at, 0).ok_or_else(|| {
+                    rusqlite::Error::InvalidColumnType(
+                        7,
+                        "created_at".to_string(),
+                        rusqlite::types::Type::Integer,
+                    )
+                })?;
+
+                Ok(TaskRecord {
+                    id: TaskId::from_uuid(id_uuid),
+                    job_id: JobId::from_uuid(job_id_uuid),
+                    state: parse_task_state(&row.get::<_, String>(2)?),
+                    worker_id: row.get::<_, Option<String>>(3)?.map(WorkerId::new),
+                    task_type: row.get(4)?,
+                    payload: row.get(5)?,
+                    priority,
+                    created_at: created,
+                    assigned_at: assigned_at.and_then(|ts| DateTime::from_timestamp(ts, 0)),
+                    retry_count: row.get(9)?,
+                })
             })?
             .collect::<std::result::Result<Vec<_>, _>>()?;
 
@@ -518,43 +613,6 @@ pub struct JobStats {
     pub failed: u64,
 }
 
-// Helper to map a rusqlite Row to a TaskRecord, propagating all errors properly.
-fn map_row_to_task_record(row: &rusqlite::Row<'_>) -> rusqlite::Result<TaskRecord> {
-    let id_str: String = row.get(0)?;
-    let task_uuid = uuid::Uuid::parse_str(&id_str).map_err(|e| {
-        rusqlite::Error::FromSqlConversionFailure(0, rusqlite::types::Type::Text, Box::new(e))
-    })?;
-    let job_id_str: String = row.get(1)?;
-    let job_uuid = uuid::Uuid::parse_str(&job_id_str).map_err(|e| {
-        rusqlite::Error::FromSqlConversionFailure(1, rusqlite::types::Type::Text, Box::new(e))
-    })?;
-    let priority_i: i32 = row.get(6)?;
-    let priority = Priority::try_from(priority_i).map_err(|e| {
-        rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Integer, Box::new(e))
-    })?;
-    let created_at_raw: i64 = row.get(7)?;
-    let created_at = DateTime::from_timestamp(created_at_raw, 0).ok_or_else(|| {
-        rusqlite::Error::FromSqlConversionFailure(
-            7,
-            rusqlite::types::Type::Integer,
-            Box::<dyn std::error::Error + Send + Sync>::from("invalid timestamp".to_string()),
-        )
-    })?;
-    let assigned_at: Option<i64> = row.get(8)?;
-    Ok(TaskRecord {
-        id: TaskId::from_uuid(task_uuid),
-        job_id: JobId::from_uuid(job_uuid),
-        state: parse_task_state(&row.get::<_, String>(2)?),
-        worker_id: row.get::<_, Option<String>>(3)?.map(WorkerId::new),
-        task_type: row.get(4)?,
-        payload: row.get(5)?,
-        priority,
-        created_at,
-        assigned_at: assigned_at.and_then(|ts| DateTime::from_timestamp(ts, 0)),
-        retry_count: row.get(9)?,
-    })
-}
-
 // Helper functions for parsing
 fn parse_job_type(s: &str) -> JobType {
     match s {
@@ -575,6 +633,7 @@ fn parse_job_state(s: &str) -> JobState {
         "Queued" => JobState::Queued,
         "Running" => JobState::Running,
         "Completed" => JobState::Completed,
+        "CompletedWithWarnings" => JobState::CompletedWithWarnings,
         "Failed" => JobState::Failed,
         "Cancelled" => JobState::Cancelled,
         "Paused" => JobState::Paused,
@@ -599,14 +658,14 @@ mod tests {
 
     #[test]
     fn test_database_creation() {
-        let db = Database::in_memory().expect("operation should succeed");
-        let stats = db.get_job_stats().expect("get_job_stats should succeed");
+        let db = Database::in_memory().unwrap();
+        let stats = db.get_job_stats().unwrap();
         assert_eq!(stats.total, 0);
     }
 
     #[test]
     fn test_job_insertion() {
-        let db = Database::in_memory().expect("operation should succeed");
+        let db = Database::in_memory().unwrap();
         let job = JobRecord {
             id: JobId::new(),
             job_type: JobType::VideoTranscode,
@@ -622,18 +681,15 @@ mod tests {
             deadline: None,
         };
 
-        db.insert_job(&job).expect("insert_job should succeed");
-        let retrieved = db
-            .get_job(job.id)
-            .expect("failed to get job")
-            .expect("failed to get job");
+        db.insert_job(&job).unwrap();
+        let retrieved = db.get_job(job.id).unwrap().unwrap();
         assert_eq!(retrieved.id, job.id);
         assert_eq!(retrieved.state, JobState::Pending);
     }
 
     #[test]
     fn test_job_state_update() {
-        let db = Database::in_memory().expect("operation should succeed");
+        let db = Database::in_memory().unwrap();
         let job = JobRecord {
             id: JobId::new(),
             job_type: JobType::VideoTranscode,
@@ -649,21 +705,17 @@ mod tests {
             deadline: None,
         };
 
-        db.insert_job(&job).expect("insert_job should succeed");
-        db.update_job_state(job.id, JobState::Running)
-            .expect("update_job_state should succeed");
+        db.insert_job(&job).unwrap();
+        db.update_job_state(job.id, JobState::Running).unwrap();
 
-        let retrieved = db
-            .get_job(job.id)
-            .expect("failed to get job")
-            .expect("failed to get job");
+        let retrieved = db.get_job(job.id).unwrap().unwrap();
         assert_eq!(retrieved.state, JobState::Running);
         assert!(retrieved.started_at.is_some());
     }
 
     #[test]
     fn test_task_insertion() {
-        let db = Database::in_memory().expect("operation should succeed");
+        let db = Database::in_memory().unwrap();
 
         // Create a job first to satisfy foreign key constraint
         let job_id = JobId::new();
@@ -681,7 +733,7 @@ mod tests {
             started_at: None,
             completed_at: None,
         };
-        db.insert_job(&job).expect("insert_job should succeed");
+        db.insert_job(&job).unwrap();
 
         let task = TaskRecord {
             id: TaskId::new(),
@@ -696,17 +748,15 @@ mod tests {
             retry_count: 0,
         };
 
-        db.insert_task(&task).expect("insert_task should succeed");
-        let tasks = db
-            .get_pending_tasks(10)
-            .expect("get_pending_tasks should succeed");
+        db.insert_task(&task).unwrap();
+        let tasks = db.get_pending_tasks(10).unwrap();
         assert_eq!(tasks.len(), 1);
         assert_eq!(tasks[0].id, task.id);
     }
 
     #[test]
     fn test_task_priority_ordering() {
-        let db = Database::in_memory().expect("operation should succeed");
+        let db = Database::in_memory().unwrap();
 
         // Create a job first to satisfy foreign key constraint
         let job_id = JobId::new();
@@ -724,7 +774,7 @@ mod tests {
             started_at: None,
             completed_at: None,
         };
-        db.insert_job(&job).expect("insert_job should succeed");
+        db.insert_job(&job).unwrap();
 
         let task_low = TaskRecord {
             id: TaskId::new(),
@@ -752,21 +802,17 @@ mod tests {
             retry_count: 0,
         };
 
-        db.insert_task(&task_low)
-            .expect("insert_task should succeed");
-        db.insert_task(&task_high)
-            .expect("insert_task should succeed");
+        db.insert_task(&task_low).unwrap();
+        db.insert_task(&task_high).unwrap();
 
-        let tasks = db
-            .get_pending_tasks(10)
-            .expect("get_pending_tasks should succeed");
+        let tasks = db.get_pending_tasks(10).unwrap();
         assert_eq!(tasks.len(), 2);
         assert_eq!(tasks[0].priority, Priority::High);
         assert_eq!(tasks[1].priority, Priority::Low);
     }
     #[test]
     fn test_retry_count() {
-        let db = Database::in_memory().expect("operation should succeed");
+        let db = Database::in_memory().unwrap();
 
         // Create a job first to satisfy foreign key constraint
         let job_id = JobId::new();
@@ -784,7 +830,7 @@ mod tests {
             started_at: None,
             completed_at: None,
         };
-        db.insert_job(&job).expect("insert_job should succeed");
+        db.insert_job(&job).unwrap();
 
         let task = TaskRecord {
             id: TaskId::new(),
@@ -799,15 +845,11 @@ mod tests {
             retry_count: 0,
         };
 
-        db.insert_task(&task).expect("insert_task should succeed");
-        let count1 = db
-            .increment_task_retry(task.id)
-            .expect("increment_task_retry should succeed");
+        db.insert_task(&task).unwrap();
+        let count1 = db.increment_task_retry(task.id).unwrap();
         assert_eq!(count1, 1);
 
-        let count2 = db
-            .increment_task_retry(task.id)
-            .expect("increment_task_retry should succeed");
+        let count2 = db.increment_task_retry(task.id).unwrap();
         assert_eq!(count2, 2);
     }
 }

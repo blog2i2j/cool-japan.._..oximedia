@@ -52,6 +52,7 @@
 mod decoder;
 mod encoder;
 mod lzw;
+pub mod quality;
 
 use crate::error::{CodecError, CodecResult};
 use crate::frame::VideoFrame;

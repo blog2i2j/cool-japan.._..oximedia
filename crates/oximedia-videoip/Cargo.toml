@@ -35,13 +35,13 @@ dashmap = { workspace = true }
 socket2 = "0.6"
 
 # mDNS/DNS-SD for service discovery
-mdns-sd = "0.18"
+mdns-sd = "0.19"
 
 # Forward Error Correction
 reed-solomon-erasure = "6.0"
 
 # Compression (optional, for compressed video formats)
-flate2 = { workspace = true }
+oxiarc-deflate = { workspace = true }
 
 # Performance
 crossbeam = "0.8"

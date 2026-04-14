@@ -23,14 +23,14 @@
 - [ ] Extend `gptp` (gPTP/802.1AS) with neighbor rate ratio measurement for improved accuracy
 
 ## New Features
-- [ ] Implement `white_rabbit` module for White Rabbit sub-nanosecond PTP extension (used in broadcast facilities)
+- [x] Implement `white_rabbit` module for White Rabbit sub-nanosecond PTP extension (used in broadcast facilities)
 - [ ] Add `smpte_2059` module for SMPTE ST 2059 PTP profile for professional media (media-specific PTP profile)
-- [ ] Implement `clock_graph` module for visualizing clock hierarchy and sync relationships in multi-device setups
+- [x] Implement `clock_graph` module for visualizing clock hierarchy and sync relationships in multi-device setups
 - [ ] Add `ravenna` module for RAVENNA AoIP clock synchronization profile support
 - [ ] Implement `sync_test` module with synthetic clock drift/offset injection for testing sync algorithms
 - [ ] Add `gps_reference` module for GPS-disciplined clock input as ultimate reference source
 - [ ] Implement `ptp_management` module for PTP management messages (GET/SET/COMMAND) per IEEE 1588
-- [ ] Add `clock_quality_monitor` that tracks and reports MTIE (Maximum Time Interval Error) and TDEV
+- [x] Add `clock_quality_monitor` that tracks and reports MTIE (Maximum Time Interval Error) and TDEV
 
 ## Performance
 - [ ] Use lock-free shared memory updates in `ipc::shmem` for microsecond-level timestamp distribution

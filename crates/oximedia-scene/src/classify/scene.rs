@@ -5,7 +5,7 @@ use crate::error::{SceneError, SceneResult};
 use serde::{Deserialize, Serialize};
 
 /// Type of scene detected.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum SceneType {
     /// Indoor scene.
     Indoor,
@@ -561,6 +561,105 @@ impl Default for SceneClassifier {
     }
 }
 
+// ---------------------------------------------------------------------------
+// SmoothedSceneClassifier — mode-based temporal smoothing wrapper
+// ---------------------------------------------------------------------------
+
+/// A wrapper around [`SceneClassifier`] that applies mode-based temporal
+/// smoothing via a sliding window to reduce frame-to-frame classification
+/// flicker.
+///
+/// Instead of the EWMA score-based smoothing built into [`SceneClassifier`],
+/// this wrapper uses [`crate::classify::temporal_smooth::TemporalSmoother`]
+/// which selects the most frequently occurring [`SceneType`] across a window
+/// of the last `N` frames.  This is useful when you want a hard label that
+/// doesn't waver between adjacent categories for single anomalous frames.
+pub struct SmoothedSceneClassifier {
+    inner: SceneClassifier,
+    smoother: crate::classify::temporal_smooth::TemporalSmoother<SceneType>,
+}
+
+impl SmoothedSceneClassifier {
+    /// Create a new `SmoothedSceneClassifier` with the given window size.
+    ///
+    /// A `window_size` of 1 disables smoothing.
+    #[must_use]
+    pub fn new(window_size: usize) -> Self {
+        Self {
+            inner: SceneClassifier::new(),
+            smoother: crate::classify::temporal_smooth::TemporalSmoother::new(window_size),
+        }
+    }
+
+    /// Create a `SmoothedSceneClassifier` wrapping an existing `SceneClassifier`.
+    #[must_use]
+    pub fn with_classifier(classifier: SceneClassifier, window_size: usize) -> Self {
+        Self {
+            inner: classifier,
+            smoother: crate::classify::temporal_smooth::TemporalSmoother::new(window_size),
+        }
+    }
+
+    /// Classify a frame and return the mode-smoothed [`SceneType`].
+    ///
+    /// # Errors
+    ///
+    /// Returns `SceneError::InvalidDimensions` if `rgb.len() != width * height * 3`.
+    pub fn classify(
+        &mut self,
+        rgb_data: &[u8],
+        width: usize,
+        height: usize,
+    ) -> crate::error::SceneResult<SceneType> {
+        let classification = self.inner.classify(rgb_data, width, height)?;
+        self.smoother.push(classification.scene_type);
+        Ok(self
+            .smoother
+            .current_class()
+            .copied()
+            .unwrap_or(classification.scene_type))
+    }
+
+    /// Classify a frame and return both the raw [`SceneClassification`] and the
+    /// mode-smoothed [`SceneType`].
+    ///
+    /// # Errors
+    ///
+    /// Returns `SceneError::InvalidDimensions` if `rgb.len() != width * height * 3`.
+    pub fn classify_full(
+        &mut self,
+        rgb_data: &[u8],
+        width: usize,
+        height: usize,
+    ) -> crate::error::SceneResult<(SceneClassification, SceneType)> {
+        let classification = self.inner.classify(rgb_data, width, height)?;
+        self.smoother.push(classification.scene_type);
+        let smoothed = self
+            .smoother
+            .current_class()
+            .copied()
+            .unwrap_or(classification.scene_type);
+        Ok((classification, smoothed))
+    }
+
+    /// Reset the temporal smoothing window.
+    pub fn reset(&mut self) {
+        self.smoother.clear();
+    }
+
+    /// Return the configured window size.
+    #[must_use]
+    pub fn window_size(&self) -> usize {
+        self.smoother.window_size
+    }
+
+    /// Return the number of frames currently in the window.
+    #[must_use]
+    pub fn window_len(&self) -> usize {
+        self.smoother.len()
+    }
+}
+
 /// Helper: build a solid color image.
 fn solid_image(width: usize, height: usize, r: u8, g: u8, b: u8) -> Vec<u8> {
     let mut data = vec![0u8; width * height * 3];
@@ -663,5 +762,115 @@ mod tests {
         // All three types should have non-zero weight after smoothing
         assert_eq!(smoothed.len(), 3);
         assert!(smoothed.iter().all(|&v| v >= 0.0 && v <= 1.0));
+    }
+
+    // ── SmoothedSceneClassifier ──────────────────────────────────────────────
+
+    #[test]
+    fn test_smoothed_classifier_returns_scene_type() {
+        let mut sc = SmoothedSceneClassifier::new(3);
+        let w = 40;
+        let h = 40;
+        let frame = solid_image(w, h, 80, 120, 220);
+        let result = sc.classify(&frame, w, h);
+        assert!(result.is_ok(), "should classify successfully");
+    }
+
+    #[test]
+    fn test_smoothed_classifier_invalid_dimensions() {
+        let mut sc = SmoothedSceneClassifier::new(3);
+        let bad_data = vec![0u8; 10];
+        let result = sc.classify(&bad_data, 10, 10);
+        assert!(result.is_err(), "wrong-size buffer should error");
+    }
+
+    #[test]
+    fn test_smoothed_classifier_mode_stabilizes_outlier() {
+        let mut sc = SmoothedSceneClassifier::new(5);
+        let w = 40;
+        let h = 40;
+        // Three sky-like frames then one dark outlier then one sky
+        let sky = solid_image(w, h, 80, 120, 220);
+        let dark = solid_image(w, h, 10, 10, 10);
+        sc.classify(&sky, w, h).expect("ok");
+        sc.classify(&sky, w, h).expect("ok");
+        sc.classify(&sky, w, h).expect("ok");
+        let after_outlier = sc.classify(&dark, w, h).expect("ok");
+        let after_sky = sc.classify(&sky, w, h).expect("ok");
+        // The window has 4 sky + 1 dark; mode should be the sky-related class
+        assert_eq!(
+            after_outlier, after_sky,
+            "mode should stabilise away from single outlier"
+        );
+    }
+
+    #[test]
+    fn test_smoothed_classifier_reset_clears_window() {
+        let mut sc = SmoothedSceneClassifier::new(4);
+        let w = 30;
+        let h = 30;
+        let frame = solid_image(w, h, 100, 150, 200);
+        sc.classify(&frame, w, h).expect("ok");
+        sc.classify(&frame, w, h).expect("ok");
+        assert_eq!(sc.window_len(), 2);
+        sc.reset();
+        assert_eq!(sc.window_len(), 0, "reset should clear window");
+    }
+
+    #[test]
+    fn test_smoothed_classifier_window_size_reported() {
+        let sc = SmoothedSceneClassifier::new(7);
+        assert_eq!(sc.window_size(), 7);
+    }
+
+    #[test]
+    fn test_smoothed_classifier_classify_full_returns_both() {
+        let mut sc = SmoothedSceneClassifier::new(3);
+        let w = 40;
+        let h = 40;
+        let frame = solid_image(w, h, 80, 120, 220);
+        let result = sc.classify_full(&frame, w, h);
+        assert!(result.is_ok(), "classify_full should succeed");
+        let (classification, smoothed_type) = result.expect("ok");
+        assert!(classification.confidence.value() >= 0.0);
+        // After one frame the smoothed type equals the raw classification
+        assert_eq!(smoothed_type, classification.scene_type);
+    }
+
+    #[test]
+    fn test_smoothed_classifier_with_custom_inner() {
+        let inner = SceneClassifier::with_temporal_smoothing(3);
+        let mut sc = SmoothedSceneClassifier::with_classifier(inner, 4);
+        let w = 30;
+        let h = 30;
+        let frame = solid_image(w, h, 200, 100, 50);
+        let result = sc.classify(&frame, w, h);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_smoothed_classifier_single_frame_window_len_one() {
+        let mut sc = SmoothedSceneClassifier::new(5);
+        let w = 20;
+        let h = 20;
+        let frame = solid_image(w, h, 100, 200, 100);
+        sc.classify(&frame, w, h).expect("ok");
+        assert_eq!(sc.window_len(), 1);
+    }
+
+    #[test]
+    fn test_smoothed_classifier_consistent_scene_stays_stable() {
+        let mut sc = SmoothedSceneClassifier::new(4);
+        let w = 50;
+        let h = 50;
+        let frame = solid_image(w, h, 50, 160, 60); // vegetation-like
+        let mut last_type = None;
+        for _ in 0..6 {
+            let t = sc.classify(&frame, w, h).expect("ok");
+            if let Some(prev) = last_type {
+                assert_eq!(t, prev, "consistent scene should produce stable label");
+            }
+            last_type = Some(t);
+        }
     }
 }

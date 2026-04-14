@@ -8,16 +8,19 @@
 //! - **Text detection**: Text region detection using connected components
 //!
 //! All detectors support Non-Maximum Suppression (NMS) to suppress overlapping
-//! detections. The shared [`nms`] function can be applied to any detection type
+//! detections. The shared [`nms()`] function can be applied to any detection type
 //! that provides a bounding box and confidence score.
 
 pub mod face;
 pub mod logo;
+pub mod nms;
 pub mod object;
+pub mod pyramid;
 pub mod text;
 
 pub use face::{FaceDetection, FaceDetector};
 pub use logo::{LogoDetection, LogoDetector};
+pub use nms::{non_maximum_suppression, soft_nms_boxes, Detection, DetectionBox};
 pub use object::{ObjectDetection, ObjectDetector, ObjectType};
 pub use text::{TextDetection, TextDetector};
 

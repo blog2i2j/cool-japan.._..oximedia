@@ -146,9 +146,9 @@ pub enum RenderfarmCommand {
         #[arg(long)]
         job_id: Option<String>,
 
-        /// Show verbose details
+        /// Show detailed information
         #[arg(long)]
-        verbose: bool,
+        detail: bool,
 
         /// Output format: text, json
         #[arg(long, default_value = "text")]
@@ -263,14 +263,14 @@ pub async fn handle_renderfarm_command(
         RenderfarmCommand::Status {
             cluster,
             job_id,
-            verbose,
+            detail,
             output_format,
             active_only,
         } => {
             query_cluster_status(
                 &cluster,
                 job_id.as_deref(),
-                verbose,
+                detail,
                 active_only,
                 if json_output { "json" } else { &output_format },
             )
@@ -566,7 +566,7 @@ async fn submit_cluster_job(
 async fn query_cluster_status(
     cluster: &str,
     job_id: Option<&str>,
-    verbose: bool,
+    detail: bool,
     active_only: bool,
     output_format: &str,
 ) -> Result<()> {
@@ -578,7 +578,7 @@ async fn query_cluster_status(
                     "job_id": jid,
                     "status": "pending",
                     "progress": 0.0,
-                    "verbose": verbose,
+                    "detail": detail,
                     "message": "Full job status requires cluster gRPC integration",
                 });
                 let json_str =
@@ -592,7 +592,7 @@ async fn query_cluster_status(
                 println!("{:25} {}", "Job ID:", jid);
                 println!("{:25} Pending", "Status:");
                 println!("{:25} 0%", "Progress:");
-                if verbose {
+                if detail {
                     println!();
                     println!("{}", "Detailed Information".cyan().bold());
                     println!("{}", "-".repeat(60));

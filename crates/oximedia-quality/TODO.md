@@ -10,13 +10,13 @@
 
 ## Enhancements
 - [ ] Replace `unreachable!()` in `QualityAssessor::assess_no_reference` with proper error return
-- [ ] Add per-region quality assessment in SSIM/PSNR (compute metrics for specific frame regions)
+- [x] Add per-region quality assessment in SSIM/PSNR (compute metrics for specific frame regions)
 - [ ] Implement configurable VMAF model selection in `VmafCalculator` (phone model, 4K model)
 - [ ] Extend `temporal_quality` with scene-aware temporal pooling (reset stats at scene cuts)
 - [ ] Add chroma plane quality assessment in SSIM (currently luma-only in many implementations)
 - [ ] Implement quality metric confidence intervals based on frame count
-- [ ] Extend `quality_gate` with multi-metric composite gates (pass only if SSIM > X AND VMAF > Y)
-- [ ] Add `quality_report` export to CSV format for spreadsheet analysis
+- [x] Extend `quality_gate` with multi-metric composite gates (pass only if SSIM > X AND VMAF > Y)
+- [x] Add `quality_report` export to CSV format for spreadsheet analysis
 
 ## New Features
 - [ ] Implement LPIPS (Learned Perceptual Image Patch Similarity) metric using pre-trained weights

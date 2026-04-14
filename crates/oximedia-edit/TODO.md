@@ -16,11 +16,13 @@
 - [ ] Enhance `history.rs` undo/redo with branching history tree (not just linear stack)
 - [ ] Add magnetic timeline snapping in `timeline.rs` for clip alignment
 - [ ] Improve `transition.rs` with GPU-accelerated transition rendering via oximedia-gpu
-- [ ] Add audio waveform generation in timeline for visual editing feedback
+- [x] Add audio waveform generation in timeline for visual editing feedback
+      — `WaveformGenerator` (mono/multi-channel, peak/RMS/min) and `WaveformData` in `waveform.rs`; 25 tests
 - [ ] Enhance `nested_sequence.rs` with independent timeline resolution and frame rate
 - [ ] Add clip linking between video and audio clips in `group.rs` for sync maintenance
 - [ ] Implement `auto_edit.rs` with beat-detection based auto-cutting for music videos
-- [ ] Add clip color labels and metadata tags for organizational workflow
+- [x] Add clip color labels and metadata tags for organizational workflow
+      — `ColorLabel`, `Tag`, `LabelManager`, `StandardLabels` in `color_label.rs`; 28 tests
 
 ## New Features
 - [x] Implement freeze frame and speed ramp (variable speed) in `clip_speed.rs`
@@ -32,7 +34,8 @@
 - [ ] Implement multi-format export (export same timeline to multiple resolutions/codecs)
 - [ ] Add collaborative editing primitives (operational transform for concurrent edits)
 - [ ] Implement smart trim with scene-change detection at trim points
-- [ ] Add render queue for batch export of multiple timelines
+- [x] Add render queue for batch export of multiple timelines
+      — `RenderQueue`, `RenderJob`, `JobStatus`, `ExportConfig`, `TimelineSnapshot` in `render_queue.rs`; 35 tests
 
 ## Performance
 - [x] Add frame cache in `render.rs` to avoid re-decoding unchanged frames

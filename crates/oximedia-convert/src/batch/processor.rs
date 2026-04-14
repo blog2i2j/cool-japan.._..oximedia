@@ -5,9 +5,7 @@
 
 use crate::{ConversionError, ConversionOptions, ConversionReport, Converter, Result};
 use std::path::{Path, PathBuf};
-#[cfg(not(target_arch = "wasm32"))]
 use std::sync::Arc;
-#[cfg(not(target_arch = "wasm32"))]
 use tokio::sync::Semaphore;
 
 /// Batch processor for converting multiple files.
@@ -44,7 +42,6 @@ impl BatchProcessor {
     }
 
     /// Process a batch of conversions.
-    #[cfg(not(target_arch = "wasm32"))]
     pub async fn process_batch(&self, jobs: Vec<BatchJob>) -> Result<BatchReport> {
         let semaphore = Arc::new(Semaphore::new(self.max_parallel));
         let mut handles = Vec::new();
@@ -87,40 +84,6 @@ impl BatchProcessor {
                 }
                 Err(e) => {
                     return Err(ConversionError::Io(std::io::Error::other(e)));
-                }
-            }
-        }
-
-        Ok(BatchReport {
-            total,
-            successful,
-            failed,
-        })
-    }
-
-    /// Process a batch of conversions (wasm32 sequential fallback).
-    #[cfg(target_arch = "wasm32")]
-    pub async fn process_batch(&self, jobs: Vec<BatchJob>) -> Result<BatchReport> {
-        let total = jobs.len();
-        let mut successful = Vec::new();
-        let mut failed = Vec::new();
-
-        for (index, job) in jobs.into_iter().enumerate() {
-            match self
-                .converter
-                .convert(&job.input, &job.output, job.options)
-                .await
-            {
-                Ok(report) => {
-                    successful.push((index, report));
-                }
-                Err(e) => {
-                    failed.push(BatchFailure {
-                        index,
-                        input: job.input,
-                        output: job.output,
-                        error: e.to_string(),
-                    });
                 }
             }
         }

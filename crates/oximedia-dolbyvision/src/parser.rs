@@ -3,7 +3,7 @@
 //! Handles parsing of Dolby Vision RPU from HEVC SEI messages and raw bitstreams.
 
 use crate::{metadata::*, rpu::*, DolbyVisionError, DolbyVisionRpu, Profile, Result};
-use bitstream_io::{BigEndian, BitRead, BitReader};
+use oximedia_bitstream::{BigEndian, BitRead, BitReader};
 use std::collections::HashMap;
 use std::io::Cursor;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -199,7 +199,7 @@ fn parse_sei_payload(data: &[u8]) -> Result<Vec<u8>> {
     let mut payload_type = 0u32;
     loop {
         let byte: u8 = reader
-            .read(8)
+            .read_var(8)
             .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
         payload_type += u32::from(byte);
         if byte != 0xFF {
@@ -211,7 +211,7 @@ fn parse_sei_payload(data: &[u8]) -> Result<Vec<u8>> {
     let mut payload_size = 0u32;
     loop {
         let byte: u8 = reader
-            .read(8)
+            .read_var(8)
             .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
         payload_size += u32::from(byte);
         if byte != 0xFF {
@@ -223,7 +223,7 @@ fn parse_sei_payload(data: &[u8]) -> Result<Vec<u8>> {
     if payload_type == 5 {
         // Read T.35 country code
         let country_code: u8 = reader
-            .read(8)
+            .read_var(8)
             .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
         if country_code != T35_COUNTRY_CODE {
             return Err(DolbyVisionError::InvalidPayload(format!(
@@ -234,7 +234,7 @@ fn parse_sei_payload(data: &[u8]) -> Result<Vec<u8>> {
 
         // Read T.35 terminal provider code
         let provider_code: u16 = reader
-            .read(16)
+            .read_var(16)
             .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
         if provider_code != T35_TERMINAL_PROVIDER_CODE {
             return Err(DolbyVisionError::InvalidPayload(format!(
@@ -367,11 +367,11 @@ pub fn parse_rpu_bitstream(data: &[u8]) -> Result<DolbyVisionRpu> {
 /// Parse RPU header.
 fn parse_rpu_header<R: std::io::Read>(reader: &mut BitReader<R, BigEndian>) -> Result<RpuHeader> {
     let rpu_type: u8 = reader
-        .read(6)
+        .read_var(6)
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
 
     let rpu_format: u16 = reader
-        .read(11)
+        .read_var(11)
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
 
     let vdr_seq_info_present: bool = reader
@@ -385,11 +385,11 @@ fn parse_rpu_header<R: std::io::Read>(reader: &mut BitReader<R, BigEndian>) -> R
     };
 
     let picture_index: u16 = reader
-        .read(10)
+        .read_var(10)
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
 
     let change_flags_bits: u16 = reader
-        .read(4)
+        .read_var(4)
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
     let change_flags = ChangeFlags::from_bits_truncate(change_flags_bits);
 
@@ -399,38 +399,38 @@ fn parse_rpu_header<R: std::io::Read>(reader: &mut BitReader<R, BigEndian>) -> R
 
     let num_nlq_param_predictors: u8 = if nlq_param_pred_flag {
         reader
-            .read(4)
+            .read_var(4)
             .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?
     } else {
         0
     };
 
     let component_order: u8 = reader
-        .read(2)
+        .read_var(2)
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
 
     let coef_data_type: u8 = reader
-        .read(1)
+        .read_var(1)
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
 
     let coef_log2_denom: u8 = reader
-        .read(4)
+        .read_var(4)
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
 
     let mapping_color_space: u8 = reader
-        .read(2)
+        .read_var(2)
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
 
     let mapping_chroma_format: u8 = reader
-        .read(2)
+        .read_var(2)
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
 
     let num_pivots_minus_2: u8 = reader
-        .read(3)
+        .read_var(3)
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
 
     let pred_pivot_value: u16 = reader
-        .read(12)
+        .read_var(12)
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
 
     Ok(RpuHeader {
@@ -457,11 +457,11 @@ fn parse_vdr_seq_info<R: std::io::Read>(
     reader: &mut BitReader<R, BigEndian>,
 ) -> Result<VdrSeqInfo> {
     let vdr_dm_metadata_id: u8 = reader
-        .read(8)
+        .read_var(8)
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
 
     let scene_refresh_flag: u8 = reader
-        .read(2)
+        .read_var(2)
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
 
     let ycbcr_to_rgb_flag: bool = reader
@@ -469,27 +469,27 @@ fn parse_vdr_seq_info<R: std::io::Read>(
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
 
     let coef_data_type: u8 = reader
-        .read(1)
+        .read_var(1)
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
 
     let coef_log2_denom: u8 = reader
-        .read(4)
+        .read_var(4)
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
 
     let vdr_bit_depth: u8 = reader
-        .read(4)
+        .read_var(4)
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
 
     let bl_bit_depth: u8 = reader
-        .read(4)
+        .read_var(4)
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
 
     let el_bit_depth: u8 = reader
-        .read(4)
+        .read_var(4)
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
 
     let source_bit_depth: u8 = reader
-        .read(4)
+        .read_var(4)
         .map_err(|e| DolbyVisionError::InvalidHeader(e.to_string()))?;
 
     Ok(VdrSeqInfo {
@@ -512,15 +512,15 @@ fn parse_vdr_dm_data<R: std::io::Read>(
     _profile: Profile,
 ) -> Result<VdrDmData> {
     let affected_dm_metadata_id: u8 = reader
-        .read(8)
+        .read_var(8)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let current_dm_metadata_id: u8 = reader
-        .read(8)
+        .read_var(8)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let scene_refresh_flag: u8 = reader
-        .read(2)
+        .read_var(2)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let ycbcr_to_rgb_present: bool = reader
@@ -544,52 +544,52 @@ fn parse_vdr_dm_data<R: std::io::Read>(
     };
 
     let signal_eotf: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let signal_eotf_param0: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let signal_eotf_param1: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let signal_eotf_param2: u32 = reader
-        .read(32)
+        .read_var(32)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let signal_bit_depth: u8 = reader
-        .read(5)
+        .read_var(5)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let signal_color_space: u8 = reader
-        .read(2)
+        .read_var(2)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let signal_chroma_format: u8 = reader
-        .read(2)
+        .read_var(2)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let signal_full_range_flag: u8 = reader
-        .read(2)
+        .read_var(2)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let source_min_pq: u16 = reader
-        .read(12)
+        .read_var(12)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let source_max_pq: u16 = reader
-        .read(12)
+        .read_var(12)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let source_diagonal: u16 = reader
-        .read(10)
+        .read_var(10)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     // Parse reshaping curves (simplified - usually 3 curves for RGB)
     let num_curves: u8 = reader
-        .read(2)
+        .read_var(2)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let mut reshaping_curves = Vec::new();
@@ -599,7 +599,7 @@ fn parse_vdr_dm_data<R: std::io::Read>(
 
     // Parse NLQ parameters
     let num_nlq_params: u8 = reader
-        .read(2)
+        .read_var(2)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let mut nlq_params = Vec::new();
@@ -637,7 +637,7 @@ fn parse_color_matrix<R: std::io::Read>(
     for row in &mut matrix {
         for col in row {
             *col = reader
-                .read::<i32>(16)
+                .read_var::<i32>(16)
                 .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
         }
     }
@@ -649,13 +649,13 @@ fn parse_reshaping_curve<R: std::io::Read>(
     reader: &mut BitReader<R, BigEndian>,
 ) -> Result<ReshapingCurve> {
     let num_pivots: u8 = reader
-        .read(4)
+        .read_var(4)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let mut pivots = Vec::new();
     for _ in 0..=num_pivots {
         let pivot: u16 = reader
-            .read(12)
+            .read_var(12)
             .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
         pivots.push(pivot);
     }
@@ -666,21 +666,21 @@ fn parse_reshaping_curve<R: std::io::Read>(
 
     for _ in 0..num_pivots {
         let idc: u8 = reader
-            .read(2)
+            .read_var(2)
             .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
         mapping_idc.push(idc);
 
         if idc == 0 {
             // Polynomial mapping
             let order: u8 = reader
-                .read(2)
+                .read_var(2)
                 .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
             poly_order_minus1.push(order);
 
             let mut coefs = Vec::new();
             for _ in 0..=(order + 1) {
                 let coef: i64 = reader
-                    .read(16)
+                    .read_var(16)
                     .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
                 coefs.push(coef);
             }
@@ -689,13 +689,13 @@ fn parse_reshaping_curve<R: std::io::Read>(
     }
 
     let mmr_order_minus1: u8 = reader
-        .read(2)
+        .read_var(2)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let mut mmr_coef = Vec::new();
     for _ in 0..=(mmr_order_minus1 + 1) {
         let coef: i64 = reader
-            .read(16)
+            .read_var(16)
             .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
         mmr_coef.push(coef);
     }
@@ -713,19 +713,19 @@ fn parse_reshaping_curve<R: std::io::Read>(
 /// Parse NLQ parameters.
 fn parse_nlq_params<R: std::io::Read>(reader: &mut BitReader<R, BigEndian>) -> Result<NlqParams> {
     let nlq_offset: u16 = reader
-        .read(10)
+        .read_var(10)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let vdr_in_max: u64 = reader
-        .read(27)
+        .read_var(27)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let linear_deadzone_slope: u64 = reader
-        .read(26)
+        .read_var(26)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let linear_deadzone_threshold: u64 = reader
-        .read(26)
+        .read_var(26)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     Ok(NlqParams {
@@ -747,15 +747,15 @@ fn parse_level1_metadata<R: std::io::Read>(
     }
 
     let min_pq: u16 = reader
-        .read(12)
+        .read_var(12)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let max_pq: u16 = reader
-        .read(12)
+        .read_var(12)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let avg_pq: u16 = reader
-        .read(12)
+        .read_var(12)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     Ok(Some(Level1Metadata {
@@ -775,39 +775,39 @@ fn parse_level2_metadata<R: std::io::Read>(
     }
 
     let target_display_index: u8 = reader
-        .read(8)
+        .read_var(8)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let trim_slope: i16 = reader
-        .read_signed(16)
+        .read_signed_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let trim_offset: i16 = reader
-        .read_signed(16)
+        .read_signed_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let trim_power: i16 = reader
-        .read_signed(16)
+        .read_signed_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let trim_chroma_weight: i16 = reader
-        .read_signed(16)
+        .read_signed_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let trim_saturation_gain: i16 = reader
-        .read_signed(16)
+        .read_signed_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let ms_weight: i16 = reader
-        .read_signed(16)
+        .read_signed_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let target_mid_contrast: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let clip_trim: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     // Saturation and hue vector fields are not written by the current writer
@@ -837,19 +837,19 @@ fn parse_level5_metadata<R: std::io::Read>(
     }
 
     let active_area_left_offset: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let active_area_right_offset: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let active_area_top_offset: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let active_area_bottom_offset: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     Ok(Some(Level5Metadata {
@@ -870,36 +870,36 @@ fn parse_level6_metadata<R: std::io::Read>(
     }
 
     let max_cll: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let max_fall: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let min_display_mastering_luminance: u32 = reader
-        .read(32)
+        .read_var(32)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let max_display_mastering_luminance: u32 = reader
-        .read(32)
+        .read_var(32)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let mut master_display_primaries = [[0u16; 2]; 3];
     for primary in &mut master_display_primaries {
         primary[0] = reader
-            .read(16)
+            .read_var(16)
             .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
         primary[1] = reader
-            .read(16)
+            .read_var(16)
             .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
     }
 
     let white_x: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
     let white_y: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     Ok(Some(Level6Metadata {
@@ -922,43 +922,43 @@ fn parse_level8_metadata<R: std::io::Read>(
     }
 
     let target_display_index: u8 = reader
-        .read(8)
+        .read_var(8)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let target_max_pq: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let target_min_pq: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let target_primary_index: u8 = reader
-        .read(8)
+        .read_var(8)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let target_eotf: u8 = reader
-        .read(8)
+        .read_var(8)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let diagonal_size: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let peak_luminance: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let diffuse_white_luminance: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let ambient_luminance: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let surround_reflection: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     Ok(Some(Level8Metadata {
@@ -985,19 +985,19 @@ fn parse_level9_metadata<R: std::io::Read>(
     }
 
     let source_primary_index: u8 = reader
-        .read(8)
+        .read_var(8)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let source_max_pq: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let source_min_pq: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let source_diagonal: u16 = reader
-        .read(16)
+        .read_var(16)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     Ok(Some(Level9Metadata {
@@ -1018,11 +1018,11 @@ fn parse_level11_metadata<R: std::io::Read>(
     }
 
     let content_type_byte: u8 = reader
-        .read(8)
+        .read_var(8)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let whitepoint: u8 = reader
-        .read(8)
+        .read_var(8)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let reference_mode_flag: bool = reader
@@ -1030,23 +1030,23 @@ fn parse_level11_metadata<R: std::io::Read>(
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let sharpness: u8 = reader
-        .read(8)
+        .read_var(8)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let noise_reduction: u8 = reader
-        .read(8)
+        .read_var(8)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let mpeg_noise_reduction: u8 = reader
-        .read(8)
+        .read_var(8)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let frame_rate: u8 = reader
-        .read(8)
+        .read_var(8)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     let temporal_filter_strength: u8 = reader
-        .read(8)
+        .read_var(8)
         .map_err(|e| DolbyVisionError::InvalidPayload(e.to_string()))?;
 
     Ok(Some(Level11Metadata {

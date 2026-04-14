@@ -46,6 +46,7 @@ pub mod packet;
 pub mod range_decoder;
 pub mod range_encoder;
 pub mod silk;
+pub mod vad;
 
 use crate::{AudioFrame, CodecError, CodecResult, SampleFormat};
 

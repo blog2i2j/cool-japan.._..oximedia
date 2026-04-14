@@ -7,6 +7,10 @@ pub enum AnalyticsError {
     #[error("invalid session")]
     InvalidSession,
 
+    /// An input value is invalid (bad range, empty slice, etc.).
+    #[error("invalid input: {0}")]
+    InvalidInput(String),
+
     /// Not enough data to perform the requested analysis.
     #[error("insufficient data: {0}")]
     InsufficientData(String),

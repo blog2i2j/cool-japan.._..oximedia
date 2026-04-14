@@ -348,7 +348,7 @@ impl TextSearchIndex {
         let query = self.query_parser.parse_query(query_str)?;
 
         // Execute search
-        let top_docs = searcher.search(&query, &TopDocs::with_limit(limit))?;
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(limit).order_by_score())?;
 
         // Convert results
         let mut results = Vec::new();

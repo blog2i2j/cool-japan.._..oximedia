@@ -936,4 +936,117 @@ mod tests {
             "Higher Q should give >= QM level: q=80 → {low_y}, q=240 → {high_y}"
         );
     }
+
+    // =========================================================================
+    // Additional adaptive QM tests
+    // =========================================================================
+
+    #[test]
+    fn test_adaptive_qm_boundary_q64_enabled() {
+        let sel = select_adaptive_qm(QmContentType::Texture, 64);
+        assert!(sel.qm_y.is_some(), "QM must be enabled at exactly q=64");
+    }
+
+    #[test]
+    fn test_adaptive_qm_boundary_q63_disabled() {
+        let sel = select_adaptive_qm(QmContentType::Texture, 63);
+        assert!(sel.qm_y.is_none(), "QM must be disabled at q=63");
+    }
+
+    #[test]
+    fn test_adaptive_qm_uv_levels_consistent() {
+        for q in [64u8, 128, 192, 255] {
+            for ct in [
+                QmContentType::Flat,
+                QmContentType::Texture,
+                QmContentType::Detail,
+                QmContentType::Screen,
+            ] {
+                let sel = select_adaptive_qm(ct, q);
+                assert_eq!(
+                    sel.qm_u, sel.qm_v,
+                    "qm_u and qm_v must be equal for q={q} ct={ct:?}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_adaptive_qm_detail_uses_highest_level() {
+        let q = 200u8;
+        let detail = select_adaptive_qm(QmContentType::Detail, q);
+        let flat = select_adaptive_qm(QmContentType::Flat, q);
+        let screen = select_adaptive_qm(QmContentType::Screen, q);
+        let detail_y = detail.qm_y.unwrap_or(0);
+        let flat_y = flat.qm_y.unwrap_or(0);
+        let screen_y = screen.qm_y.unwrap_or(0);
+        assert!(
+            detail_y >= flat_y,
+            "Detail must use >= level vs Flat: detail={detail_y}, flat={flat_y}"
+        );
+        assert!(
+            detail_y >= screen_y,
+            "Detail must use >= level vs Screen: detail={detail_y}, screen={screen_y}"
+        );
+    }
+
+    #[test]
+    fn test_apply_adaptive_qm_sets_levels() {
+        let mut qp = QuantizationParams::default();
+        let sel = select_adaptive_qm(QmContentType::Detail, 192);
+        apply_adaptive_qm(&mut qp, &sel);
+        assert!(qp.using_qmatrix);
+        assert_eq!(qp.qm_y, sel.qm_y.unwrap_or(0));
+        assert_eq!(qp.qm_u, sel.qm_u.unwrap_or(0));
+        assert_eq!(qp.qm_v, sel.qm_v.unwrap_or(0));
+    }
+
+    #[test]
+    fn test_adaptive_qm_q_idx_preserved_in_result() {
+        for q in [64u8, 100, 200, 255] {
+            let sel = select_adaptive_qm(QmContentType::Texture, q);
+            assert_eq!(sel.base_q_idx, q, "base_q_idx must be preserved");
+        }
+    }
+
+    #[test]
+    fn test_delta_q_state_resolution_2() {
+        let mut state = DeltaQState::new(2);
+        state.update(3);
+        assert_eq!(state.delta_q, 12);
+    }
+
+    #[test]
+    fn test_delta_q_state_clamped_min() {
+        let mut state = DeltaQState::new(0);
+        for _ in 0..100 {
+            state.update(-1);
+        }
+        assert_eq!(state.delta_q, i16::from(MIN_DELTA_Q));
+    }
+
+    #[test]
+    fn test_qindex_to_qp_monotonic() {
+        let mut prev = qindex_to_qp(1);
+        for q in 2u8..=255 {
+            let curr = qindex_to_qp(q);
+            assert!(
+                curr >= prev,
+                "qindex_to_qp not monotone at q={q}: {prev} > {curr}"
+            );
+            prev = curr;
+        }
+    }
+
+    #[test]
+    fn test_get_dc_ac_dequant_12bit() {
+        let dc = get_dc_dequant(128, 12);
+        let ac = get_ac_dequant(128, 12);
+        assert!(dc > 0);
+        assert!(ac > 0);
+        assert!(
+            ac >= dc,
+            "AC dequant should be >= DC dequant at q=128: ac={ac}, dc={dc}"
+        );
+    }
 }

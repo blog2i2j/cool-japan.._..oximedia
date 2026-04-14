@@ -26,10 +26,10 @@ impl ClockAccuracyClass {
     #[must_use]
     pub const fn typical_accuracy_ns(&self) -> u64 {
         match self {
-            Self::Stratum1 => 100,          // 100 ns
-            Self::Stratum2 => 1_000,        // 1 us
-            Self::Stratum3 => 10_000,       // 10 us
-            Self::Stratum4 => 1_000_000,    // 1 ms
+            Self::Stratum1 => 100,            // 100 ns
+            Self::Stratum2 => 1_000,          // 1 us
+            Self::Stratum3 => 10_000,         // 10 us
+            Self::Stratum4 => 1_000_000,      // 1 ms
             Self::FreeRunning => 100_000_000, // 100 ms
         }
     }
@@ -194,11 +194,7 @@ impl QualityAccumulator {
             return 0.0;
         }
         let mean = self.mean();
-        let variance: f64 = self
-            .samples
-            .iter()
-            .map(|s| (s - mean).powi(2))
-            .sum::<f64>()
+        let variance: f64 = self.samples.iter().map(|s| (s - mean).powi(2)).sum::<f64>()
             / (self.samples.len() - 1) as f64;
         variance.sqrt()
     }

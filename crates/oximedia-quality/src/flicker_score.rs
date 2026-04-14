@@ -55,24 +55,15 @@ pub fn mean_luminance(luma: &[u8]) -> f64 {
 ///
 /// Returns `None` if fewer than 2 values are provided.
 #[allow(clippy::cast_precision_loss)]
-pub fn analyze_flicker(
-    luminances: &[f64],
-    config: &FlickerConfig,
-) -> Option<FlickerResult> {
+pub fn analyze_flicker(luminances: &[f64], config: &FlickerConfig) -> Option<FlickerResult> {
     if luminances.len() < 2 {
         return None;
     }
 
-    let deltas: Vec<f64> = luminances
-        .windows(2)
-        .map(|w| w[1] - w[0])
-        .collect();
+    let deltas: Vec<f64> = luminances.windows(2).map(|w| w[1] - w[0]).collect();
 
     let abs_deltas: Vec<f64> = deltas.iter().map(|d| d.abs()).collect();
-    let max_delta = abs_deltas
-        .iter()
-        .copied()
-        .fold(0.0f64, f64::max);
+    let max_delta = abs_deltas.iter().copied().fold(0.0f64, f64::max);
 
     let mean_delta = abs_deltas.iter().sum::<f64>() / abs_deltas.len() as f64;
     let variance = abs_deltas
@@ -110,11 +101,7 @@ pub fn count_flicker_events(luminances: &[f64], threshold: f64) -> usize {
 /// Compute a rolling flicker score over a sliding window of `window_size` frames.
 ///
 /// Returns one score per position, starting from position `window_size - 1`.
-pub fn rolling_flicker(
-    luminances: &[f64],
-    window_size: usize,
-    config: &FlickerConfig,
-) -> Vec<f64> {
+pub fn rolling_flicker(luminances: &[f64], window_size: usize, config: &FlickerConfig) -> Vec<f64> {
     if luminances.len() < window_size || window_size < 2 {
         return Vec::new();
     }
@@ -165,7 +152,9 @@ mod tests {
 
     #[test]
     fn test_oscillating_luminance_high_flicker() {
-        let lum: Vec<f64> = (0..20).map(|i| if i % 2 == 0 { 80.0 } else { 120.0 }).collect();
+        let lum: Vec<f64> = (0..20)
+            .map(|i| if i % 2 == 0 { 80.0 } else { 120.0 })
+            .collect();
         let cfg = FlickerConfig::default();
         let result = analyze_flicker(&lum, &cfg).expect("should succeed in test");
         assert!(result.score > 10.0);
@@ -234,7 +223,9 @@ mod tests {
     #[test]
     fn test_score_clamped() {
         // Very large oscillation to trigger clamping
-        let lum: Vec<f64> = (0..50).map(|i| if i % 2 == 0 { 0.0 } else { 255.0 }).collect();
+        let lum: Vec<f64> = (0..50)
+            .map(|i| if i % 2 == 0 { 0.0 } else { 255.0 })
+            .collect();
         let cfg = FlickerConfig::default();
         let result = analyze_flicker(&lum, &cfg).expect("should succeed in test");
         assert!(result.score <= 100.0);

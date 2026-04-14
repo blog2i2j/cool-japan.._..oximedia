@@ -35,6 +35,7 @@
 //! use oximedia_codec::vp8::{Vp8Decoder, FrameHeader, FrameType};
 //! use oximedia_codec::traits::{VideoDecoder, DecoderConfig};
 //!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Create a decoder
 //! let config = DecoderConfig::default();
 //! let mut decoder = Vp8Decoder::new(config)?;
@@ -56,6 +57,8 @@
 //!     assert_eq!(frame.width, 320);
 //!     assert_eq!(frame.height, 240);
 //! }
+//! # Ok(())
+//! # }
 //! ```
 //!
 //! # References

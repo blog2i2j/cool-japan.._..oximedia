@@ -27,17 +27,17 @@
 - [ ] Add temporal consistency to `enhance/denoising.rs` for video denoising (frame-to-frame coherence)
 - [x] Extend `scene/adaptive.rs` with gradual transition detection (dissolves, wipes) — implemented in `scene/transition_detect.rs` with `detect_dissolve` + `detect_wipe`
 - [ ] Improve `chroma_key/auto_key.rs` with automatic background color detection
-- [ ] Add sub-pixel accuracy to `feature_match.rs` for high-precision registration
+- [x] Add sub-pixel accuracy to `feature_match.rs` for high-precision registration — `SubPixelRefiner`, `SubPixelMatch`, `HomographyEstimator` (RANSAC+DLT), `subpixel_match_quality`, `filter_subpixel_matches`
 
 ## New Features
 - [x] Implement semantic segmentation (person/background) for portrait mode effects — `segmentation/person_bg.rs` with `PersonBackgroundSegmenter` + `SegmentationMask`
 - [ ] Add instance segmentation support in `segmentation.rs` with mask generation
-- [ ] Implement video matting (alpha matte extraction) as an alternative to chroma key
+- [x] Implement video matting (alpha matte extraction) as an alternative to chroma key — `BackgroundCapture`, `AlphaMatteExtractor`, `TemporalMattingSmoother`, `MattingQualityMetrics`, `ForegroundExtractor`, `compose`
 - [ ] Add text detection and recognition (OCR) module for subtitle extraction from burned-in text
 - [ ] Implement style transfer pipeline using ONNX models in `ml/`
 - [ ] Add panorama stitching using feature matching and homography in `registration/`
 - [ ] Implement action recognition using temporal feature analysis
-- [ ] Add lens distortion correction (barrel/pincushion) in `transform/`
+- [x] Add lens distortion correction (barrel/pincushion) in `transform/` — `LensDistortionCorrector`, `LensDistortionSimulator`, `DistortionMap` (pre-computed remap), `FisheyeEquidistantCorrector`, `optimal_crop_rect` in `lens_distortion.rs`
 
 ## Performance
 - [x] Replace `rustfft` with OxiFFT per COOLJAPAN policy for FFT-dependent algorithms — `fingerprint/chromaprint.rs` updated; `Cargo.toml` now uses `oxifft.workspace = true`

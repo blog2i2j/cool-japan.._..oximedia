@@ -145,6 +145,132 @@ impl PassQueue {
 }
 
 // ---------------------------------------------------------------------------
+// BatchedComputePass — batched GPU dispatch management
+// ---------------------------------------------------------------------------
+
+/// A single queued GPU compute dispatch command.
+#[derive(Debug, Clone)]
+pub struct DispatchCommand {
+    /// Identifier of the compute pipeline this dispatch uses.
+    pub pipeline_id: u64,
+    /// Bind group index to set before dispatching.
+    pub bind_group: u32,
+    /// Number of workgroups along the X axis.
+    pub dispatch_x: u32,
+    /// Number of workgroups along the Y axis.
+    pub dispatch_y: u32,
+    /// Number of workgroups along the Z axis.
+    pub dispatch_z: u32,
+}
+
+impl DispatchCommand {
+    /// Create a new `DispatchCommand`.
+    #[must_use]
+    pub fn new(
+        pipeline_id: u64,
+        bind_group: u32,
+        dispatch_x: u32,
+        dispatch_y: u32,
+        dispatch_z: u32,
+    ) -> Self {
+        Self {
+            pipeline_id,
+            bind_group,
+            dispatch_x,
+            dispatch_y,
+            dispatch_z,
+        }
+    }
+}
+
+/// Accumulates compute dispatch commands and issues them in batches.
+///
+/// Batching reduces command-encoder overhead by coalescing small dispatches
+/// and sorting them by pipeline so that pipeline switches are minimised.
+///
+/// When the number of pending commands reaches `max_batch_size`, an automatic
+/// flush is triggered and the commands are sorted by `pipeline_id` before
+/// being returned.
+pub struct BatchedComputePass {
+    pending: Vec<DispatchCommand>,
+    max_batch_size: usize,
+    /// Total number of commands that have been flushed across all batches.
+    total_flushed: u64,
+}
+
+impl BatchedComputePass {
+    /// Create a `BatchedComputePass` with the given `max_batch_size`.
+    ///
+    /// A `max_batch_size` of 0 is treated as 1 (each submit is auto-flushed).
+    #[must_use]
+    pub fn new(max_batch_size: usize) -> Self {
+        Self {
+            pending: Vec::new(),
+            max_batch_size: max_batch_size.max(1),
+            total_flushed: 0,
+        }
+    }
+
+    /// Submit a dispatch command.
+    ///
+    /// Returns `true` if an automatic flush was triggered (i.e., the pending
+    /// queue reached `max_batch_size`).  The caller should retrieve the flushed
+    /// batch via [`flush`][Self::flush] when this returns `true`.
+    pub fn submit(&mut self, cmd: DispatchCommand) -> bool {
+        self.pending.push(cmd);
+        if self.pending.len() >= self.max_batch_size {
+            // Auto-flush triggered; drain will happen on next flush() call.
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Drain all pending commands, sorted by `pipeline_id` (ascending) to
+    /// minimise pipeline state switches on the GPU.
+    ///
+    /// Returns the sorted batch.  If the queue is empty, returns an empty `Vec`.
+    pub fn flush(&mut self) -> Vec<DispatchCommand> {
+        if self.pending.is_empty() {
+            return Vec::new();
+        }
+        let mut batch = std::mem::take(&mut self.pending);
+        // Sort by pipeline_id so similar pipelines are adjacent.
+        batch.sort_by_key(|c| c.pipeline_id);
+        self.total_flushed += batch.len() as u64;
+        batch
+    }
+
+    /// Number of commands currently pending.
+    #[must_use]
+    pub fn pending_count(&self) -> usize {
+        self.pending.len()
+    }
+
+    /// Total commands flushed across all batches.
+    #[must_use]
+    pub fn total_flushed(&self) -> u64 {
+        self.total_flushed
+    }
+
+    /// Maximum batch size before an auto-flush is triggered.
+    #[must_use]
+    pub fn max_batch_size(&self) -> usize {
+        self.max_batch_size
+    }
+}
+
+impl std::fmt::Debug for BatchedComputePass {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BatchedComputePass")
+            .field("pending", &self.pending.len())
+            .field("max_batch_size", &self.max_batch_size)
+            .field("total_flushed", &self.total_flushed)
+            .finish()
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Unit tests
 // ---------------------------------------------------------------------------
 
@@ -267,5 +393,108 @@ mod tests {
         let q = PassQueue::new();
         assert_eq!(q.pass_count(), 0);
         assert_eq!(q.total_bindings(), 0);
+    }
+
+    // ── BatchedComputePass tests ──────────────────────────────────────────────
+
+    fn make_cmd(pipeline_id: u64, x: u32) -> DispatchCommand {
+        DispatchCommand::new(pipeline_id, 0, x, 1, 1)
+    }
+
+    #[test]
+    fn test_batched_submit_no_auto_flush_below_limit() {
+        let mut b = BatchedComputePass::new(5);
+        for i in 0..4u32 {
+            let flushed = b.submit(make_cmd(1, i));
+            assert!(!flushed, "should not auto-flush below max_batch_size");
+        }
+        assert_eq!(b.pending_count(), 4);
+    }
+
+    #[test]
+    fn test_batched_submit_auto_flush_at_limit() {
+        let mut b = BatchedComputePass::new(5);
+        for i in 0..4u32 {
+            b.submit(make_cmd(1, i));
+        }
+        let triggered = b.submit(make_cmd(1, 4));
+        assert!(triggered, "5th submit should signal auto-flush");
+    }
+
+    #[test]
+    fn test_batched_flush_returns_all_pending() {
+        let mut b = BatchedComputePass::new(10);
+        b.submit(make_cmd(3, 1));
+        b.submit(make_cmd(1, 2));
+        b.submit(make_cmd(2, 3));
+        let batch = b.flush();
+        assert_eq!(batch.len(), 3);
+        assert_eq!(b.pending_count(), 0);
+    }
+
+    #[test]
+    fn test_batched_flush_sorts_by_pipeline_id() {
+        let mut b = BatchedComputePass::new(100);
+        b.submit(make_cmd(5, 0));
+        b.submit(make_cmd(1, 0));
+        b.submit(make_cmd(3, 0));
+        b.submit(make_cmd(2, 0));
+        let batch = b.flush();
+        let ids: Vec<u64> = batch.iter().map(|c| c.pipeline_id).collect();
+        assert_eq!(ids, vec![1, 2, 3, 5], "batch must be sorted by pipeline_id");
+    }
+
+    #[test]
+    fn test_batched_flush_empty_returns_empty() {
+        let mut b = BatchedComputePass::new(5);
+        let batch = b.flush();
+        assert!(
+            batch.is_empty(),
+            "flushing an empty batcher returns empty vec"
+        );
+    }
+
+    #[test]
+    fn test_batched_total_flushed_accumulates() {
+        let mut b = BatchedComputePass::new(3);
+        for i in 0..6u32 {
+            b.submit(make_cmd(1, i));
+        }
+        b.flush(); // flush remaining
+        assert_eq!(
+            b.total_flushed(),
+            6,
+            "total flushed must equal total submitted"
+        );
+    }
+
+    #[test]
+    fn test_batched_similar_pipeline_ids_adjacent() {
+        let mut b = BatchedComputePass::new(100);
+        // Mix of pipeline IDs 10 and 20
+        b.submit(make_cmd(20, 0));
+        b.submit(make_cmd(10, 0));
+        b.submit(make_cmd(20, 1));
+        b.submit(make_cmd(10, 1));
+        let batch = b.flush();
+        // Expect: 10, 10, 20, 20
+        let ids: Vec<u64> = batch.iter().map(|c| c.pipeline_id).collect();
+        assert_eq!(ids[0], 10);
+        assert_eq!(ids[1], 10);
+        assert_eq!(ids[2], 20);
+        assert_eq!(ids[3], 20);
+    }
+
+    #[test]
+    fn test_batched_max_batch_size_accessor() {
+        let b = BatchedComputePass::new(8);
+        assert_eq!(b.max_batch_size(), 8);
+    }
+
+    #[test]
+    fn test_batched_debug_fmt() {
+        let b = BatchedComputePass::new(4);
+        let s = format!("{b:?}");
+        assert!(s.contains("BatchedComputePass"));
     }
 }

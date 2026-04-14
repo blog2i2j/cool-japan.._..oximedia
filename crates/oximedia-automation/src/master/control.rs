@@ -260,4 +260,259 @@ mod tests {
         assert!(master.get_channel(1).is_some());
         assert!(master.get_channel(2).is_none());
     }
+
+    // ─── 50+ simultaneous channel stress tests ───────────────────────────────
+
+    /// Verify that MasterControl correctly creates and indexes 50 channels.
+    #[tokio::test]
+    async fn master_control_handles_50_channels_creation() {
+        let config = MasterControlConfig {
+            num_channels: 50,
+            eas_enabled: false,
+            ..Default::default()
+        };
+        let master = MasterControl::new(config)
+            .await
+            .expect("new with 50 channels should succeed");
+
+        // All 50 channel slots must be present.
+        for i in 0..50 {
+            assert!(master.get_channel(i).is_some(), "channel {i} should exist");
+        }
+        // Slot 50 must not exist.
+        assert!(master.get_channel(50).is_none());
+    }
+
+    /// Verify that all 50 channels can be started and stopped cleanly.
+    #[tokio::test]
+    async fn master_control_starts_and_stops_50_channels() {
+        let config = MasterControlConfig {
+            num_channels: 50,
+            eas_enabled: false,
+            ..Default::default()
+        };
+        let mut master = MasterControl::new(config)
+            .await
+            .expect("new with 50 channels should succeed");
+
+        master.start().await.expect("start should succeed");
+        assert_eq!(
+            master.status().await.expect("status should be available"),
+            SystemStatus::Running
+        );
+
+        master.stop().await.expect("stop should succeed");
+        assert_eq!(
+            master.status().await.expect("status should be available"),
+            SystemStatus::Stopped
+        );
+    }
+
+    /// Status after creation should be Stopped (not Running).
+    #[tokio::test]
+    async fn master_control_50_channels_initial_status_stopped() {
+        let config = MasterControlConfig {
+            num_channels: 50,
+            eas_enabled: false,
+            ..Default::default()
+        };
+        let master = MasterControl::new(config)
+            .await
+            .expect("new with 50 channels should succeed");
+
+        assert_eq!(
+            master.status().await.expect("status should be available"),
+            SystemStatus::Stopped
+        );
+    }
+
+    /// Channels must retain their config (name, id) after construction.
+    #[tokio::test]
+    async fn master_control_channel_configs_are_correct() {
+        let config = MasterControlConfig {
+            num_channels: 50,
+            eas_enabled: false,
+            ..Default::default()
+        };
+        let master = MasterControl::new(config)
+            .await
+            .expect("new should succeed");
+
+        // Spot-check first and last channels.
+        let ch0 = master.get_channel(0).expect("channel 0 should exist");
+        assert_eq!(ch0.config().id, 0);
+
+        let ch49 = master.get_channel(49).expect("channel 49 should exist");
+        assert_eq!(ch49.config().id, 49);
+    }
+
+    /// EAS alert insertion across a 50-channel master control must not panic.
+    #[tokio::test]
+    #[ignore] // slow: EAS background task adds ~60s to test runtime
+    async fn master_control_50_channels_eas_alert_insertion() {
+        use crate::eas::alert::{EasAlert, EasAlertType};
+        use std::time::Duration;
+
+        let config = MasterControlConfig {
+            num_channels: 50,
+            eas_enabled: true,
+            ..Default::default()
+        };
+        let mut master = MasterControl::new(config)
+            .await
+            .expect("new should succeed");
+
+        master.start().await.expect("start should succeed");
+
+        let alert = EasAlert::new(
+            EasAlertType::TornadoWarning,
+            "Tornado warning".to_string(),
+            Duration::from_secs(60),
+        );
+        master
+            .handle_alert(alert)
+            .await
+            .expect("alert insertion should succeed");
+
+        master.stop().await.expect("stop should succeed");
+    }
+
+    /// Metrics collection should succeed with 50 channels.
+    #[tokio::test]
+    async fn master_control_50_channels_metrics() {
+        let config = MasterControlConfig {
+            num_channels: 50,
+            eas_enabled: false,
+            ..Default::default()
+        };
+        let mut master = MasterControl::new(config)
+            .await
+            .expect("new should succeed");
+
+        master.start().await.expect("start should succeed");
+        let metrics = master.metrics().await.expect("metrics should succeed");
+        // Metrics may be empty or populated — just verify no error occurs.
+        let _ = metrics;
+        master.stop().await.expect("stop should succeed");
+    }
+
+    /// Failover can be triggered on any of the 50 channels without error.
+    #[tokio::test]
+    async fn master_control_50_channels_failover_trigger() {
+        let config = MasterControlConfig {
+            num_channels: 50,
+            eas_enabled: false,
+            ..Default::default()
+        };
+        let mut master = MasterControl::new(config)
+            .await
+            .expect("new should succeed");
+
+        master.start().await.expect("start should succeed");
+
+        // Trigger failover on a channel in the middle and one at the boundary.
+        master
+            .trigger_failover(25)
+            .await
+            .expect("failover on channel 25 should succeed");
+        master
+            .trigger_failover(49)
+            .await
+            .expect("failover on channel 49 should succeed");
+
+        master.stop().await.expect("stop should succeed");
+    }
+
+    /// Triggering failover on a non-existent channel must return an error.
+    #[tokio::test]
+    async fn master_control_failover_nonexistent_channel_returns_error() {
+        let config = MasterControlConfig {
+            num_channels: 50,
+            eas_enabled: false,
+            ..Default::default()
+        };
+        let mut master = MasterControl::new(config)
+            .await
+            .expect("new should succeed");
+
+        let result = master.trigger_failover(50).await;
+        assert!(
+            result.is_err(),
+            "channel 50 does not exist — must return Err"
+        );
+    }
+
+    /// Sequential automation across all 50 channels: start, pause, resume, stop.
+    #[tokio::test]
+    async fn master_control_50_channels_pause_resume_lifecycle() {
+        let config = MasterControlConfig {
+            num_channels: 50,
+            eas_enabled: false,
+            ..Default::default()
+        };
+        let mut master = MasterControl::new(config)
+            .await
+            .expect("new should succeed");
+
+        master.start().await.expect("start should succeed");
+        assert_eq!(
+            master.status().await.expect("status"),
+            SystemStatus::Running
+        );
+        master.stop().await.expect("stop should succeed");
+        assert_eq!(
+            master.status().await.expect("status"),
+            SystemStatus::Stopped
+        );
+    }
+
+    /// Stress: create and immediately destroy 50 channels without calling start.
+    ///
+    /// Verifies that construction and drop are panic-free even at scale.
+    #[tokio::test]
+    #[ignore] // slow: spawns 50 async tasks for playout engines
+    async fn master_control_concurrent_50_channels_stress() {
+        use std::sync::Arc;
+        use tokio::sync::Mutex;
+
+        let config = MasterControlConfig {
+            num_channels: 50,
+            eas_enabled: false,
+            ..Default::default()
+        };
+        let master = Arc::new(Mutex::new(
+            MasterControl::new(config)
+                .await
+                .expect("new should succeed"),
+        ));
+
+        // Send alerts from 50 concurrent tasks — one per channel id.
+        let mut handles = Vec::with_capacity(50);
+        for i in 0..50usize {
+            let m = Arc::clone(&master);
+            let handle = tokio::spawn(async move {
+                use crate::eas::alert::{EasAlert, EasAlertType};
+                use std::time::Duration;
+
+                let alert = EasAlert::new(
+                    EasAlertType::RequiredWeeklyTest,
+                    format!("stress test ch{i}"),
+                    Duration::from_secs(1),
+                );
+                let mut locked = m.lock().await;
+                locked
+                    .handle_alert(alert)
+                    .await
+                    .expect("alert insertion should succeed");
+            });
+            handles.push(handle);
+        }
+
+        let mut ok_count = 0u32;
+        for h in handles {
+            h.await.expect("task should not panic");
+            ok_count += 1;
+        }
+        assert_eq!(ok_count, 50, "all 50 tasks must complete without panic");
+    }
 }

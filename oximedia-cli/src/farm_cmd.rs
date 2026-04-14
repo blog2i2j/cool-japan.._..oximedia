@@ -88,9 +88,9 @@ pub enum FarmCommand {
         #[arg(long)]
         job_id: Option<String>,
 
-        /// Show verbose details
+        /// Show detailed information
         #[arg(long)]
-        verbose: bool,
+        detail: bool,
 
         /// Output format: text, json
         #[arg(long, default_value = "text")]
@@ -118,9 +118,9 @@ pub enum FarmCommand {
         #[arg(long)]
         farm: String,
 
-        /// Show verbose node details
+        /// Show detailed node information
         #[arg(long)]
-        verbose: bool,
+        detail: bool,
 
         /// Output format: text, json
         #[arg(long, default_value = "text")]
@@ -178,13 +178,13 @@ pub async fn handle_farm_command(command: FarmCommand, json_output: bool) -> Res
         FarmCommand::Status {
             farm,
             job_id,
-            verbose,
+            detail,
             output_format,
         } => {
             query_farm_status(
                 &farm,
                 job_id.as_deref(),
-                verbose,
+                detail,
                 if json_output { "json" } else { &output_format },
             )
             .await
@@ -196,12 +196,12 @@ pub async fn handle_farm_command(command: FarmCommand, json_output: bool) -> Res
         } => cancel_farm_job(&farm, &job_id, force, json_output).await,
         FarmCommand::Nodes {
             farm,
-            verbose,
+            detail,
             output_format,
         } => {
             list_nodes(
                 &farm,
-                verbose,
+                detail,
                 if json_output { "json" } else { &output_format },
             )
             .await
@@ -386,7 +386,7 @@ async fn submit_farm_job(
 async fn query_farm_status(
     farm: &str,
     job_id: Option<&str>,
-    verbose: bool,
+    detail: bool,
     output_format: &str,
 ) -> Result<()> {
     if let Some(jid) = job_id {
@@ -400,7 +400,7 @@ async fn query_farm_status(
                     "farm": farm,
                     "job_id": jid,
                     "status": "Pending",
-                    "verbose": verbose,
+                    "detail": detail,
                     "message": "Full job status requires gRPC integration",
                 });
                 let json_str =
@@ -413,7 +413,7 @@ async fn query_farm_status(
                 println!("{:25} {}", "Farm:", farm);
                 println!("{:25} {}", "Job ID:", jid);
                 println!("{:25} Pending", "Status:");
-                if verbose {
+                if detail {
                     println!();
                     println!("{}", "Detailed Information".cyan().bold());
                     println!("{}", "-".repeat(60));
@@ -495,7 +495,7 @@ async fn cancel_farm_job(farm: &str, job_id: &str, force: bool, json_output: boo
 }
 
 /// List render nodes in the farm.
-async fn list_nodes(farm: &str, verbose: bool, output_format: &str) -> Result<()> {
+async fn list_nodes(farm: &str, detail: bool, output_format: &str) -> Result<()> {
     match output_format {
         "json" => {
             let result = serde_json::json!({
@@ -505,7 +505,7 @@ async fn list_nodes(farm: &str, verbose: bool, output_format: &str) -> Result<()
                 "idle_nodes": 0,
                 "busy_nodes": 0,
                 "offline_nodes": 0,
-                "verbose": verbose,
+                "detail": detail,
                 "message": "Node listing requires gRPC integration",
             });
             let json_str = serde_json::to_string_pretty(&result).context("Failed to serialize")?;
@@ -524,7 +524,7 @@ async fn list_nodes(farm: &str, verbose: bool, output_format: &str) -> Result<()
             println!("{:25} 0", "Busy:");
             println!("{:25} 0", "Offline:");
 
-            if verbose {
+            if detail {
                 println!();
                 println!("{}", "Available Worker States".cyan().bold());
                 println!("{}", "-".repeat(60));
@@ -656,7 +656,7 @@ mod tests {
     fn test_nodes_command() {
         let cmd = FarmCommand::Nodes {
             farm: "127.0.0.1:9100".to_string(),
-            verbose: true,
+            detail: true,
             output_format: "json".to_string(),
         };
         assert!(matches!(cmd, FarmCommand::Nodes { .. }));

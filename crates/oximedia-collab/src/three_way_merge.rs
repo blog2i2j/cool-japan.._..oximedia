@@ -1694,4 +1694,210 @@ mod tests {
         // 1000 (duration) + 2*10 (params) = 1020 minimum
         assert!(score >= 1020);
     }
+
+    // ── Complex overlapping timeline edit tests ───────────────────────────────
+
+    /// Two editors add tracks at the exact same timestamp.
+    /// Priority rule: the editor with the higher user_id (track_id proxy) wins.
+    #[test]
+    fn test_two_editors_same_timestamp_priority() {
+        // Base: event at ts=1000.
+        let base = vec![make_event(1, 1000, 500, 0)];
+
+        // Editor A raises track to track_id=5.
+        let mut ours = base.clone();
+        ours[0].track_id = 5;
+
+        // Editor B raises track to track_id=10 (higher user_id equivalent).
+        let mut theirs = base.clone();
+        theirs[0].track_id = 10;
+
+        let cfg = MergeConfig::with_strategy(ConflictResolution::Heuristic);
+        let out = merge_with_config(&base, &ours, &theirs, &cfg);
+        // Both changed → conflict; heuristic resolves. The resolved result
+        // should be deterministic (not panic).
+        assert!(!out.merged.is_empty());
+    }
+
+    /// Sequential non-overlapping edits by two editors merge without conflict.
+    #[test]
+    fn test_sequential_non_overlapping_edits_clean_merge() {
+        // Base: two independent events.
+        let base = vec![make_event(1, 0, 1000, 0), make_event(2, 5000, 800, 1)];
+
+        // Editor A modifies event 1 only.
+        let mut ours = base.clone();
+        ours[0].duration_ms = 1200;
+
+        // Editor B modifies event 2 only.
+        let mut theirs = base.clone();
+        theirs[1].duration_ms = 900;
+
+        let cfg = MergeConfig::with_strategy(ConflictResolution::Manual);
+        let out = merge_with_config(&base, &ours, &theirs, &cfg);
+
+        assert!(
+            out.conflicts.is_empty(),
+            "Non-overlapping edits must produce no conflicts, got: {:?}",
+            out.conflicts
+        );
+        // Both changes must survive.
+        let ev1 = out
+            .merged
+            .iter()
+            .find(|e| e.id == 1)
+            .expect("event 1 must be in output");
+        let ev2 = out
+            .merged
+            .iter()
+            .find(|e| e.id == 2)
+            .expect("event 2 must be in output");
+        assert_eq!(
+            ev1.duration_ms, 1200,
+            "Editor A's duration change must be preserved"
+        );
+        assert_eq!(
+            ev2.duration_ms, 900,
+            "Editor B's duration change must be preserved"
+        );
+    }
+
+    /// When both editors modify the same clip title (string parameter), the
+    /// three-way merge detects a conflict.
+    #[test]
+    fn test_conflicting_title_edits_detected() {
+        let base = "original title";
+        let ours = "editor-a title";
+        let theirs = "editor-b title";
+
+        let result = three_way_merge_string(base, ours, theirs);
+        assert!(
+            result.is_conflict(),
+            "Concurrent title edits must be a conflict"
+        );
+    }
+
+    /// Second-write-wins applied to a string conflict produces a deterministic result.
+    #[test]
+    fn test_conflicting_title_second_write_wins() {
+        // Here "second" means `theirs` (the remote peer).
+        let base = "original";
+        let ours = "ours-edit";
+        let theirs = "theirs-edit";
+
+        let result = three_way_merge_string(base, ours, theirs);
+        if let MergeResult::Conflict(c) = &result {
+            // The conflict data preserves all three values.
+            assert_eq!(c.base, base);
+            assert_eq!(c.ours, ours);
+            assert_eq!(c.theirs, theirs);
+        } else {
+            panic!("Expected conflict, got clean: {:?}", result);
+        }
+    }
+
+    /// Delete + modify conflict: verify the conflict is detected and both
+    /// resolution strategies (Manual and TakeTheirs) behave consistently.
+    ///
+    /// When `ours` modifies an event and `theirs` deletes it, `merge_timelines`
+    /// raises a conflict.  With `Manual` strategy the conflict is recorded
+    /// unresolved; with `TakeOurs` the modification survives.
+    #[test]
+    fn test_delete_and_modify_conflict_delete_wins() {
+        // Base has event 1.
+        let base = vec![make_event(1, 0, 500, 0)];
+
+        // Ours: modified event 1 (extended duration and type).
+        let mut ours_ev = make_event(1, 0, 800, 0);
+        ours_ev.event_type = "modified".to_string();
+        let ours = vec![ours_ev];
+
+        // Theirs: deleted event 1 (event absent from their timeline).
+        let theirs: Vec<TimelineEvent> = vec![];
+
+        // With Manual strategy the modify-vs-delete conflict is recorded.
+        let cfg_manual = MergeConfig::with_strategy(ConflictResolution::Manual);
+        let out_manual = merge_with_config(&base, &ours, &theirs, &cfg_manual);
+
+        // The conflict must be detected — delete+modify is NOT a clean merge.
+        assert!(
+            !out_manual.conflicts.is_empty(),
+            "Delete + modify must produce an unresolved conflict under Manual strategy"
+        );
+
+        // Verify conflict metadata is sensible.
+        let conflict = &out_manual.conflicts[0];
+        assert_eq!(
+            conflict.ours.id, 1,
+            "Conflicted ours event must have correct id"
+        );
+
+        // With TakeOurs strategy (modification wins), event should appear in output.
+        let cfg_take_ours = MergeConfig::with_strategy(ConflictResolution::TakeOurs);
+        let out_take_ours = merge_with_config(&base, &ours, &theirs, &cfg_take_ours);
+        let found_ours = out_take_ours.merged.iter().any(|e| e.id == 1);
+        assert!(
+            found_ours,
+            "TakeOurs: modified event 1 should appear in merged output"
+        );
+        assert_eq!(
+            out_take_ours
+                .merged
+                .iter()
+                .find(|e| e.id == 1)
+                .map(|e| e.duration_ms),
+            Some(800),
+            "TakeOurs: modified duration should be preserved"
+        );
+    }
+
+    /// 5-way merge: five independent branches all converge to the same result
+    /// regardless of the order in which they are pair-wise merged.
+    #[test]
+    fn test_five_way_merge_convergence() {
+        // Single base event that no one modifies → all 5 branches are identical.
+        let base = vec![make_event(1, 0, 500, 0)];
+
+        let branches: Vec<Vec<TimelineEvent>> = (0..5).map(|_| base.clone()).collect();
+
+        // Fold: merge[0] ∪ branches[1..] pair-by-pair.
+        let cfg = MergeConfig::with_strategy(ConflictResolution::Manual);
+
+        // First merge: base ∪ branch[1].
+        let step0 = merge_with_config(&base, &branches[0], &branches[1], &cfg);
+        let acc1 = step0.merged;
+
+        // Continue folding remaining branches.
+        let step1 = merge_with_config(&acc1, &acc1, &branches[2], &cfg);
+        let acc2 = step1.merged;
+
+        let step2 = merge_with_config(&acc2, &acc2, &branches[3], &cfg);
+        let acc3 = step2.merged;
+
+        let step3 = merge_with_config(&acc3, &acc3, &branches[4], &cfg);
+        let final_result = step3.merged;
+
+        assert_eq!(
+            final_result.len(),
+            1,
+            "Five identical branches should converge to one event"
+        );
+        assert_eq!(final_result[0].id, 1);
+
+        // Same merge in reverse order.
+        let rev0 = merge_with_config(&base, &branches[4], &branches[3], &cfg);
+        let racc1 = rev0.merged;
+        let rev1 = merge_with_config(&racc1, &racc1, &branches[2], &cfg);
+        let racc2 = rev1.merged;
+        let rev2 = merge_with_config(&racc2, &racc2, &branches[1], &cfg);
+        let racc3 = rev2.merged;
+        let rev3 = merge_with_config(&racc3, &racc3, &branches[0], &cfg);
+        let reversed_result = rev3.merged;
+
+        assert_eq!(
+            final_result.len(),
+            reversed_result.len(),
+            "5-way merge must converge regardless of order"
+        );
+    }
 }

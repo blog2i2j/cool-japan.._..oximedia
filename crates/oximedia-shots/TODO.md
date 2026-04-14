@@ -6,10 +6,10 @@
 - Dependencies: oximedia-core, oximedia-cv, oximedia-scene, oximedia-edl, oximedia-timecode
 
 ## Enhancements
-- [ ] Add adaptive threshold tuning in `detect::CutDetector` based on content complexity (e.g., action vs. dialogue scenes)
-- [ ] Extend `classify::ShotTypeClassifier` to support insert shots and cutaway classification
+- [x] Add adaptive threshold tuning in `detect::CutDetector` based on content complexity (e.g., action vs. dialogue scenes)
+- [x] Extend `classify::ShotTypeClassifier` to support insert shots and cutaway classification
 - [ ] Add confidence calibration to `classify::AngleClassifier` using histogram-based features
-- [ ] Improve `composition::CompositionAnalyzer` with golden ratio and phi grid analysis in addition to rule of thirds
+- [x] Improve `composition::CompositionAnalyzer` with golden ratio and phi grid analysis in addition to rule of thirds
 - [ ] Add multi-threaded frame processing in `ShotDetector::detect_shots` using rayon parallel iterators
 - [ ] Extend `export::shotlist` to support XML-based shot list formats (FCP XML, Resolve markers)
 - [ ] Add configurable wipe direction patterns in `detect::WipeDetector` (radial, iris, clock)

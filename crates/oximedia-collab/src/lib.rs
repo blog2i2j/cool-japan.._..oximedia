@@ -12,6 +12,8 @@ pub mod audit_trail;
 pub mod awareness;
 /// Adaptive sync bandwidth management for collaboration sessions.
 pub mod bandwidth_throttle;
+/// Compact binary frame format for WebSocket throughput optimisation (replaces JSON for hot paths).
+pub mod binary_framer;
 pub mod changeset;
 pub mod comments;
 pub mod conflict_resolve;
@@ -48,6 +50,9 @@ pub mod three_way_merge;
 pub mod user_presence_map;
 pub mod version_compare;
 pub mod workspace;
+
+#[cfg(test)]
+mod perf_tests;
 
 use dashmap::DashMap;
 use serde::{Deserialize, Serialize};

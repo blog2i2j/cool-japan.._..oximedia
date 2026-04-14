@@ -142,7 +142,7 @@
 #![allow(clippy::float_cmp)]
 #![allow(dead_code)]
 
-pub mod adaptive_normalization;
+pub mod ab_comparison;
 pub mod agc;
 pub mod analyzer;
 pub mod auto_gain;
@@ -156,19 +156,21 @@ pub mod drc;
 pub mod dynamic_range;
 pub mod ebu_r128;
 pub mod fade_normalization;
+pub mod format_detect;
 pub mod format_loudness;
 pub mod gain_schedule;
 pub mod limiter;
 pub mod limiter_chain;
+pub mod loudness_gate;
 pub mod loudness_history;
 pub mod loudness_target;
 pub mod metadata;
 pub mod metering_bridge;
 pub mod multi_channel_loud;
-pub mod multiband_normalize;
 pub mod multipass;
 pub mod noise_profile;
 pub mod normalize_report;
+pub mod parallel_channels;
 pub mod peak_limit;
 pub mod phase_correction;
 pub mod processor;
@@ -189,18 +191,13 @@ use thiserror::Error;
 
 pub use analyzer::{AnalysisResult, LoudnessAnalyzer};
 pub use batch::{BatchConfig, BatchProcessor, BatchResult};
-pub use crossfade_norm::{CrossfadeNormConfig, CrossfadeNormalizer, CrossfadeShape, NormSegment};
-pub use dc_offset::{DcBlockFilter, MultiChannelDcBlockFilter};
 pub use drc::{DrcConfig, DynamicRangeCompressor};
 pub use limiter::{LimiterConfig, TruePeakLimiter};
 pub use metadata::{LoudnessMetadata, MetadataWriter};
 pub use multipass::{MultiPassConfig, MultiPassProcessor};
-pub use phase_correction::{PhaseCorrector, PhaseCorrectorConfig, PhaseInspector, PhaseShift};
 pub use processor::{NormalizationProcessor, ProcessorConfig};
 pub use realtime::{RealtimeConfig, RealtimeNormalizer};
 pub use replaygain::{ReplayGainCalculator, ReplayGainValues};
-pub use spectral_balance::{SpectralBalanceConfig, SpectralBalanceProcessor, SpectralTarget};
-pub use surround_norm::{ChannelLayout, SurroundNormConfig, SurroundNormalizer};
 pub use targets::{NormalizationTarget, TargetPreset};
 
 /// Normalization error types.
@@ -300,18 +297,6 @@ pub struct NormalizerConfig {
 
     /// Write metadata tags.
     pub write_metadata: bool,
-
-    /// Enable DC offset removal as a pre-processing step (before analysis).
-    pub enable_dc_offset_removal: bool,
-
-    /// DC offset high-pass filter cutoff frequency in Hz (default 5 Hz).
-    pub dc_offset_cutoff_hz: f64,
-
-    /// Enable phase correction as a pre-processing step.
-    pub enable_phase_correction: bool,
-
-    /// Phase correction tolerance in degrees (skip if within tolerance).
-    pub phase_tolerance_deg: f32,
 }
 
 impl NormalizerConfig {
@@ -328,10 +313,6 @@ impl NormalizerConfig {
             max_gain_db: 20.0,
             preserve_lra: true,
             write_metadata: false,
-            enable_dc_offset_removal: false,
-            dc_offset_cutoff_hz: 5.0,
-            enable_phase_correction: false,
-            phase_tolerance_deg: 5.0,
         }
     }
 
@@ -348,10 +329,6 @@ impl NormalizerConfig {
             max_gain_db: 20.0,
             preserve_lra: false,
             write_metadata: false,
-            enable_dc_offset_removal: false,
-            dc_offset_cutoff_hz: 5.0,
-            enable_phase_correction: false,
-            phase_tolerance_deg: 5.0,
         }
     }
 
@@ -368,10 +345,6 @@ impl NormalizerConfig {
             max_gain_db: 15.0,
             preserve_lra: true,
             write_metadata: true,
-            enable_dc_offset_removal: true,
-            dc_offset_cutoff_hz: 5.0,
-            enable_phase_correction: true,
-            phase_tolerance_deg: 5.0,
         }
     }
 
@@ -413,23 +386,11 @@ impl NormalizerConfig {
 ///
 /// This is the primary interface for loudness normalization. It combines analysis
 /// and processing into a single high-level API.
-///
-/// ## Pre-processing Pipeline
-///
-/// When enabled, pre-processing steps run in this order before analysis/normalization:
-/// 1. **DC Offset Removal** - Removes DC bias via high-pass filter (enable_dc_offset_removal)
-/// 2. **Phase Correction** - Detects and corrects inter-channel phase issues (enable_phase_correction)
 pub struct Normalizer {
     config: NormalizerConfig,
     analyzer: LoudnessAnalyzer,
     processor: NormalizationProcessor,
     analysis_complete: bool,
-    /// Optional multi-channel DC offset removal filter.
-    dc_block_filter: Option<dc_offset::MultiChannelDcBlockFilter>,
-    /// Optional phase inspector for pre-processing.
-    phase_inspector: Option<phase_correction::PhaseInspector>,
-    /// Phase correction tolerance in degrees.
-    phase_tolerance_deg: f32,
 }
 
 impl Normalizer {
@@ -449,119 +410,23 @@ impl Normalizer {
 
         let processor = NormalizationProcessor::new(processor_config)?;
 
-        let dc_block_filter = if config.enable_dc_offset_removal {
-            Some(dc_offset::MultiChannelDcBlockFilter::new(
-                config.channels,
-                config.dc_offset_cutoff_hz,
-                config.sample_rate,
-            ))
-        } else {
-            None
-        };
-
-        let phase_inspector = if config.enable_phase_correction && config.channels >= 2 {
-            Some(phase_correction::PhaseInspector::new(
-                config.sample_rate as f32,
-            ))
-        } else {
-            None
-        };
-
-        let phase_tolerance_deg = config.phase_tolerance_deg;
-
         Ok(Self {
             config,
             analyzer,
             processor,
             analysis_complete: false,
-            dc_block_filter,
-            phase_inspector,
-            phase_tolerance_deg,
         })
     }
 
-    /// Apply DC offset removal pre-processing to f64 samples (interleaved).
-    fn preprocess_dc_offset_f64(&mut self, samples: &mut [f64]) {
-        if let Some(ref mut filter) = self.dc_block_filter {
-            filter.process_interleaved(samples);
-        }
-    }
-
-    /// Apply DC offset removal pre-processing to f32 samples.
-    ///
-    /// Converts to f64 internally, processes, and converts back.
-    fn preprocess_dc_offset_f32(&mut self, samples: &mut [f32]) {
-        if self.dc_block_filter.is_some() {
-            let mut f64_samples: Vec<f64> = samples.iter().map(|&s| f64::from(s)).collect();
-            self.preprocess_dc_offset_f64(&mut f64_samples);
-            for (i, &v) in f64_samples.iter().enumerate() {
-                samples[i] = v as f32;
-            }
-        }
-    }
-
-    /// Apply phase correction pre-processing to f32 samples.
-    ///
-    /// For stereo content, if the channels are detected as polarity-inverted,
-    /// the right channel is flipped. This prevents cancellation during
-    /// mono downmix and improves loudness measurement accuracy.
-    fn preprocess_phase_correction_f32(&self, samples: &mut [f32]) {
-        if let Some(ref inspector) = self.phase_inspector {
-            let channels = self.config.channels;
-            if channels < 2 {
-                return;
-            }
-            let frame_count = samples.len() / channels;
-            if frame_count < 2 {
-                return;
-            }
-
-            // Extract left and right channels
-            let left: Vec<f32> = (0..frame_count).map(|f| samples[f * channels]).collect();
-            let right: Vec<f32> = (0..frame_count)
-                .map(|f| samples[f * channels + 1])
-                .collect();
-
-            let corr = inspector.correlation(&left, &right);
-            let shift = phase_correction::estimate_shift_from_correlation(corr);
-
-            // If channels are polarity-inverted, flip the right channel
-            if shift.is_inverted(self.phase_tolerance_deg) {
-                for f in 0..frame_count {
-                    samples[f * channels + 1] = -samples[f * channels + 1];
-                }
-            }
-        }
-    }
-
     /// Analyze audio without modifying it (pass 1 of two-pass).
-    ///
-    /// If DC offset removal or phase correction are enabled, the input is
-    /// pre-processed (a copy is made so the original is not mutated).
     pub fn analyze_f32(&mut self, samples: &[f32]) {
-        if self.dc_block_filter.is_some() || self.phase_inspector.is_some() {
-            let mut preprocessed = samples.to_vec();
-            self.preprocess_dc_offset_f32(&mut preprocessed);
-            self.preprocess_phase_correction_f32(&mut preprocessed);
-            self.analyzer.process_f32(&preprocessed);
-        } else {
-            self.analyzer.process_f32(samples);
-        }
+        self.analyzer.process_f32(samples);
         self.analysis_complete = true;
     }
 
     /// Analyze audio without modifying it (pass 1 of two-pass).
-    ///
-    /// If DC offset removal is enabled, the input is pre-processed
-    /// (a copy is made so the original is not mutated).
     pub fn analyze_f64(&mut self, samples: &[f64]) {
-        if self.dc_block_filter.is_some() {
-            let mut preprocessed = samples.to_vec();
-            self.preprocess_dc_offset_f64(&mut preprocessed);
-            self.analyzer.process_f64(&preprocessed);
-        } else {
-            self.analyzer.process_f64(samples);
-        }
+        self.analyzer.process_f64(samples);
         self.analysis_complete = true;
     }
 
@@ -571,9 +436,6 @@ impl Normalizer {
     }
 
     /// Process and normalize audio (pass 2 of two-pass or one-pass).
-    ///
-    /// If DC offset removal or phase correction are enabled, they are applied
-    /// to the output after copying from input, before gain application.
     pub fn process_f32(&mut self, input: &[f32], output: &mut [f32]) -> NormalizeResult<()> {
         if output.len() != input.len() {
             return Err(NormalizeError::ProcessingError(
@@ -581,23 +443,11 @@ impl Normalizer {
             ));
         }
 
-        // Apply pre-processing to a working copy
-        let process_input;
-        let effective_input = if self.dc_block_filter.is_some() || self.phase_inspector.is_some() {
-            let mut preprocessed = input.to_vec();
-            self.preprocess_dc_offset_f32(&mut preprocessed);
-            self.preprocess_phase_correction_f32(&mut preprocessed);
-            process_input = preprocessed;
-            &process_input[..]
-        } else {
-            input
-        };
-
         let gain_db = if self.analysis_complete {
             self.analyzer.result().recommended_gain_db
         } else if matches!(self.config.processing_mode, ProcessingMode::OnePass) {
             // For one-pass, analyze on the fly
-            self.analyzer.process_f32(effective_input);
+            self.analyzer.process_f32(input);
             self.analyzer.result().recommended_gain_db
         } else {
             return Err(NormalizeError::AnalysisNotComplete(
@@ -608,8 +458,7 @@ impl Normalizer {
         // Clamp gain to max allowed
         let gain_db = gain_db.clamp(-60.0, self.config.max_gain_db);
 
-        self.processor
-            .process_f32(effective_input, output, gain_db)?;
+        self.processor.process_f32(input, output, gain_db)?;
 
         Ok(())
     }
@@ -657,19 +506,6 @@ impl Normalizer {
         self.analyzer.reset();
         self.processor.reset();
         self.analysis_complete = false;
-        if let Some(ref mut filter) = self.dc_block_filter {
-            filter.reset();
-        }
-    }
-
-    /// Check if DC offset removal is enabled.
-    pub fn has_dc_offset_removal(&self) -> bool {
-        self.dc_block_filter.is_some()
-    }
-
-    /// Check if phase correction is enabled.
-    pub fn has_phase_correction(&self) -> bool {
-        self.phase_inspector.is_some()
     }
 
     /// Get the normalizer configuration.

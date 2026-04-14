@@ -11,9 +11,9 @@
 - [ ] Add configurable Lanczos window size (2/3/4/5 taps) in `lanczos` module
 - [ ] Implement `content_aware_scale` seam carving with forward energy for better seam selection
 - [ ] Extend `resolution_ladder` with per-title encoding optimization using VIF/SSIM target thresholds
-- [ ] Add `chroma_scale` support for 4:2:0, 4:2:2, and 4:4:4 chroma subsampling with proper phase alignment
-- [ ] Implement `deinterlace` with motion-adaptive algorithm (bob for motion areas, weave for static)
-- [ ] Add `batch_scale` progress reporting callback and cancellation token support
+- [x] Add `chroma_scale` support for 4:2:0, 4:2:2, and 4:4:4 chroma subsampling with proper phase alignment
+- [x] Implement `deinterlace` with motion-adaptive algorithm (bob for motion areas, weave for static)
+- [x] Add `batch_scale` progress reporting callback and cancellation token support
 
 ## New Features
 - [ ] Add `neural_upscale` module with lightweight inference for 2x/4x upscaling (patent-free architecture)

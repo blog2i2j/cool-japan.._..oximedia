@@ -34,7 +34,12 @@ pub struct ObjectiveScores {
 impl ObjectiveScores {
     /// Create a new objective scores entry.
     #[must_use]
-    pub fn new(item_id: impl Into<String>, engagement: f64, diversity: f64, freshness: f64) -> Self {
+    pub fn new(
+        item_id: impl Into<String>,
+        engagement: f64,
+        diversity: f64,
+        freshness: f64,
+    ) -> Self {
         Self {
             item_id: item_id.into(),
             engagement: engagement.clamp(0.0, 1.0),
@@ -119,12 +124,9 @@ impl Default for ObjectiveWeights {
 /// `a` dominates `b` iff it is ≥ `b` on all objectives and strictly > on at least one.
 #[must_use]
 pub fn pareto_dominates(a: &ObjectiveScores, b: &ObjectiveScores) -> bool {
-    let ge = a.engagement >= b.engagement
-        && a.diversity >= b.diversity
-        && a.freshness >= b.freshness;
-    let gt = a.engagement > b.engagement
-        || a.diversity > b.diversity
-        || a.freshness > b.freshness;
+    let ge =
+        a.engagement >= b.engagement && a.diversity >= b.diversity && a.freshness >= b.freshness;
+    let gt = a.engagement > b.engagement || a.diversity > b.diversity || a.freshness > b.freshness;
     ge && gt
 }
 
@@ -135,11 +137,7 @@ pub fn pareto_dominates(a: &ObjectiveScores, b: &ObjectiveScores) -> bool {
 pub fn pareto_frontier(items: &[ObjectiveScores]) -> Vec<&ObjectiveScores> {
     items
         .iter()
-        .filter(|candidate| {
-            !items
-                .iter()
-                .any(|other| pareto_dominates(other, candidate))
-        })
+        .filter(|candidate| !items.iter().any(|other| pareto_dominates(other, candidate)))
         .collect()
 }
 
@@ -216,10 +214,8 @@ impl MultiObjectiveOptimiser {
     /// Rank items using weighted scalarisation only (fast, no re-ranking).
     #[must_use]
     pub fn rank_weighted(&self, items: &[ObjectiveScores]) -> Vec<RankedItem> {
-        let mut scored: Vec<(f64, &ObjectiveScores)> = items
-            .iter()
-            .map(|s| (self.weights.scalar(s), s))
-            .collect();
+        let mut scored: Vec<(f64, &ObjectiveScores)> =
+            items.iter().map(|s| (self.weights.scalar(s), s)).collect();
         scored.sort_by(|a, b| b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal));
 
         scored
@@ -425,7 +421,10 @@ mod tests {
     #[test]
     fn test_rank_weighted_assigns_correct_ranks() {
         let opt = MultiObjectiveOptimiser::default();
-        let items = vec![make_scores("a", 0.8, 0.8, 0.8), make_scores("b", 0.2, 0.2, 0.2)];
+        let items = vec![
+            make_scores("a", 0.8, 0.8, 0.8),
+            make_scores("b", 0.2, 0.2, 0.2),
+        ];
         let ranked = opt.rank_weighted(&items);
         assert_eq!(ranked[0].rank, 1);
         assert_eq!(ranked[1].rank, 2);

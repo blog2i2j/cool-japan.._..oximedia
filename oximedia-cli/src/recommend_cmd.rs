@@ -36,7 +36,7 @@ pub enum RecommendCommand {
         #[arg(short, long)]
         input: PathBuf,
 
-        /// Codec to optimize for (av1, vp9, vp8, opus, vorbis, flac)
+        /// Codec to optimize for (av1, vp9, vp8, opus, vorbis, flac, pcm, aac, mp3)
         #[arg(long, default_value = "av1")]
         codec: String,
 

@@ -544,3 +544,343 @@ mod tests {
         assert_eq!(tracker.tracked_object_count(), 2);
     }
 }
+
+// ─── Cross-provider replication ────────────────────────────────────────────────
+
+use serde::{Deserialize, Serialize};
+
+/// Identifies a cloud storage provider endpoint for cross-provider replication.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ProviderTarget {
+    /// Amazon S3 bucket
+    S3 {
+        /// Bucket name
+        bucket: String,
+        /// AWS region
+        region: String,
+    },
+    /// Google Cloud Storage bucket
+    Gcs {
+        /// Bucket name
+        bucket: String,
+    },
+    /// Azure Blob Storage container
+    Azure {
+        /// Container name
+        container: String,
+    },
+    /// Local filesystem path
+    Local {
+        /// Filesystem path
+        path: String,
+    },
+}
+
+impl ProviderTarget {
+    /// Returns a human-readable description of this target.
+    pub fn description(&self) -> String {
+        match self {
+            Self::S3 { bucket, region } => format!("s3://{bucket} ({region})"),
+            Self::Gcs { bucket } => format!("gs://{bucket}"),
+            Self::Azure { container } => format!("azure://{container}"),
+            Self::Local { path } => format!("local:{path}"),
+        }
+    }
+
+    /// Returns the provider name.
+    pub fn provider_name(&self) -> &'static str {
+        match self {
+            Self::S3 { .. } => "S3",
+            Self::Gcs { .. } => "GCS",
+            Self::Azure { .. } => "Azure",
+            Self::Local { .. } => "Local",
+        }
+    }
+}
+
+/// Result of replicating a single object to a single target.
+#[derive(Debug, Clone)]
+pub struct ReplicaResult {
+    /// The target that was replicated to.
+    pub target: ProviderTarget,
+    /// Whether replication succeeded.
+    pub success: bool,
+    /// Error description if replication failed.
+    pub error: Option<String>,
+}
+
+/// Summary report of a cross-provider replication operation.
+#[derive(Debug, Clone)]
+pub struct ReplicationReport {
+    /// Object key that was replicated.
+    pub key: String,
+    /// Whether primary write succeeded.
+    pub primary_ok: bool,
+    /// Total number of replica targets.
+    pub replica_count: usize,
+    /// Number of replicas that succeeded.
+    pub successful_replicas: usize,
+    /// Names of failed replicas.
+    pub failed_replicas: Vec<String>,
+    /// SHA-256 checksum of the object data (hex-encoded).
+    pub checksum_hex: String,
+}
+
+impl ReplicationReport {
+    /// Returns true if all replicas succeeded.
+    pub fn all_replicated(&self) -> bool {
+        self.primary_ok && self.successful_replicas == self.replica_count
+    }
+
+    /// Returns the number of failed replicas.
+    pub fn failure_count(&self) -> usize {
+        self.failed_replicas.len()
+    }
+}
+
+/// Policy for replicating objects across multiple cloud providers.
+///
+/// Simulates cross-provider replication (no real network calls).
+/// Computes SHA-256 checksums and produces a `ReplicationReport` for each
+/// replicate operation.
+#[derive(Debug, Clone)]
+pub struct CrossProviderReplicationPolicy {
+    /// Primary storage target.
+    pub primary: ProviderTarget,
+    /// Replica targets (each receives a copy).
+    pub replicas: Vec<ProviderTarget>,
+    /// Whether to verify SHA-256 checksums after replication.
+    pub verify_checksum: bool,
+    /// Maximum simultaneous replications (for future async use).
+    pub max_concurrent: usize,
+}
+
+impl CrossProviderReplicationPolicy {
+    /// Create a new cross-provider replication policy.
+    pub fn new(primary: ProviderTarget, replicas: Vec<ProviderTarget>) -> Self {
+        Self {
+            primary,
+            replicas,
+            verify_checksum: true,
+            max_concurrent: 4,
+        }
+    }
+
+    /// Builder: disable checksum verification.
+    pub fn without_checksum_verification(mut self) -> Self {
+        self.verify_checksum = false;
+        self
+    }
+
+    /// Builder: set the maximum concurrent replication tasks.
+    pub fn with_max_concurrent(mut self, n: usize) -> Self {
+        self.max_concurrent = n;
+        self
+    }
+
+    /// Simulate replicating `data` under `key` to all configured targets.
+    ///
+    /// No real network calls are made.  A SHA-256 checksum is computed for
+    /// `data` and reported.  All replica results are simulated as successful
+    /// unless a `Local` target with an invalid (empty) path is specified, in
+    /// which case replication to that target is reported as failed.
+    pub fn simulate_replicate(&self, key: &str, data: &[u8]) -> ReplicationReport {
+        use sha2::{Digest, Sha256};
+        let checksum: [u8; 32] = Sha256::digest(data).into();
+        let checksum_hex = checksum
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>();
+
+        let mut successful_replicas = 0usize;
+        let mut failed_replicas = Vec::new();
+
+        for target in &self.replicas {
+            // Simulate failure only for Local targets with an empty path.
+            let ok = match target {
+                ProviderTarget::Local { path } if path.is_empty() => false,
+                _ => true,
+            };
+
+            if ok {
+                successful_replicas += 1;
+            } else {
+                failed_replicas.push(target.description());
+            }
+        }
+
+        ReplicationReport {
+            key: key.to_string(),
+            primary_ok: true,
+            replica_count: self.replicas.len(),
+            successful_replicas,
+            failed_replicas,
+            checksum_hex,
+        }
+    }
+
+    /// Verify that `data` matches the expected SHA-256 `expected` digest.
+    ///
+    /// Returns `true` when the data's SHA-256 hash equals `expected`.
+    pub fn verify_checksum(data: &[u8], expected: &[u8; 32]) -> bool {
+        use sha2::{Digest, Sha256};
+        let actual: [u8; 32] = Sha256::digest(data).into();
+        actual == *expected
+    }
+}
+
+#[cfg(test)]
+mod cross_provider_tests {
+    use super::*;
+
+    fn s3_target() -> ProviderTarget {
+        ProviderTarget::S3 {
+            bucket: "my-bucket".to_string(),
+            region: "us-east-1".to_string(),
+        }
+    }
+
+    fn gcs_target() -> ProviderTarget {
+        ProviderTarget::Gcs {
+            bucket: "gcs-bucket".to_string(),
+        }
+    }
+
+    fn azure_target() -> ProviderTarget {
+        ProviderTarget::Azure {
+            container: "az-container".to_string(),
+        }
+    }
+
+    fn local_target() -> ProviderTarget {
+        ProviderTarget::Local {
+            path: "/tmp/replica".to_string(),
+        }
+    }
+
+    #[test]
+    fn test_provider_target_description_s3() {
+        let t = s3_target();
+        let desc = t.description();
+        assert!(desc.contains("my-bucket"));
+        assert!(desc.contains("us-east-1"));
+    }
+
+    #[test]
+    fn test_provider_target_description_gcs() {
+        assert!(gcs_target().description().contains("gcs-bucket"));
+    }
+
+    #[test]
+    fn test_provider_target_description_azure() {
+        assert!(azure_target().description().contains("az-container"));
+    }
+
+    #[test]
+    fn test_provider_target_description_local() {
+        assert!(local_target().description().contains("/tmp/replica"));
+    }
+
+    #[test]
+    fn test_provider_target_provider_name() {
+        assert_eq!(s3_target().provider_name(), "S3");
+        assert_eq!(gcs_target().provider_name(), "GCS");
+        assert_eq!(azure_target().provider_name(), "Azure");
+        assert_eq!(local_target().provider_name(), "Local");
+    }
+
+    #[test]
+    fn test_provider_target_serde_roundtrip() {
+        let original = s3_target();
+        let json = serde_json::to_string(&original).expect("serialize ProviderTarget");
+        let back: ProviderTarget = serde_json::from_str(&json).expect("deserialize ProviderTarget");
+        assert_eq!(original, back);
+    }
+
+    #[test]
+    fn test_cross_provider_policy_new() {
+        let policy =
+            CrossProviderReplicationPolicy::new(s3_target(), vec![gcs_target(), azure_target()]);
+        assert_eq!(policy.replicas.len(), 2);
+        assert!(policy.verify_checksum);
+        assert_eq!(policy.max_concurrent, 4);
+    }
+
+    #[test]
+    fn test_cross_provider_policy_builders() {
+        let policy = CrossProviderReplicationPolicy::new(s3_target(), vec![gcs_target()])
+            .without_checksum_verification()
+            .with_max_concurrent(8);
+        assert!(!policy.verify_checksum);
+        assert_eq!(policy.max_concurrent, 8);
+    }
+
+    #[test]
+    fn test_simulate_replicate_all_success() {
+        let policy = CrossProviderReplicationPolicy::new(
+            s3_target(),
+            vec![gcs_target(), azure_target(), local_target()],
+        );
+        let data = b"hello, oximedia cross-provider replication!";
+        let report = policy.simulate_replicate("media/test.mp4", data);
+        assert_eq!(report.key, "media/test.mp4");
+        assert!(report.primary_ok);
+        assert_eq!(report.replica_count, 3);
+        assert_eq!(report.successful_replicas, 3);
+        assert!(report.failed_replicas.is_empty());
+        assert!(report.all_replicated());
+        assert_eq!(report.failure_count(), 0);
+        // Checksum should be 64 hex chars (SHA-256)
+        assert_eq!(report.checksum_hex.len(), 64);
+    }
+
+    #[test]
+    fn test_simulate_replicate_empty_local_path_fails() {
+        let policy = CrossProviderReplicationPolicy::new(
+            s3_target(),
+            vec![
+                gcs_target(),
+                ProviderTarget::Local {
+                    path: String::new(), // empty path → simulated failure
+                },
+            ],
+        );
+        let report = policy.simulate_replicate("file.bin", b"data");
+        assert_eq!(report.replica_count, 2);
+        assert_eq!(report.successful_replicas, 1);
+        assert_eq!(report.failed_replicas.len(), 1);
+        assert!(!report.all_replicated());
+        assert_eq!(report.failure_count(), 1);
+    }
+
+    #[test]
+    fn test_verify_checksum_match() {
+        use sha2::{Digest, Sha256};
+        let data = b"oximedia replication checksum verification";
+        let expected: [u8; 32] = Sha256::digest(data).into();
+        assert!(CrossProviderReplicationPolicy::verify_checksum(
+            data, &expected
+        ));
+    }
+
+    #[test]
+    fn test_verify_checksum_mismatch() {
+        let data = b"original data";
+        let wrong_expected = [0u8; 32];
+        assert!(!CrossProviderReplicationPolicy::verify_checksum(
+            data,
+            &wrong_expected
+        ));
+    }
+
+    #[test]
+    fn test_replication_report_checksum_consistency() {
+        use sha2::{Digest, Sha256};
+        let data = b"deterministic checksum test";
+        let policy = CrossProviderReplicationPolicy::new(s3_target(), vec![gcs_target()]);
+        let report = policy.simulate_replicate("obj", data);
+        let expected: [u8; 32] = Sha256::digest(data).into();
+        let expected_hex: String = expected.iter().map(|b| format!("{b:02x}")).collect();
+        assert_eq!(report.checksum_hex, expected_hex);
+    }
+}

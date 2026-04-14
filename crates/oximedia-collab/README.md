@@ -67,7 +67,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-collab = "0.1.1"
+oximedia-collab = "0.1.3"
 ```
 
 ```rust

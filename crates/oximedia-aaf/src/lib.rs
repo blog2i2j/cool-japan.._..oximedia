@@ -71,6 +71,7 @@ pub mod essence;
 pub mod flatten;
 pub mod inspector;
 pub mod interchange;
+pub mod lazy_essence;
 pub mod media_data;
 pub mod media_file_ref;
 pub mod merge;

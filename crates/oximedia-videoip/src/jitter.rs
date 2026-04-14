@@ -260,6 +260,288 @@ impl JitterBuffer {
     }
 }
 
+// ── NetworkAwareJitterBuffer ──────────────────────────────────────────────────
+
+/// Network condition snapshot supplied to [`NetworkAwareJitterBuffer::adapt`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct NetworkCondition {
+    /// Measured RTT in milliseconds.
+    pub rtt_ms: f64,
+    /// RTT variance (standard deviation) in milliseconds.
+    pub rtt_variance_ms: f64,
+    /// Packet loss rate (0.0 – 1.0).
+    pub loss_rate: f64,
+    /// `true` when a congestion event has been signalled externally
+    /// (e.g. BBR drain phase or AIMD multiplicative decrease).
+    pub congested: bool,
+}
+
+impl Default for NetworkCondition {
+    fn default() -> Self {
+        Self {
+            rtt_ms: 10.0,
+            rtt_variance_ms: 2.0,
+            loss_rate: 0.0,
+            congested: false,
+        }
+    }
+}
+
+/// Configuration for [`NetworkAwareJitterBuffer`].
+#[derive(Debug, Clone)]
+pub struct NetworkAwareJitterConfig {
+    /// Minimum allowed target depth in milliseconds.
+    pub min_depth_ms: u64,
+    /// Maximum allowed target depth in milliseconds.
+    pub max_depth_ms: u64,
+    /// Initial target depth in milliseconds.
+    pub initial_depth_ms: u64,
+    /// Maximum number of packets to hold simultaneously.
+    pub capacity: usize,
+    /// RTT variance multiplier used in the ideal-depth formula.
+    pub variance_multiplier: f64,
+    /// Extra milliseconds added per percentage point of packet loss.
+    pub loss_penalty_ms_per_pct: f64,
+    /// Extra milliseconds added when the network is congested.
+    pub congestion_penalty_ms: f64,
+    /// EMA smoothing factor for the depth target (0 < α ≤ 1; higher = faster).
+    pub depth_ema_alpha: f64,
+    /// Milliseconds to expand per adaptation cycle when above the ideal.
+    pub expand_step_ms: u64,
+    /// Milliseconds to shrink per adaptation cycle when below the ideal.
+    pub shrink_step_ms: u64,
+    /// Consecutive stable cycles required before shrinking.
+    pub stable_cycles_before_shrink: u32,
+}
+
+impl Default for NetworkAwareJitterConfig {
+    fn default() -> Self {
+        Self {
+            min_depth_ms: 5,
+            max_depth_ms: 150,
+            initial_depth_ms: 20,
+            capacity: 512,
+            variance_multiplier: 3.0,
+            loss_penalty_ms_per_pct: 2.0,
+            congestion_penalty_ms: 20.0,
+            depth_ema_alpha: 0.25,
+            expand_step_ms: 5,
+            shrink_step_ms: 2,
+            stable_cycles_before_shrink: 10,
+        }
+    }
+}
+
+/// Statistics reported by [`NetworkAwareJitterBuffer`].
+#[derive(Debug, Clone, Default)]
+pub struct NetworkAwareJitterStats {
+    /// Current target delay in milliseconds.
+    pub current_depth_ms: u64,
+    /// Last EMA-smoothed ideal depth (ms, floating-point).
+    pub ideal_depth_ms: f64,
+    /// Total adaptation expand steps.
+    pub expand_steps: u64,
+    /// Total adaptation shrink steps.
+    pub shrink_steps: u64,
+    /// Consecutive stable cycles (resets when an expand step is taken).
+    pub stable_cycles: u32,
+    /// Total packets added.
+    pub packets_added: u64,
+    /// Total packets played out.
+    pub packets_played: u64,
+    /// Total packets dropped due to buffer overflow.
+    pub packets_dropped: u64,
+    /// Total duplicate packets silently discarded.
+    pub packets_duplicate: u64,
+}
+
+/// A jitter buffer whose playout depth adapts based on externally supplied
+/// [`NetworkCondition`] measurements.
+///
+/// The target depth expands when the network is congested, has high RTT
+/// variance, or is experiencing packet loss, and contracts slowly during
+/// stable periods to minimise end-to-end latency.
+///
+/// # Depth computation
+///
+/// Each [`adapt`](Self::adapt) cycle the *ideal depth* is:
+///
+/// ```text
+/// ideal = rtt_variance_ms × variance_multiplier
+///       + loss_rate_pct × loss_penalty_ms_per_pct
+///       + congestion_penalty_ms   (only when congested == true)
+/// ```
+///
+/// This is then smoothed with EMA(`depth_ema_alpha`) and the actual target
+/// is stepped toward the smoothed value at `expand_step_ms` or `shrink_step_ms`
+/// per cycle (shrink only after `stable_cycles_before_shrink` stable cycles).
+pub struct NetworkAwareJitterBuffer {
+    config: NetworkAwareJitterConfig,
+    buffer: BinaryHeap<JitterPacket>,
+    target_depth_ms: u64,
+    depth_ema_ms: f64,
+    stable_cycles: u32,
+    next_sequence: Option<u16>,
+    stats: NetworkAwareJitterStats,
+}
+
+impl NetworkAwareJitterBuffer {
+    /// Creates a new buffer with the given configuration.
+    #[must_use]
+    pub fn new(config: NetworkAwareJitterConfig) -> Self {
+        let initial = config.initial_depth_ms;
+        Self {
+            buffer: BinaryHeap::new(),
+            target_depth_ms: initial,
+            depth_ema_ms: initial as f64,
+            stable_cycles: 0,
+            next_sequence: None,
+            stats: NetworkAwareJitterStats {
+                current_depth_ms: initial,
+                ideal_depth_ms: initial as f64,
+                ..Default::default()
+            },
+            config,
+        }
+    }
+
+    /// Creates a buffer with default configuration.
+    #[must_use]
+    pub fn with_defaults() -> Self {
+        Self::new(NetworkAwareJitterConfig::default())
+    }
+
+    /// Adds a packet to the buffer.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`VideoIpError::BufferOverflow`] when the buffer is full.
+    pub fn add_packet(&mut self, packet: Packet) -> VideoIpResult<()> {
+        if self
+            .buffer
+            .iter()
+            .any(|jp| jp.packet.header.sequence == packet.header.sequence)
+        {
+            self.stats.packets_duplicate += 1;
+            return Ok(());
+        }
+        if self.buffer.len() >= self.config.capacity {
+            self.stats.packets_dropped += 1;
+            return Err(VideoIpError::BufferOverflow);
+        }
+        if self.next_sequence.is_none() {
+            self.next_sequence = Some(packet.header.sequence);
+        }
+        self.buffer.push(JitterPacket {
+            packet,
+            arrival_time: Instant::now(),
+        });
+        self.stats.packets_added += 1;
+        Ok(())
+    }
+
+    /// Retrieves the next packet if its playout deadline has passed.
+    ///
+    /// Returns `None` if the buffer is empty or the oldest packet has not yet
+    /// been held for `target_depth_ms` milliseconds.
+    #[must_use]
+    pub fn get_packet(&mut self) -> Option<Packet> {
+        let oldest = self.buffer.peek()?;
+        if oldest.arrival_time.elapsed() < Duration::from_millis(self.target_depth_ms) {
+            return None;
+        }
+        let jp = self.buffer.pop()?;
+        let seq = jp.packet.header.sequence;
+        if let Some(expected) = self.next_sequence {
+            self.next_sequence = Some(expected.wrapping_add(1));
+            let _ = seq;
+        } else {
+            self.next_sequence = Some(seq.wrapping_add(1));
+        }
+        self.stats.packets_played += 1;
+        Some(jp.packet)
+    }
+
+    /// Retrieves a packet immediately, bypassing the delay check.
+    #[must_use]
+    pub fn get_packet_immediate(&mut self) -> Option<Packet> {
+        let jp = self.buffer.pop()?;
+        self.stats.packets_played += 1;
+        Some(jp.packet)
+    }
+
+    /// Runs one adaptation cycle.
+    ///
+    /// Should be called periodically (e.g. once per 50–200 ms).
+    pub fn adapt(&mut self, cond: &NetworkCondition) {
+        let loss_pct = cond.loss_rate * 100.0;
+        let mut ideal = cond.rtt_variance_ms * self.config.variance_multiplier
+            + loss_pct * self.config.loss_penalty_ms_per_pct;
+        if cond.congested {
+            ideal += self.config.congestion_penalty_ms;
+        }
+        ideal = ideal.max(self.config.min_depth_ms as f64);
+
+        let alpha = self.config.depth_ema_alpha;
+        self.depth_ema_ms = (1.0 - alpha) * self.depth_ema_ms + alpha * ideal;
+        self.stats.ideal_depth_ms = self.depth_ema_ms;
+
+        let target_f = self.target_depth_ms as f64;
+
+        if self.depth_ema_ms > target_f + self.config.expand_step_ms as f64 {
+            self.target_depth_ms =
+                (self.target_depth_ms + self.config.expand_step_ms).min(self.config.max_depth_ms);
+            self.stable_cycles = 0;
+            self.stats.expand_steps += 1;
+        } else if self.depth_ema_ms < target_f - self.config.shrink_step_ms as f64 {
+            self.stable_cycles += 1;
+            if self.stable_cycles >= self.config.stable_cycles_before_shrink {
+                self.target_depth_ms = self
+                    .target_depth_ms
+                    .saturating_sub(self.config.shrink_step_ms)
+                    .max(self.config.min_depth_ms);
+                self.stable_cycles = 0;
+                self.stats.shrink_steps += 1;
+            }
+        } else {
+            self.stable_cycles = 0;
+        }
+
+        self.stats.current_depth_ms = self.target_depth_ms;
+        self.stats.stable_cycles = self.stable_cycles;
+    }
+
+    /// Returns the current target playout depth in milliseconds.
+    #[must_use]
+    pub const fn target_depth_ms(&self) -> u64 {
+        self.target_depth_ms
+    }
+
+    /// Returns the number of packets currently buffered.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.buffer.len()
+    }
+
+    /// Returns `true` if no packets are buffered.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.buffer.is_empty()
+    }
+
+    /// Returns a snapshot of buffer statistics.
+    #[must_use]
+    pub const fn stats(&self) -> &NetworkAwareJitterStats {
+        &self.stats
+    }
+
+    /// Clears all buffered packets and resets the expected sequence tracker.
+    pub fn clear(&mut self) {
+        self.buffer.clear();
+        self.next_sequence = None;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -432,5 +714,192 @@ mod tests {
         buffer.cleanup_old_packets(Duration::from_millis(5));
         assert_eq!(buffer.len(), 0);
         assert_eq!(buffer.stats().packets_dropped, 1);
+    }
+
+    // ── NetworkAwareJitterBuffer tests ─────────────────────────────────────────
+
+    fn make_packet(seq: u16) -> Packet {
+        PacketBuilder::new(seq)
+            .video()
+            .build(Bytes::from_static(b"netjitter"))
+            .expect("packet build should succeed")
+    }
+
+    #[test]
+    fn test_nab_creation_and_defaults() {
+        let buf = NetworkAwareJitterBuffer::with_defaults();
+        assert!(buf.is_empty());
+        assert_eq!(buf.len(), 0);
+        assert_eq!(buf.target_depth_ms(), 20);
+    }
+
+    #[test]
+    fn test_nab_add_and_count() {
+        let mut buf = NetworkAwareJitterBuffer::with_defaults();
+        buf.add_packet(make_packet(0)).expect("add_packet ok");
+        buf.add_packet(make_packet(1)).expect("add_packet ok");
+        assert_eq!(buf.len(), 2);
+        assert!(!buf.is_empty());
+        assert_eq!(buf.stats().packets_added, 2);
+    }
+
+    #[test]
+    fn test_nab_overflow_returns_error() {
+        let config = NetworkAwareJitterConfig {
+            capacity: 2,
+            ..Default::default()
+        };
+        let mut buf = NetworkAwareJitterBuffer::new(config);
+        buf.add_packet(make_packet(0)).expect("first add ok");
+        buf.add_packet(make_packet(1)).expect("second add ok");
+        let result = buf.add_packet(make_packet(2));
+        assert!(result.is_err());
+        assert_eq!(buf.stats().packets_dropped, 1);
+    }
+
+    #[test]
+    fn test_nab_duplicate_not_double_counted() {
+        let mut buf = NetworkAwareJitterBuffer::with_defaults();
+        buf.add_packet(make_packet(5)).expect("add ok");
+        buf.add_packet(make_packet(5)).expect("dup add ok");
+        assert_eq!(buf.len(), 1);
+        assert_eq!(buf.stats().packets_duplicate, 1);
+    }
+
+    #[test]
+    fn test_nab_get_packet_before_deadline_returns_none() {
+        let mut buf = NetworkAwareJitterBuffer::with_defaults();
+        buf.add_packet(make_packet(0)).expect("add ok");
+        assert!(buf.get_packet().is_none());
+    }
+
+    #[test]
+    fn test_nab_get_packet_immediate_bypasses_delay() {
+        let mut buf = NetworkAwareJitterBuffer::with_defaults();
+        buf.add_packet(make_packet(0)).expect("add ok");
+        let pkt = buf.get_packet_immediate();
+        assert!(pkt.is_some());
+        assert_eq!(buf.stats().packets_played, 1);
+    }
+
+    #[test]
+    fn test_nab_clear_empties_buffer() {
+        let mut buf = NetworkAwareJitterBuffer::with_defaults();
+        for i in 0..5_u16 {
+            buf.add_packet(make_packet(i)).expect("add ok");
+        }
+        buf.clear();
+        assert!(buf.is_empty());
+    }
+
+    #[test]
+    fn test_nab_adapt_expands_on_congestion() {
+        let config = NetworkAwareJitterConfig {
+            initial_depth_ms: 20,
+            expand_step_ms: 10,
+            congestion_penalty_ms: 50.0,
+            depth_ema_alpha: 1.0,
+            min_depth_ms: 5,
+            max_depth_ms: 200,
+            ..Default::default()
+        };
+        let mut buf = NetworkAwareJitterBuffer::new(config);
+        let initial = buf.target_depth_ms();
+        let cond = NetworkCondition {
+            rtt_ms: 30.0,
+            rtt_variance_ms: 10.0,
+            loss_rate: 0.05,
+            congested: true,
+        };
+        buf.adapt(&cond);
+        assert!(
+            buf.target_depth_ms() >= initial,
+            "depth should not decrease under congestion: {} >= {}",
+            buf.target_depth_ms(),
+            initial
+        );
+        assert!(buf.stats().expand_steps >= 1);
+    }
+
+    #[test]
+    fn test_nab_adapt_shrinks_after_stable_cycles() {
+        let config = NetworkAwareJitterConfig {
+            initial_depth_ms: 100,
+            shrink_step_ms: 5,
+            stable_cycles_before_shrink: 3,
+            expand_step_ms: 200,
+            depth_ema_alpha: 1.0,
+            variance_multiplier: 1.0,
+            loss_penalty_ms_per_pct: 0.0,
+            congestion_penalty_ms: 0.0,
+            min_depth_ms: 5,
+            max_depth_ms: 200,
+            ..Default::default()
+        };
+        let mut buf = NetworkAwareJitterBuffer::new(config);
+        let cond = NetworkCondition {
+            rtt_ms: 5.0,
+            rtt_variance_ms: 1.0,
+            loss_rate: 0.0,
+            congested: false,
+        };
+        for _ in 0..3 {
+            buf.adapt(&cond);
+        }
+        assert!(
+            buf.target_depth_ms() < 100,
+            "depth should shrink after stable cycles, got {}",
+            buf.target_depth_ms()
+        );
+        assert!(buf.stats().shrink_steps >= 1);
+    }
+
+    #[test]
+    fn test_nab_depth_clamped_at_max() {
+        let config = NetworkAwareJitterConfig {
+            initial_depth_ms: 10,
+            max_depth_ms: 50,
+            expand_step_ms: 5,
+            depth_ema_alpha: 1.0,
+            congestion_penalty_ms: 1000.0,
+            min_depth_ms: 5,
+            ..Default::default()
+        };
+        let mut buf = NetworkAwareJitterBuffer::new(config);
+        let cond = NetworkCondition {
+            congested: true,
+            rtt_variance_ms: 100.0,
+            ..Default::default()
+        };
+        for _ in 0..50 {
+            buf.adapt(&cond);
+        }
+        assert!(
+            buf.target_depth_ms() <= 50,
+            "depth must not exceed max_depth_ms, got {}",
+            buf.target_depth_ms()
+        );
+    }
+
+    #[test]
+    fn test_nab_stats_track_expand_steps() {
+        let config = NetworkAwareJitterConfig {
+            initial_depth_ms: 5,
+            max_depth_ms: 200,
+            expand_step_ms: 5,
+            depth_ema_alpha: 1.0,
+            variance_multiplier: 3.0,
+            congestion_penalty_ms: 50.0,
+            min_depth_ms: 5,
+            ..Default::default()
+        };
+        let mut buf = NetworkAwareJitterBuffer::new(config);
+        let cond = NetworkCondition {
+            rtt_variance_ms: 30.0,
+            congested: true,
+            ..Default::default()
+        };
+        buf.adapt(&cond);
+        assert!(buf.stats().expand_steps >= 1);
     }
 }

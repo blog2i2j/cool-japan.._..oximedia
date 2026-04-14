@@ -68,6 +68,10 @@ pub enum RecommendError {
     #[error("Serialization error: {0}")]
     SerializationError(#[from] serde_json::Error),
 
+    /// Request was rate-limited
+    #[error("Rate limited: {0}")]
+    RateLimited(String),
+
     /// Generic error
     #[error("{0}")]
     Other(String),

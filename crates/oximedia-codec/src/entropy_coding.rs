@@ -359,8 +359,8 @@ pub fn build_prob_table(freqs: &[u32]) -> Vec<ProbTableEntry> {
 /// let freqs = [10u32, 30, 20, 5];
 /// let table = build_prob_table(&freqs);
 /// let mut enc = TableArithmeticCoder::new();
-/// enc.encode_symbol(1, &table[1]);
-/// enc.encode_symbol(0, &table[0]);
+/// enc.encode_symbol(true, &table[1]);
+/// enc.encode_symbol(false, &table[0]);
 /// let bitstream = enc.flush();
 /// assert!(!bitstream.is_empty() || true); // output depends on state
 /// ```

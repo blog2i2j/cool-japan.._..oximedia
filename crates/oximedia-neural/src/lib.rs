@@ -34,24 +34,43 @@
 //! assert_eq!(output.shape(), &[2]);
 //! ```
 
+pub mod accuracy_tests;
 pub mod activations;
 pub mod attention;
+pub mod augment;
+pub mod augmentation;
+pub mod clip;
 pub mod conv_variants;
+pub mod deformable;
+pub mod dropout;
 pub mod error;
+pub mod face_detection;
+pub mod feature_extractor;
 pub mod graph;
 pub mod im2col;
+pub mod inference_cache;
 pub mod layers;
 pub mod media_models;
+pub mod metrics;
 pub mod model_zoo;
+pub mod object_detector;
 pub mod onnx;
 pub mod onnx_runtime;
+pub mod optical_flow;
+pub mod optimizer;
+pub mod parallel_conv;
 pub mod pool;
 pub mod quantization;
 pub mod quantize;
 pub mod recurrent;
+pub mod scheduler;
+pub mod serialize;
 pub mod skip_connections;
+pub mod strided_tensor;
 pub mod tensor;
 pub mod tensor_batch;
+pub mod tiled_matmul;
+pub mod training;
 
 // ── Re-exports ────────────────────────────────────────────────────────────────
 

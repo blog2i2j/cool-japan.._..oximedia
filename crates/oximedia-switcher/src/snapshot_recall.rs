@@ -220,10 +220,7 @@ impl SnapshotBank {
     /// Save a snapshot into the bank.
     pub fn save(&mut self, mut snapshot: SwitcherSnapshot) -> Result<SnapshotId, String> {
         if self.snapshots.len() >= self.max_snapshots {
-            return Err(format!(
-                "Snapshot bank full (max {})",
-                self.max_snapshots
-            ));
+            return Err(format!("Snapshot bank full (max {})", self.max_snapshots));
         }
         let id = self.next_id;
         snapshot.id = id;
@@ -384,8 +381,10 @@ mod tests {
     #[test]
     fn test_snapshot_bank_full() {
         let mut bank = SnapshotBank::new(2);
-        bank.save(SwitcherSnapshot::new(0, "A")).expect("should succeed in test");
-        bank.save(SwitcherSnapshot::new(0, "B")).expect("should succeed in test");
+        bank.save(SwitcherSnapshot::new(0, "A"))
+            .expect("should succeed in test");
+        bank.save(SwitcherSnapshot::new(0, "B"))
+            .expect("should succeed in test");
         assert!(bank.is_full());
         assert!(bank.save(SwitcherSnapshot::new(0, "C")).is_err());
     }
@@ -393,7 +392,9 @@ mod tests {
     #[test]
     fn test_snapshot_bank_delete() {
         let mut bank = SnapshotBank::new(10);
-        let id = bank.save(SwitcherSnapshot::new(0, "X")).expect("should succeed in test");
+        let id = bank
+            .save(SwitcherSnapshot::new(0, "X"))
+            .expect("should succeed in test");
         assert_eq!(bank.count(), 1);
         bank.delete(id).expect("should succeed in test");
         assert_eq!(bank.count(), 0);
@@ -414,8 +415,10 @@ mod tests {
     #[test]
     fn test_snapshot_bank_list() {
         let mut bank = SnapshotBank::new(10);
-        bank.save(SwitcherSnapshot::new(0, "Alpha")).expect("should succeed in test");
-        bank.save(SwitcherSnapshot::new(0, "Beta")).expect("should succeed in test");
+        bank.save(SwitcherSnapshot::new(0, "Alpha"))
+            .expect("should succeed in test");
+        bank.save(SwitcherSnapshot::new(0, "Beta"))
+            .expect("should succeed in test");
         let list = bank.list();
         assert_eq!(list.len(), 2);
         assert_eq!(list[0].1, "Alpha");
@@ -425,7 +428,9 @@ mod tests {
     #[test]
     fn test_snapshot_bank_rename() {
         let mut bank = SnapshotBank::new(10);
-        let id = bank.save(SwitcherSnapshot::new(0, "Old")).expect("should succeed in test");
+        let id = bank
+            .save(SwitcherSnapshot::new(0, "Old"))
+            .expect("should succeed in test");
         bank.rename(id, "New Name").expect("should succeed in test");
         let snap = bank.get(id).expect("should succeed in test");
         assert_eq!(snap.name, "New Name");
@@ -434,8 +439,10 @@ mod tests {
     #[test]
     fn test_snapshot_bank_clear() {
         let mut bank = SnapshotBank::new(10);
-        bank.save(SwitcherSnapshot::new(0, "A")).expect("should succeed in test");
-        bank.save(SwitcherSnapshot::new(0, "B")).expect("should succeed in test");
+        bank.save(SwitcherSnapshot::new(0, "A"))
+            .expect("should succeed in test");
+        bank.save(SwitcherSnapshot::new(0, "B"))
+            .expect("should succeed in test");
         bank.clear();
         assert_eq!(bank.count(), 0);
         assert!(bank.last_recalled().is_none());

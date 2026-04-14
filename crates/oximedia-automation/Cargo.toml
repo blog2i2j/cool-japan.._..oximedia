@@ -23,11 +23,12 @@ async-trait = { workspace = true }
 async-recursion = "1.1"
 bytes = { workspace = true }
 bitflags = { workspace = true }
+crossbeam-channel = { workspace = true }
 axum = "0.8"
 tokio-serial = "5.4"
 mlua = { version = "0.11", features = ["lua54", "vendored"] }
 chrono = { workspace = true }
-toml = "1.0"
+toml = "1.1"
 num_cpus = "1.17"
 quick-xml = "0.39"
 
@@ -44,6 +45,7 @@ path = "src/lib.rs"
 
 [lints.rust]
 unsafe_code = "forbid"
+missing_docs = "allow"
 
 [lints.clippy]
 all = { level = "warn", priority = -2 }
@@ -52,7 +54,6 @@ pedantic = { level = "warn", priority = -1 }
 # ── Documentation lints ──────────────────────────────────────────────────────
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
-missing_docs = "allow"
 doc_markdown = "allow"
 doc_link_with_quotes = "allow"
 doc_overindented_list_items = "allow"

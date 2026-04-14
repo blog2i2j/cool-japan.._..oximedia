@@ -20,10 +20,11 @@ use async_trait::async_trait;
 use bytes::Bytes;
 use chrono::{DateTime, Utc};
 use futures::Stream;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::pin::Pin;
-use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 use thiserror::Error;
 
 #[cfg(feature = "s3")]
@@ -46,12 +47,18 @@ pub mod cache;
 pub mod cache_layer;
 /// Compression store — compress/decompress objects with ratio and savings tracking.
 pub mod compression_store;
+/// Connection keep-alive and HTTP/2 multiplexing configuration for provider clients.
+pub mod connection_options;
 /// Content-type detection from file extension.
 pub mod content_type;
 /// Content-addressable deduplication storage (hash-based addressing, chunk dedup, reference counting).
 pub mod dedup_store;
 /// Data integrity verification for stored objects.
 pub mod integrity_checker;
+/// Storage inventory reports — object count, total size, and class distribution.
+pub mod inventory_report;
+/// Lazy metadata loading — defers per-object HEAD requests until accessed.
+pub mod lazy_metadata;
 /// Storage lifecycle policies (age-based transitions, cost tiers, expiration rules).
 pub mod lifecycle;
 pub mod local;
@@ -59,22 +66,36 @@ pub mod local;
 pub mod migration_planner;
 /// MinIO backend (S3-compatible self-hosted object storage).
 pub mod minio;
+/// Resumable multipart upload that survives process restarts via checkpoint files.
+pub mod multipart_resumable;
 /// Namespace management — logical grouping of objects with hierarchical names.
 pub mod namespace;
+/// Object lock (WORM storage) — compliance-mode and governance-mode locking.
+pub mod object_lock;
 /// In-memory object store abstraction — keys, metadata, and basic CRUD operations.
 pub mod object_store;
 /// Object version listing, restore, and delete-marker management.
 pub mod object_versioning;
 /// Path resolution, normalization, and glob matching for object keys.
 pub mod path_resolver;
+/// Predictive prefetching based on sequential/random access pattern analysis.
+pub mod predictive_prefetch;
+/// Presigned POST support for browser-based direct uploads with policy conditions.
+pub mod presigned_post;
 pub mod quota;
 pub mod replication;
 /// Advanced replication policy management (sync policies, replication lag, consistency levels).
 pub mod replication_policy;
 /// Object retention and hold management.
 pub mod retention_manager;
+/// Generic async retry infrastructure with exponential back-off and jitter.
+pub mod retry;
+/// Server-side copy optimisation — same-provider copy without client-side data transfer.
+pub mod server_side_copy;
 /// Storage event bus — publish/subscribe for object lifecycle events.
 pub mod storage_events;
+/// Additional storage utility APIs (WAL serializer, dedup store, access log analyzer, etc.).
+pub mod storage_extras;
 /// Storage operation metrics — counters, gauges, histograms, and error rates.
 pub mod storage_metrics;
 /// Cross-provider storage migration with progress tracking and hash verification.
@@ -350,6 +371,203 @@ impl RetryConfig {
     }
 }
 
+// ─── Connection pool ──────────────────────────────────────────────────────────
+
+/// Configuration for a connection pool shared across storage operations.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ConnectionPoolConfig {
+    /// Maximum number of idle connections kept alive per provider.
+    pub max_idle_connections: usize,
+    /// Time in seconds an idle connection is kept before being closed.
+    pub idle_timeout_secs: u64,
+    /// Maximum lifetime in seconds for any connection, regardless of idle state.
+    pub max_lifetime_secs: u64,
+    /// Timeout in seconds to wait when acquiring a connection from the pool.
+    pub acquire_timeout_secs: u64,
+}
+
+impl Default for ConnectionPoolConfig {
+    fn default() -> Self {
+        Self {
+            max_idle_connections: 10,
+            idle_timeout_secs: 60,
+            max_lifetime_secs: 300,
+            acquire_timeout_secs: 10,
+        }
+    }
+}
+
+/// A handle representing an active connection borrowed from the pool.
+///
+/// Callers must pass this back to `ConnectionManager::release` when done.
+#[derive(Debug)]
+pub struct PooledConnection {
+    /// Opaque connection identifier.
+    pub id: u64,
+    /// Wall-clock creation timestamp (milliseconds).
+    pub created_ms: u64,
+}
+
+impl PooledConnection {
+    fn new(id: u64, created_ms: u64) -> Self {
+        Self { id, created_ms }
+    }
+}
+
+/// Manages a pool of reusable connections with idle timeout and lifetime limits.
+pub struct ConnectionManager {
+    config: ConnectionPoolConfig,
+    idle: Mutex<VecDeque<PooledConnection>>,
+    total_created: AtomicU64,
+    current_time_ms: AtomicU64,
+}
+
+impl ConnectionManager {
+    /// Create a new manager with the given configuration.
+    pub fn new(config: ConnectionPoolConfig) -> Self {
+        Self {
+            config,
+            idle: Mutex::new(VecDeque::new()),
+            total_created: AtomicU64::new(0),
+            current_time_ms: AtomicU64::new(0),
+        }
+    }
+
+    /// Override the internal clock (for deterministic tests).
+    pub fn set_time_ms(&self, ms: u64) {
+        self.current_time_ms.store(ms, Ordering::SeqCst);
+    }
+
+    /// Acquire a connection from the idle pool, or create a new one.
+    ///
+    /// Returns `None` if no connection could be obtained (e.g. the pool is empty
+    /// and creation is not permitted in this context).  In practice callers can
+    /// treat the returned `PooledConnection` as always-available; the `Option`
+    /// wrapper is used by tests that want to distinguish pool-hit from pool-miss.
+    pub fn acquire(&self) -> PooledConnection {
+        let now = self.current_time_ms.load(Ordering::SeqCst);
+        let max_lifetime = self.config.max_lifetime_secs * 1_000;
+
+        // Try to reuse an idle connection that is still within its lifetime.
+        {
+            let mut idle = self.idle.lock().expect("ConnectionManager idle lock");
+            // Evict connections that have exceeded their lifetime.
+            idle.retain(|c| now.saturating_sub(c.created_ms) < max_lifetime);
+            if let Some(conn) = idle.pop_front() {
+                return conn;
+            }
+        }
+
+        // Create a fresh connection.
+        let id = self.total_created.fetch_add(1, Ordering::SeqCst) + 1;
+        PooledConnection::new(id, now)
+    }
+
+    /// Return a connection to the idle pool.
+    ///
+    /// Connections that exceed the idle pool capacity are discarded.
+    pub fn release(&self, conn: PooledConnection) {
+        let now = self.current_time_ms.load(Ordering::SeqCst);
+        let max_lifetime = self.config.max_lifetime_secs * 1_000;
+
+        // Do not return expired connections.
+        if now.saturating_sub(conn.created_ms) >= max_lifetime {
+            return;
+        }
+
+        let mut idle = self.idle.lock().expect("ConnectionManager idle lock");
+        if idle.len() < self.config.max_idle_connections {
+            idle.push_back(conn);
+        }
+    }
+
+    /// Number of connections currently idle in the pool.
+    pub fn idle_count(&self) -> usize {
+        self.idle.lock().expect("ConnectionManager idle lock").len()
+    }
+
+    /// Total number of connections ever created by this manager.
+    pub fn total_created(&self) -> u64 {
+        self.total_created.load(Ordering::SeqCst)
+    }
+
+    /// Returns a reference to the pool configuration.
+    pub fn config(&self) -> &ConnectionPoolConfig {
+        &self.config
+    }
+}
+
+// ─── BatchUpdateResult ────────────────────────────────────────────────────────
+
+/// Result of a single key in a batch metadata update.
+#[derive(Debug, Clone)]
+pub struct BatchUpdateResult {
+    /// Object key that was targeted.
+    pub key: String,
+    /// Whether the update succeeded.
+    pub success: bool,
+    /// Human-readable error message, if the update failed.
+    pub error: Option<String>,
+}
+
+/// Helper for validating and chunking batch metadata update requests.
+///
+/// Does **not** perform the actual updates — it validates the input and
+/// chunks large batches into smaller groups to be passed to the storage
+/// provider's `batch_update_metadata` method.
+pub struct BatchMetadataUpdater {
+    /// Maximum number of keys per batch chunk.
+    batch_size: usize,
+}
+
+impl BatchMetadataUpdater {
+    /// Create a new updater with the given batch chunk size.
+    pub fn new(batch_size: usize) -> Self {
+        Self {
+            batch_size: batch_size.max(1),
+        }
+    }
+
+    /// Return the configured batch chunk size.
+    pub fn batch_size(&self) -> usize {
+        self.batch_size
+    }
+
+    /// Validate the input update list, returning a `Vec` of error descriptions.
+    ///
+    /// A key is considered invalid if it is:
+    /// - Empty.
+    /// - Longer than 1 024 characters.
+    /// - Contains a null byte.
+    pub fn validate_updates(&self, updates: &[(String, HashMap<String, String>)]) -> Vec<String> {
+        updates
+            .iter()
+            .filter_map(|(key, _)| {
+                if key.is_empty() {
+                    Some(format!("invalid key: empty key"))
+                } else if key.len() > 1024 {
+                    Some(format!(
+                        "invalid key '{}...': exceeds 1024 characters",
+                        &key[..32]
+                    ))
+                } else if key.contains('\0') {
+                    Some(format!("invalid key '{key}': contains null byte"))
+                } else {
+                    None
+                }
+            })
+            .collect()
+    }
+
+    /// Split `updates` into chunks of at most `batch_size` elements.
+    pub fn chunk<'a>(
+        &self,
+        updates: &'a [(String, HashMap<String, String>)],
+    ) -> Vec<&'a [(String, HashMap<String, String>)]> {
+        updates.chunks(self.batch_size).collect()
+    }
+}
+
 /// Unified configuration for cloud storage
 #[derive(Debug, Clone)]
 pub struct UnifiedConfig {
@@ -385,6 +603,8 @@ pub struct UnifiedConfig {
     pub max_cache_size: u64,
     /// Retry behaviour for transient failures.
     pub retry: RetryConfig,
+    /// Connection pool configuration.
+    pub pool_config: ConnectionPoolConfig,
 }
 
 impl UnifiedConfig {
@@ -408,6 +628,7 @@ impl UnifiedConfig {
             cache_dir: None,
             max_cache_size: 10 * 1024 * 1024 * 1024, // 10 GB
             retry: RetryConfig::default(),
+            pool_config: ConnectionPoolConfig::default(),
         }
     }
 
@@ -431,6 +652,7 @@ impl UnifiedConfig {
             cache_dir: None,
             max_cache_size: 10 * 1024 * 1024 * 1024,
             retry: RetryConfig::default(),
+            pool_config: ConnectionPoolConfig::default(),
         }
     }
 
@@ -454,6 +676,7 @@ impl UnifiedConfig {
             cache_dir: None,
             max_cache_size: 10 * 1024 * 1024 * 1024,
             retry: RetryConfig::default(),
+            pool_config: ConnectionPoolConfig::default(),
         }
     }
 
@@ -485,6 +708,12 @@ impl UnifiedConfig {
     /// Override retry configuration.
     pub fn with_retry(mut self, retry: RetryConfig) -> Self {
         self.retry = retry;
+        self
+    }
+
+    /// Override connection pool configuration.
+    pub fn with_pool_config(mut self, pool_config: ConnectionPoolConfig) -> Self {
+        self.pool_config = pool_config;
         self
     }
 }
@@ -550,6 +779,44 @@ pub trait CloudStorage: Send + Sync {
         key: &str,
         expiration_secs: u64,
     ) -> Result<String>;
+
+    /// Update metadata (tags) on a single object.
+    ///
+    /// Default implementation returns `UnsupportedOperation`; providers that
+    /// support native metadata updates should override this method.
+    async fn update_metadata(&self, key: &str, _tags: HashMap<String, String>) -> Result<()> {
+        Err(StorageError::UnsupportedOperation(format!(
+            "update_metadata not implemented for key: {key}"
+        )))
+    }
+
+    /// Update metadata on multiple objects in bulk.
+    ///
+    /// Each element of `updates` is `(key, tags)`.  The default implementation
+    /// calls `update_metadata` sequentially; providers with native batch APIs
+    /// should override this for better throughput.
+    async fn batch_update_metadata(
+        &self,
+        updates: Vec<(String, HashMap<String, String>)>,
+    ) -> Result<Vec<BatchUpdateResult>> {
+        let mut results = Vec::with_capacity(updates.len());
+        for (key, tags) in updates {
+            let result = match self.update_metadata(&key, tags).await {
+                Ok(()) => BatchUpdateResult {
+                    key,
+                    success: true,
+                    error: None,
+                },
+                Err(e) => BatchUpdateResult {
+                    key,
+                    success: false,
+                    error: Some(e.to_string()),
+                },
+            };
+            results.push(result);
+        }
+        Ok(results)
+    }
 }
 
 #[cfg(test)]
@@ -683,5 +950,297 @@ mod tests {
         // Verify clone works
         let cfg2 = custom.clone();
         assert_eq!(cfg2.max_retries, 10);
+    }
+
+    // ── ConnectionPoolConfig ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_pool_config_default_values() {
+        let cfg = ConnectionPoolConfig::default();
+        assert!(cfg.max_idle_connections > 0);
+        assert!(cfg.idle_timeout_secs > 0);
+        assert!(cfg.max_lifetime_secs > 0);
+        assert!(cfg.acquire_timeout_secs > 0);
+        assert!(cfg.max_lifetime_secs >= cfg.idle_timeout_secs);
+    }
+
+    #[test]
+    fn test_pool_config_serialization() {
+        let cfg = ConnectionPoolConfig {
+            max_idle_connections: 5,
+            idle_timeout_secs: 30,
+            max_lifetime_secs: 120,
+            acquire_timeout_secs: 5,
+        };
+        let json = serde_json::to_string(&cfg).expect("serialize pool config");
+        let back: ConnectionPoolConfig =
+            serde_json::from_str(&json).expect("deserialize pool config");
+        assert_eq!(back.max_idle_connections, 5);
+        assert_eq!(back.idle_timeout_secs, 30);
+        assert_eq!(back.max_lifetime_secs, 120);
+        assert_eq!(back.acquire_timeout_secs, 5);
+    }
+
+    #[test]
+    fn test_connection_manager_acquire_release_cycle() {
+        let mgr = ConnectionManager::new(ConnectionPoolConfig::default());
+        assert_eq!(mgr.idle_count(), 0);
+
+        let conn = mgr.acquire();
+        // Creating a fresh connection: total_created should be 1
+        assert_eq!(mgr.total_created(), 1);
+        assert_eq!(mgr.idle_count(), 0);
+
+        mgr.release(conn);
+        assert_eq!(mgr.idle_count(), 1);
+    }
+
+    #[test]
+    fn test_connection_manager_reuses_idle() {
+        let mgr = ConnectionManager::new(ConnectionPoolConfig::default());
+        let conn1 = mgr.acquire();
+        let id1 = conn1.id;
+        mgr.release(conn1);
+
+        // Second acquire should reuse the idle connection
+        let conn2 = mgr.acquire();
+        assert_eq!(conn2.id, id1, "should have reused the idle connection");
+        assert_eq!(
+            mgr.total_created(),
+            1,
+            "no new connection should be created"
+        );
+        mgr.release(conn2);
+    }
+
+    #[test]
+    fn test_connection_manager_idle_count_changes() {
+        let cfg = ConnectionPoolConfig {
+            max_idle_connections: 3,
+            ..ConnectionPoolConfig::default()
+        };
+        let mgr = ConnectionManager::new(cfg);
+
+        let c1 = mgr.acquire();
+        let c2 = mgr.acquire();
+        assert_eq!(mgr.idle_count(), 0);
+
+        mgr.release(c1);
+        assert_eq!(mgr.idle_count(), 1);
+        mgr.release(c2);
+        assert_eq!(mgr.idle_count(), 2);
+
+        let _c3 = mgr.acquire();
+        assert_eq!(mgr.idle_count(), 1);
+    }
+
+    #[test]
+    fn test_connection_manager_respects_max_idle() {
+        let cfg = ConnectionPoolConfig {
+            max_idle_connections: 2,
+            max_lifetime_secs: 3600,
+            ..ConnectionPoolConfig::default()
+        };
+        let mgr = ConnectionManager::new(cfg);
+
+        // Create 3 connections and release all — only 2 should be kept
+        let c1 = mgr.acquire();
+        let c2 = mgr.acquire();
+        let c3 = mgr.acquire();
+        mgr.release(c1);
+        mgr.release(c2);
+        mgr.release(c3);
+        assert_eq!(
+            mgr.idle_count(),
+            2,
+            "pool should cap at max_idle_connections"
+        );
+    }
+
+    #[test]
+    fn test_connection_manager_expired_connections_discarded() {
+        let cfg = ConnectionPoolConfig {
+            max_idle_connections: 10,
+            idle_timeout_secs: 60,
+            max_lifetime_secs: 1, // 1 second lifetime = 1000 ms
+            acquire_timeout_secs: 5,
+        };
+        let mgr = ConnectionManager::new(cfg);
+        mgr.set_time_ms(0);
+
+        let conn = mgr.acquire();
+        mgr.release(conn);
+        assert_eq!(mgr.idle_count(), 1);
+
+        // Advance time past max_lifetime
+        mgr.set_time_ms(2_000); // 2 seconds later
+        let _ = mgr.acquire(); // triggers eviction of expired idle connections
+        assert_eq!(mgr.idle_count(), 0, "expired connections should be evicted");
+    }
+
+    #[test]
+    fn test_connection_manager_total_created_accumulates() {
+        let mgr = ConnectionManager::new(ConnectionPoolConfig::default());
+        for _ in 0..5 {
+            let _ = mgr.acquire(); // each drops without release — forces new creation
+        }
+        assert_eq!(mgr.total_created(), 5);
+    }
+
+    #[test]
+    fn test_pool_config_clone() {
+        let cfg = ConnectionPoolConfig::default();
+        let cfg2 = cfg.clone();
+        assert_eq!(cfg.max_idle_connections, cfg2.max_idle_connections);
+    }
+
+    #[test]
+    fn test_connection_manager_config_accessor() {
+        let cfg = ConnectionPoolConfig {
+            max_idle_connections: 7,
+            ..ConnectionPoolConfig::default()
+        };
+        let mgr = ConnectionManager::new(cfg);
+        assert_eq!(mgr.config().max_idle_connections, 7);
+    }
+
+    #[test]
+    fn test_batch_update_result_fields() {
+        let ok = BatchUpdateResult {
+            key: "a".to_string(),
+            success: true,
+            error: None,
+        };
+        assert!(ok.success);
+        assert!(ok.error.is_none());
+
+        let fail = BatchUpdateResult {
+            key: "b".to_string(),
+            success: false,
+            error: Some("not found".to_string()),
+        };
+        assert!(!fail.success);
+        assert!(fail.error.is_some());
+    }
+
+    // ── BatchMetadataUpdater ─────────────────────────────────────────────────
+
+    #[test]
+    fn test_batch_metadata_updater_new() {
+        let updater = BatchMetadataUpdater::new(50);
+        assert_eq!(updater.batch_size(), 50);
+    }
+
+    #[test]
+    fn test_batch_metadata_updater_min_size_one() {
+        // batch_size 0 should be clamped to 1
+        let updater = BatchMetadataUpdater::new(0);
+        assert_eq!(updater.batch_size(), 1);
+    }
+
+    #[test]
+    fn test_batch_metadata_updater_validate_empty_key() {
+        let updater = BatchMetadataUpdater::new(10);
+        let updates = vec![(String::new(), HashMap::new())];
+        let errors = updater.validate_updates(&updates);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("empty"));
+    }
+
+    #[test]
+    fn test_batch_metadata_updater_validate_valid_keys() {
+        let updater = BatchMetadataUpdater::new(10);
+        let updates = vec![
+            ("key-a".to_string(), HashMap::new()),
+            ("key-b".to_string(), HashMap::new()),
+            ("key-c".to_string(), HashMap::new()),
+        ];
+        let errors = updater.validate_updates(&updates);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn test_batch_metadata_updater_validate_key_too_long() {
+        let updater = BatchMetadataUpdater::new(10);
+        let long_key = "a".repeat(1025);
+        let updates = vec![(long_key, HashMap::new())];
+        let errors = updater.validate_updates(&updates);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("1024"));
+    }
+
+    #[test]
+    fn test_batch_metadata_updater_validate_null_byte_key() {
+        let updater = BatchMetadataUpdater::new(10);
+        let updates = vec![("key\0with-null".to_string(), HashMap::new())];
+        let errors = updater.validate_updates(&updates);
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("null byte"));
+    }
+
+    #[test]
+    fn test_batch_metadata_updater_chunk_splits_correctly() {
+        let updater = BatchMetadataUpdater::new(3);
+        let updates: Vec<(String, HashMap<String, String>)> = (0..7)
+            .map(|i| (format!("key-{i}"), HashMap::new()))
+            .collect();
+        let chunks = updater.chunk(&updates);
+        assert_eq!(chunks.len(), 3); // [3, 3, 1]
+        assert_eq!(chunks[0].len(), 3);
+        assert_eq!(chunks[1].len(), 3);
+        assert_eq!(chunks[2].len(), 1);
+    }
+
+    #[test]
+    fn test_batch_metadata_updater_validate_empty_batch() {
+        let updater = BatchMetadataUpdater::new(10);
+        let errors = updater.validate_updates(&[]);
+        assert!(errors.is_empty());
+    }
+
+    #[test]
+    fn test_batch_metadata_updater_multiple_errors() {
+        let updater = BatchMetadataUpdater::new(10);
+        let updates = vec![
+            (String::new(), HashMap::new()),
+            ("valid".to_string(), HashMap::new()),
+            ("a".repeat(2000), HashMap::new()),
+        ];
+        let errors = updater.validate_updates(&updates);
+        assert_eq!(errors.len(), 2);
+    }
+
+    // ── ConnectionManager concurrent access ─────────────────────────────────
+
+    #[test]
+    fn test_connection_manager_concurrent_acquire_release() {
+        use std::sync::Arc;
+        let mgr = Arc::new(ConnectionManager::new(ConnectionPoolConfig {
+            max_idle_connections: 8,
+            max_lifetime_secs: 3600,
+            ..ConnectionPoolConfig::default()
+        }));
+
+        let handles: Vec<_> = (0..4)
+            .map(|_| {
+                let m = mgr.clone();
+                std::thread::spawn(move || {
+                    for _ in 0..10 {
+                        let conn = m.acquire();
+                        m.release(conn);
+                    }
+                })
+            })
+            .collect();
+
+        for h in handles {
+            h.join().expect("thread should not panic");
+        }
+
+        // After all threads complete, total_created >= number of distinct
+        // connections needed (could be reused)
+        assert!(mgr.total_created() >= 1);
+        // Idle pool should have at most max_idle_connections
+        assert!(mgr.idle_count() <= 8);
     }
 }

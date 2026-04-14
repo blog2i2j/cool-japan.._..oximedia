@@ -449,7 +449,10 @@ pub(crate) async fn handle_preset_command(command: PresetCommand, json_output: b
     let manager = PresetManager::with_custom_dir(&custom_dir)?;
 
     match command {
-        PresetCommand::List { category, verbose } => {
+        PresetCommand::List {
+            category,
+            detail: verbose,
+        } => {
             let presets = if let Some(cat_str) = category {
                 let cat = PresetCategory::from_str(&cat_str)?;
                 manager.list_presets_by_category(cat)
@@ -783,7 +786,7 @@ pub(crate) fn show_info() {
     println!("{}", "FFmpeg-Compatible Options:".yellow().bold());
     println!("  -i <file>          Input file");
     println!("  -c:v <codec>       Video codec (av1, vp9, vp8)");
-    println!("  -c:a <codec>       Audio codec (opus, vorbis, flac)");
+    println!("  -c:a <codec>       Audio codec (opus, vorbis, flac, pcm, aac, mp3)");
     println!("  -b:v <bitrate>     Video bitrate (e.g., 2M, 500k)");
     println!("  -vf <filter>       Video filter chain");
     println!("  -ss <time>         Seek to start time");

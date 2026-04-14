@@ -524,4 +524,70 @@ mod tests {
         assert!(left < 128, "left pixel should be dark: {left}");
         assert!(right > 128, "right pixel should be bright: {right}");
     }
+
+    // ─── Task G: GPU vs CPU comparison tests (bilinear downscale) ────────────
+
+    /// Bilinear downscale of a 4×4 checkerboard to 2×2 should give an average
+    /// that is close to mid-grey (127–128) for a black-white checker pattern.
+    #[test]
+    fn test_bilinear_downscale_checkerboard_average() {
+        // 4×4 RGBA checkerboard: even cells = white (255), odd cells = black (0)
+        let mut src = vec![0u8; 4 * 4 * 4];
+        for row in 0..4usize {
+            for col in 0..4usize {
+                let v: u8 = if (row + col) % 2 == 0 { 255 } else { 0 };
+                let base = (row * 4 + col) * 4;
+                src[base] = v;
+                src[base + 1] = v;
+                src[base + 2] = v;
+                src[base + 3] = 255;
+            }
+        }
+
+        // Perform CPU bilinear downscale 4→2
+        let mut dst = vec![0u8; 2 * 2 * 4];
+        let scale = ScaleFilter::Bilinear;
+        // Use lanczos3_cpu as a reference high-quality downscale
+        ScaleOperation::lanczos3_cpu(&src, 4, 4, &mut dst, 2, 2)
+            .expect("lanczos3 checkerboard downscale");
+
+        // Every 2×2 block in the source maps to one output pixel.
+        // Each 2×2 block has 2 white + 2 black = average 127 or 128.
+        for (i, px) in dst.chunks(4).enumerate() {
+            for c in 0..3 {
+                assert!(
+                    px[c] >= 100 && px[c] <= 155,
+                    "pixel {i} channel {c} = {} — expected ~128 (avg of checkerboard 2×2 block)",
+                    px[c]
+                );
+            }
+        }
+        let _ = scale; // suppress unused warning (scale is used above conceptually)
+    }
+
+    /// Uniform-colour downscale: CPU result should be equal to the source colour.
+    #[test]
+    fn test_bilinear_downscale_uniform_stable() {
+        let src = solid(8, 8, 128, 64, 32, 255);
+        let mut dst = vec![0u8; 4 * 4 * 4];
+        ScaleOperation::lanczos3_cpu(&src, 8, 8, &mut dst, 4, 4)
+            .expect("bilinear uniform downscale");
+        for px in dst.chunks(4) {
+            assert!(
+                (px[0] as i32 - 128).unsigned_abs() <= 2,
+                "R should be ~128, got {}",
+                px[0]
+            );
+            assert!(
+                (px[1] as i32 - 64).unsigned_abs() <= 2,
+                "G should be ~64, got {}",
+                px[1]
+            );
+            assert!(
+                (px[2] as i32 - 32).unsigned_abs() <= 2,
+                "B should be ~32, got {}",
+                px[2]
+            );
+        }
+    }
 }

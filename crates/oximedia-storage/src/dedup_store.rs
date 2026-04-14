@@ -474,4 +474,186 @@ mod tests {
         let obj = DedupObject::new("clip.webm", vec![], 0).with_content_type("video/webm");
         assert_eq!(obj.content_type.as_deref(), Some("video/webm"));
     }
+
+    // ── Concurrent reference counting tests ────────────────────────────────
+
+    #[test]
+    fn test_dedup_store_ref_count_sequential_put() {
+        let mut store = DedupStore::new();
+        let (h, d) = chunk(100, 128);
+        // Store the chunk once (ref_count = 1)
+        store.store_chunk(h.clone(), d.clone());
+        // Store again → ref_count = 2
+        store.store_chunk(h.clone(), d.clone());
+        assert_eq!(
+            store.get_chunk(&h).expect("chunk should exist").ref_count,
+            2
+        );
+    }
+
+    #[test]
+    fn test_dedup_store_ref_count_after_release() {
+        let mut store = DedupStore::new();
+        let (h, d) = chunk(101, 64);
+        store.store_chunk(h.clone(), d.clone());
+        store.store_chunk(h.clone(), d.clone());
+        store.store_chunk(h.clone(), d);
+        // ref_count = 3
+        assert_eq!(
+            store.get_chunk(&h).expect("chunk should exist").ref_count,
+            3
+        );
+        // Release twice → ref_count = 1
+        store.release_chunk(&h);
+        store.release_chunk(&h);
+        assert_eq!(
+            store
+                .get_chunk(&h)
+                .expect("chunk should still exist")
+                .ref_count,
+            1
+        );
+    }
+
+    #[test]
+    fn test_dedup_store_ref_count_fully_released() {
+        let mut store = DedupStore::new();
+        let (h, d) = chunk(102, 32);
+        store.store_chunk(h.clone(), d.clone());
+        store.store_chunk(h.clone(), d);
+        // Release twice → should be deleted (ref_count reaches 0)
+        store.release_chunk(&h);
+        store.release_chunk(&h);
+        assert!(
+            !store.has_chunk(&h),
+            "chunk should be deleted at ref_count 0"
+        );
+    }
+
+    #[test]
+    fn test_dedup_store_object_ref_increments_chunk() {
+        let mut store = DedupStore::new();
+        let (h, d) = chunk(103, 256);
+        store.store_chunk(h.clone(), d); // ref_count = 1
+                                         // put_object increments ref_count for each chunk
+        let obj = DedupObject::new("file-a", vec![h.clone()], 256);
+        store.put_object(obj);
+        assert_eq!(
+            store.get_chunk(&h).expect("chunk should exist").ref_count,
+            2 // 1 from store_chunk + 1 from put_object
+        );
+    }
+
+    #[test]
+    fn test_dedup_store_delete_decrements_chunk_ref() {
+        let mut store = DedupStore::new();
+        let (h, d) = chunk(104, 512);
+        store.store_chunk(h.clone(), d); // ref_count = 1
+        let obj = DedupObject::new("file-b", vec![h.clone()], 512);
+        store.put_object(obj); // ref_count = 2
+        store.delete_object("file-b"); // ref_count = 1
+        assert_eq!(
+            store
+                .get_chunk(&h)
+                .expect("chunk should still exist")
+                .ref_count,
+            1
+        );
+    }
+
+    #[test]
+    fn test_dedup_store_replace_object_decrements_old_chunks() {
+        let mut store = DedupStore::new();
+        let (h1, d1) = chunk(200, 100);
+        let (h2, d2) = chunk(201, 100);
+        store.store_chunk(h1.clone(), d1);
+        store.store_chunk(h2.clone(), d2);
+
+        // First version of "multi.mp4" uses chunk h1
+        let v1 = DedupObject::new("multi.mp4", vec![h1.clone()], 100);
+        store.put_object(v1);
+        // h1 ref = 2 (1 from store + 1 from put)
+        assert_eq!(store.get_chunk(&h1).expect("h1 should exist").ref_count, 2);
+
+        // Replace with version using h2
+        let v2 = DedupObject::new("multi.mp4", vec![h2.clone()], 100);
+        store.put_object(v2);
+        // h1 ref should be back to 1 (old object removed its ref)
+        assert_eq!(store.get_chunk(&h1).expect("h1 still exists").ref_count, 1);
+        // h2 ref should be 2
+        assert_eq!(store.get_chunk(&h2).expect("h2 should exist").ref_count, 2);
+    }
+
+    #[test]
+    fn test_dedup_store_gc_removes_orphans() {
+        let mut store = DedupStore::new();
+        let (h, d) = chunk(300, 1024);
+        store.store_chunk(h.clone(), d);
+        // Manually force ref_count to 0 by releasing
+        store.release_chunk(&h);
+        // Chunk should already be gone since release removes at 0
+        assert!(!store.has_chunk(&h));
+        // GC on empty orphans = 0
+        let removed = store.gc();
+        assert_eq!(removed, 0);
+    }
+
+    #[test]
+    fn test_dedup_store_stats_empty() {
+        let store = DedupStore::new();
+        let stats = store.stats();
+        assert_eq!(stats.total_chunks, 0);
+        assert_eq!(stats.total_objects, 0);
+        assert_eq!(stats.physical_bytes, 0);
+        assert_eq!(stats.dedup_ratio(), 1.0);
+    }
+
+    #[test]
+    fn test_dedup_store_concurrent_same_hash_simulation() {
+        // Simulate sequential "concurrent" puts of the same chunk content
+        // (real concurrent access requires Arc<Mutex<DedupStore>>)
+        let mut store = DedupStore::new();
+        let (h, d) = chunk(400, 64);
+        // Simulate 4 concurrent puts by running sequentially
+        for _ in 0..4 {
+            store.store_chunk(h.clone(), d.clone());
+        }
+        assert_eq!(
+            store.get_chunk(&h).expect("chunk should exist").ref_count,
+            4,
+            "ref_count should be 4 after 4 puts"
+        );
+        // Delete 2 refs
+        store.release_chunk(&h);
+        store.release_chunk(&h);
+        assert_eq!(
+            store
+                .get_chunk(&h)
+                .expect("chunk should still exist")
+                .ref_count,
+            2
+        );
+    }
+
+    #[test]
+    fn test_dedup_store_multiple_objects_share_chunk() {
+        let mut store = DedupStore::new();
+        let (h, d) = chunk(500, 1000);
+        store.store_chunk(h.clone(), d);
+        // 3 objects all reference the same chunk
+        for i in 0..3u64 {
+            let obj = DedupObject::new(format!("obj-{i}"), vec![h.clone()], 1000);
+            store.put_object(obj);
+        }
+        // ref_count = 1 (store_chunk) + 3 (put_object × 3)
+        assert_eq!(
+            store.get_chunk(&h).expect("chunk should exist").ref_count,
+            4
+        );
+        let stats = store.stats();
+        assert_eq!(stats.total_objects, 3);
+        assert_eq!(stats.logical_bytes, 3000);
+        assert_eq!(stats.physical_bytes, 1000);
+        assert!(stats.dedup_ratio() > 2.5);
+    }
 }

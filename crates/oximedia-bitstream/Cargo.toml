@@ -1,0 +1,26 @@
+[package]
+name = "oximedia-bitstream"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+homepage.workspace = true
+repository.workspace = true
+description = "Bitstream I/O for OxiMedia — derived from bitstream-io 4.9.0, std-only (no core2 dependency)"
+autoexamples = false
+autotests = false
+autobenches = false
+
+[lints]
+workspace = true
+
+[lib]
+name = "oximedia_bitstream"
+path = "src/lib.rs"
+doctest = false
+
+[features]
+default = ["std"]
+std = ["alloc"]
+alloc = []

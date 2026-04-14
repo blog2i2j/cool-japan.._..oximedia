@@ -145,7 +145,11 @@ impl ShotPalette {
     pub fn dominant(&self) -> Option<&Rgb> {
         self.entries
             .iter()
-            .max_by(|a, b| a.weight.partial_cmp(&b.weight).unwrap_or(std::cmp::Ordering::Equal))
+            .max_by(|a, b| {
+                a.weight
+                    .partial_cmp(&b.weight)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            })
             .map(|e| &e.color)
     }
 }
@@ -330,19 +334,32 @@ mod tests {
 
     #[test]
     fn test_palette_dominant() {
-        let p = ShotPalette::new(0, vec![
-            PaletteEntry { color: Rgb::new(255, 0, 0), weight: 0.3 },
-            PaletteEntry { color: Rgb::new(0, 255, 0), weight: 0.7 },
-        ]);
+        let p = ShotPalette::new(
+            0,
+            vec![
+                PaletteEntry {
+                    color: Rgb::new(255, 0, 0),
+                    weight: 0.3,
+                },
+                PaletteEntry {
+                    color: Rgb::new(0, 255, 0),
+                    weight: 0.7,
+                },
+            ],
+        );
         let dom = p.dominant().expect("should succeed in test");
         assert_eq!(*dom, Rgb::new(0, 255, 0));
     }
 
     #[test]
     fn test_palette_average_luminance() {
-        let p = ShotPalette::new(0, vec![
-            PaletteEntry { color: Rgb::new(255, 255, 255), weight: 1.0 },
-        ]);
+        let p = ShotPalette::new(
+            0,
+            vec![PaletteEntry {
+                color: Rgb::new(255, 255, 255),
+                weight: 1.0,
+            }],
+        );
         assert!(p.average_luminance() > 254.0);
     }
 
@@ -366,9 +383,13 @@ mod tests {
     #[test]
     fn test_compare_identical_palettes() {
         let a = PaletteAnalyzer::default();
-        let p1 = ShotPalette::new(0, vec![
-            PaletteEntry { color: Rgb::new(50, 50, 50), weight: 1.0 },
-        ]);
+        let p1 = ShotPalette::new(
+            0,
+            vec![PaletteEntry {
+                color: Rgb::new(50, 50, 50),
+                weight: 1.0,
+            }],
+        );
         let p2 = p1.clone();
         let cmp = a.compare(&p1, &p2);
         assert!((cmp.distance - 0.0).abs() < f64::EPSILON);
@@ -377,12 +398,20 @@ mod tests {
     #[test]
     fn test_compare_different_palettes() {
         let a = PaletteAnalyzer::default();
-        let p1 = ShotPalette::new(0, vec![
-            PaletteEntry { color: Rgb::new(0, 0, 0), weight: 1.0 },
-        ]);
-        let p2 = ShotPalette::new(1, vec![
-            PaletteEntry { color: Rgb::new(255, 255, 255), weight: 1.0 },
-        ]);
+        let p1 = ShotPalette::new(
+            0,
+            vec![PaletteEntry {
+                color: Rgb::new(0, 0, 0),
+                weight: 1.0,
+            }],
+        );
+        let p2 = ShotPalette::new(
+            1,
+            vec![PaletteEntry {
+                color: Rgb::new(255, 255, 255),
+                weight: 1.0,
+            }],
+        );
         let cmp = a.compare(&p1, &p2);
         assert!(cmp.distance > 100.0);
     }
@@ -397,9 +426,13 @@ mod tests {
     #[test]
     fn test_cluster_single() {
         let a = PaletteAnalyzer::default();
-        let palettes = vec![ShotPalette::new(0, vec![
-            PaletteEntry { color: Rgb::new(10, 10, 10), weight: 1.0 },
-        ])];
+        let palettes = vec![ShotPalette::new(
+            0,
+            vec![PaletteEntry {
+                color: Rgb::new(10, 10, 10),
+                weight: 1.0,
+            }],
+        )];
         let clusters = a.cluster(&palettes, 1);
         assert_eq!(clusters.len(), 1);
         assert_eq!(clusters[0].members.len(), 1);

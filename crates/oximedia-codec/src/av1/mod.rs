@@ -59,6 +59,7 @@ mod entropy;
 mod entropy_encoder;
 mod entropy_tables;
 pub mod film_grain;
+pub mod film_grain_perblock;
 pub mod film_grain_table;
 mod frame;
 mod frame_header;
@@ -104,6 +105,7 @@ pub use film_grain::{
     MAX_AR_COEFFS_CHROMA, MAX_AR_COEFFS_LUMA, MAX_AR_LAG, MAX_CHROMA_SCALING_POINTS,
     MAX_LUMA_SCALING_POINTS,
 };
+pub use film_grain_perblock::{apply_grain_per_block_bilinear, GrainBlock, BLEND_ZONE};
 pub use film_grain_table::{
     BlockGrainOverride, FilmGrainTable, GrainIntensity, GrainPatternBuilder, GrainPreset,
     PerBlockGrainTable,
@@ -127,7 +129,11 @@ pub use parallel_tile_encoder::{
     TileEncoderConfig as RawTileEncoderConfig, TileRegionInfo,
 };
 pub use prediction::PredictionEngine;
-pub use quantization::QuantizationParams;
+pub use quantization::{
+    apply_adaptive_qm, get_ac_dequant, get_dc_dequant, qindex_to_qp, qp_to_qindex,
+    select_adaptive_qm, AdaptiveQmSelection, DeltaQState, QmContentType, QuantizationParams,
+    AC_QLOOKUP, DC_QLOOKUP, MAX_Q_INDEX, MIN_Q_INDEX, NUM_QM_LEVELS, QINDEX_RANGE,
+};
 pub use sequence::{
     OperatingPoint, SequenceHeader, SpatialLayerConfig, SvcConfig, SvcReferenceMode,
     TemporalLayerConfig, MAX_OPERATING_POINTS, MAX_SPATIAL_LAYERS, MAX_TEMPORAL_LAYERS,

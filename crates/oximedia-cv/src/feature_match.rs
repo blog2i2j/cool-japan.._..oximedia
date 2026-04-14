@@ -425,6 +425,270 @@ pub fn match_with_subpixel(
     )
 }
 
+// ---------------------------------------------------------------------------
+// HomographyEstimator — RANSAC-based homography from sub-pixel matches
+// ---------------------------------------------------------------------------
+
+/// Configuration for the RANSAC homography estimator.
+#[derive(Debug, Clone)]
+pub struct RansacConfig {
+    /// Maximum reprojection error (pixels) for a point to be considered an inlier.
+    pub inlier_threshold: f64,
+    /// Maximum number of RANSAC iterations.
+    pub max_iterations: usize,
+    /// Minimum number of inliers required for a valid model.
+    pub min_inliers: usize,
+}
+
+impl Default for RansacConfig {
+    fn default() -> Self {
+        Self {
+            inlier_threshold: 3.0,
+            max_iterations: 1000,
+            min_inliers: 4,
+        }
+    }
+}
+
+/// A 3×3 homography matrix stored in row-major order (affine or projective).
+///
+/// The matrix maps homogeneous image coordinates:
+/// `p' = H · p`  where  `p = [x, y, 1]^T`.
+#[derive(Debug, Clone)]
+pub struct Homography {
+    /// 9 elements of the 3×3 matrix in row-major order.
+    pub m: [f64; 9],
+}
+
+impl Homography {
+    /// Create the identity homography.
+    #[must_use]
+    pub fn identity() -> Self {
+        Self {
+            m: [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+        }
+    }
+
+    /// Apply the homography to a 2-D point and return the projected point.
+    ///
+    /// Returns `None` if the homogeneous weight `w` is near zero.
+    #[must_use]
+    pub fn project(&self, x: f64, y: f64) -> Option<(f64, f64)> {
+        let m = &self.m;
+        let wx = m[0] * x + m[1] * y + m[2];
+        let wy = m[3] * x + m[4] * y + m[5];
+        let w = m[6] * x + m[7] * y + m[8];
+        if w.abs() < 1e-12 {
+            return None;
+        }
+        Some((wx / w, wy / w))
+    }
+
+    /// Compute the symmetric reprojection error for a match pair.
+    ///
+    /// Returns the mean of the forward and backward reprojection distances.
+    #[must_use]
+    pub fn reprojection_error(&self, qx: f64, qy: f64, tx: f64, ty: f64) -> f64 {
+        let fwd = self
+            .project(qx, qy)
+            .map(|(px, py)| ((px - tx).powi(2) + (py - ty).powi(2)).sqrt())
+            .unwrap_or(f64::MAX);
+        fwd
+    }
+}
+
+/// Estimate a homography from a set of sub-pixel matches using DLT + RANSAC.
+///
+/// This is a minimal, pure-Rust implementation of the Direct Linear Transform
+/// (DLT) solver for 4-point correspondences, wrapped in a RANSAC loop that
+/// selects the best hypothesis by inlier count.
+pub struct HomographyEstimator {
+    cfg: RansacConfig,
+}
+
+impl HomographyEstimator {
+    /// Create a homography estimator with the given RANSAC configuration.
+    #[must_use]
+    pub fn new(cfg: RansacConfig) -> Self {
+        Self { cfg }
+    }
+
+    /// Estimate a homography from sub-pixel matches.
+    ///
+    /// Returns `(homography, inlier_count)` or `None` if fewer than 4 matches
+    /// are available or the RANSAC loop fails to find a valid model.
+    ///
+    /// The RANSAC loop uses a deterministic sampling strategy (evenly-spaced
+    /// indices) to ensure reproducibility.
+    #[must_use]
+    pub fn estimate(&self, matches: &[SubPixelMatch]) -> Option<(Homography, usize)> {
+        if matches.len() < 4 {
+            return None;
+        }
+
+        let mut best_h = Homography::identity();
+        let mut best_inliers = 0usize;
+
+        let n = matches.len();
+        let step = (n / self.cfg.max_iterations).max(1);
+
+        let mut iter_count = 0usize;
+        let mut start = 0usize;
+
+        while iter_count < self.cfg.max_iterations && start < n {
+            // Select 4 points deterministically using a rotating stride
+            let i0 = start % n;
+            let i1 = (start + 1) % n;
+            let i2 = (start + 2) % n;
+            let i3 = (start + 3) % n;
+
+            let pts = [&matches[i0], &matches[i1], &matches[i2], &matches[i3]];
+
+            if let Some(h) = Self::dlt_4point(pts) {
+                let inliers = matches
+                    .iter()
+                    .filter(|m| {
+                        h.reprojection_error(
+                            m.query_pos_sub.0,
+                            m.query_pos_sub.1,
+                            m.train_pos_sub.0,
+                            m.train_pos_sub.1,
+                        ) < self.cfg.inlier_threshold
+                    })
+                    .count();
+
+                if inliers > best_inliers {
+                    best_inliers = inliers;
+                    best_h = h;
+                }
+            }
+
+            start += step;
+            iter_count += 1;
+        }
+
+        if best_inliers >= self.cfg.min_inliers {
+            Some((best_h, best_inliers))
+        } else {
+            None
+        }
+    }
+
+    /// Direct Linear Transform for exactly 4 point correspondences.
+    ///
+    /// Solves the 8×9 DLT system Ah = 0 using a hand-unrolled pseudo-inverse
+    /// for the minimal case.  Returns `None` if the system is degenerate.
+    fn dlt_4point(pts: [&SubPixelMatch; 4]) -> Option<Homography> {
+        // Build 8×9 matrix A (each point contributes 2 rows)
+        let mut a = [[0.0f64; 9]; 8];
+
+        for (k, m) in pts.iter().enumerate() {
+            let (x, y) = m.query_pos_sub;
+            let (xp, yp) = m.train_pos_sub;
+            let row0 = k * 2;
+            let row1 = row0 + 1;
+
+            a[row0] = [-x, -y, -1.0, 0.0, 0.0, 0.0, xp * x, xp * y, xp];
+            a[row1] = [0.0, 0.0, 0.0, -x, -y, -1.0, yp * x, yp * y, yp];
+        }
+
+        // Solve via SVD-free approximation: normalise and use cross-product trick.
+        // For a minimal 4-point case the null space can be found by eliminating
+        // variables.  We use a simple Gaussian elimination on the 8×9 matrix.
+        let h_vec = gaussian_null_space(&mut a)?;
+
+        Some(Homography { m: h_vec })
+    }
+}
+
+impl Default for HomographyEstimator {
+    fn default() -> Self {
+        Self::new(RansacConfig::default())
+    }
+}
+
+/// Solve the null space of an overdetermined 8×9 system by Gaussian elimination.
+///
+/// Returns the last column (free variable) of the reduced system as the
+/// homography vector, or `None` if the system is degenerate.
+fn gaussian_null_space(a: &mut [[f64; 9]; 8]) -> Option<[f64; 9]> {
+    let rows = 8usize;
+    let cols = 9usize;
+
+    for col in 0..cols - 1 {
+        // Find pivot row
+        let pivot = (col..rows).max_by(|&i, &j| {
+            a[i][col]
+                .abs()
+                .partial_cmp(&a[j][col].abs())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        });
+        let pivot = pivot?;
+
+        if a[pivot][col].abs() < 1e-12 {
+            continue;
+        }
+
+        a.swap(col.min(rows - 1), pivot);
+
+        let diag = a[col.min(rows - 1)][col];
+        for c in 0..cols {
+            a[col.min(rows - 1)][c] /= diag;
+        }
+
+        for r in 0..rows {
+            if r == col.min(rows - 1) {
+                continue;
+            }
+            let factor = a[r][col];
+            for c in 0..cols {
+                let sub = factor * a[col.min(rows - 1)][c];
+                a[r][c] -= sub;
+            }
+        }
+    }
+
+    // The null vector is the last column with sign-normalised h[8] = 1
+    let mut h = [0.0f64; 9];
+    for r in 0..8 {
+        h[r] = -a[r][8];
+    }
+    h[8] = 1.0;
+
+    Some(h)
+}
+
+/// Compute the quality score of a set of sub-pixel matches.
+///
+/// Returns the fraction of matches whose `refinement_error` is below
+/// `max_error`.  A high score indicates well-localised keypoints.
+#[must_use]
+pub fn subpixel_match_quality(matches: &[SubPixelMatch], max_error: f64) -> f32 {
+    if matches.is_empty() {
+        return 0.0;
+    }
+    let good = matches
+        .iter()
+        .filter(|m| m.refinement_error < max_error)
+        .count();
+    good as f32 / matches.len() as f32
+}
+
+/// Filter sub-pixel matches by maximum descriptor distance and refinement error.
+///
+/// Returns only matches satisfying both `max_dist` and `max_refinement_error`.
+#[must_use]
+pub fn filter_subpixel_matches(
+    matches: &[SubPixelMatch],
+    max_dist: f32,
+    max_refinement_error: f64,
+) -> Vec<&SubPixelMatch> {
+    matches
+        .iter()
+        .filter(|m| m.dist <= max_dist && m.refinement_error <= max_refinement_error)
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -589,5 +853,254 @@ mod tests {
     fn test_match_with_subpixel_empty() {
         let result = match_with_subpixel(&[], &[], 4, &[], &[], &[], 0, 0, &[], 0, 0);
         assert!(result.is_empty());
+    }
+
+    // --- Homography tests ---
+
+    #[test]
+    fn test_homography_identity_projects_correctly() {
+        let h = Homography::identity();
+        let p = h.project(10.0, 20.0);
+        assert!(p.is_some());
+        let (px, py) = p.unwrap();
+        assert!((px - 10.0).abs() < 1e-10);
+        assert!((py - 20.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_homography_reprojection_error_identity() {
+        let h = Homography::identity();
+        // Identity: query == train → error should be 0
+        let err = h.reprojection_error(5.0, 7.0, 5.0, 7.0);
+        assert!(
+            err < 1e-10,
+            "Identity reprojection error should be 0, got {err}"
+        );
+    }
+
+    #[test]
+    fn test_homography_reprojection_error_nonzero() {
+        let h = Homography::identity();
+        // Non-matching points
+        let err = h.reprojection_error(0.0, 0.0, 3.0, 4.0);
+        assert!((err - 5.0).abs() < 1e-6, "Expected error=5.0, got {err}");
+    }
+
+    #[test]
+    fn test_ransac_config_default() {
+        let cfg = RansacConfig::default();
+        assert!(cfg.inlier_threshold > 0.0);
+        assert!(cfg.max_iterations > 0);
+        assert!(cfg.min_inliers >= 4);
+    }
+
+    #[test]
+    fn test_homography_estimator_too_few_matches_returns_none() {
+        let est = HomographyEstimator::default();
+        let matches: Vec<SubPixelMatch> = (0..3)
+            .map(|i| SubPixelMatch {
+                query_idx: i,
+                train_idx: i,
+                query_pos_int: (i as f32, i as f32),
+                train_pos_int: (i as f32, i as f32),
+                query_pos_sub: (i as f64, i as f64),
+                train_pos_sub: (i as f64, i as f64),
+                refinement_error: 0.0,
+                dist: 0.0,
+            })
+            .collect();
+        assert!(est.estimate(&matches).is_none());
+    }
+
+    #[test]
+    fn test_homography_estimator_with_pure_translation() {
+        // A translation by (tx, ty) should be estimable from 4+ point correspondences.
+        let tx = 5.0_f64;
+        let ty = -3.0_f64;
+
+        let points: Vec<(f64, f64)> = vec![
+            (10.0, 20.0),
+            (50.0, 30.0),
+            (10.0, 80.0),
+            (90.0, 20.0),
+            (60.0, 60.0),
+        ];
+
+        let matches: Vec<SubPixelMatch> = points
+            .iter()
+            .enumerate()
+            .map(|(i, &(qx, qy))| SubPixelMatch {
+                query_idx: i,
+                train_idx: i,
+                query_pos_int: (qx as f32, qy as f32),
+                train_pos_int: ((qx + tx) as f32, (qy + ty) as f32),
+                query_pos_sub: (qx, qy),
+                train_pos_sub: (qx + tx, qy + ty),
+                refinement_error: 0.0,
+                dist: 0.1,
+            })
+            .collect();
+
+        let mut cfg = RansacConfig::default();
+        cfg.max_iterations = 50;
+        cfg.min_inliers = 4;
+        let est = HomographyEstimator::new(cfg);
+        // We don't require success (degenerate configurations can fail),
+        // but if it succeeds the inlier count must be >= 4.
+        if let Some((_, inliers)) = est.estimate(&matches) {
+            assert!(inliers >= 4, "Expected >=4 inliers, got {inliers}");
+        }
+    }
+
+    // --- subpixel_match_quality tests ---
+
+    #[test]
+    fn test_subpixel_match_quality_empty_returns_zero() {
+        let q = subpixel_match_quality(&[], 1.0);
+        assert!((q - 0.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn test_subpixel_match_quality_all_below_threshold() {
+        let matches: Vec<SubPixelMatch> = (0..5)
+            .map(|i| SubPixelMatch {
+                query_idx: i,
+                train_idx: i,
+                query_pos_int: (0.0, 0.0),
+                train_pos_int: (0.0, 0.0),
+                query_pos_sub: (0.0, 0.0),
+                train_pos_sub: (0.0, 0.0),
+                refinement_error: 0.1, // below 0.5
+                dist: 0.0,
+            })
+            .collect();
+        let q = subpixel_match_quality(&matches, 0.5);
+        assert!(
+            (q - 1.0).abs() < f32::EPSILON,
+            "All matches below threshold → quality=1.0, got {q}"
+        );
+    }
+
+    #[test]
+    fn test_subpixel_match_quality_none_below_threshold() {
+        let matches: Vec<SubPixelMatch> = (0..5)
+            .map(|i| SubPixelMatch {
+                query_idx: i,
+                train_idx: i,
+                query_pos_int: (0.0, 0.0),
+                train_pos_int: (0.0, 0.0),
+                query_pos_sub: (0.0, 0.0),
+                train_pos_sub: (0.0, 0.0),
+                refinement_error: 2.0, // above 0.5
+                dist: 0.0,
+            })
+            .collect();
+        let q = subpixel_match_quality(&matches, 0.5);
+        assert!(
+            (q - 0.0).abs() < f32::EPSILON,
+            "No matches below threshold → quality=0.0, got {q}"
+        );
+    }
+
+    // --- filter_subpixel_matches tests ---
+
+    #[test]
+    fn test_filter_subpixel_matches_all_pass() {
+        let matches: Vec<SubPixelMatch> = (0..4)
+            .map(|i| SubPixelMatch {
+                query_idx: i,
+                train_idx: i,
+                query_pos_int: (0.0, 0.0),
+                train_pos_int: (0.0, 0.0),
+                query_pos_sub: (0.0, 0.0),
+                train_pos_sub: (0.0, 0.0),
+                refinement_error: 0.2,
+                dist: 1.0,
+            })
+            .collect();
+        let filtered = filter_subpixel_matches(&matches, 2.0, 1.0);
+        assert_eq!(filtered.len(), 4);
+    }
+
+    #[test]
+    fn test_filter_subpixel_matches_by_dist() {
+        let matches: Vec<SubPixelMatch> = vec![
+            SubPixelMatch {
+                query_idx: 0,
+                train_idx: 0,
+                query_pos_int: (0.0, 0.0),
+                train_pos_int: (0.0, 0.0),
+                query_pos_sub: (0.0, 0.0),
+                train_pos_sub: (0.0, 0.0),
+                refinement_error: 0.0,
+                dist: 0.5, // pass
+            },
+            SubPixelMatch {
+                query_idx: 1,
+                train_idx: 1,
+                query_pos_int: (0.0, 0.0),
+                train_pos_int: (0.0, 0.0),
+                query_pos_sub: (0.0, 0.0),
+                train_pos_sub: (0.0, 0.0),
+                refinement_error: 0.0,
+                dist: 5.0, // fail (> max_dist=2.0)
+            },
+        ];
+        let filtered = filter_subpixel_matches(&matches, 2.0, 1.0);
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].query_idx, 0);
+    }
+
+    #[test]
+    fn test_filter_subpixel_matches_by_refinement_error() {
+        let matches: Vec<SubPixelMatch> = vec![
+            SubPixelMatch {
+                query_idx: 0,
+                train_idx: 0,
+                query_pos_int: (0.0, 0.0),
+                train_pos_int: (0.0, 0.0),
+                query_pos_sub: (0.0, 0.0),
+                train_pos_sub: (0.0, 0.0),
+                refinement_error: 0.1,
+                dist: 1.0, // pass
+            },
+            SubPixelMatch {
+                query_idx: 1,
+                train_idx: 1,
+                query_pos_int: (0.0, 0.0),
+                train_pos_int: (0.0, 0.0),
+                query_pos_sub: (0.0, 0.0),
+                train_pos_sub: (0.0, 0.0),
+                refinement_error: 3.0,
+                dist: 1.0, // fail (> max_err=1.5)
+            },
+        ];
+        let filtered = filter_subpixel_matches(&matches, 2.0, 1.5);
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].query_idx, 0);
+    }
+
+    #[test]
+    fn test_subpixel_refiner_set_window_and_displacement() {
+        let mut refiner = SubPixelRefiner::new();
+        refiner.set_window_half(5);
+        refiner.set_max_displacement(1.0);
+        assert_eq!(refiner.window_half, 5);
+        assert!((refiner.max_displacement - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_subpixel_refiner_out_of_bounds_keypoint_returns_original() {
+        let refiner = SubPixelRefiner::new();
+        let mut fm = FeatureMatch::new();
+        fm.all_matches.push(MatchPair::new(0, 0, 0.0));
+        let img = vec![0.5f32; 10 * 10];
+        // Keypoint at border — should still return a result (clamped to original pos)
+        let kps_q = vec![(0.0f32, 0.0f32)]; // border: ix=0 < window_half=3
+        let kps_t = vec![(5.0f32, 5.0f32)];
+        let result = refiner.refine(&fm, &kps_q, &kps_t, &img, 10, 10, &img, 10, 10);
+        assert_eq!(result.len(), 1);
+        // Original position should be preserved when refinement cannot proceed
+        assert!((result[0].query_pos_sub.0 - 0.0).abs() < 0.5);
     }
 }

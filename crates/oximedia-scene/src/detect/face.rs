@@ -2,7 +2,7 @@
 //!
 //! Supports multi-scale detection so faces of different sizes within the
 //! same image are all found. After collecting candidates across all scales,
-//! Non-Maximum Suppression (NMS) is applied via the shared [`crate::detect::nms`]
+//! Non-Maximum Suppression (NMS) is applied via the shared [`crate::detect::nms()`]
 //! function to remove duplicate detections.
 
 use crate::common::{Confidence, Rect};

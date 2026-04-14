@@ -600,7 +600,10 @@ mod tests {
 
         let found = report.find_by_label("my-label");
         assert!(found.is_some(), "should find result by label");
-        assert_eq!(found.expect("should find result by label").label.as_deref(), Some("my-label"));
+        assert_eq!(
+            found.expect("should find result by label").label.as_deref(),
+            Some("my-label")
+        );
 
         assert!(report.find_by_label("nonexistent").is_none());
 

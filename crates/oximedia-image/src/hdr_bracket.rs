@@ -62,17 +62,31 @@ pub struct BracketedExposure {
 
 impl BracketedExposure {
     /// Create a new bracketed exposure.
-    pub fn new(pixels: Vec<u8>, width: u32, height: u32, channels: u8, exposure_time: f64) -> ImageResult<Self> {
+    pub fn new(
+        pixels: Vec<u8>,
+        width: u32,
+        height: u32,
+        channels: u8,
+        exposure_time: f64,
+    ) -> ImageResult<Self> {
         let expected = width as usize * height as usize * channels as usize;
         if pixels.len() != expected {
             return Err(ImageError::invalid_format(format!(
-                "Pixel buffer length {} != expected {}", pixels.len(), expected
+                "Pixel buffer length {} != expected {}",
+                pixels.len(),
+                expected
             )));
         }
         if exposure_time <= 0.0 {
             return Err(ImageError::invalid_format("Exposure time must be positive"));
         }
-        Ok(Self { pixels, width, height, channels, exposure_time })
+        Ok(Self {
+            pixels,
+            width,
+            height,
+            channels,
+            exposure_time,
+        })
     }
 
     /// Sample a specific pixel's channel value.
@@ -80,7 +94,11 @@ impl BracketedExposure {
     pub fn sample(&self, x: u32, y: u32, channel: u8) -> u8 {
         let idx = (y as usize * self.width as usize + x as usize) * self.channels as usize
             + channel as usize;
-        if idx < self.pixels.len() { self.pixels[idx] } else { 0 }
+        if idx < self.pixels.len() {
+            self.pixels[idx]
+        } else {
+            0
+        }
     }
 
     /// Total number of pixels.
@@ -116,7 +134,7 @@ impl Default for DebevecConfig {
 /// Recovered camera response function g(z) for z in [0, 255].
 #[derive(Debug, Clone)]
 pub struct ResponseCurve {
-    /// g(z) values: g[z] = ln(irradiance) for camera output z.
+    /// g(z) values: g\[z\] = ln(irradiance) for camera output z.
     pub g: [f64; 256],
 }
 
@@ -172,8 +190,6 @@ pub fn recover_response_curve(
 
     let channels = exposures[0].channels as usize;
     let pixel_count = exposures[0].pixel_count();
-    let n_images = exposures.len();
-
     // Validate all exposures have same dimensions
     for (i, exp) in exposures.iter().enumerate() {
         if exp.width != exposures[0].width || exp.height != exposures[0].height {
@@ -198,7 +214,9 @@ pub fn recover_response_curve(
         while sampled_pixels.len() < n_samples && idx < pixel_count {
             sampled_pixels.push(idx);
             // LCG next
-            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            state = state
+                .wrapping_mul(6364136223846793005)
+                .wrapping_add(1442695040888963407);
             idx += step + (state >> 60) as usize;
         }
     }
@@ -227,11 +245,17 @@ pub fn recover_response_curve(
             for (j, exp) in exposures.iter().enumerate() {
                 let z_raw = {
                     let px_base = pix_idx * channels + ch;
-                    if px_base < exp.pixels.len() { exp.pixels[px_base] } else { 128 }
+                    if px_base < exp.pixels.len() {
+                        exp.pixels[px_base]
+                    } else {
+                        128
+                    }
                 };
                 let z = z_raw as usize;
                 let w = hat_weight(z_raw);
-                if w < 1e-9 { continue; }
+                if w < 1e-9 {
+                    continue;
+                }
 
                 // Equation: w * g[z] - w * lnE[i] = w * ln(dt[j])
                 let gz_idx = z;
@@ -254,17 +278,19 @@ pub fn recover_response_curve(
         // Smoothness equations: lambda * w(z) * [g(z-1) - 2g(z) + g(z+1)] = 0
         for z in 1..255usize {
             let w = hat_weight(z as u8) * config.lambda;
-            if w < 1e-9 { continue; }
+            if w < 1e-9 {
+                continue;
+            }
             // Row: w*(g[z-1] - 2*g[z] + g[z+1]) = 0
-            ata[(z-1) * n_unknowns + (z-1)] += w * w;
-            ata[z * n_unknowns + z]         += 4.0 * w * w;
-            ata[(z+1) * n_unknowns + (z+1)] += w * w;
-            ata[(z-1) * n_unknowns + z]     -= 2.0 * w * w;
-            ata[z * n_unknowns + (z-1)]     -= 2.0 * w * w;
-            ata[(z-1) * n_unknowns + (z+1)] += w * w;
-            ata[(z+1) * n_unknowns + (z-1)] += w * w;
-            ata[z * n_unknowns + (z+1)]     -= 2.0 * w * w;
-            ata[(z+1) * n_unknowns + z]     -= 2.0 * w * w;
+            ata[(z - 1) * n_unknowns + (z - 1)] += w * w;
+            ata[z * n_unknowns + z] += 4.0 * w * w;
+            ata[(z + 1) * n_unknowns + (z + 1)] += w * w;
+            ata[(z - 1) * n_unknowns + z] -= 2.0 * w * w;
+            ata[z * n_unknowns + (z - 1)] -= 2.0 * w * w;
+            ata[(z - 1) * n_unknowns + (z + 1)] += w * w;
+            ata[(z + 1) * n_unknowns + (z - 1)] += w * w;
+            ata[z * n_unknowns + (z + 1)] -= 2.0 * w * w;
+            ata[(z + 1) * n_unknowns + z] -= 2.0 * w * w;
         }
 
         // Anchor: g[128] = 0 (add large weight to diagonal)
@@ -276,13 +302,19 @@ pub fn recover_response_curve(
         let mut x = vec![0.0f64; n_unknowns];
         // Initialize g with linear assumption
         for z in 0..256 {
-            x[z] = if z == 0 { (1.0f64/255.0).ln() } else { (z as f64 / 255.0).ln() };
+            x[z] = if z == 0 {
+                (1.0f64 / 255.0).ln()
+            } else {
+                (z as f64 / 255.0).ln()
+            };
         }
 
         for _iter in 0..50 {
             for i in 0..n_unknowns {
                 let diag = ata[i * n_unknowns + i];
-                if diag.abs() < 1e-12 { continue; }
+                if diag.abs() < 1e-12 {
+                    continue;
+                }
                 let mut sum = atb[i];
                 for j in 0..n_unknowns {
                     if j != i {
@@ -324,9 +356,13 @@ impl HdrRadianceMap {
     /// Sample radiance at pixel (x, y), channel c.
     #[must_use]
     pub fn sample(&self, x: u32, y: u32, c: u8) -> f32 {
-        let idx = (y as usize * self.width as usize + x as usize) * self.channels as usize
-            + c as usize;
-        if idx < self.radiance.len() { self.radiance[idx] } else { 0.0 }
+        let idx =
+            (y as usize * self.width as usize + x as usize) * self.channels as usize + c as usize;
+        if idx < self.radiance.len() {
+            self.radiance[idx]
+        } else {
+            0.0
+        }
     }
 
     /// Returns maximum radiance value across all channels.
@@ -338,7 +374,9 @@ impl HdrRadianceMap {
     /// Returns minimum non-zero radiance.
     #[must_use]
     pub fn min_radiance(&self) -> f32 {
-        self.radiance.iter().copied()
+        self.radiance
+            .iter()
+            .copied()
             .filter(|&v| v > 0.0)
             .fold(f32::MAX, f32::min)
     }
@@ -355,7 +393,9 @@ pub fn assemble_hdr(
         return Err(ImageError::invalid_format("No exposures provided"));
     }
     if curves.len() != exposures[0].channels as usize {
-        return Err(ImageError::invalid_format("Mismatch between curves and channels"));
+        return Err(ImageError::invalid_format(
+            "Mismatch between curves and channels",
+        ));
     }
 
     let width = exposures[0].width;
@@ -373,20 +413,35 @@ pub fn assemble_hdr(
 
             for (j, exp) in exposures.iter().enumerate() {
                 let raw_idx = pix_idx * channels + ch;
-                let z = if raw_idx < exp.pixels.len() { exp.pixels[raw_idx] } else { 128 };
+                let z = if raw_idx < exp.pixels.len() {
+                    exp.pixels[raw_idx]
+                } else {
+                    128
+                };
                 let w = hat_weight(z);
-                if w < 1e-9 { continue; }
+                if w < 1e-9 {
+                    continue;
+                }
                 let g_z = curves[ch].eval(z);
                 numerator += w * (g_z - ln_times[j]);
                 denominator += w;
             }
 
-            let ln_e = if denominator > 1e-12 { numerator / denominator } else { 0.0 };
+            let ln_e = if denominator > 1e-12 {
+                numerator / denominator
+            } else {
+                0.0
+            };
             radiance[pix_idx * channels + ch] = ln_e.exp() as f32;
         }
     }
 
-    Ok(HdrRadianceMap { width, height, channels: channels as u8, radiance })
+    Ok(HdrRadianceMap {
+        width,
+        height,
+        channels: channels as u8,
+        radiance,
+    })
 }
 
 // ── Tone mapping ──────────────────────────────────────────────────────────────
@@ -395,26 +450,27 @@ pub fn assemble_hdr(
 ///
 /// Maps HDR radiance to [0, 1] LDR using the formula:
 /// `L_d = L_w / (1 + L_w)` after key-value scaling.
-pub fn tone_map_reinhard_global(
-    hdr: &HdrRadianceMap,
-    key: f64,
-) -> Vec<f32> {
+pub fn tone_map_reinhard_global(hdr: &HdrRadianceMap, key: f64) -> Vec<f32> {
     let n = hdr.radiance.len();
-    if n == 0 { return Vec::new(); }
+    if n == 0 {
+        return Vec::new();
+    }
 
     // Compute log-average luminance
     let eps = 1e-6;
     let channels = hdr.channels as usize;
     let pixel_count = (hdr.width * hdr.height) as usize;
     let log_avg_lum = if channels >= 3 {
-        let sum: f64 = (0..pixel_count).map(|i| {
-            let base = i * channels;
-            let r = hdr.radiance[base] as f64;
-            let g = hdr.radiance[base + 1] as f64;
-            let b = hdr.radiance[base + 2] as f64;
-            let lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-            (lum + eps).ln()
-        }).sum::<f64>();
+        let sum: f64 = (0..pixel_count)
+            .map(|i| {
+                let base = i * channels;
+                let r = hdr.radiance[base] as f64;
+                let g = hdr.radiance[base + 1] as f64;
+                let b = hdr.radiance[base + 2] as f64;
+                let lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                (lum + eps).ln()
+            })
+            .sum::<f64>();
         (sum / pixel_count as f64).exp()
     } else {
         let sum: f64 = hdr.radiance.iter().map(|&v| (v as f64 + eps).ln()).sum();
@@ -435,7 +491,8 @@ pub fn tone_map_reinhard_global(
 /// Convert a tone-mapped radiance map to 8-bit pixels.
 #[must_use]
 pub fn to_ldr_u8(tone_mapped: &[f32]) -> Vec<u8> {
-    tone_mapped.iter()
+    tone_mapped
+        .iter()
         .map(|&v| (v.clamp(0.0, 1.0) * 255.0).round() as u8)
         .collect()
 }
@@ -456,17 +513,11 @@ mod tests {
     use super::*;
 
     fn make_exposure(w: u32, h: u32, fill: u8, dt: f64) -> BracketedExposure {
-        BracketedExposure::new(
-            vec![fill; (w * h * 3) as usize],
-            w, h, 3, dt,
-        ).expect("exposure")
+        BracketedExposure::new(vec![fill; (w * h * 3) as usize], w, h, 3, dt).expect("exposure")
     }
 
     fn make_gray_exposure(w: u32, h: u32, fill: u8, dt: f64) -> BracketedExposure {
-        BracketedExposure::new(
-            vec![fill; (w * h) as usize],
-            w, h, 1, dt,
-        ).expect("exposure")
+        BracketedExposure::new(vec![fill; (w * h) as usize], w, h, 1, dt).expect("exposure")
     }
 
     #[test]
@@ -530,9 +581,12 @@ mod tests {
         let curve = ResponseCurve::linear();
         // ln(E) should be monotonically increasing
         for z in 1..255 {
-            assert!(curve.g[z] > curve.g[z - 1],
+            assert!(
+                curve.g[z] > curve.g[z - 1],
                 "linear curve not monotonic at z={z}: g[z]={} <= g[z-1]={}",
-                curve.g[z], curve.g[z-1]);
+                curve.g[z],
+                curve.g[z - 1]
+            );
         }
     }
 
@@ -556,9 +610,11 @@ mod tests {
         let e1 = make_gray_exposure(8, 8, 64, 0.0625);
         let e2 = make_gray_exposure(8, 8, 128, 0.125);
         let e3 = make_gray_exposure(8, 8, 200, 0.25);
-        let config = DebevecConfig { sample_pixels: 16, ..Default::default() };
-        let curves = recover_response_curve(&[e1, e2, e3], &config)
-            .expect("recover curves");
+        let config = DebevecConfig {
+            sample_pixels: 16,
+            ..Default::default()
+        };
+        let curves = recover_response_curve(&[e1, e2, e3], &config).expect("recover curves");
         assert_eq!(curves.len(), 1);
         // g should be defined at all 256 values
         for (z, &g) in curves[0].g.iter().enumerate() {
@@ -576,7 +632,10 @@ mod tests {
         assert_eq!(hdr.height, 4);
         assert_eq!(hdr.radiance.len(), 4 * 4);
         for &v in &hdr.radiance {
-            assert!(v.is_finite() && v >= 0.0, "radiance must be non-negative finite");
+            assert!(
+                v.is_finite() && v >= 0.0,
+                "radiance must be non-negative finite"
+            );
         }
     }
 
@@ -584,7 +643,7 @@ mod tests {
     fn test_assemble_hdr_channel_mismatch() {
         let curve = ResponseCurve::linear();
         let exp = make_exposure(4, 4, 128, 0.1); // 3 channels
-        // Only 1 curve but 3 channels
+                                                 // Only 1 curve but 3 channels
         let result = assemble_hdr(&[exp], &[curve]);
         assert!(result.is_err());
     }
@@ -606,7 +665,12 @@ mod tests {
 
     #[test]
     fn test_tone_map_empty() {
-        let hdr = HdrRadianceMap { width: 0, height: 0, channels: 3, radiance: vec![] };
+        let hdr = HdrRadianceMap {
+            width: 0,
+            height: 0,
+            channels: 3,
+            radiance: vec![],
+        };
         let ldr = tone_map_reinhard_global(&hdr, 0.18);
         assert!(ldr.is_empty());
     }
@@ -617,9 +681,7 @@ mod tests {
         let u8_vals = to_ldr_u8(&tone_mapped);
         assert_eq!(u8_vals[0], 0);
         assert_eq!(u8_vals[4], 255);
-        for &v in &u8_vals {
-            assert!(v <= 255);
-        }
+        assert_eq!(u8_vals.len(), tone_mapped.len());
     }
 
     #[test]
@@ -633,7 +695,12 @@ mod tests {
     #[test]
     fn test_hdr_radiance_map_sample() {
         let radiance = vec![0.5f32, 1.0, 0.25, 0.8, 0.3, 0.6];
-        let hdr = HdrRadianceMap { width: 2, height: 1, channels: 3, radiance };
+        let hdr = HdrRadianceMap {
+            width: 2,
+            height: 1,
+            channels: 3,
+            radiance,
+        };
         assert!((hdr.sample(0, 0, 0) - 0.5).abs() < 1e-6);
         assert!((hdr.sample(0, 0, 1) - 1.0).abs() < 1e-6);
         assert!((hdr.sample(1, 0, 0) - 0.8).abs() < 1e-6);
@@ -642,7 +709,12 @@ mod tests {
     #[test]
     fn test_hdr_max_min_radiance() {
         let radiance = vec![0.1f32, 5.0, 0.5, 2.0];
-        let hdr = HdrRadianceMap { width: 2, height: 1, channels: 2, radiance };
+        let hdr = HdrRadianceMap {
+            width: 2,
+            height: 1,
+            channels: 2,
+            radiance,
+        };
         assert!((hdr.max_radiance() - 5.0).abs() < 1e-6);
         assert!((hdr.min_radiance() - 0.1).abs() < 1e-6);
     }
@@ -653,7 +725,11 @@ mod tests {
         let e1 = make_gray_exposure(6, 6, 50, 0.0625);
         let e2 = make_gray_exposure(6, 6, 100, 0.125);
         let e3 = make_gray_exposure(6, 6, 180, 0.25);
-        let config = DebevecConfig { sample_pixels: 8, lambda: 5.0, seed: 42 };
+        let config = DebevecConfig {
+            sample_pixels: 8,
+            lambda: 5.0,
+            seed: 42,
+        };
         let hdr = debevec_hdr_merge(&[e1, e2, e3], &config).expect("debevec");
         assert_eq!(hdr.pixel_count(), 36);
         assert!(hdr.max_radiance() > 0.0);

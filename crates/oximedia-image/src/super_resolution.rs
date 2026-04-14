@@ -394,7 +394,9 @@ mod tests {
         let config = SuperResolutionConfig::default().with_scale(ScaleFactor::X2);
         let upscaler = SuperResolutionUpscaler::new(config);
         let src = vec![128u8; 8 * 8 * 3];
-        let result = upscaler.upscale(&src, 8, 8, 3).expect("upscale 8x8 RGB to 16x16");
+        let result = upscaler
+            .upscale(&src, 8, 8, 3)
+            .expect("upscale 8x8 RGB to 16x16");
         assert_eq!(result.width, 16);
         assert_eq!(result.height, 16);
         assert_eq!(result.channels, 3);
@@ -408,7 +410,9 @@ mod tests {
         let config = SuperResolutionConfig::default().with_scale(ScaleFactor::X3);
         let upscaler = SuperResolutionUpscaler::new(config);
         let src = vec![100u8; 4 * 4];
-        let result = upscaler.upscale(&src, 4, 4, 1).expect("upscale 4x4 grayscale to 12x12");
+        let result = upscaler
+            .upscale(&src, 4, 4, 1)
+            .expect("upscale 4x4 grayscale to 12x12");
         assert_eq!(result.width, 12);
         assert_eq!(result.height, 12);
         assert_eq!(result.data.len(), 144);
@@ -421,7 +425,9 @@ mod tests {
         let config = SuperResolutionConfig::default().with_scale(ScaleFactor::X4);
         let upscaler = SuperResolutionUpscaler::new(config);
         let src = vec![200u8; 6 * 6 * 4];
-        let result = upscaler.upscale(&src, 6, 6, 4).expect("upscale 6x6 RGBA to 24x24");
+        let result = upscaler
+            .upscale(&src, 6, 6, 4)
+            .expect("upscale 6x6 RGBA to 24x24");
         assert_eq!(result.width, 24);
         assert_eq!(result.height, 24);
         assert_eq!(result.channels, 4);
@@ -440,10 +446,10 @@ mod tests {
         let src: Vec<u8> = (0..16 * 16 * 3)
             .map(|i| if i % 6 < 3 { 0 } else { 255 })
             .collect();
-        let result = upscaler.upscale(&src, 16, 16, 3).expect("upscale with aggressive sharpening");
-        for &v in &result.data {
-            assert!(v <= 255, "output value out of u8 range: {v}");
-        }
+        let result = upscaler
+            .upscale(&src, 16, 16, 3)
+            .expect("upscale with aggressive sharpening");
+        assert!(!result.data.is_empty());
     }
 
     // -----------------------------------------------------------------------

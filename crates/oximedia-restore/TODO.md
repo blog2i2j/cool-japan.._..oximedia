@@ -19,10 +19,10 @@
 ## New Features
 - [ ] Add a `breath_removal` module for podcast/voiceover restoration (detect and attenuate breaths)
 - [ ] Implement `reverb_reduction` module using spectral dereverberation techniques
-- [ ] Add `dynamic_eq` module for frequency-dependent compression/expansion
+- [x] Add `dynamic_eq` module for frequency-dependent compression/expansion
 - [ ] Implement `loudness_normalization` step (EBU R128 / ITU-R BS.1770) as a RestoreChain step
-- [ ] Add `vinyl_surface_noise` module with adaptive surface noise profiling distinct from click/crackle
-- [ ] Implement `tape_dropout_repair` module for detecting and interpolating tape dropouts
+- [x] Add `vinyl_surface_noise` module with adaptive surface noise profiling distinct from click/crackle
+- [x] Implement `tape_dropout_repair` module for detecting and interpolating tape dropouts
 - [ ] Add `harmonic_reconstruct` module to rebuild missing harmonics in bandwidth-limited recordings
 - [ ] Implement `stereo_width` restoration step for collapsed or narrow stereo fields
 - [ ] Add `restore_undo` with per-step rollback capability using stored intermediate buffers

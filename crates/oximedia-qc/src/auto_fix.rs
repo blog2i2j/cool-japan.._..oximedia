@@ -1,8 +1,8 @@
 //! Auto-fix suggestions and application for common QC failures.
 //!
-//! Provides the [`QcAutoFixer`] which analyzes a QC report and suggests
+//! Provides the `QcAutoFixer` which analyzes a QC report and suggests
 //! automated remediation actions. Each action can be simulated via
-//! [`QcAutoFixer::apply_fix`] which returns a description of what would change.
+//! `QcAutoFixer::apply_fix` which returns a description of what would change.
 
 #![allow(dead_code)]
 
@@ -517,5 +517,175 @@ mod tests {
     fn test_auto_fix_action_display() {
         let action = AutoFixAction::NormalizeLoudness { target_lufs: -23.0 };
         assert!(action.to_string().contains("LUFS"));
+    }
+
+    // ── Additional auto-fix tests ──────────────────────────────────────────
+
+    #[test]
+    fn test_fixer_builder_loudness_target() {
+        let fixer = QcAutoFixer::new().with_loudness_target(-16.0);
+        assert!((fixer.default_loudness_target_lufs - (-16.0)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_fixer_builder_bitrate_target() {
+        let fixer = QcAutoFixer::new().with_bitrate_target(12_000);
+        assert_eq!(fixer.default_bitrate_target_kbps, 12_000);
+    }
+
+    #[test]
+    fn test_suggest_fixes_returns_empty_for_empty_report() {
+        let fixer = QcAutoFixer::new();
+        let report = QcReport::new();
+        let fixes = fixer.suggest_fixes(&report);
+        assert!(fixes.is_empty());
+    }
+
+    #[test]
+    fn test_suggest_fixes_lkfs_alias() {
+        // "LKFS" is an alias for "LUFS" — should still trigger NormalizeLoudness
+        let fixer = QcAutoFixer::new();
+        let report = make_report_with_finding(
+            "audio_lkfs",
+            FindingSeverity::Error,
+            "LKFS measurement is out of range",
+        );
+        let fixes = fixer.suggest_fixes(&report);
+        assert!(fixes
+            .iter()
+            .any(|(_, a)| matches!(a, AutoFixAction::NormalizeLoudness { .. })));
+    }
+
+    #[test]
+    fn test_suggest_fixes_colorspace_keyword() {
+        let fixer = QcAutoFixer::new();
+        let report = make_report_with_finding(
+            "colorspace_check",
+            FindingSeverity::Warning,
+            "colorspace does not match delivery spec",
+        );
+        let fixes = fixer.suggest_fixes(&report);
+        assert!(fixes
+            .iter()
+            .any(|(_, a)| matches!(a, AutoFixAction::NormalizeColorSpace { .. })));
+    }
+
+    #[test]
+    fn test_suggest_fixes_saturation_triggers_clip_fix() {
+        let fixer = QcAutoFixer::new();
+        let report = make_report_with_finding(
+            "peak_check",
+            FindingSeverity::Error,
+            "Audio saturation detected at 0 dBFS",
+        );
+        let fixes = fixer.suggest_fixes(&report);
+        assert!(fixes
+            .iter()
+            .any(|(_, a)| matches!(a, AutoFixAction::FixAudioClipping { .. })));
+    }
+
+    #[test]
+    fn test_apply_fix_loudness_has_true_peak_caveat() {
+        let fixer = QcAutoFixer::new();
+        let action = AutoFixAction::NormalizeLoudness { target_lufs: -23.0 };
+        let result = fixer.apply_fix(&action);
+        // The description should mention EBU R128 or true peak
+        assert!(
+            result.description.to_lowercase().contains("r128")
+                || result.description.to_lowercase().contains("true peak"),
+            "Expected true peak or R128 mention in description"
+        );
+    }
+
+    #[test]
+    fn test_apply_fix_bitrate_has_cbr_or_vbr_caveat() {
+        let fixer = QcAutoFixer::new();
+        let action = AutoFixAction::AdjustBitrate { target_kbps: 5000 };
+        let result = fixer.apply_fix(&action);
+        assert!(
+            !result.caveats.is_empty(),
+            "Bitrate fix should include a caveat"
+        );
+    }
+
+    #[test]
+    fn test_apply_fix_color_space_has_hdr_caveat() {
+        let fixer = QcAutoFixer::new();
+        let action = AutoFixAction::NormalizeColorSpace {
+            target_color_space: "bt709".to_string(),
+        };
+        let result = fixer.apply_fix(&action);
+        // Should warn about HDR metadata when converting color space
+        assert!(
+            result
+                .caveats
+                .iter()
+                .any(|c| c.to_lowercase().contains("hdr")),
+            "NormalizeColorSpace should mention HDR metadata in caveats"
+        );
+    }
+
+    #[test]
+    fn test_check_id_equality() {
+        let a = CheckId::new("video_bitrate");
+        let b = CheckId::new("video_bitrate");
+        let c = CheckId::new("audio_loudness");
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+    }
+
+    #[test]
+    fn test_auto_fix_action_display_variants() {
+        let actions = vec![
+            AutoFixAction::AdjustBitrate { target_kbps: 5000 },
+            AutoFixAction::TrimBlackFrames,
+            AutoFixAction::NormalizeColorSpace {
+                target_color_space: "bt709".to_string(),
+            },
+            AutoFixAction::ScaleResolution {
+                width: 1920,
+                height: 1080,
+            },
+            AutoFixAction::FixAudioClipping { ceiling_dbfs: -1.0 },
+        ];
+        for action in &actions {
+            let display = action.to_string();
+            assert!(
+                !display.is_empty(),
+                "Display string should not be empty for {action:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_suggest_fixes_no_duplicates_across_results() {
+        // Two different check results, each with a loudness finding
+        // — after deduplication both should be present (different check IDs).
+        let fixer = QcAutoFixer::new();
+        let mut report = QcReport::new();
+        let mut r1 = QcCheckResult::pass("audio_loudness_1");
+        r1.add_finding(QcFinding::new(
+            "audio_loudness_1",
+            FindingSeverity::Error,
+            "LUFS too high",
+        ));
+        let mut r2 = QcCheckResult::pass("audio_loudness_2");
+        r2.add_finding(QcFinding::new(
+            "audio_loudness_2",
+            FindingSeverity::Error,
+            "LUFS too low",
+        ));
+        report.add_result(r1);
+        report.add_result(r2);
+        let fixes = fixer.suggest_fixes(&report);
+        let loudness_count = fixes
+            .iter()
+            .filter(|(_, a)| matches!(a, AutoFixAction::NormalizeLoudness { .. }))
+            .count();
+        // Different check IDs → two distinct (id, action) pairs
+        assert_eq!(
+            loudness_count, 2,
+            "Different check IDs should not be deduplicated"
+        );
     }
 }

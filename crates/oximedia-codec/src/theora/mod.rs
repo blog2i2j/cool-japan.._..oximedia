@@ -40,6 +40,7 @@
 //! use oximedia_codec::traits::{VideoDecoder, VideoEncoder};
 //! use oximedia_core::{CodecId, PixelFormat};
 //!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! // Decoding
 //! let mut decoder = TheoraDecoder::new(1920, 1080, PixelFormat::Yuv420p)?;
 //! // decoder.send_packet(&packet_data, pts)?;
@@ -52,6 +53,8 @@
 //!     .with_quality(48)
 //!     .with_target_bitrate(2_000_000);
 //! let mut encoder = TheoraEncoder::new(config)?;
+//! # Ok(())
+//! # }
 //! ```
 
 pub mod bitstream;

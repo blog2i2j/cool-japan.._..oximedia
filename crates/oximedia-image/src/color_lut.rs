@@ -83,7 +83,9 @@ impl Lut3d {
         let expected = self.size * self.size * self.size;
         if self.data.len() != expected {
             return Err(ImageError::invalid_format(format!(
-                "LUT data length {} != expected {}", self.data.len(), expected
+                "LUT data length {} != expected {}",
+                self.data.len(),
+                expected
             )));
         }
         if self.size < 2 {
@@ -184,9 +186,9 @@ impl Lut3d {
                 self.apply_to_buffer_u8(&mut buf, channels);
                 Ok(ImageData::interleaved(buf))
             }
-            ImageData::Planar(_) => {
-                Err(ImageError::unsupported("LUT application to planar data not supported"))
-            }
+            ImageData::Planar(_) => Err(ImageError::unsupported(
+                "LUT application to planar data not supported",
+            )),
         }
     }
 
@@ -227,32 +229,46 @@ impl CubeParser {
             if line.starts_with("LUT_3D_SIZE") {
                 let parts: Vec<&str> = line.split_whitespace().collect();
                 if parts.len() >= 2 {
-                    size = parts[1].parse().map_err(|_| {
-                        ImageError::invalid_format("Invalid LUT_3D_SIZE")
-                    })?;
+                    size = parts[1]
+                        .parse()
+                        .map_err(|_| ImageError::invalid_format("Invalid LUT_3D_SIZE"))?;
                 }
                 continue;
             }
-            if line.starts_with("TITLE") || line.starts_with("DOMAIN_MIN") || line.starts_with("DOMAIN_MAX") {
+            if line.starts_with("TITLE")
+                || line.starts_with("DOMAIN_MIN")
+                || line.starts_with("DOMAIN_MAX")
+            {
                 continue;
             }
             // Try to parse as three floats
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() == 3 {
-                let r: f32 = parts[0].parse().map_err(|_| ImageError::invalid_format("LUT parse: invalid R"))?;
-                let g: f32 = parts[1].parse().map_err(|_| ImageError::invalid_format("LUT parse: invalid G"))?;
-                let b: f32 = parts[2].parse().map_err(|_| ImageError::invalid_format("LUT parse: invalid B"))?;
+                let r: f32 = parts[0]
+                    .parse()
+                    .map_err(|_| ImageError::invalid_format("LUT parse: invalid R"))?;
+                let g: f32 = parts[1]
+                    .parse()
+                    .map_err(|_| ImageError::invalid_format("LUT parse: invalid G"))?;
+                let b: f32 = parts[2]
+                    .parse()
+                    .map_err(|_| ImageError::invalid_format("LUT parse: invalid B"))?;
                 data.push([r.clamp(0.0, 1.0), g.clamp(0.0, 1.0), b.clamp(0.0, 1.0)]);
             }
         }
 
         if size == 0 {
-            return Err(ImageError::invalid_format("Missing LUT_3D_SIZE in .cube file"));
+            return Err(ImageError::invalid_format(
+                "Missing LUT_3D_SIZE in .cube file",
+            ));
         }
         let expected = size * size * size;
         if data.len() != expected {
             return Err(ImageError::invalid_format(format!(
-                "LUT has {} entries, expected {} (size={})", data.len(), expected, size
+                "LUT has {} entries, expected {} (size={})",
+                data.len(),
+                expected,
+                size
             )));
         }
 
@@ -267,7 +283,10 @@ impl CubeParser {
         out.push_str("DOMAIN_MIN 0.0 0.0 0.0\n");
         out.push_str("DOMAIN_MAX 1.0 1.0 1.0\n");
         for entry in &lut.data {
-            out.push_str(&format!("{:.6} {:.6} {:.6}\n", entry[0], entry[1], entry[2]));
+            out.push_str(&format!(
+                "{:.6} {:.6} {:.6}\n",
+                entry[0], entry[1], entry[2]
+            ));
         }
         out
     }
@@ -294,7 +313,12 @@ impl Lut1d {
     pub fn identity(size: usize) -> Self {
         let size = size.max(2);
         let table: Vec<f32> = (0..size).map(|i| i as f32 / (size - 1) as f32).collect();
-        Self { size, r: table.clone(), g: table.clone(), b: table }
+        Self {
+            size,
+            r: table.clone(),
+            g: table.clone(),
+            b: table,
+        }
     }
 
     /// Create a gamma-corrected 1D LUT.
@@ -304,7 +328,12 @@ impl Lut1d {
         let table: Vec<f32> = (0..size)
             .map(|i| (i as f32 / (size - 1) as f32).powf(gamma))
             .collect();
-        Self { size, r: table.clone(), g: table.clone(), b: table }
+        Self {
+            size,
+            r: table.clone(),
+            g: table.clone(),
+            b: table,
+        }
     }
 
     /// Evaluate the LUT at input [0, 1] for a given channel (0=R, 1=G, 2=B).
@@ -315,7 +344,11 @@ impl Lut1d {
         let i0 = vi.floor() as usize;
         let i1 = (i0 + 1).min(self.size - 1);
         let f = vi - vi.floor();
-        let table = match ch { 0 => &self.r, 1 => &self.g, _ => &self.b };
+        let table = match ch {
+            0 => &self.r,
+            1 => &self.g,
+            _ => &self.b,
+        };
         table[i0] * (1.0 - f) + table[i1] * f
     }
 
@@ -345,7 +378,11 @@ impl LutChain {
     /// Create an empty chain.
     #[must_use]
     pub fn new() -> Self {
-        Self { lut1d_in: None, lut3d: None, lut1d_out: None }
+        Self {
+            lut1d_in: None,
+            lut3d: None,
+            lut1d_out: None,
+        }
     }
 
     /// Set the input 1D LUT.
@@ -379,7 +416,9 @@ impl LutChain {
 
         if let Some(lut) = &self.lut3d {
             let out = lut.trilinear_lookup(r, g, b);
-            r = out[0]; g = out[1]; b = out[2];
+            r = out[0];
+            g = out[1];
+            b = out[2];
         }
 
         if let Some(lut) = &self.lut1d_out {
@@ -393,7 +432,9 @@ impl LutChain {
 
     /// Apply the chain to a u8 buffer.
     pub fn apply_to_buffer_u8(&self, buf: &mut [u8], channels: usize) {
-        if channels < 3 { return; }
+        if channels < 3 {
+            return;
+        }
         for chunk in buf.chunks_exact_mut(channels) {
             let r = chunk[0] as f32 / 255.0;
             let g = chunk[1] as f32 / 255.0;
@@ -407,7 +448,9 @@ impl LutChain {
 }
 
 impl Default for LutChain {
-    fn default() -> Self { Self::new() }
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -418,7 +461,15 @@ mod tests {
     use crate::{ColorSpace, ImageData, ImageFrame, PixelType};
 
     fn make_frame(w: u32, h: u32, pixels: Vec<u8>) -> ImageFrame {
-        ImageFrame::new(1, w, h, PixelType::U8, 3, ColorSpace::Srgb, ImageData::interleaved(pixels))
+        ImageFrame::new(
+            1,
+            w,
+            h,
+            PixelType::U8,
+            3,
+            ColorSpace::Srgb,
+            ImageData::interleaved(pixels),
+        )
     }
 
     #[test]
@@ -433,10 +484,14 @@ mod tests {
         let lut = Lut3d::identity(17);
         // Black corner
         let out = lut.trilinear_lookup(0.0, 0.0, 0.0);
-        for &v in &out { assert!(v.abs() < 1e-4, "black corner: {v}"); }
+        for &v in &out {
+            assert!(v.abs() < 1e-4, "black corner: {v}");
+        }
         // White corner
         let out = lut.trilinear_lookup(1.0, 1.0, 1.0);
-        for &v in &out { assert!((v - 1.0).abs() < 1e-4, "white corner: {v}"); }
+        for &v in &out {
+            assert!((v - 1.0).abs() < 1e-4, "white corner: {v}");
+        }
     }
 
     #[test]
@@ -457,8 +512,18 @@ mod tests {
         // Pure white → sepia tones
         let out = lut.trilinear_lookup(1.0, 1.0, 1.0);
         // Sepia white: R > G > B
-        assert!(out[0] >= out[1], "Sepia R should be >= G: {} >= {}", out[0], out[1]);
-        assert!(out[1] >= out[2], "Sepia G should be >= B: {} >= {}", out[1], out[2]);
+        assert!(
+            out[0] >= out[1],
+            "Sepia R should be >= G: {} >= {}",
+            out[0],
+            out[1]
+        );
+        assert!(
+            out[1] >= out[2],
+            "Sepia G should be >= B: {} >= {}",
+            out[1],
+            out[2]
+        );
     }
 
     #[test]
@@ -467,7 +532,12 @@ mod tests {
         // gamma(0.5, 2.2) ≈ 0.218
         let out = lut.trilinear_lookup(0.5, 0.5, 0.5);
         let expected = 0.5f32.powf(2.2);
-        assert!((out[0] - expected).abs() < 0.02, "gamma mismatch: {} vs {}", out[0], expected);
+        assert!(
+            (out[0] - expected).abs() < 0.02,
+            "gamma mismatch: {} vs {}",
+            out[0],
+            expected
+        );
     }
 
     #[test]
@@ -477,7 +547,10 @@ mod tests {
         let mut buf = original.clone();
         lut.apply_to_buffer_u8(&mut buf, 3);
         for (i, (&orig, &v)) in original.iter().zip(buf.iter()).enumerate() {
-            assert!((orig as i32 - v as i32).abs() <= 2, "Identity mismatch at {i}: {orig} vs {v}");
+            assert!(
+                (orig as i32 - v as i32).abs() <= 2,
+                "Identity mismatch at {i}: {orig} vs {v}"
+            );
         }
     }
 
@@ -488,7 +561,10 @@ mod tests {
         let mut buf = original.clone();
         lut.apply_to_buffer_f32(&mut buf, 3);
         for (i, (&o, &v)) in original.iter().zip(buf.iter()).enumerate() {
-            assert!((o - v).abs() < 0.01, "Identity f32 mismatch at {i}: {o} vs {v}");
+            assert!(
+                (o - v).abs() < 0.01,
+                "Identity f32 mismatch at {i}: {o} vs {v}"
+            );
         }
     }
 
@@ -519,7 +595,10 @@ mod tests {
 
     #[test]
     fn test_lut_validate_wrong_size() {
-        let lut = Lut3d { size: 5, data: vec![[0.0; 3]; 10] }; // wrong length
+        let lut = Lut3d {
+            size: 5,
+            data: vec![[0.0; 3]; 10],
+        }; // wrong length
         assert!(lut.validate().is_err());
     }
 
@@ -533,8 +612,10 @@ mod tests {
         // Check a few values
         for (i, (orig, parsed)) in lut.data.iter().zip(parsed.data.iter()).enumerate() {
             for ch in 0..3 {
-                assert!((orig[ch] - parsed[ch]).abs() < 1e-4,
-                    "cube roundtrip mismatch at entry {i} ch {ch}");
+                assert!(
+                    (orig[ch] - parsed[ch]).abs() < 1e-4,
+                    "cube roundtrip mismatch at entry {i} ch {ch}"
+                );
             }
         }
     }
@@ -580,7 +661,10 @@ mod tests {
         let v = 0.5f32;
         let out = lut.eval(v, 0);
         let expected = v.powf(2.2);
-        assert!((out - expected).abs() < 0.01, "1D gamma mismatch: {out} vs {expected}");
+        assert!(
+            (out - expected).abs() < 0.01,
+            "1D gamma mismatch: {out} vs {expected}"
+        );
     }
 
     #[test]
@@ -590,7 +674,10 @@ mod tests {
         let mut buf = original.clone();
         lut.apply_to_buffer_u8(&mut buf, 3);
         for (i, (&o, &v)) in original.iter().zip(buf.iter()).enumerate() {
-            assert!((o as i32 - v as i32).abs() <= 1, "1D identity apply at {i}: {o} vs {v}");
+            assert!(
+                (o as i32 - v as i32).abs() <= 1,
+                "1D identity apply at {i}: {o} vs {v}"
+            );
         }
     }
 
@@ -613,7 +700,10 @@ mod tests {
         let original = buf.clone();
         chain.apply_to_buffer_u8(&mut buf, 3);
         for (i, (&o, &v)) in original.iter().zip(buf.iter()).enumerate() {
-            assert!((o as i32 - v as i32).abs() <= 3, "Chain buffer at {i}: {o} vs {v}");
+            assert!(
+                (o as i32 - v as i32).abs() <= 3,
+                "Chain buffer at {i}: {o} vs {v}"
+            );
         }
     }
 

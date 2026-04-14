@@ -37,7 +37,7 @@ pub enum SearchCommand {
         input: PathBuf,
 
         /// Path to the search index directory
-        #[arg(short, long)]
+        #[arg(short = 'x', long)]
         index: PathBuf,
 
         /// Maximum number of results

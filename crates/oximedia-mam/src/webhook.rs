@@ -463,7 +463,7 @@ impl WebhookManager {
         hasher.update(secret.as_bytes());
         hasher.update(payload_str.as_bytes());
         let result = hasher.finalize();
-        format!("{result:x}")
+        result.iter().map(|b| format!("{b:02x}")).collect()
     }
 
     /// Create a webhook subscription

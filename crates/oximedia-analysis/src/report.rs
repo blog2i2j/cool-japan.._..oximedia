@@ -11,6 +11,7 @@
 //! ```rust,no_run
 //! use oximedia_analysis::{Analyzer, AnalysisConfig};
 //!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let config = AnalysisConfig::default();
 //! let analyzer = Analyzer::new(config);
 //! // ... process frames ...
@@ -19,6 +20,8 @@
 //! // Generate reports
 //! let json_report = results.to_json()?;
 //! let html_report = results.to_html()?;
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::{AnalysisResult, AnalysisResults};

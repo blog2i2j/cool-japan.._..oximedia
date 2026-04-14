@@ -21,11 +21,11 @@
 - [ ] Add grain synthesis detection in psycho module to preserve film grain without wasting bits
 
 ## New Features
-- [ ] Implement AV1 tile/frame parallel optimization -- select tile partitioning based on content complexity
-- [ ] Add per-frame bitrate allocation using Viterbi algorithm for optimal constant-quality distribution
+- [x] Implement AV1 tile/frame parallel optimization -- select tile partitioning based on content complexity
+- [x] Add per-frame bitrate allocation using Viterbi algorithm for optimal constant-quality distribution
 - [ ] Implement machine-learning-based mode decision using oximedia-neural for fast RDO approximation
 - [ ] Add encoding quality estimation without full encode (fast VMAF/SSIM prediction from frame features)
-- [ ] Implement denoising-aware optimization -- coordinate with pre-filter to avoid encoding noise
+- [x] Implement denoising-aware optimization -- coordinate with pre-filter to avoid encoding noise
 - [ ] Add HDR-aware psychovisual model using PQ/HLG transfer function aware masking thresholds
 - [ ] Implement multi-pass encoding with rate redistribution between passes in two_pass module
 

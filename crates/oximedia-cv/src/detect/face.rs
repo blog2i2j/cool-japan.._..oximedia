@@ -682,11 +682,9 @@ pub(crate) fn detection_overlap(a: &DetectionResult, b: &DetectionResult) -> f64
 #[cfg(feature = "onnx")]
 use ndarray::Array4;
 #[cfg(feature = "onnx")]
-use ort::session::builder::GraphOptimizationLevel;
+use oxionnx::Session;
 #[cfg(feature = "onnx")]
-use ort::session::Session;
-#[cfg(feature = "onnx")]
-use ort::value::Value;
+use std::collections::HashMap;
 #[cfg(feature = "onnx")]
 use std::path::Path;
 
@@ -911,7 +909,7 @@ impl FaceDetection {
 ///
 /// # fn example() -> oximedia_cv::CvResult<()> {
 /// // Create detector (model path should point to a valid ONNX model)
-/// let detector = CnnFaceDetector::new("/path/to/model.onnx")?;
+/// let mut detector = CnnFaceDetector::new("/path/to/model.onnx")?;
 ///
 /// // Detect faces in RGB image
 /// let image = vec![0u8; 640 * 480 * 3];
@@ -977,16 +975,8 @@ impl CnnFaceDetector {
 
         // Create session with optimizations
         let detection_model = Session::builder()
-            .map_err(|e| {
-                CvError::detection_failed(format!("Failed to create session builder: {e}"))
-            })?
-            .with_optimization_level(GraphOptimizationLevel::Level3)
-            .map_err(|e| {
-                CvError::detection_failed(format!("Failed to set optimization level: {e}"))
-            })?
-            .with_intra_threads(4)
-            .map_err(|e| CvError::detection_failed(format!("Failed to set thread count: {e}")))?
-            .commit_from_file(model_path)
+            .with_optimization_level(oxionnx::OptLevel::All)
+            .load(model_path)
             .map_err(|e| CvError::detection_failed(format!("Failed to load model: {e}")))?;
 
         Ok(Self {
@@ -1016,16 +1006,8 @@ impl CnnFaceDetector {
         }
 
         let landmark_model = Session::builder()
-            .map_err(|e| {
-                CvError::detection_failed(format!("Failed to create session builder: {e}"))
-            })?
-            .with_optimization_level(GraphOptimizationLevel::Level3)
-            .map_err(|e| {
-                CvError::detection_failed(format!("Failed to set optimization level: {e}"))
-            })?
-            .with_intra_threads(2)
-            .map_err(|e| CvError::detection_failed(format!("Failed to set thread count: {e}")))?
-            .commit_from_file(model_path)
+            .with_optimization_level(oxionnx::OptLevel::All)
+            .load(model_path)
             .map_err(|e| {
                 CvError::detection_failed(format!("Failed to load landmark model: {e}"))
             })?;
@@ -1094,7 +1076,7 @@ impl CnnFaceDetector {
     /// use oximedia_cv::detect::face::CnnFaceDetector;
     ///
     /// # fn example() -> oximedia_cv::CvResult<()> {
-    /// let detector = CnnFaceDetector::new("/path/to/model.onnx")?;
+    /// let mut detector = CnnFaceDetector::new("/path/to/model.onnx")?;
     /// let image = vec![0u8; 640 * 480 * 3];
     /// let detections = detector.detect(&image, 640, 480)?;
     /// # Ok(())
@@ -1226,24 +1208,40 @@ impl CnnFaceDetector {
         orig_height: u32,
         scale: f32,
     ) -> CvResult<Vec<FaceDetection>> {
-        // Create input tensor
-        let input_value = Value::from_array(input).map_err(|e| {
-            CvError::detection_failed(format!("Failed to create input tensor: {e}"))
-        })?;
+        // Convert ndarray → flat Vec<f32> + shape for oxionnx
+        let flat: Vec<f32> = input.iter().copied().collect();
+        let shape: Vec<usize> = input.shape().to_vec();
+        let tensor = oxionnx::Tensor::new(flat, shape);
 
-        // Run inference and extract owned data to release the session borrow
-        let (shape_owned, data_owned) = {
-            let outputs = self
-                .detection_model
-                .run(ort::inputs![input_value])
-                .map_err(|e| CvError::detection_failed(format!("Inference failed: {e}")))?;
-            let (shape, data) = outputs[0].try_extract_tensor::<f32>().map_err(|e| {
-                CvError::detection_failed(format!("Failed to extract output tensor: {e}"))
-            })?;
-            let shape_owned: Vec<i64> = shape.iter().copied().collect();
-            let data_owned: Vec<f32> = data.to_vec();
-            (shape_owned, data_owned)
-        };
+        // Determine input name (use first available, or fall back to "images")
+        let input_name = self
+            .detection_model
+            .input_names()
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "images".to_string());
+
+        // Run inference
+        let mut inputs = HashMap::new();
+        inputs.insert(input_name.as_str(), tensor);
+        let outputs = self
+            .detection_model
+            .run(&inputs)
+            .map_err(|e| CvError::detection_failed(format!("Inference failed: {e}")))?;
+
+        // Extract first output tensor
+        let output_name = self
+            .detection_model
+            .output_names()
+            .first()
+            .cloned()
+            .unwrap_or_default();
+        let out_tensor = outputs
+            .get(&output_name)
+            .ok_or_else(|| CvError::detection_failed("No output tensor found".to_owned()))?;
+
+        let shape_owned: Vec<i64> = out_tensor.shape.iter().map(|&x| x as i64).collect();
+        let data_owned: Vec<f32> = out_tensor.data.clone();
 
         // Parse detections from output
         self.parse_detections(&shape_owned, &data_owned, orig_width, orig_height, scale)
@@ -1344,25 +1342,41 @@ impl CnnFaceDetector {
             }
         }
 
-        // Run inference
-        let input_value = Value::from_array(input).map_err(|e| {
-            CvError::detection_failed(format!("Failed to create input tensor: {e}"))
-        })?;
+        // Convert ndarray → oxionnx Tensor
+        let flat: Vec<f32> = input.iter().copied().collect();
+        let shape: Vec<usize> = input.shape().to_vec();
+        let tensor = oxionnx::Tensor::new(flat, shape);
 
+        // Determine input name
+        let input_name = landmark_model
+            .input_names()
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "images".to_string());
+
+        let mut inputs = HashMap::new();
+        inputs.insert(input_name.as_str(), tensor);
         let outputs = landmark_model
-            .run(ort::inputs![input_value])
+            .run(&inputs)
             .map_err(|e| CvError::detection_failed(format!("Landmark inference failed: {e}")))?;
 
-        // Extract output tensor - get first output
-        let output = &outputs[0];
-
-        // Extract landmarks
-        let (shape, data) = output.try_extract_tensor::<f32>().map_err(|e| {
-            CvError::detection_failed(format!("Failed to extract landmark tensor: {e}"))
+        // Extract first output tensor
+        let output_name = landmark_model
+            .output_names()
+            .first()
+            .cloned()
+            .unwrap_or_default();
+        let out_tensor = outputs.get(&output_name).ok_or_else(|| {
+            CvError::detection_failed("No landmark output tensor found".to_owned())
         })?;
 
         // Expected: [1, 10] for 5 landmarks (x, y pairs)
-        let num_landmarks = (shape[1] / 2) as usize;
+        let num_landmarks = if out_tensor.shape.len() >= 2 {
+            out_tensor.shape[1] / 2
+        } else {
+            0
+        };
+        let data = &out_tensor.data;
         let mut landmarks = Vec::new();
 
         for i in 0..num_landmarks {

@@ -10,10 +10,23 @@
 //! All operations fall back to CPU SIMD code when no suitable GPU is available
 //! (the `GpuDevice::new` failure path returns an error that the caller may handle
 //! by switching to a software path).
+//!
+//! ## GPU path (bilateral filter)
+//!
+//! When `device.is_fallback == false` the bilateral filter is executed on the GPU
+//! via a WGSL compute shader (`shaders/bilateral.wgsl`).  The NLM algorithm is
+//! too expensive for a single-dispatch compute shader (O(search_area² × patch_area)
+//! per pixel) and is therefore kept as a CPU fallback; GPU NLM is planned for a
+//! future release using multi-pass tiled reduction.
 
-use crate::{GpuDevice, GpuError, Result};
+use crate::{
+    shader::{BindGroupLayoutBuilder, ShaderCompiler, ShaderSource},
+    GpuDevice, GpuError, Result,
+};
 use bytemuck::{Pod, Zeroable};
+use once_cell::sync::OnceCell;
 use rayon::prelude::*;
+use wgpu::{BindGroupLayout, ComputePipeline};
 
 // ============================================================================
 // Denoise algorithm selector
@@ -75,6 +88,7 @@ struct GaussianDenoiseParams {
     _pad2: [f32; 2],
 }
 
+/// GPU-side uniform layout (must match `BilateralParams` struct in bilateral.wgsl exactly).
 #[repr(C)]
 #[derive(Clone, Copy, Pod, Zeroable)]
 struct BilateralParams {
@@ -108,10 +122,13 @@ struct NlmParams {
 ///
 /// # Note on GPU vs CPU execution
 ///
-/// When a real GPU device is available, compute shaders run on the device.
-/// This implementation provides CPU SIMD fallback paths for all algorithms
-/// that activate automatically if no GPU is detected.  The fallback uses rayon
-/// for multi-threaded execution.
+/// When a real GPU device is available (`!device.is_fallback`), the bilateral
+/// filter runs as a wgpu compute shader (`bilateral_filter_main` entry point in
+/// `shaders/bilateral.wgsl`).  If the GPU path fails at any point, execution
+/// transparently falls back to the CPU SIMD implementation.
+///
+/// Gaussian and NLM always use the CPU path (NLM GPU path is planned for a
+/// future release).
 pub struct DenoiseOperation;
 
 impl DenoiseOperation {
@@ -142,14 +159,37 @@ impl DenoiseOperation {
             DenoiseAlgorithm::BilateralFilter {
                 sigma_spatial,
                 sigma_range,
-            } => Self::denoise_bilateral_cpu(
-                input,
-                output,
-                width,
-                height,
-                sigma_spatial,
-                sigma_range,
-            ),
+            } => {
+                // Prefer GPU path when the device is a real (non-fallback) adapter.
+                if !device.is_fallback {
+                    match Self::denoise_bilateral_gpu(
+                        device,
+                        input,
+                        output,
+                        width,
+                        height,
+                        sigma_spatial,
+                        sigma_range,
+                    ) {
+                        Ok(()) => return Ok(()),
+                        Err(e) => {
+                            tracing::warn!(
+                                "GPU bilateral filter failed ({e}), falling back to CPU"
+                            );
+                        }
+                    }
+                }
+                // CPU fallback (also used for software adapters).
+                Self::denoise_bilateral_cpu(
+                    input,
+                    output,
+                    width,
+                    height,
+                    sigma_spatial,
+                    sigma_range,
+                )
+            }
+            // NLM GPU path is future work — CPU fallback only.
             DenoiseAlgorithm::NonLocalMeans {
                 h,
                 patch_radius,
@@ -158,15 +198,189 @@ impl DenoiseOperation {
                 Self::denoise_nlm_cpu(input, output, width, height, h, patch_radius, search_radius)
             }
         }
-        // Suppress unused-variable warning on device until GPU path is wired up.
-        .map(|()| {
-            let _ = device;
-        })
     }
 
     // -----------------------------------------------------------------------
-    // CPU SIMD fallback implementations (used until real compute shaders
-    // are compiled and linked via the wgpu pipeline).
+    // GPU path — bilateral filter
+    // -----------------------------------------------------------------------
+
+    /// Run the bilateral filter on the GPU via wgpu compute shader.
+    #[allow(clippy::cast_possible_truncation)]
+    fn denoise_bilateral_gpu(
+        device: &GpuDevice,
+        input: &[u8],
+        output: &mut [u8],
+        width: u32,
+        height: u32,
+        sigma_spatial: f32,
+        sigma_range: f32,
+    ) -> Result<()> {
+        use super::utils::{
+            calculate_dispatch_size, create_readback_buffer, create_storage_buffer,
+            create_uniform_buffer,
+        };
+
+        let pipeline = Self::get_bilateral_pipeline(device)?;
+        let layout = Self::get_bilateral_bind_group_layout(device)?;
+
+        // Build uniform params buffer.
+        let kernel_radius = (3.0 * sigma_spatial).ceil() as u32;
+        let inv_two_ss_sq = 1.0 / (2.0 * sigma_spatial * sigma_spatial);
+        let inv_two_sr_sq = 1.0 / (2.0 * sigma_range * sigma_range);
+
+        let params = BilateralParams {
+            width,
+            height,
+            kernel_radius,
+            _pad: 0,
+            sigma_spatial,
+            sigma_range,
+            inv_two_sigma_s_sq: inv_two_ss_sq,
+            inv_two_sigma_r_sq: inv_two_sr_sq,
+        };
+
+        // Pack the u8 RGBA input as u32 words (shader reads array<u32>).
+        // Each u32 packs one RGBA pixel: R<<24 | G<<16 | B<<8 | A.
+        let num_pixels = (width * height) as usize;
+        let mut input_u32: Vec<u32> = Vec::with_capacity(num_pixels);
+        for chunk in input.chunks_exact(4) {
+            let packed = ((chunk[0] as u32) << 24)
+                | ((chunk[1] as u32) << 16)
+                | ((chunk[2] as u32) << 8)
+                | (chunk[3] as u32);
+            input_u32.push(packed);
+        }
+
+        let input_bytes = bytemuck::cast_slice(&input_u32);
+        let output_len = num_pixels * 4; // u32 per pixel, 4 bytes each
+
+        let input_buffer = create_storage_buffer(device, input_bytes.len() as u64)?;
+        let output_buffer = create_storage_buffer(device, output_len as u64)?;
+        let params_buffer = create_uniform_buffer(device, bytemuck::bytes_of(&params))?;
+
+        device
+            .queue()
+            .write_buffer(input_buffer.buffer(), 0, input_bytes);
+
+        // Build bind group.
+        let compiler = ShaderCompiler::new(device);
+        let bind_group = compiler.create_bind_group(
+            "Bilateral Bind Group",
+            layout,
+            &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: input_buffer.buffer().as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: output_buffer.buffer().as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: params_buffer.buffer().as_entire_binding(),
+                },
+            ],
+        );
+
+        // Dispatch compute.
+        {
+            let mut encoder =
+                device
+                    .device()
+                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                        label: Some("Bilateral Compute Encoder"),
+                    });
+            {
+                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: Some("Bilateral Compute Pass"),
+                    timestamp_writes: None,
+                });
+                pass.set_pipeline(pipeline);
+                pass.set_bind_group(0, &bind_group, &[]);
+                let (dx, dy) = calculate_dispatch_size(width, height, (16, 16));
+                pass.dispatch_workgroups(dx, dy, 1);
+            }
+            device.queue().submit(Some(encoder.finish()));
+        }
+
+        // Copy output_buffer → readback buffer.
+        let readback = create_readback_buffer(device, output_len as u64)?;
+        {
+            let mut encoder =
+                device
+                    .device()
+                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                        label: Some("Bilateral Readback Encoder"),
+                    });
+            output_buffer.copy_to(&mut encoder, &readback, 0, 0, output_len as u64)?;
+            device.queue().submit(Some(encoder.finish()));
+        }
+
+        device.wait();
+
+        // Read back and unpack u32 → RGBA bytes.
+        let raw = readback.read(device, 0, output_len as u64)?;
+        let result_u32: &[u32] = bytemuck::cast_slice(&raw);
+        for (i, &packed) in result_u32.iter().enumerate() {
+            output[i * 4] = ((packed >> 24) & 0xFF) as u8;
+            output[i * 4 + 1] = ((packed >> 16) & 0xFF) as u8;
+            output[i * 4 + 2] = ((packed >> 8) & 0xFF) as u8;
+            output[i * 4 + 3] = (packed & 0xFF) as u8;
+        }
+
+        Ok(())
+    }
+
+    // -----------------------------------------------------------------------
+    // Pipeline management (cached per process lifetime via OnceCell)
+    // -----------------------------------------------------------------------
+
+    fn get_bilateral_bind_group_layout(device: &GpuDevice) -> Result<&'static BindGroupLayout> {
+        static LAYOUT: OnceCell<BindGroupLayout> = OnceCell::new();
+        Ok(LAYOUT.get_or_init(|| {
+            let compiler = ShaderCompiler::new(device);
+            let entries = BindGroupLayoutBuilder::new()
+                .add_storage_buffer_read_only(0) // input
+                .add_storage_buffer(1) // output
+                .add_uniform_buffer(2) // params
+                .build();
+            compiler.create_bind_group_layout("Bilateral Bind Group Layout", &entries)
+        }))
+    }
+
+    fn get_bilateral_pipeline(device: &GpuDevice) -> Result<&'static ComputePipeline> {
+        static PIPELINE: OnceCell<std::result::Result<ComputePipeline, String>> = OnceCell::new();
+        PIPELINE
+            .get_or_init(|| Self::init_bilateral_pipeline(device))
+            .as_ref()
+            .map_err(|e| GpuError::PipelineCreation(e.clone()))
+    }
+
+    fn init_bilateral_pipeline(device: &GpuDevice) -> std::result::Result<ComputePipeline, String> {
+        let compiler = ShaderCompiler::new(device);
+        let shader = compiler
+            .compile(
+                "Bilateral Shader",
+                ShaderSource::Embedded(crate::shader::embedded::BILATERAL_SHADER),
+            )
+            .map_err(|e| format!("Failed to compile bilateral shader: {e}"))?;
+
+        let layout = Self::get_bilateral_bind_group_layout(device)
+            .map_err(|e| format!("Failed to create bilateral bind group layout: {e}"))?;
+
+        compiler
+            .create_pipeline(
+                "Bilateral Pipeline",
+                &shader,
+                "bilateral_filter_main",
+                layout,
+            )
+            .map_err(|e| format!("Failed to create bilateral pipeline: {e}"))
+    }
+
+    // -----------------------------------------------------------------------
+    // CPU SIMD fallback implementations
     // -----------------------------------------------------------------------
 
     /// Gaussian denoise via separable 1D convolution.
@@ -241,7 +455,7 @@ impl DenoiseOperation {
         Ok(())
     }
 
-    /// Bilateral filter (edge-preserving denoising).
+    /// Bilateral filter — CPU fallback (edge-preserving denoising).
     #[allow(clippy::cast_possible_truncation)]
     fn denoise_bilateral_cpu(
         input: &[u8],
@@ -320,7 +534,9 @@ impl DenoiseOperation {
 
     /// Non-Local Means denoising (CPU path).
     ///
-    /// This is a simplified NLM that compares patches in a search window.
+    /// GPU NLM is future work — the O(search_area² × patch_area) per-pixel cost
+    /// requires a multi-pass tiled reduction that does not map naturally to a
+    /// single compute dispatch.
     #[allow(clippy::cast_possible_truncation)]
     fn denoise_nlm_cpu(
         input: &[u8],
@@ -658,5 +874,45 @@ mod tests {
 
         let k2 = DenoiseKernel::nlm(10.0, 3, 10);
         assert!(k2.estimate_gflops(1920, 1080) > 0.0);
+    }
+
+    // ---- GPU bilateral path (uses fallback device in test environments) ----
+
+    #[test]
+    fn test_bilateral_denoise_via_denoise_fn_constant() {
+        // Try to obtain a GPU device; fall back gracefully if unavailable.
+        let device = match GpuDevice::new_fallback() {
+            Ok(d) => d,
+            Err(_) => return, // headless CI with no wgpu adapter — skip
+        };
+
+        let w = 8u32;
+        let h = 8u32;
+        let input = gray_image(w, h, 128);
+        let mut output = vec![0u8; (w * h * 4) as usize];
+
+        let result = DenoiseOperation::denoise(
+            &device,
+            &input,
+            &mut output,
+            w,
+            h,
+            DenoiseAlgorithm::BilateralFilter {
+                sigma_spatial: 1.5,
+                sigma_range: 30.0,
+            },
+        );
+
+        // Constant image must stay constant regardless of GPU/CPU path.
+        assert!(result.is_ok(), "denoise returned error: {:?}", result.err());
+        for &v in &output {
+            assert_eq!(v, 128, "constant image must be preserved");
+        }
+    }
+
+    #[test]
+    fn test_bilateral_denoise_params_struct_size() {
+        // Ensure the CPU-side params layout is exactly 32 bytes to match the WGSL struct.
+        assert_eq!(std::mem::size_of::<BilateralParams>(), 32);
     }
 }

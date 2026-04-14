@@ -11,6 +11,7 @@ description = "Video codec implementations for OxiMedia"
 
 [lints.rust]
 unsafe_code = "deny"
+missing_docs = "allow"
 
 [lints.clippy]
 all = { level = "warn", priority = -2 }
@@ -19,7 +20,6 @@ pedantic = { level = "warn", priority = -1 }
 # ── Documentation lints ──────────────────────────────────────────────────────
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
-missing_docs = "allow"
 doc_markdown = "allow"
 doc_link_with_quotes = "allow"
 doc_overindented_list_items = "allow"
@@ -279,7 +279,7 @@ bytes.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
 rayon.workspace = true
-flate2.workspace = true
+oxiarc-deflate.workspace = true
 
 # Image I/O support (patent-free codecs only)
 png = { version = "0.18", optional = true }
@@ -287,3 +287,4 @@ jpeg-decoder = { version = "0.3", optional = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["rt", "macros"] }
+proptest = { workspace = true }

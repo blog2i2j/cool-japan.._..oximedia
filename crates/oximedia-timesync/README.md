@@ -1,12 +1,12 @@
 # oximedia-timesync
 
-![Status: Alpha](https://img.shields.io/badge/status-alpha-yellow)
+![Status: Stable](https://img.shields.io/badge/status-stable-green)
 
 Precision time synchronization for OxiMedia. Provides comprehensive time synchronization including PTP (IEEE 1588-2019), NTP, timecode synchronization, and media-specific genlock for professional broadcast and production environments.
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.1 — 2026-03-10
+Version: 0.1.3 — 2026-04-15
 
 ## Features
 
@@ -38,7 +38,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-timesync = "0.1.1"
+oximedia-timesync = "0.1.3"
 ```
 
 ```rust

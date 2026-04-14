@@ -278,6 +278,259 @@ impl BroadcastSafeReport {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Region-specific broadcast standards
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Broadcast region / standard, used to derive region-specific color-space
+/// constraints alongside pixel-level checks.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum BroadcastRegion {
+    /// NTSC: North America, Japan, parts of South America.
+    /// Color space: SMPTE 170M / BT.601 (525-line).
+    Ntsc,
+    /// PAL: Western Europe, Australia, Africa, most of Asia.
+    /// Color space: BT.601 (625-line).
+    Pal,
+    /// SECAM: France, Eastern Europe, Russia, parts of Africa & Middle East.
+    /// Analog FM color encoding — digital equivalents use BT.601 625-line.
+    Secam,
+    /// HD (BT.709): all modern HD broadcast systems.
+    Hd,
+    /// UHD / 4K (BT.2020): ultra-high-definition delivery.
+    Uhd,
+}
+
+impl BroadcastRegion {
+    /// Returns the canonical color-space name for this region.
+    #[must_use]
+    pub const fn color_space(self) -> &'static str {
+        match self {
+            Self::Ntsc => "bt601-525",
+            Self::Pal => "bt601-625",
+            Self::Secam => "bt601-625",
+            Self::Hd => "bt709",
+            Self::Uhd => "bt2020",
+        }
+    }
+
+    /// Returns the frame-rate family associated with this region.
+    ///
+    /// NTSC uses 29.97 / 59.94 Hz; PAL / SECAM use 25 / 50 Hz; HD / UHD
+    /// support both but the dominant broadcast rate is noted here.
+    #[must_use]
+    pub const fn frame_rate_hz(self) -> f32 {
+        match self {
+            Self::Ntsc => 29.97,
+            Self::Pal | Self::Secam => 25.0,
+            Self::Hd | Self::Uhd => 25.0, // 25 or 29.97; default to 25
+        }
+    }
+
+    /// Returns the [`BroadcastSafeConfig`] appropriate for this region.
+    ///
+    /// SECAM and PAL share identical digital-domain pixel-level constraints
+    /// (both use BT.601 625-line encoding), while NTSC uses the 525-line
+    /// variant.  All analog-originated systems use `composite_safe = true`.
+    #[must_use]
+    pub fn safe_config(self) -> BroadcastSafeConfig {
+        match self {
+            Self::Ntsc => BroadcastSafeConfig::ntsc(),
+            Self::Pal => BroadcastSafeConfig::pal(),
+            Self::Secam => BroadcastSafeConfig {
+                // SECAM uses BT.601 625-line; same legal-range constraints as PAL
+                // but the composite_safe flag reflects that SECAM FM encoding is
+                // more resilient to chroma over-modulation.
+                max_luma: 235,
+                min_luma: 16,
+                max_chroma: 240,
+                composite_safe: false, // SECAM FM encoding is less sensitive to composite artifacts
+            },
+            Self::Hd => BroadcastSafeConfig::hd(),
+            Self::Uhd => BroadcastSafeConfig {
+                max_luma: 235,
+                min_luma: 16,
+                max_chroma: 240,
+                composite_safe: false,
+            },
+        }
+    }
+
+    /// Returns a human-readable display name for the region.
+    #[must_use]
+    pub const fn display_name(self) -> &'static str {
+        match self {
+            Self::Ntsc => "NTSC",
+            Self::Pal => "PAL",
+            Self::Secam => "SECAM",
+            Self::Hd => "HD (BT.709)",
+            Self::Uhd => "UHD (BT.2020)",
+        }
+    }
+}
+
+impl std::fmt::Display for BroadcastRegion {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.display_name())
+    }
+}
+
+/// Color space mismatch detected during region-specific validation.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ColorSpaceMismatch {
+    /// The expected color space for the target region.
+    pub expected: String,
+    /// The color space declared in the media file.
+    pub found: String,
+    /// The region whose standard was checked.
+    pub region: BroadcastRegion,
+}
+
+impl ColorSpaceMismatch {
+    /// Creates a new mismatch record.
+    #[must_use]
+    pub fn new(
+        expected: impl Into<String>,
+        found: impl Into<String>,
+        region: BroadcastRegion,
+    ) -> Self {
+        Self {
+            expected: expected.into(),
+            found: found.into(),
+            region,
+        }
+    }
+}
+
+impl std::fmt::Display for ColorSpaceMismatch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} requires color space `{}` but found `{}`",
+            self.region, self.expected, self.found
+        )
+    }
+}
+
+/// Validates color space declarations against region-specific broadcast standards.
+///
+/// Call [`ColorSpaceCheck::check`] with the color space name declared in the
+/// media container metadata.  The checker normalises common aliases
+/// (e.g. `"smpte170m"` → `"bt601-525"`) before comparing.
+#[derive(Debug, Clone)]
+pub struct ColorSpaceCheck {
+    /// Target broadcast region.
+    pub region: BroadcastRegion,
+}
+
+impl ColorSpaceCheck {
+    /// Creates a new checker for the given region.
+    #[must_use]
+    pub const fn new(region: BroadcastRegion) -> Self {
+        Self { region }
+    }
+
+    /// Returns the canonical color-space identifier for the configured region.
+    #[must_use]
+    pub fn expected_color_space(&self) -> &'static str {
+        self.region.color_space()
+    }
+
+    /// Checks whether `declared_color_space` matches the region's standard.
+    ///
+    /// Returns `Ok(())` on a match or `Err(ColorSpaceMismatch)` otherwise.
+    ///
+    /// Common aliases are recognised:
+    /// - `"smpte170m"` → `"bt601-525"` (NTSC)
+    /// - `"smpte170"` → `"bt601-525"` (NTSC)
+    /// - `"bt601"` → `"bt601-625"` (defaults to 625-line / PAL / SECAM)
+    /// - `"rec709"` → `"bt709"` (HD)
+    /// - `"rec2020"` → `"bt2020"` (UHD)
+    ///
+    /// Comparison is case-insensitive.
+    pub fn check(&self, declared_color_space: &str) -> Result<(), ColorSpaceMismatch> {
+        let normalised = Self::normalise(declared_color_space);
+        let expected = self.region.color_space();
+
+        if normalised == expected {
+            Ok(())
+        } else {
+            Err(ColorSpaceMismatch::new(
+                expected,
+                declared_color_space,
+                self.region,
+            ))
+        }
+    }
+
+    /// Normalises a color-space string to a canonical identifier.
+    fn normalise(cs: &str) -> String {
+        match cs.to_ascii_lowercase().trim() {
+            "smpte170m" | "smpte170" | "bt601-525" | "bt.601-525" | "601-525" => {
+                "bt601-525".to_string()
+            }
+            "bt601" | "bt601-625" | "bt.601" | "bt.601-625" | "601-625" | "pal" | "secam" => {
+                "bt601-625".to_string()
+            }
+            "bt709" | "rec709" | "rec.709" | "bt.709" | "hd" => "bt709".to_string(),
+            "bt2020" | "rec2020" | "rec.2020" | "bt.2020" | "uhd" => "bt2020".to_string(),
+            other => other.to_string(),
+        }
+    }
+}
+
+/// Region-aware broadcast checker that combines pixel-level analysis with
+/// color-space validation.
+#[derive(Debug, Clone)]
+pub struct RegionBroadcastChecker {
+    /// The target broadcast region.
+    pub region: BroadcastRegion,
+    /// Pixel-level safe-level configuration derived from the region.
+    pub safe_config: BroadcastSafeConfig,
+    /// Color-space validator for the region.
+    pub color_space_check: ColorSpaceCheck,
+}
+
+impl RegionBroadcastChecker {
+    /// Creates a new checker for `region`, using that region's standard pixel
+    /// constraints and expected color space.
+    #[must_use]
+    pub fn new(region: BroadcastRegion) -> Self {
+        Self {
+            safe_config: region.safe_config(),
+            color_space_check: ColorSpaceCheck::new(region),
+            region,
+        }
+    }
+
+    /// Validates pixel levels in one YUV420 frame against the region's broadcast
+    /// safe constraints.  Delegates to [`BroadcastSafeChecker::check_frame`].
+    #[must_use]
+    pub fn check_frame(
+        &self,
+        frame: &[u8],
+        width: u32,
+        height: u32,
+        frame_idx: u64,
+    ) -> Vec<PixelViolation> {
+        BroadcastSafeChecker::check_frame(frame, width, height, frame_idx, &self.safe_config)
+    }
+
+    /// Validates the declared color space against the region's standard.
+    ///
+    /// Returns `Ok(())` if the color space matches or `Err(ColorSpaceMismatch)`
+    /// with details of the mismatch.
+    pub fn check_color_space(&self, declared: &str) -> Result<(), ColorSpaceMismatch> {
+        self.color_space_check.check(declared)
+    }
+
+    /// Returns the expected color space for this checker's region.
+    #[must_use]
+    pub fn expected_color_space(&self) -> &'static str {
+        self.region.color_space()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -406,5 +659,162 @@ mod tests {
     fn test_violation_type_description() {
         assert!(!ViolationType::LumaAbove.description().is_empty());
         assert!(!ViolationType::ChromaBelow.description().is_empty());
+    }
+
+    // ── Region-specific broadcast standard tests ────────────────────────────
+
+    #[test]
+    fn test_secam_config_not_composite_safe() {
+        // SECAM FM encoding does not impose composite-safe constraints.
+        let cfg = BroadcastRegion::Secam.safe_config();
+        assert_eq!(cfg.max_luma, 235);
+        assert_eq!(cfg.min_luma, 16);
+        assert_eq!(cfg.max_chroma, 240);
+        assert!(!cfg.composite_safe, "SECAM should not be composite_safe");
+    }
+
+    #[test]
+    fn test_secam_color_space_is_bt601_625() {
+        assert_eq!(BroadcastRegion::Secam.color_space(), "bt601-625");
+    }
+
+    #[test]
+    fn test_pal_color_space_is_bt601_625() {
+        assert_eq!(BroadcastRegion::Pal.color_space(), "bt601-625");
+    }
+
+    #[test]
+    fn test_ntsc_color_space_is_bt601_525() {
+        assert_eq!(BroadcastRegion::Ntsc.color_space(), "bt601-525");
+    }
+
+    #[test]
+    fn test_hd_color_space_is_bt709() {
+        assert_eq!(BroadcastRegion::Hd.color_space(), "bt709");
+    }
+
+    #[test]
+    fn test_uhd_color_space_is_bt2020() {
+        assert_eq!(BroadcastRegion::Uhd.color_space(), "bt2020");
+    }
+
+    #[test]
+    fn test_region_display_names_are_non_empty() {
+        for region in &[
+            BroadcastRegion::Ntsc,
+            BroadcastRegion::Pal,
+            BroadcastRegion::Secam,
+            BroadcastRegion::Hd,
+            BroadcastRegion::Uhd,
+        ] {
+            assert!(!region.display_name().is_empty());
+        }
+    }
+
+    #[test]
+    fn test_region_display_format() {
+        assert_eq!(format!("{}", BroadcastRegion::Secam), "SECAM");
+        assert_eq!(format!("{}", BroadcastRegion::Ntsc), "NTSC");
+        assert_eq!(format!("{}", BroadcastRegion::Pal), "PAL");
+    }
+
+    #[test]
+    fn test_color_space_check_pal_correct() {
+        let check = ColorSpaceCheck::new(BroadcastRegion::Pal);
+        assert!(check.check("bt601-625").is_ok());
+    }
+
+    #[test]
+    fn test_color_space_check_secam_accepts_pal_alias() {
+        // SECAM and PAL share the same BT.601-625 color space digitally.
+        let check = ColorSpaceCheck::new(BroadcastRegion::Secam);
+        assert!(check.check("pal").is_ok());
+        assert!(check.check("bt601-625").is_ok());
+    }
+
+    #[test]
+    fn test_color_space_check_ntsc_smpte170m_alias() {
+        let check = ColorSpaceCheck::new(BroadcastRegion::Ntsc);
+        assert!(check.check("smpte170m").is_ok());
+        assert!(check.check("smpte170").is_ok());
+        assert!(check.check("bt601-525").is_ok());
+    }
+
+    #[test]
+    fn test_color_space_check_hd_rec709_alias() {
+        let check = ColorSpaceCheck::new(BroadcastRegion::Hd);
+        assert!(check.check("rec709").is_ok());
+        assert!(check.check("bt709").is_ok());
+        assert!(check.check("bt.709").is_ok());
+    }
+
+    #[test]
+    fn test_color_space_check_mismatch_returns_err() {
+        let check = ColorSpaceCheck::new(BroadcastRegion::Hd);
+        // A BT.601-625 signal delivered to an HD broadcast target is a mismatch.
+        let err = check.check("bt601-625").unwrap_err();
+        assert_eq!(err.expected, "bt709");
+        assert_eq!(err.region, BroadcastRegion::Hd);
+    }
+
+    #[test]
+    fn test_color_space_mismatch_display() {
+        let mismatch = ColorSpaceMismatch::new("bt709", "bt601-625", BroadcastRegion::Hd);
+        let msg = mismatch.to_string();
+        assert!(msg.contains("bt709"));
+        assert!(msg.contains("bt601-625"));
+        assert!(msg.contains("HD"));
+    }
+
+    #[test]
+    fn test_region_checker_secam_no_violation() {
+        let checker = RegionBroadcastChecker::new(BroadcastRegion::Secam);
+        let frame = make_frame(4, 4, 128, 128);
+        let violations = checker.check_frame(&frame, 4, 4, 0);
+        assert!(violations.is_empty());
+    }
+
+    #[test]
+    fn test_region_checker_secam_luma_violation() {
+        let checker = RegionBroadcastChecker::new(BroadcastRegion::Secam);
+        let frame = make_frame(4, 4, 240, 128); // 240 > 235
+        let violations = checker.check_frame(&frame, 4, 4, 0);
+        assert!(!violations.is_empty());
+        assert!(violations
+            .iter()
+            .all(|v| v.violation_type == ViolationType::LumaAbove));
+    }
+
+    #[test]
+    fn test_region_checker_secam_color_space_ok() {
+        let checker = RegionBroadcastChecker::new(BroadcastRegion::Secam);
+        assert!(checker.check_color_space("bt601-625").is_ok());
+        assert!(checker.check_color_space("secam").is_ok());
+    }
+
+    #[test]
+    fn test_region_checker_secam_color_space_mismatch() {
+        let checker = RegionBroadcastChecker::new(BroadcastRegion::Secam);
+        let err = checker.check_color_space("bt709").unwrap_err();
+        assert_eq!(err.region, BroadcastRegion::Secam);
+    }
+
+    #[test]
+    fn test_region_checker_expected_color_space() {
+        let ntsc_checker = RegionBroadcastChecker::new(BroadcastRegion::Ntsc);
+        assert_eq!(ntsc_checker.expected_color_space(), "bt601-525");
+        let hd_checker = RegionBroadcastChecker::new(BroadcastRegion::Hd);
+        assert_eq!(hd_checker.expected_color_space(), "bt709");
+    }
+
+    #[test]
+    fn test_ntsc_frame_rate() {
+        assert!((BroadcastRegion::Ntsc.frame_rate_hz() - 29.97_f32).abs() < 0.01);
+    }
+
+    #[test]
+    fn test_pal_secam_frame_rate() {
+        assert!((BroadcastRegion::Pal.frame_rate_hz() - 25.0_f32).abs() < 0.01);
+        assert!((BroadcastRegion::Secam.frame_rate_hz() - 25.0_f32).abs() < 0.01);
     }
 }

@@ -30,8 +30,9 @@ kurbo = "0.13"
 palette = "0.7"
 
 # GPU rendering
-wgpu = { version = "24", optional = true }
+wgpu = { version = "29", optional = true }
 bytemuck = { version = "1", features = ["derive"] }
+pollster = { version = "0.4", optional = true }
 
 # Template and control
 tera = "1"
@@ -42,7 +43,7 @@ axum = { version = "0.8", optional = true }
 
 [features]
 default = ["gpu", "server"]
-gpu = ["dep:wgpu"]
+gpu = ["dep:wgpu", "dep:pollster"]
 server = ["dep:tokio", "dep:axum"]
 
 [dev-dependencies]

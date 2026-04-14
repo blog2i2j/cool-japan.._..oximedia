@@ -13,6 +13,7 @@ readme = "README.md"
 # WGPU uses unsafe internally for GPU API FFI, but we write safe wrappers only
 [lints.rust]
 unsafe_code = "allow"
+missing_docs = "allow"
 
 [lints.clippy]
 all = { level = "warn", priority = -2 }
@@ -21,7 +22,6 @@ pedantic = { level = "warn", priority = -1 }
 # ── Documentation lints ──────────────────────────────────────────────────────
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
-missing_docs = "allow"
 doc_markdown = "allow"
 doc_link_with_quotes = "allow"
 doc_overindented_list_items = "allow"
@@ -274,10 +274,15 @@ parking_lot = { workspace = true }
 dirs = "6.0"
 
 # WGPU for cross-platform GPU compute
-wgpu = "24.0"
+wgpu = "29.0"
 pollster = "0.4"
 futures-channel = "0.3"
 futures = "0.3"
 
 [dev-dependencies]
 tracing-subscriber = "0.3"
+criterion.workspace = true
+
+[[bench]]
+name = "gpu_benchmarks"
+harness = false

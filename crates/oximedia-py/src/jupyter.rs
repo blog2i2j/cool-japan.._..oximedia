@@ -5,7 +5,7 @@
 //! notebook, and fall back gracefully to writing files or printing stats
 //! when running in a plain Python REPL.
 //!
-//! PNG encoding is performed in pure Rust using flate2 for zlib compression
+//! PNG encoding is performed in pure Rust using oxiarc-deflate for zlib compression
 //! and an inline CRC32 implementation — no C libraries are required.
 //!
 //! # Example (Jupyter)
@@ -22,8 +22,7 @@
 
 use std::io::Write as _;
 
-use flate2::write::ZlibEncoder;
-use flate2::Compression;
+use oxiarc_deflate::ZlibStreamEncoder;
 use pyo3::prelude::*;
 use pyo3::types::PyBytes;
 
@@ -126,7 +125,7 @@ pub fn write_png_grayscale(width: u32, height: u32, data: &[u8]) -> Vec<u8> {
     }
 
     // Zlib-compress the raw scanlines for the IDAT chunk.
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    let mut encoder = ZlibStreamEncoder::new(Vec::new(), 6);
     // If compression fails we fall back to an uncompressed-looking stream.
     let compressed = if encoder.write_all(&raw).is_ok() {
         encoder.finish().unwrap_or_else(|_| raw.clone())

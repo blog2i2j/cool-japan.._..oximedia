@@ -199,6 +199,60 @@ impl CrosspointMatrix {
         self.output_labels.get(output).map(String::as_str)
     }
 
+    /// Create a new crosspoint matrix suitable for large (≥256×256) routing.
+    ///
+    /// Semantically identical to [`Self::new`]; the internal representation is
+    /// always sparse (HashMap), so this constructor is an alias that makes
+    /// intent explicit at the call site.
+    #[must_use]
+    pub fn new_sparse(inputs: usize, outputs: usize) -> Self {
+        Self::new(inputs, outputs)
+    }
+
+    /// Compute the mix bus output for a given `output` channel.
+    ///
+    /// Sums `input_samples[input] * linear_gain` for every connected input,
+    /// skipping zero entries (sparse iteration).  Returns the accumulated sum.
+    ///
+    /// `input_samples` must have at least `self.inputs` entries; out-of-range
+    /// inputs are skipped silently.
+    #[must_use]
+    pub fn mix_bus(&self, output: usize, input_samples: &[f32]) -> f32 {
+        if output >= self.outputs {
+            return 0.0;
+        }
+        let mut sum = 0.0_f32;
+        for (id, state) in &self.crosspoints {
+            if id.output != output {
+                continue;
+            }
+            if let CrosspointState::Connected { gain_db } = state {
+                if id.input < input_samples.len() {
+                    let gain_linear = 10.0_f32.powf(gain_db / 20.0);
+                    sum += input_samples[id.input] * gain_linear;
+                }
+            }
+        }
+        sum
+    }
+
+    /// Compute all output channels at once using sparse iteration.
+    ///
+    /// Returns a `Vec<f32>` of length `self.outputs`.
+    #[must_use]
+    pub fn mix_bus_all(&self, input_samples: &[f32]) -> Vec<f32> {
+        let mut outputs = vec![0.0_f32; self.outputs];
+        for (id, state) in &self.crosspoints {
+            if let CrosspointState::Connected { gain_db } = state {
+                if id.input < input_samples.len() && id.output < self.outputs {
+                    let gain_linear = 10.0_f32.powf(gain_db / 20.0);
+                    outputs[id.output] += input_samples[id.input] * gain_linear;
+                }
+            }
+        }
+        outputs
+    }
+
     /// Clear all connections
     pub fn clear_all(&mut self) {
         self.crosspoints.clear();
@@ -333,5 +387,156 @@ mod tests {
             matrix.connect(0, 10, None),
             Err(MatrixError::InvalidOutput(10))
         ));
+    }
+
+    // -----------------------------------------------------------------------
+    // Task B: Sparse / 256×256 / mix_bus tests (10 tests)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_new_sparse_same_as_new() {
+        let dense = CrosspointMatrix::new(256, 256);
+        let sparse = CrosspointMatrix::new_sparse(256, 256);
+        assert_eq!(dense.input_count(), sparse.input_count());
+        assert_eq!(dense.output_count(), sparse.output_count());
+        assert_eq!(dense.get_active_crosspoints().len(), 0);
+        assert_eq!(sparse.get_active_crosspoints().len(), 0);
+    }
+
+    #[test]
+    fn test_mix_bus_zero_output() {
+        let matrix = CrosspointMatrix::new(4, 4);
+        let samples = [1.0_f32, 2.0, 3.0, 4.0];
+        // No connections → output should be 0.
+        let out = matrix.mix_bus(0, &samples);
+        assert!(out.abs() < 1e-10, "expected 0, got {out}");
+    }
+
+    #[test]
+    fn test_mix_bus_single_connection_at_0db() {
+        let mut matrix = CrosspointMatrix::new(4, 4);
+        // input 0 → output 0 at 0 dB (linear gain = 1.0).
+        matrix.connect(0, 0, Some(0.0)).expect("ok");
+        let samples = [0.5_f32, 0.0, 0.0, 0.0];
+        let out = matrix.mix_bus(0, &samples);
+        assert!((out - 0.5).abs() < 1e-5, "expected 0.5, got {out}");
+    }
+
+    #[test]
+    fn test_mix_bus_sum_multiple_inputs() {
+        let mut matrix = CrosspointMatrix::new(4, 4);
+        // input 0 → output 0 at 0 dB; input 1 → output 0 at 0 dB.
+        matrix.connect(0, 0, Some(0.0)).expect("ok");
+        matrix.connect(1, 0, Some(0.0)).expect("ok");
+        let samples = [0.3_f32, 0.4, 0.0, 0.0];
+        let out = matrix.mix_bus(0, &samples);
+        // 0.3 + 0.4 = 0.7
+        assert!((out - 0.7).abs() < 1e-5, "expected 0.7, got {out}");
+    }
+
+    #[test]
+    fn test_mix_bus_with_gain() {
+        let mut matrix = CrosspointMatrix::new(4, 4);
+        // -20 dB → linear = 0.1
+        matrix.connect(0, 0, Some(-20.0)).expect("ok");
+        let samples = [1.0_f32, 0.0, 0.0, 0.0];
+        let out = matrix.mix_bus(0, &samples);
+        assert!((out - 0.1).abs() < 0.01, "expected ~0.1, got {out}");
+    }
+
+    #[test]
+    fn test_mix_bus_out_of_bounds_output() {
+        let matrix = CrosspointMatrix::new(4, 4);
+        let samples = [1.0_f32; 4];
+        // Output 10 is out of bounds → returns 0.
+        let out = matrix.mix_bus(10, &samples);
+        assert!(out.abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_mix_bus_all_matches_per_output() {
+        let mut matrix = CrosspointMatrix::new(4, 4);
+        matrix.connect(0, 0, Some(0.0)).expect("ok");
+        matrix.connect(1, 1, Some(0.0)).expect("ok");
+        matrix.connect(2, 2, Some(0.0)).expect("ok");
+        matrix.connect(3, 3, Some(0.0)).expect("ok");
+        let samples = [0.1_f32, 0.2, 0.3, 0.4];
+        let all = matrix.mix_bus_all(&samples);
+        assert_eq!(all.len(), 4);
+        for (o, &expected) in samples.iter().enumerate() {
+            let per = matrix.mix_bus(o, &samples);
+            assert!(
+                (all[o] - per).abs() < 1e-7,
+                "mismatch at output {o}: all={} vs per={}",
+                all[o],
+                per
+            );
+            assert!(
+                (all[o] - expected).abs() < 1e-5,
+                "output {o} expected {expected}, got {}",
+                all[o]
+            );
+        }
+    }
+
+    #[test]
+    fn test_256x256_with_5pct_fill() {
+        let n = 256;
+        let target_connections = (n * n) * 5 / 100; // 5%
+        let mut matrix = CrosspointMatrix::new_sparse(n, n);
+
+        // Connect every 20th input to every 20th output (approximately 5% fill).
+        let mut count = 0;
+        'outer: for i in (0..n).step_by(4) {
+            for o in (0..n).step_by(5) {
+                if matrix.connect(i, o, Some(0.0)).is_ok() {
+                    count += 1;
+                }
+                if count >= target_connections {
+                    break 'outer;
+                }
+            }
+        }
+
+        let active = matrix.get_active_crosspoints();
+        assert!(
+            active.len() >= 1,
+            "expected at least 1 active crosspoint, got {}",
+            active.len()
+        );
+        // Verify mix_bus computes without panic.
+        let samples = vec![0.5_f32; n];
+        let _ = matrix.mix_bus(0, &samples);
+        let _ = matrix.mix_bus_all(&samples);
+    }
+
+    #[test]
+    fn test_connect_disconnect_roundtrip_mix_bus() {
+        let mut matrix = CrosspointMatrix::new(4, 4);
+        matrix.connect(0, 0, Some(0.0)).expect("ok");
+        assert!((matrix.mix_bus(0, &[1.0_f32, 0.0, 0.0, 0.0]) - 1.0).abs() < 1e-6);
+
+        matrix.disconnect(0, 0).expect("ok");
+        assert!(matrix.mix_bus(0, &[1.0_f32, 0.0, 0.0, 0.0]).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_256x256_mix_bus_diagonal() {
+        let n = 256;
+        let mut matrix = CrosspointMatrix::new_sparse(n, n);
+        // Connect diagonal at 0 dB.
+        for i in 0..n {
+            matrix.connect(i, i, Some(0.0)).expect("ok");
+        }
+        // Each output should receive exactly one input.
+        let samples: Vec<f32> = (0..n).map(|i| i as f32 * 0.001).collect();
+        for o in 0..n {
+            let out = matrix.mix_bus(o, &samples);
+            let expected = samples[o]; // diagonal: input o → output o
+            assert!(
+                (out - expected).abs() < 1e-5,
+                "output {o}: expected {expected}, got {out}"
+            );
+        }
     }
 }

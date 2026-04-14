@@ -49,6 +49,7 @@ impl BitReader<'_> {
     /// ```
     /// use oximedia_io::bits::BitReader;
     ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// // ue(0) = 1 (single bit)
     /// let data = [0b10000000];
     /// let mut reader = BitReader::new(&data);
@@ -63,6 +64,8 @@ impl BitReader<'_> {
     /// let data = [0b01100000];
     /// let mut reader = BitReader::new(&data);
     /// assert_eq!(reader.read_exp_golomb()?, 2);
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn read_exp_golomb(&mut self) -> OxiResult<u64> {
         // Count leading zeros
@@ -107,6 +110,7 @@ impl BitReader<'_> {
     /// ```
     /// use oximedia_io::bits::BitReader;
     ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// // se(0) = 1 -> value 0
     /// let data = [0b10000000];
     /// let mut reader = BitReader::new(&data);
@@ -121,6 +125,8 @@ impl BitReader<'_> {
     /// let data = [0b01100000];
     /// let mut reader = BitReader::new(&data);
     /// assert_eq!(reader.read_signed_exp_golomb()?, -1);
+    /// # Ok(())
+    /// # }
     /// ```
     #[allow(clippy::cast_possible_wrap)]
     pub fn read_signed_exp_golomb(&mut self) -> OxiResult<i64> {

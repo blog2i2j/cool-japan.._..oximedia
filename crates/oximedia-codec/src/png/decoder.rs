@@ -11,7 +11,7 @@
 use super::filter::{unfilter, FilterType};
 use crate::error::{CodecError, CodecResult};
 use bytes::Bytes;
-use flate2::read::ZlibDecoder;
+use oxiarc_deflate::ZlibStreamDecoder;
 use std::io::Read;
 
 /// PNG signature bytes.
@@ -400,7 +400,7 @@ impl PngDecoder {
 
         // Decompress IDAT data
         let compressed_data: Vec<u8> = idat_chunks.into_iter().flatten().collect();
-        let mut decoder = ZlibDecoder::new(&compressed_data[..]);
+        let mut decoder = ZlibStreamDecoder::new(&compressed_data[..]);
         let mut image_data = Vec::new();
         decoder
             .read_to_end(&mut image_data)
@@ -1094,7 +1094,7 @@ impl PngDecoderExtended {
         }
 
         let compressed_data: Vec<u8> = idat_chunks.into_iter().flatten().collect();
-        let mut zlib_decoder = ZlibDecoder::new(&compressed_data[..]);
+        let mut zlib_decoder = ZlibStreamDecoder::new(&compressed_data[..]);
         let mut image_data = Vec::new();
         zlib_decoder
             .read_to_end(&mut image_data)

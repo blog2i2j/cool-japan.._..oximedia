@@ -111,8 +111,6 @@ impl Profile {
             audio_bitrate: Some(192_000),
             resolution,
             frame_rate: source.frame_rate.or(Some(30.0)),
-            audio_sample_rate: None,
-
             parameters: vec![
                 ("preset".to_string(), "medium".to_string()),
                 ("movflags".to_string(), "+faststart".to_string()),
@@ -133,8 +131,6 @@ impl Profile {
             audio_bitrate: Some(128_000),
             resolution: source.width.and_then(|w| source.height.map(|h| (w, h))),
             frame_rate: source.frame_rate,
-            audio_sample_rate: None,
-
             parameters: vec![
                 ("hls_time".to_string(), "6".to_string()),
                 ("hls_list_size".to_string(), "0".to_string()),
@@ -155,8 +151,6 @@ impl Profile {
             audio_bitrate: None,
             resolution: source.width.and_then(|w| source.height.map(|h| (w, h))),
             frame_rate: source.frame_rate,
-            audio_sample_rate: None,
-
             parameters: vec![
                 ("level".to_string(), "3".to_string()),
                 ("coder".to_string(), "1".to_string()),
@@ -179,8 +173,6 @@ impl Profile {
             audio_bitrate: Some(96_000),
             resolution,
             frame_rate: Some(24.0),
-            audio_sample_rate: None,
-
             parameters: vec![
                 ("preset".to_string(), "fast".to_string()),
                 ("crf".to_string(), "28".to_string()),
@@ -203,8 +195,6 @@ impl Profile {
             audio_bitrate: Some(128_000),
             resolution,
             frame_rate: Some(30.0),
-            audio_sample_rate: None,
-
             parameters: vec![
                 ("preset".to_string(), "medium".to_string()),
                 ("profile".to_string(), "baseline".to_string()),
@@ -227,8 +217,6 @@ impl Profile {
             audio_bitrate: Some(192_000),
             resolution,
             frame_rate: source.frame_rate.or(Some(30.0)),
-            audio_sample_rate: None,
-
             parameters: vec![
                 ("preset".to_string(), "slow".to_string()),
                 ("crf".to_string(), "18".to_string()),
@@ -249,8 +237,6 @@ impl Profile {
             audio_bitrate: Some(128_000),
             resolution: Some((1080, 1080)),
             frame_rate: Some(30.0),
-            audio_sample_rate: None,
-
             parameters: vec![
                 ("preset".to_string(), "medium".to_string()),
                 ("pix_fmt".to_string(), "yuv420p".to_string()),
@@ -271,8 +257,6 @@ impl Profile {
             audio_bitrate: Some(128_000),
             resolution: Some((1080, 1920)),
             frame_rate: Some(30.0),
-            audio_sample_rate: None,
-
             parameters: vec![
                 ("preset".to_string(), "medium".to_string()),
                 ("pix_fmt".to_string(), "yuv420p".to_string()),
@@ -293,8 +277,6 @@ impl Profile {
             audio_bitrate: None,
             resolution: source.width.and_then(|w| source.height.map(|h| (w, h))),
             frame_rate: Some(25.0),
-            audio_sample_rate: None,
-
             parameters: vec![
                 ("g".to_string(), "1".to_string()),
                 ("intra".to_string(), "1".to_string()),
@@ -315,8 +297,6 @@ impl Profile {
             audio_bitrate: Some(192_000),
             resolution: None,
             frame_rate: None,
-            audio_sample_rate: None,
-
             parameters: vec![],
         })
     }
@@ -334,8 +314,6 @@ impl Profile {
             audio_bitrate: None,
             resolution: None,
             frame_rate: None,
-            audio_sample_rate: None,
-
             parameters: vec![],
         })
     }
@@ -353,8 +331,6 @@ impl Profile {
             audio_bitrate: Some(256_000),
             resolution: None,
             frame_rate: None,
-            audio_sample_rate: None,
-
             parameters: vec![],
         })
     }
@@ -486,9 +462,7 @@ mod tests {
     fn test_web_optimized_profile() {
         let source = create_test_properties();
         let options = ConversionOptions::default();
-        let settings = Profile::WebOptimized
-            .apply(&source, &options)
-            .expect("profile operation should succeed");
+        let settings = Profile::WebOptimized.apply(&source, &options).unwrap();
 
         assert_eq!(settings.format, "mp4");
         assert_eq!(settings.video_codec, Some("h264".to_string()));
@@ -500,15 +474,11 @@ mod tests {
         let source = create_test_properties();
         let options = ConversionOptions::default();
 
-        let mp3 = Profile::AudioMp3
-            .apply(&source, &options)
-            .expect("profile operation should succeed");
+        let mp3 = Profile::AudioMp3.apply(&source, &options).unwrap();
         assert_eq!(mp3.format, "mp3");
         assert_eq!(mp3.video_codec, None);
 
-        let flac = Profile::AudioFlac
-            .apply(&source, &options)
-            .expect("profile operation should succeed");
+        let flac = Profile::AudioFlac.apply(&source, &options).unwrap();
         assert_eq!(flac.format, "flac");
         assert_eq!(flac.audio_bitrate, None);
     }
@@ -518,8 +488,7 @@ mod tests {
         let source = create_test_properties();
         let max = (1280, 720);
 
-        let resolution =
-            calculate_resolution(&source, max).expect("profile operation should succeed");
+        let resolution = calculate_resolution(&source, max).unwrap();
         assert_eq!(resolution, (1280, 720));
     }
 
@@ -546,8 +515,6 @@ mod tests {
                 audio_bitrate: Some(192_000),
                 resolution: None,
                 frame_rate: None,
-                audio_sample_rate: None,
-
                 parameters: vec![],
             },
         };

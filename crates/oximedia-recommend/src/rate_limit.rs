@@ -160,7 +160,8 @@ impl RecommendationRateLimiter {
     /// Create a new rate limiter.
     #[must_use]
     pub fn new(config: RateLimitConfig, now: i64) -> Self {
-        let global_bucket = TokenBucket::new(config.global_capacity, config.global_refill_rate, now);
+        let global_bucket =
+            TokenBucket::new(config.global_capacity, config.global_refill_rate, now);
         Self {
             user_buckets: HashMap::new(),
             global_bucket,
@@ -183,9 +184,16 @@ impl RecommendationRateLimiter {
         }
 
         // Check per-user bucket
-        let user_bucket = self.user_buckets.entry(user_id.to_string()).or_insert_with(|| {
-            TokenBucket::new(self.config.per_user_capacity, self.config.per_user_refill_rate, now)
-        });
+        let user_bucket = self
+            .user_buckets
+            .entry(user_id.to_string())
+            .or_insert_with(|| {
+                TokenBucket::new(
+                    self.config.per_user_capacity,
+                    self.config.per_user_refill_rate,
+                    now,
+                )
+            });
 
         if !user_bucket.try_consume(tokens, now) {
             return RateLimitDecision::UserLimitExceeded;
@@ -290,7 +298,7 @@ mod tests {
     #[test]
     fn test_refill_after_time() {
         let mut rl = make_limiter(2.0, 2.0); // 2 tokens/sec
-        // Drain bucket
+                                             // Drain bucket
         rl.check_and_consume("alice", 0);
         rl.check_and_consume("alice", 0);
         assert_eq!(
@@ -345,7 +353,9 @@ mod tests {
     fn test_user_available_tokens_after_request() {
         let mut rl = make_limiter(5.0, 1.0);
         rl.check_and_consume("alice", 0);
-        let avail = rl.user_available_tokens("alice").expect("bucket should exist");
+        let avail = rl
+            .user_available_tokens("alice")
+            .expect("bucket should exist");
         assert!((avail - 4.0).abs() < f64::EPSILON);
     }
 

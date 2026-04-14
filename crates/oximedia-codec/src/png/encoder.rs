@@ -13,8 +13,7 @@
 use super::decoder::ColorType;
 use super::filter::{FilterStrategy, FilterType};
 use crate::error::{CodecError, CodecResult};
-use flate2::write::ZlibEncoder;
-use flate2::Compression;
+use oxiarc_deflate::ZlibStreamEncoder;
 use std::io::Write;
 
 /// PNG signature bytes.
@@ -386,14 +385,9 @@ impl PngEncoder {
         }
 
         // Compress with DEFLATE
-        let compression = match self.config.compression_level {
-            0 => Compression::none(),
-            1 => Compression::fast(),
-            9 => Compression::best(),
-            n => Compression::new(n),
-        };
+        let level = self.config.compression_level.min(9) as u8;
 
-        let mut encoder = ZlibEncoder::new(Vec::new(), compression);
+        let mut encoder = ZlibStreamEncoder::new(Vec::new(), level);
         encoder
             .write_all(&filtered_data)
             .map_err(|e| CodecError::Internal(format!("Compression failed: {e}")))?;
@@ -475,14 +469,9 @@ impl PngEncoder {
         }
 
         // Compress
-        let compression = match self.config.compression_level {
-            0 => Compression::none(),
-            1 => Compression::fast(),
-            9 => Compression::best(),
-            n => Compression::new(n),
-        };
+        let level = self.config.compression_level.min(9) as u8;
 
-        let mut encoder = ZlibEncoder::new(Vec::new(), compression);
+        let mut encoder = ZlibStreamEncoder::new(Vec::new(), level);
         encoder
             .write_all(&filtered_data)
             .map_err(|e| CodecError::Internal(format!("Compression failed: {e}")))?;

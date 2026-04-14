@@ -20,16 +20,18 @@ path = "src/bin/convert.rs"
 oximedia-core = { workspace = true }
 oximedia-transcode = { workspace = true }
 oximedia-container = { workspace = true }
-oximedia-codec = { workspace = true, default-features = true }
+oximedia-codec = { workspace = true }
 oximedia-audio = { workspace = true }
 oximedia-image = { workspace = true }
 oximedia-subtitle = { workspace = true }
 oximedia-metadata = { workspace = true }
 oximedia-qc = { workspace = true }
 oximedia-quality = { workspace = true }
+oximedia-batch = { workspace = true }
 oximedia-normalize = { workspace = true }
 oximedia-effects = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
@@ -40,10 +42,6 @@ dashmap = { workspace = true }
 parking_lot = { workspace = true }
 async-trait = { workspace = true }
 uuid = { workspace = true }
-
-[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
-tokio = { workspace = true }
-oximedia-batch = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full", "test-util"] }

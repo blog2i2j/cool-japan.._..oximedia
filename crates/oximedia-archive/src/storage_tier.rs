@@ -40,8 +40,8 @@ impl StorageTier {
         match self {
             Self::Hot => Duration::from_millis(10),
             Self::Warm => Duration::from_secs(1),
-            Self::Cold => Duration::from_secs(60),
-            Self::DeepArchive => Duration::from_secs(3600),
+            Self::Cold => Duration::from_mins(1),
+            Self::DeepArchive => Duration::from_hours(1),
         }
     }
 
@@ -117,7 +117,7 @@ impl TierPolicy {
             destination_tier,
             min_age,
             max_access_count,
-            evaluation_window: Duration::from_secs(30 * 24 * 3600),
+            evaluation_window: Duration::from_hours(720),
             enabled: true,
         }
     }
@@ -198,9 +198,7 @@ impl AssetAccessRecord {
 
     /// Returns the age of the asset since ingestion.
     pub fn age(&self) -> Duration {
-        self.ingested_at
-            .elapsed()
-            .unwrap_or(Duration::ZERO)
+        self.ingested_at.elapsed().unwrap_or(Duration::ZERO)
     }
 }
 
@@ -258,21 +256,21 @@ impl TierManager {
         mgr.add_policy(TierPolicy::new(
             StorageTier::Hot,
             StorageTier::Warm,
-            Duration::from_secs(7 * 24 * 3600),
+            Duration::from_hours(168),
             5,
         ));
         // Warm -> Cold after 30 days if fewer than 2 accesses in 30 days
         mgr.add_policy(TierPolicy::new(
             StorageTier::Warm,
             StorageTier::Cold,
-            Duration::from_secs(30 * 24 * 3600),
+            Duration::from_hours(720),
             2,
         ));
         // Cold -> DeepArchive after 180 days if fewer than 1 access in 30 days
         mgr.add_policy(TierPolicy::new(
             StorageTier::Cold,
             StorageTier::DeepArchive,
-            Duration::from_secs(180 * 24 * 3600),
+            Duration::from_hours(4320),
             1,
         ));
         mgr
@@ -486,7 +484,7 @@ mod tests {
         let mut record = AssetAccessRecord::new(PathBuf::from("/test.mxf"), 100);
         record.record_access();
         record.record_access();
-        let count = record.accesses_within(Duration::from_secs(3600));
+        let count = record.accesses_within(Duration::from_hours(1));
         assert_eq!(count, 2);
     }
 
@@ -504,7 +502,9 @@ mod tests {
         assert_eq!(mgr.asset_count(), 1);
         assert!(mgr.record_access("/archive/clip.mov"));
         assert!(!mgr.record_access("/nonexistent"));
-        let asset = mgr.get_asset("/archive/clip.mov").expect("asset should be valid");
+        let asset = mgr
+            .get_asset("/archive/clip.mov")
+            .expect("asset should be valid");
         assert_eq!(asset.total_accesses, 1);
     }
 

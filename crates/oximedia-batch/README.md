@@ -42,7 +42,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-batch = "0.1.1"
+oximedia-batch = "0.1.3"
 ```
 
 ### Basic Example

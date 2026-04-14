@@ -424,4 +424,178 @@ mod tests {
         let latency = fence.signal_latency().expect("latency should be valid");
         assert!(latency.as_nanos() < 1_000_000_000); // less than 1 second
     }
+
+    // ── Additional fence timeline tests (Step 6) ───────────────────────────
+
+    #[test]
+    fn fence_signal_and_check_is_signalled() {
+        let mut fence = Fence::new(FenceId(42));
+        assert!(!fence.is_signalled(), "new fence must be unsignalled");
+        fence.signal();
+        assert!(
+            fence.is_signalled(),
+            "after signal, fence must be signalled"
+        );
+    }
+
+    #[test]
+    fn timeline_semaphore_signal_and_has_reached() {
+        let mut ts = TimelineSemaphore::new(0);
+        ts.signal(1);
+        assert!(ts.has_reached(1), "should have reached value 1");
+        assert!(!ts.has_reached(2), "should not have reached value 2 yet");
+    }
+
+    #[test]
+    fn timeline_semaphore_monotone_signals() {
+        let mut ts = TimelineSemaphore::new(0);
+        for i in 1u64..=10 {
+            ts.signal(i);
+        }
+        assert!(ts.value() >= 10, "current value must be >= 10");
+    }
+
+    #[test]
+    fn timeline_semaphore_concurrent_via_mutex() {
+        use std::sync::{Arc, Mutex};
+        use std::thread;
+
+        let ts = Arc::new(Mutex::new(TimelineSemaphore::new(0)));
+        let handles: Vec<_> = (1u64..=8)
+            .map(|i| {
+                let t = ts.clone();
+                thread::spawn(move || {
+                    let mut locked = t.lock().expect("mutex lock");
+                    locked.signal(i);
+                })
+            })
+            .collect();
+
+        for h in handles {
+            h.join().expect("thread should not panic");
+        }
+
+        let ts_final = ts.lock().expect("final lock");
+        assert!(
+            ts_final.value() >= 1,
+            "at least one signal must have succeeded"
+        );
+    }
+
+    #[test]
+    fn fence_pool_concurrent_acquire_release_via_mutex() {
+        use std::sync::{Arc, Mutex};
+        use std::thread;
+
+        let pool = Arc::new(Mutex::new(FencePool::new()));
+        let handles: Vec<_> = (0..4)
+            .map(|_| {
+                let p = pool.clone();
+                thread::spawn(move || {
+                    for _ in 0..25 {
+                        let fence = {
+                            let mut locked = p.lock().expect("lock");
+                            locked.acquire()
+                        };
+                        assert!(!fence.is_signalled(), "acquired fence must be unsignalled");
+                        {
+                            let mut locked = p.lock().expect("lock for release");
+                            locked.release(fence);
+                        }
+                    }
+                })
+            })
+            .collect();
+
+        for h in handles {
+            h.join().expect("thread should not panic");
+        }
+
+        let pool_final = pool.lock().expect("final lock");
+        // All 4*25 = 100 alloc/release cycles completed without panic.
+        // Pool should have some fences available for reuse.
+        assert!(
+            pool_final.available() > 0,
+            "pool should have recycled fences"
+        );
+    }
+
+    #[test]
+    fn timeline_registry_concurrent_timeline_updates_via_mutex() {
+        use std::sync::{Arc, Mutex};
+        use std::thread;
+
+        let registry = Arc::new(Mutex::new(TimelineRegistry::new()));
+        let handles: Vec<_> = (0..4)
+            .map(|i| {
+                let r = registry.clone();
+                thread::spawn(move || {
+                    let name = format!("timeline_{i}");
+                    let mut locked = r.lock().expect("lock");
+                    locked.get_or_create(&name).signal(i as u64 * 10 + 1);
+                })
+            })
+            .collect();
+
+        for h in handles {
+            h.join().expect("thread should not panic");
+        }
+
+        let r = registry.lock().expect("final lock");
+        assert_eq!(r.len(), 4, "four timelines should be registered");
+        let status = r.status();
+        assert!(
+            status.max_timeline_value >= 1,
+            "at least one timeline was signalled"
+        );
+    }
+
+    #[test]
+    fn timeline_semaphore_history_grows_and_queries() {
+        let mut ts = TimelineSemaphore::new(0);
+        for i in 1u64..=5 {
+            ts.signal(i);
+        }
+        assert_eq!(ts.history_len(), 5);
+        for i in 1u64..=5 {
+            assert!(
+                ts.signalled_at(i).is_some(),
+                "value {i} should be in history"
+            );
+        }
+        assert!(
+            ts.signalled_at(0).is_none(),
+            "initial value 0 not in history"
+        );
+    }
+
+    #[test]
+    fn fence_reset_clears_signal() {
+        let mut fence = Fence::new(FenceId(0));
+        fence.signal();
+        assert!(fence.is_signalled());
+        fence.reset();
+        assert!(!fence.is_signalled(), "reset must clear the signal");
+        assert!(
+            fence.signal_latency().is_none(),
+            "reset must clear latency record"
+        );
+    }
+
+    #[test]
+    fn timeline_semaphore_initial_value_affects_has_reached() {
+        let ts = TimelineSemaphore::new(100);
+        assert!(
+            ts.has_reached(50),
+            "initial value 100 must satisfy has_reached(50)"
+        );
+        assert!(
+            ts.has_reached(100),
+            "initial value 100 must satisfy has_reached(100)"
+        );
+        assert!(
+            !ts.has_reached(101),
+            "must not satisfy has_reached(101) without signal"
+        );
+    }
 }

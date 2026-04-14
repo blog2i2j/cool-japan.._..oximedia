@@ -16,6 +16,7 @@ oximedia-core = { workspace = true }
 oximedia-audio = { workspace = true }
 oximedia-metering = { workspace = true }
 oximedia-metadata = { workspace = true }
+rayon = { workspace = true }
 thiserror = { workspace = true }
 
 [lints]

@@ -1,7 +1,7 @@
 //! IMF (Interoperable Master Format) compliance checking.
 //!
 //! Implements SMPTE ST 2067-2 and ST 2084 (PQ) compliance rules via the
-//! [`ImfComplianceChecker`] which implements the [`crate::rules::QcRule`] trait.
+//! `ImfComplianceChecker` which implements the [`crate::rules::QcRule`] trait.
 //!
 //! ## Standards Covered
 //!

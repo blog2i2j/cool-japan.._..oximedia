@@ -14,13 +14,13 @@
 - [ ] Implement SRT caller/listener/rendezvous connection modes fully in srt module
 - [ ] Add RTMP enhanced mode (RTMP+) with AV1/VP9 codec support in rtmp module
 - [ ] Implement WebRTC WHIP/WHEP signaling for browser-based ingest/playback in webrtc module
-- [ ] Add QUIC datagram mode for ultra-low-latency media transport in quic module
+- [x] Add QUIC datagram mode for ultra-low-latency media transport in quic module
 - [ ] Improve ABR algorithm with buffer-based (BBA) strategy alongside bandwidth-based in abr module
-- [ ] Add SRT encryption with AES-256-GCM in addition to current AES-128-CTR
+- [x] Add SRT encryption with AES-256-GCM in addition to current AES-128-CTR
 
 ## New Features
 - [ ] Implement RIST (Reliable Internet Stream Transport) protocol as alternative to SRT
-- [ ] Add Zixi-compatible protocol support for broadcast contribution links
+- [x] Add Zixi-compatible protocol support for broadcast contribution links
 - [ ] Implement SMPTE ST 2022-7 seamless protection switching (dual-path redundancy) in smpte2110
 - [ ] Add media relay/restreaming server -- receive from one protocol, retransmit on another
 - [ ] Implement bandwidth-aware transcoding trigger -- signal codec crate to reduce quality when bandwidth drops

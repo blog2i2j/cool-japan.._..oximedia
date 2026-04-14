@@ -34,6 +34,7 @@ use crate::{CodecError, CodecResult, SampleFormat};
 use super::celt::CeltEncoder;
 use super::packet::{OpusBandwidth, OpusMode, TocInfo};
 use super::silk::SilkEncoder;
+use super::vad::{VadConfig, VadDecision, VoiceActivityDetector};
 
 /// Opus encoder configuration.
 #[derive(Debug, Clone)]
@@ -155,6 +156,12 @@ pub struct OpusEncoder {
     input_buffer: Vec<f32>,
     /// Number of samples in input buffer
     buffered_samples: usize,
+    /// Voice Activity Detector for DTX / bandwidth switching support.
+    vad: VoiceActivityDetector,
+    /// VAD decision for the last encoded frame.
+    last_vad_decision: VadDecision,
+    /// Count of consecutive silence frames suppressed by DTX.
+    dtx_silence_frames: u32,
 }
 
 impl OpusEncoder {
@@ -197,6 +204,9 @@ impl OpusEncoder {
             .bandwidth
             .unwrap_or_else(|| Self::select_bandwidth(&config));
 
+        // Build VAD configuration appropriate for this encoder.
+        let vad_config = VadConfig::default();
+
         // Create encoder instance
         let mut encoder = Self {
             config,
@@ -207,6 +217,9 @@ impl OpusEncoder {
             frame_count: 0,
             input_buffer: Vec::new(),
             buffered_samples: 0,
+            vad: VoiceActivityDetector::new(vad_config),
+            last_vad_decision: VadDecision::Silence,
+            dtx_silence_frames: 0,
         };
 
         // Initialize the appropriate encoder
@@ -338,6 +351,25 @@ impl OpusEncoder {
 
     /// Encodes a single frame.
     fn encode_frame(&mut self, samples: &[f32]) -> CodecResult<Vec<u8>> {
+        // ── Voice Activity Detection ─────────────────────────────────────────
+        // Down-mix to mono for VAD analysis.
+        let channels = self.config.channels.max(1);
+        let mono: Vec<f32> = samples
+            .chunks(channels)
+            .map(|ch| ch.iter().copied().sum::<f32>() / channels as f32)
+            .collect();
+        self.last_vad_decision = self.vad.process_f32(&mono, self.config.sample_rate);
+
+        // DTX: suppress consecutive silence frames after the first one.
+        if self.config.dtx && self.last_vad_decision == VadDecision::Silence {
+            self.dtx_silence_frames += 1;
+            if self.dtx_silence_frames > 1 {
+                return Ok(Vec::new());
+            }
+        } else {
+            self.dtx_silence_frames = 0;
+        }
+
         // Allocate output buffer (max packet size)
         let max_packet_size = 1275; // RFC 6716 maximum
         let mut packet = vec![0u8; max_packet_size];
@@ -519,6 +551,21 @@ impl OpusEncoder {
         self.frame_count = 0;
         self.input_buffer.clear();
         self.buffered_samples = 0;
+        self.vad.reset();
+        self.last_vad_decision = VadDecision::Silence;
+        self.dtx_silence_frames = 0;
+    }
+
+    /// Returns the VAD decision for the most recently encoded frame.
+    #[must_use]
+    pub const fn last_vad_decision(&self) -> VadDecision {
+        self.last_vad_decision
+    }
+
+    /// Returns the number of consecutive silence frames suppressed by DTX.
+    #[must_use]
+    pub const fn dtx_silence_frames(&self) -> u32 {
+        self.dtx_silence_frames
     }
 
     /// Returns the current configuration.
@@ -634,5 +681,129 @@ mod tests {
         let mut encoder = OpusEncoder::new(config).expect("should succeed");
         encoder.reset();
         assert_eq!(encoder.frame_count(), 0);
+    }
+
+    // =========================================================================
+    // VAD integration tests
+    // =========================================================================
+
+    fn speech_frame_f32(len: usize, sample_rate: u32) -> Vec<f32> {
+        (0..len)
+            .map(|i| {
+                let t = i as f32 / sample_rate as f32;
+                (2.0 * std::f32::consts::PI * 200.0 * t).sin() * 0.8
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_vad_initial_decision_is_silence() {
+        let config = OpusEncoderConfig::new(16000, 1, 16000);
+        let encoder = OpusEncoder::new(config).expect("encoder creation");
+        assert_eq!(encoder.last_vad_decision(), VadDecision::Silence);
+    }
+
+    #[test]
+    fn test_vad_dtx_silence_frames_zero_initially() {
+        let config = OpusEncoderConfig::new(16000, 1, 16000);
+        let encoder = OpusEncoder::new(config).expect("encoder creation");
+        assert_eq!(encoder.dtx_silence_frames(), 0);
+    }
+
+    #[test]
+    fn test_vad_decision_updates_after_encode() {
+        let config = OpusEncoderConfig::new(16000, 1, 16000);
+        let mut encoder = OpusEncoder::new(config).expect("encoder creation");
+        let frame_size = encoder.frame_size();
+        for _ in 0..10 {
+            let silence = vec![0.0f32; frame_size];
+            let _ = encoder.encode(&silence);
+        }
+        let speech = speech_frame_f32(frame_size, 16000);
+        let _ = encoder.encode(&speech);
+        assert_eq!(
+            encoder.last_vad_decision(),
+            VadDecision::Voice,
+            "Loud speech should produce Voice decision"
+        );
+    }
+
+    #[test]
+    fn test_vad_reset_clears_decision() {
+        let config = OpusEncoderConfig::new(16000, 1, 16000);
+        let mut encoder = OpusEncoder::new(config).expect("encoder creation");
+        let frame_size = encoder.frame_size();
+        for _ in 0..5 {
+            let _ = encoder.encode(&vec![0.0f32; frame_size]);
+        }
+        encoder.reset();
+        assert_eq!(encoder.last_vad_decision(), VadDecision::Silence);
+        assert_eq!(encoder.dtx_silence_frames(), 0);
+    }
+
+    #[test]
+    fn test_dtx_suppresses_continuous_silence() {
+        let config = OpusEncoderConfig::new(16000, 1, 16000).with_dtx(true);
+        let mut encoder = OpusEncoder::new(config).expect("encoder creation");
+        let frame_size = encoder.frame_size();
+        let silence = vec![0.0f32; frame_size];
+        let mut suppressed = 0u32;
+        for _ in 0..40 {
+            if let Ok(Some(pkt)) = encoder.encode(&silence) {
+                if pkt.is_empty() {
+                    suppressed += 1;
+                }
+            }
+        }
+        assert!(
+            suppressed > 0,
+            "DTX must suppress at least one silence frame over 40 frames"
+        );
+    }
+
+    #[test]
+    fn test_dtx_does_not_suppress_speech() {
+        let config = OpusEncoderConfig::new(16000, 1, 16000).with_dtx(true);
+        let mut encoder = OpusEncoder::new(config).expect("encoder creation");
+        let frame_size = encoder.frame_size();
+        for _ in 0..10 {
+            let _ = encoder.encode(&vec![0.0f32; frame_size]);
+        }
+        let speech = speech_frame_f32(frame_size, 16000);
+        if let Ok(Some(pkt)) = encoder.encode(&speech) {
+            assert!(!pkt.is_empty(), "DTX must NOT suppress speech frames");
+        }
+    }
+
+    #[test]
+    fn test_dtx_disabled_never_suppresses() {
+        let config = OpusEncoderConfig::new(16000, 1, 16000);
+        assert!(!config.dtx);
+        let mut encoder = OpusEncoder::new(config).expect("encoder creation");
+        let frame_size = encoder.frame_size();
+        let silence = vec![0.0f32; frame_size];
+        for _ in 0..30 {
+            if let Ok(Some(pkt)) = encoder.encode(&silence) {
+                assert!(
+                    !pkt.is_empty(),
+                    "Without DTX, no packets should be suppressed"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_dtx_silence_frame_counter_increases() {
+        let config = OpusEncoderConfig::new(16000, 1, 16000).with_dtx(true);
+        let mut encoder = OpusEncoder::new(config).expect("encoder creation");
+        let frame_size = encoder.frame_size();
+        let silence = vec![0.0f32; frame_size];
+        for _ in 0..40 {
+            let _ = encoder.encode(&silence);
+        }
+        assert!(
+            encoder.dtx_silence_frames() > 0,
+            "dtx_silence_frames must be > 0 after sustained silence with DTX"
+        );
     }
 }

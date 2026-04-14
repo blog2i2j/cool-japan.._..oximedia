@@ -150,7 +150,7 @@ impl StorageManager {
             hash,
             mime_type: self.detect_mime_type(&path),
             compression: if self.config.enable_compression {
-                Some("zstd".to_string())
+                Some("lz4".to_string())
             } else {
                 None
             },
@@ -237,16 +237,14 @@ impl StorageManager {
         self.chunk_store.values().map(|v| v.len() as u64).sum()
     }
 
-    /// Compress data using zstd
+    /// Compress data using lz4_flex (pure Rust replacement for zstd)
     fn compress_data(&self, data: &[u8]) -> Result<Vec<u8>> {
-        let compressed = zstd::encode_all(data, 3)
-            .map_err(|e| Error::Storage(format!("Compression failed: {e}")))?;
-        Ok(compressed)
+        Ok(lz4_flex::compress_prepend_size(data))
     }
 
-    /// Decompress data using zstd
+    /// Decompress data using lz4_flex
     fn decompress_data(&self, data: &[u8]) -> Result<Vec<u8>> {
-        let decompressed = zstd::decode_all(data)
+        let decompressed = lz4_flex::decompress_size_prepended(data)
             .map_err(|e| Error::Storage(format!("Decompression failed: {e}")))?;
         Ok(decompressed)
     }

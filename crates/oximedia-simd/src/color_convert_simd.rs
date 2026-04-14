@@ -573,4 +573,250 @@ mod tests {
         assert!(dst[0].y < dst[1].y);
         assert!(dst[1].y < dst[2].y);
     }
+
+    // ── BT.2020 tests ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn bt2020_coeffs_luma_sum_to_one() {
+        let c = Rgb2YuvCoeffs::bt2020();
+        let sum = c.row_y[0] + c.row_y[1] + c.row_y[2];
+        assert!((sum - 1.0).abs() < 1e-4, "BT.2020 Y coefficients sum={sum}");
+    }
+
+    #[test]
+    fn bt2020_kr_kg_kb_correct() {
+        let c = Rgb2YuvCoeffs::bt2020();
+        assert!(
+            (c.row_y[0] - 0.2627_f32).abs() < 1e-4,
+            "BT.2020 Kr={}",
+            c.row_y[0]
+        );
+        assert!(
+            (c.row_y[1] - 0.6780_f32).abs() < 1e-4,
+            "BT.2020 Kg={}",
+            c.row_y[1]
+        );
+        assert!(
+            (c.row_y[2] - 0.0593_f32).abs() < 1e-4,
+            "BT.2020 Kb={}",
+            c.row_y[2]
+        );
+    }
+
+    #[test]
+    fn bt2020_white_converts_to_max_luma() {
+        let src = [RgbPixel {
+            r: 255,
+            g: 255,
+            b: 255,
+        }];
+        let mut dst = [YuvPixel { y: 0, cb: 0, cr: 0 }];
+        rgb_to_yuv_bt2020(&src, &mut dst);
+        assert!(dst[0].y > 250, "BT.2020 white Y={}", dst[0].y);
+    }
+
+    #[test]
+    fn bt2020_black_converts_to_zero_luma() {
+        let src = [RgbPixel { r: 0, g: 0, b: 0 }];
+        let mut dst = [YuvPixel { y: 0, cb: 0, cr: 0 }];
+        rgb_to_yuv_bt2020(&src, &mut dst);
+        assert_eq!(dst[0].y, 0, "BT.2020 black Y should be 0");
+    }
+
+    #[test]
+    fn bt2020_white_has_neutral_chroma() {
+        let src = [RgbPixel {
+            r: 255,
+            g: 255,
+            b: 255,
+        }];
+        let mut dst = [YuvPixel { y: 0, cb: 0, cr: 0 }];
+        rgb_to_yuv_bt2020(&src, &mut dst);
+        assert!(
+            (i32::from(dst[0].cb) - 128).abs() <= 2,
+            "BT.2020 white Cb should be ~128, got {}",
+            dst[0].cb
+        );
+        assert!(
+            (i32::from(dst[0].cr) - 128).abs() <= 2,
+            "BT.2020 white Cr should be ~128, got {}",
+            dst[0].cr
+        );
+    }
+
+    #[test]
+    fn bt2020_roundtrip_white() {
+        let src_rgb = [RgbPixel {
+            r: 255,
+            g: 255,
+            b: 255,
+        }];
+        let mut yuv = [YuvPixel { y: 0, cb: 0, cr: 0 }];
+        let mut dst_rgb = [RgbPixel { r: 0, g: 0, b: 0 }];
+        rgb_to_yuv_bt2020(&src_rgb, &mut yuv);
+        yuv_to_rgb_bt2020(&yuv, &mut dst_rgb);
+        assert!(
+            (i32::from(src_rgb[0].r) - i32::from(dst_rgb[0].r)).abs() <= 3,
+            "BT.2020 roundtrip R"
+        );
+        assert!(
+            (i32::from(src_rgb[0].g) - i32::from(dst_rgb[0].g)).abs() <= 3,
+            "BT.2020 roundtrip G"
+        );
+        assert!(
+            (i32::from(src_rgb[0].b) - i32::from(dst_rgb[0].b)).abs() <= 3,
+            "BT.2020 roundtrip B"
+        );
+    }
+
+    #[test]
+    fn bt2020_roundtrip_mid_grey() {
+        let src_rgb = [RgbPixel {
+            r: 128,
+            g: 128,
+            b: 128,
+        }];
+        let mut yuv = [YuvPixel { y: 0, cb: 0, cr: 0 }];
+        let mut dst_rgb = [RgbPixel { r: 0, g: 0, b: 0 }];
+        rgb_to_yuv_bt2020(&src_rgb, &mut yuv);
+        yuv_to_rgb_bt2020(&yuv, &mut dst_rgb);
+        assert!(
+            (i32::from(src_rgb[0].r) - i32::from(dst_rgb[0].r)).abs() <= 3,
+            "BT.2020 grey roundtrip"
+        );
+    }
+
+    #[test]
+    fn bt2020_neutral_chroma_round_trip() {
+        // YCbCr with neutral chroma (128,128) → RGB should be achromatic
+        let src = [YuvPixel {
+            y: 128,
+            cb: 128,
+            cr: 128,
+        }];
+        let mut dst = [RgbPixel { r: 0, g: 0, b: 0 }];
+        yuv_to_rgb_bt2020(&src, &mut dst);
+        let r = i32::from(dst[0].r);
+        let g = i32::from(dst[0].g);
+        let b = i32::from(dst[0].b);
+        assert!((r - g).abs() <= 3, "BT.2020 grey r={r} g={g}");
+        assert!((r - b).abs() <= 3, "BT.2020 grey r={r} b={b}");
+    }
+
+    // ── BT.2100 ICtCp tests ────────────────────────────────────────────────────
+
+    #[test]
+    fn bt2100_ictcp_luma_coeffs_match_bt2020() {
+        // ICtCp uses the same luma row as BT.2020
+        let ictcp = Rgb2YuvCoeffs::bt2100_ictcp();
+        let bt2020 = Rgb2YuvCoeffs::bt2020();
+        assert!(
+            (ictcp.row_y[0] - bt2020.row_y[0]).abs() < 1e-5,
+            "ICtCp Kr mismatch"
+        );
+        assert!(
+            (ictcp.row_y[1] - bt2020.row_y[1]).abs() < 1e-5,
+            "ICtCp Kg mismatch"
+        );
+        assert!(
+            (ictcp.row_y[2] - bt2020.row_y[2]).abs() < 1e-5,
+            "ICtCp Kb mismatch"
+        );
+    }
+
+    #[test]
+    fn bt2100_white_intensity_is_max() {
+        let src = [RgbPixel {
+            r: 255,
+            g: 255,
+            b: 255,
+        }];
+        let mut dst = [YuvPixel { y: 0, cb: 0, cr: 0 }];
+        rgb_to_ictcp_bt2100(&src, &mut dst);
+        assert!(dst[0].y > 250, "ICtCp white I={}", dst[0].y);
+    }
+
+    #[test]
+    fn bt2100_neutral_grey_has_neutral_ct_cp() {
+        let src = [RgbPixel {
+            r: 128,
+            g: 128,
+            b: 128,
+        }];
+        let mut dst = [YuvPixel { y: 0, cb: 0, cr: 0 }];
+        rgb_to_ictcp_bt2100(&src, &mut dst);
+        assert!(
+            (i32::from(dst[0].cb) - 128).abs() <= 5,
+            "ICtCp grey Ct should be ~128, got {}",
+            dst[0].cb
+        );
+        assert!(
+            (i32::from(dst[0].cr) - 128).abs() <= 5,
+            "ICtCp grey Cp should be ~128, got {}",
+            dst[0].cr
+        );
+    }
+
+    #[test]
+    fn bt2100_roundtrip_white() {
+        let src_rgb = [RgbPixel {
+            r: 255,
+            g: 255,
+            b: 255,
+        }];
+        let mut ictcp = [YuvPixel { y: 0, cb: 0, cr: 0 }];
+        let mut dst_rgb = [RgbPixel { r: 0, g: 0, b: 0 }];
+        rgb_to_ictcp_bt2100(&src_rgb, &mut ictcp);
+        ictcp_to_rgb_bt2100(&ictcp, &mut dst_rgb);
+        assert!(
+            (i32::from(src_rgb[0].r) - i32::from(dst_rgb[0].r)).abs() <= 5,
+            "ICtCp roundtrip R"
+        );
+    }
+
+    #[test]
+    fn bt2020_luma_increases_with_brightness() {
+        let pixels = vec![
+            RgbPixel { r: 0, g: 0, b: 0 },
+            RgbPixel {
+                r: 64,
+                g: 64,
+                b: 64,
+            },
+            RgbPixel {
+                r: 128,
+                g: 128,
+                b: 128,
+            },
+            RgbPixel {
+                r: 255,
+                g: 255,
+                b: 255,
+            },
+        ];
+        let mut yuv = vec![YuvPixel { y: 0, cb: 0, cr: 0 }; 4];
+        rgb_to_yuv_bt2020(&pixels, &mut yuv);
+        assert!(yuv[0].y < yuv[1].y, "dark < medium-dark");
+        assert!(yuv[1].y < yuv[2].y, "medium-dark < medium");
+        assert!(yuv[2].y < yuv[3].y, "medium < white");
+    }
+
+    #[test]
+    fn bt2020_differs_from_bt709() {
+        // BT.2020 and BT.709 have different primaries, so they should produce
+        // different results for a saturated colour input.
+        let src = [RgbPixel { r: 255, g: 0, b: 0 }]; // Pure red
+        let mut yuv709 = [YuvPixel { y: 0, cb: 0, cr: 0 }];
+        let mut yuv2020 = [YuvPixel { y: 0, cb: 0, cr: 0 }];
+        rgb_to_yuv_bt709(&src, &mut yuv709);
+        rgb_to_yuv_bt2020(&src, &mut yuv2020);
+        // Luma values will differ because Kr differs (0.2126 vs 0.2627)
+        // Allow both to be non-zero but check they differ
+        assert!(
+            yuv709[0].y != yuv2020[0].y,
+            "BT.709 and BT.2020 must differ for saturated red: {} vs {}",
+            yuv709[0].y,
+            yuv2020[0].y
+        );
+    }
 }

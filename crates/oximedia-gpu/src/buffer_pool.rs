@@ -302,6 +302,182 @@ impl std::fmt::Debug for BufferPool {
 }
 
 // ---------------------------------------------------------------------------
+// SubAllocator — bump-pointer sub-allocator within a single large buffer
+// ---------------------------------------------------------------------------
+
+/// A sub-allocation record tracking a live region within a backing buffer.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SubAllocation {
+    /// Unique identifier for this allocation.
+    pub id: u64,
+    /// Byte offset from the start of the backing buffer.
+    pub offset: u64,
+    /// Size of this allocation in bytes.
+    pub size: u64,
+}
+
+/// Bump-pointer sub-allocator that partitions a single large backing buffer
+/// into smaller regions.
+///
+/// Allocation is O(1); individual `free` is O(n) over live allocations;
+/// `defrag` compacts the live allocations to the front of the buffer,
+/// reclaiming all freed space.
+pub struct SubAllocator {
+    /// Total capacity of the backing buffer in bytes.
+    backing_buffer_size: u64,
+    /// Next byte offset to assign (the "bump pointer").
+    current_offset: u64,
+    /// All currently live allocations.
+    allocations: Vec<SubAllocation>,
+    /// Alignment requirement for every allocation (must be a power of two).
+    alignment: u64,
+    /// Counter for generating unique allocation IDs.
+    next_id: u64,
+    /// Set of IDs that have been freed (logically dead).
+    freed_ids: std::collections::HashSet<u64>,
+}
+
+impl SubAllocator {
+    /// Create a new `SubAllocator` backed by a buffer of `backing_size` bytes,
+    /// with all offsets aligned to `alignment` bytes.
+    ///
+    /// `alignment` is clamped to at least 1.
+    #[must_use]
+    pub fn new(backing_size: u64, alignment: u64) -> Self {
+        let alignment = alignment.max(1);
+        Self {
+            backing_buffer_size: backing_size,
+            current_offset: 0,
+            allocations: Vec::new(),
+            alignment,
+            next_id: 1,
+            freed_ids: std::collections::HashSet::new(),
+        }
+    }
+
+    /// Allocate `size` bytes from the backing buffer.
+    ///
+    /// Returns `Some(SubAllocation)` if there is room, `None` if the backing
+    /// buffer is exhausted.
+    pub fn alloc(&mut self, size: u64) -> Option<SubAllocation> {
+        if size == 0 {
+            return None;
+        }
+
+        // Align the current offset up to the required boundary.
+        let aligned_offset = Self::align_up(self.current_offset, self.alignment);
+        let end = aligned_offset.checked_add(size)?;
+
+        if end > self.backing_buffer_size {
+            return None; // not enough contiguous space
+        }
+
+        let id = self.next_id;
+        self.next_id += 1;
+        self.current_offset = end;
+
+        let alloc = SubAllocation {
+            id,
+            offset: aligned_offset,
+            size,
+        };
+        self.allocations.push(alloc.clone());
+        Some(alloc)
+    }
+
+    /// Mark the allocation with the given `id` as freed.
+    ///
+    /// Freed allocations are not reclaimed until [`defrag`][Self::defrag] is called.
+    pub fn free(&mut self, id: u64) {
+        if let Some(pos) = self.allocations.iter().position(|a| a.id == id) {
+            self.freed_ids.insert(id);
+            self.allocations.remove(pos);
+        }
+    }
+
+    /// Compact all live allocations to the front of the backing buffer,
+    /// reclaiming the space left by freed allocations.
+    ///
+    /// After defragmentation the bump pointer is set to just after the last
+    /// live allocation, making that space available for future `alloc` calls.
+    pub fn defrag(&mut self) {
+        // Remove any stale freed IDs (already removed on free(), but belt-and-suspenders).
+        self.allocations.retain(|a| !self.freed_ids.contains(&a.id));
+        self.freed_ids.clear();
+
+        // Re-layout the live allocations from offset 0.
+        let mut cursor: u64 = 0;
+        for alloc in &mut self.allocations {
+            let aligned = Self::align_up(cursor, self.alignment);
+            alloc.offset = aligned;
+            cursor = aligned + alloc.size;
+        }
+        self.current_offset = cursor;
+    }
+
+    /// Fraction of the backing buffer that is currently occupied by live
+    /// allocations (0.0 = empty, 1.0 = full).
+    #[must_use]
+    pub fn utilization(&self) -> f64 {
+        if self.backing_buffer_size == 0 {
+            return 0.0;
+        }
+        let live_bytes: u64 = self.allocations.iter().map(|a| a.size).sum();
+        live_bytes as f64 / self.backing_buffer_size as f64
+    }
+
+    /// Number of live allocations.
+    #[must_use]
+    pub fn allocation_count(&self) -> usize {
+        self.allocations.len()
+    }
+
+    /// Current value of the bump pointer (first unassigned byte offset).
+    #[must_use]
+    pub fn current_offset(&self) -> u64 {
+        self.current_offset
+    }
+
+    /// Total backing buffer size in bytes.
+    #[must_use]
+    pub fn capacity(&self) -> u64 {
+        self.backing_buffer_size
+    }
+
+    /// Alignment used for all allocations.
+    #[must_use]
+    pub fn alignment(&self) -> u64 {
+        self.alignment
+    }
+
+    // ── private helpers ──────────────────────────────────────────────────────
+
+    /// Round `offset` up to the next multiple of `alignment`.
+    fn align_up(offset: u64, alignment: u64) -> u64 {
+        if alignment <= 1 {
+            return offset;
+        }
+        let rem = offset % alignment;
+        if rem == 0 {
+            offset
+        } else {
+            offset + (alignment - rem)
+        }
+    }
+}
+
+impl std::fmt::Debug for SubAllocator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SubAllocator")
+            .field("capacity", &self.backing_buffer_size)
+            .field("current_offset", &self.current_offset)
+            .field("live_allocs", &self.allocations.len())
+            .field("alignment", &self.alignment)
+            .finish()
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -461,5 +637,187 @@ mod tests {
             pool.get(id).is_some(),
             "recently released buffer should survive"
         );
+    }
+
+    // ── SubAllocator tests ────────────────────────────────────────────────────
+
+    #[test]
+    fn test_sub_alloc_basic() {
+        let mut sa = SubAllocator::new(1024, 4);
+        let a = sa.alloc(64).expect("alloc 64 bytes");
+        assert_eq!(a.offset, 0);
+        assert_eq!(a.size, 64);
+        assert_eq!(sa.allocation_count(), 1);
+    }
+
+    #[test]
+    fn test_sub_alloc_fills_buffer() {
+        let mut sa = SubAllocator::new(128, 1);
+        sa.alloc(128).expect("should fill exactly");
+        // Next alloc must fail — buffer is full.
+        assert!(sa.alloc(1).is_none(), "buffer exhausted");
+    }
+
+    #[test]
+    fn test_sub_alloc_alignment_respected() {
+        let alignment = 16u64;
+        let mut sa = SubAllocator::new(4096, alignment);
+        // First alloc: offset must be 0 (already aligned).
+        let a1 = sa.alloc(1).expect("first alloc");
+        assert_eq!(a1.offset % alignment, 0, "offset must be aligned");
+        // Second alloc: bump pointer is at 1, should jump to 16.
+        let a2 = sa.alloc(1).expect("second alloc");
+        assert_eq!(
+            a2.offset, 16,
+            "second alloc should start at aligned offset 16"
+        );
+        assert_eq!(a2.offset % alignment, 0, "all offsets must be aligned");
+    }
+
+    #[test]
+    fn test_sub_alloc_free_reduces_count() {
+        let mut sa = SubAllocator::new(1024, 4);
+        let a1 = sa.alloc(100).expect("alloc 1");
+        let a2 = sa.alloc(100).expect("alloc 2");
+        assert_eq!(sa.allocation_count(), 2);
+        sa.free(a1.id);
+        assert_eq!(sa.allocation_count(), 1);
+        sa.free(a2.id);
+        assert_eq!(sa.allocation_count(), 0);
+    }
+
+    #[test]
+    fn test_sub_alloc_defrag_reclaims_space() {
+        let mut sa = SubAllocator::new(200, 1);
+        let a1 = sa.alloc(100).expect("a1");
+        let _a2 = sa.alloc(100).expect("a2");
+        // Buffer is now full; next alloc must fail.
+        assert!(sa.alloc(1).is_none(), "should be full before defrag");
+        // Free a1 and defrag — that reclaims 100 bytes.
+        sa.free(a1.id);
+        sa.defrag();
+        // Now there should be room for another 100-byte alloc.
+        let a3 = sa.alloc(100).expect("a3 after defrag");
+        assert!(a3.offset < 200, "a3 offset must be within backing buffer");
+    }
+
+    #[test]
+    fn test_sub_alloc_defrag_zeroes_utilization_when_all_freed() {
+        let mut sa = SubAllocator::new(512, 8);
+        let a1 = sa.alloc(100).expect("a1");
+        let a2 = sa.alloc(100).expect("a2");
+        assert!(sa.utilization() > 0.0);
+        sa.free(a1.id);
+        sa.free(a2.id);
+        sa.defrag();
+        assert_eq!(
+            sa.utilization(),
+            0.0,
+            "utilization must be 0 after all freed + defrag"
+        );
+        assert_eq!(sa.current_offset(), 0);
+    }
+
+    #[test]
+    fn test_sub_alloc_utilization_rises_and_falls() {
+        let mut sa = SubAllocator::new(1000, 1);
+        assert_eq!(sa.utilization(), 0.0);
+        let a = sa.alloc(500).expect("alloc 500");
+        // utilization = 500/1000 = 0.5
+        assert!((sa.utilization() - 0.5).abs() < 1e-9);
+        sa.free(a.id);
+        sa.defrag();
+        assert_eq!(sa.utilization(), 0.0);
+    }
+
+    #[test]
+    fn test_sub_alloc_zero_size_returns_none() {
+        let mut sa = SubAllocator::new(1024, 4);
+        assert!(sa.alloc(0).is_none(), "zero-size alloc must return None");
+    }
+
+    #[test]
+    fn test_sub_alloc_ids_are_unique() {
+        let mut sa = SubAllocator::new(4096, 4);
+        let a1 = sa.alloc(10).expect("a1");
+        let a2 = sa.alloc(10).expect("a2");
+        let a3 = sa.alloc(10).expect("a3");
+        assert_ne!(a1.id, a2.id);
+        assert_ne!(a2.id, a3.id);
+    }
+
+    #[test]
+    fn test_sub_alloc_capacity_and_alignment_accessors() {
+        let sa = SubAllocator::new(8192, 64);
+        assert_eq!(sa.capacity(), 8192);
+        assert_eq!(sa.alignment(), 64);
+    }
+
+    #[test]
+    fn test_sub_alloc_debug_fmt() {
+        let sa = SubAllocator::new(1024, 4);
+        let s = format!("{sa:?}");
+        assert!(s.contains("SubAllocator"));
+    }
+
+    // ── Memory leak / allocate-free cycle tests ──────────────────────────────
+
+    #[test]
+    fn test_buffer_pool_alloc_free_100_cycles() {
+        let mut pool = BufferPool::new(100 * 1024 * 1024); // 100 MB budget
+        let mut ids = Vec::with_capacity(100);
+        for _ in 0..100 {
+            let id = pool.acquire(1024, 8).expect("acquire in cycle");
+            ids.push(id);
+        }
+        for id in &ids {
+            pool.release(*id);
+        }
+        let stats = pool.stats();
+        assert_eq!(
+            stats.in_use_buffers, 0,
+            "all buffers must be freed after release"
+        );
+    }
+
+    #[test]
+    fn test_buffer_pool_alloc_free_alloc_reuse() {
+        let mut pool = BufferPool::new(1024 * 1024);
+        let id1 = pool.acquire(512, 4).expect("first alloc");
+        pool.release(id1);
+        let id2 = pool.acquire(512, 4).expect("second alloc after free");
+        assert_eq!(id1, id2, "should reuse freed buffer");
+        assert!(pool.stats().reuse_rate > 0.0);
+        pool.release(id2);
+    }
+
+    #[test]
+    fn test_buffer_pool_alloc_1000_then_free_all() {
+        let budget = 1000 * 64 + 1024; // enough for 1000 x 64-byte buffers
+        let mut pool = BufferPool::new(budget);
+        let mut ids = Vec::with_capacity(1000);
+        for _ in 0..1000 {
+            let id = pool.acquire(64, 1).expect("acquire 64 bytes");
+            ids.push(id);
+        }
+        for id in &ids {
+            pool.release(*id);
+        }
+        let stats = pool.stats();
+        assert_eq!(stats.in_use_buffers, 0);
+        // total_allocated_bytes counter must not overflow (it is a usize, saturating)
+        assert!(stats.total_allocated_bytes <= budget);
+    }
+
+    #[test]
+    fn test_sub_alloc_alloc_free_cycle_many() {
+        let mut sa = SubAllocator::new(1024 * 1024, 16);
+        for _ in 0..100 {
+            let a = sa.alloc(256).expect("alloc in cycle");
+            sa.free(a.id);
+            sa.defrag();
+        }
+        assert_eq!(sa.allocation_count(), 0);
+        assert_eq!(sa.utilization(), 0.0);
     }
 }

@@ -75,9 +75,7 @@ impl SmallMatrix {
             }
             if max_row != col {
                 for k in 0..(2 * d) {
-                    let tmp = aug[col * 2 * d + k];
-                    aug[col * 2 * d + k] = aug[max_row * 2 * d + k];
-                    aug[max_row * 2 * d + k] = tmp;
+                    aug.swap(col * 2 * d + k, max_row * 2 * d + k);
                 }
             }
             let pivot = aug[col * 2 * d + col];

@@ -143,7 +143,7 @@ impl GpuBuffer {
             let _ = sender.send(result);
         });
 
-        self.device.poll(wgpu::Maintain::Wait);
+        let _ = self.device.poll(wgpu::PollType::wait_indefinitely());
 
         receiver
             .await

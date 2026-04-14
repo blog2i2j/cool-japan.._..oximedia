@@ -2,12 +2,12 @@
 name = "oximedia-lut"
 description = "Look-Up Table (LUT) processing for color grading and correction"
 version.workspace = true
-authors.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
+authors.workspace = true
 readme = "README.md"
 
 [dependencies]
@@ -15,10 +15,9 @@ oximedia-core = { workspace = true }
 thiserror = { workspace = true }
 nom = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-quick-xml = "0.39"
 
 [lints]
 workspace = true
 
 [dev-dependencies]
-tempfile.workspace = true
+tempfile = "3"

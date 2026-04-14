@@ -48,7 +48,7 @@ pub enum AutoCommand {
 
         /// Enable verbose analysis output
         #[arg(long)]
-        verbose: bool,
+        detail: bool,
     },
 
     /// Schedule a recurring automated task
@@ -98,7 +98,7 @@ pub enum AutoCommand {
 
         /// Show detailed info
         #[arg(long)]
-        verbose: bool,
+        detail: bool,
 
         /// Output format: text, json
         #[arg(long, default_value = "text")]
@@ -183,7 +183,7 @@ pub async fn handle_auto_command(command: AutoCommand, json_output: bool) -> Res
             aspect_ratio,
             dramatic_arc,
             music_sync,
-            verbose,
+            detail,
         } => {
             run_auto_edit(
                 &input,
@@ -194,7 +194,7 @@ pub async fn handle_auto_command(command: AutoCommand, json_output: bool) -> Res
                 aspect_ratio.as_deref(),
                 dramatic_arc,
                 &music_sync,
-                verbose,
+                detail,
                 json_output,
             )
             .await
@@ -225,13 +225,13 @@ pub async fn handle_auto_command(command: AutoCommand, json_output: bool) -> Res
         AutoCommand::List {
             status,
             use_case,
-            verbose,
+            detail,
             output_format,
         } => {
             list_automations(
                 status.as_deref(),
                 use_case.as_deref(),
-                verbose,
+                detail,
                 if json_output { "json" } else { &output_format },
             )
             .await
@@ -670,7 +670,7 @@ mod tests {
             aspect_ratio: Some("16x9".to_string()),
             dramatic_arc: true,
             music_sync: "beats".to_string(),
-            verbose: false,
+            detail: false,
         };
         assert!(matches!(cmd, AutoCommand::Run { .. }));
     }

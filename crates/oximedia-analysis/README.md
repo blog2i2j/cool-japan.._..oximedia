@@ -43,7 +43,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-analysis = "0.1.1"
+oximedia-analysis = "0.1.3"
 ```
 
 ### Quick Start

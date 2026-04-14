@@ -95,14 +95,17 @@
 pub mod auto_edit;
 pub mod blade_tool;
 pub mod clip;
+pub mod clip_arrange;
 pub mod clip_speed;
 pub mod collab_edit;
 pub mod color_grade_edit;
 pub mod color_label;
 pub mod edit;
 pub mod edit_context;
+pub mod edit_macro;
 pub mod edit_preset;
 pub mod edl;
+pub mod edl_import;
 pub mod effect;
 pub mod error;
 pub mod export;
@@ -123,6 +126,7 @@ pub mod multicam;
 pub mod multitrack;
 pub mod nested_sequence;
 pub mod parallel_render;
+pub mod picture_in_picture;
 pub mod pip;
 pub mod proxy;
 pub mod render;
@@ -133,10 +137,12 @@ pub mod slip_slide;
 pub mod smart_trim;
 pub mod timeline;
 pub mod timeline_export;
+pub mod timeline_validator;
 pub mod title_overlay;
 pub mod track_lock;
 pub mod transition;
 pub mod trim_mode;
+pub mod trim_selection;
 pub mod waveform;
 
 // Re-export commonly used items

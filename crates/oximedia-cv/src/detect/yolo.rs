@@ -21,7 +21,7 @@
 //!     .with_confidence_threshold(0.5)
 //!     .with_iou_threshold(0.45);
 //!
-//! let detector = YoloDetector::new("model.onnx", config)?;
+//! let mut detector = YoloDetector::new("model.onnx", config)?;
 //! let image = vec![0u8; 640 * 640 * 3]; // RGB image
 //! let detections = detector.detect(&image, 640, 640)?;
 //! # Ok(())
@@ -45,9 +45,8 @@ use crate::detect::yolo_utils::{
 
 use crate::error::{CvError, CvResult};
 use ndarray::{Array, ArrayD, IxDyn};
-use ort::session::builder::GraphOptimizationLevel;
-use ort::session::Session;
-use ort::value::Value;
+use oxionnx::Session;
+use std::collections::HashMap;
 use std::path::Path;
 
 /// YOLO model version.
@@ -290,16 +289,10 @@ impl YoloDetector {
     /// # }
     /// ```
     pub fn new(model_path: impl AsRef<Path>, config: YoloConfig) -> CvResult<Self> {
-        // Initialize ONNX Runtime environment
+        // Initialize oxionnx session
         let session = Session::builder()
-            .map_err(|e| {
-                CvError::detection_failed(format!("Failed to create session builder: {e}"))
-            })?
-            .with_optimization_level(GraphOptimizationLevel::Level3)
-            .map_err(|e| {
-                CvError::detection_failed(format!("Failed to set optimization level: {e}"))
-            })?
-            .commit_from_file(model_path)
+            .with_optimization_level(oxionnx::OptLevel::All)
+            .load(model_path.as_ref())
             .map_err(|e| CvError::detection_failed(format!("Failed to load model: {e}")))?;
 
         // Get class names
@@ -326,14 +319,8 @@ impl YoloDetector {
     /// Returns an error if the ONNX session cannot be created.
     pub fn from_bytes(model_bytes: &[u8], config: YoloConfig) -> CvResult<Self> {
         let session = Session::builder()
-            .map_err(|e| {
-                CvError::detection_failed(format!("Failed to create session builder: {e}"))
-            })?
-            .with_optimization_level(GraphOptimizationLevel::Level3)
-            .map_err(|e| {
-                CvError::detection_failed(format!("Failed to set optimization level: {e}"))
-            })?
-            .commit_from_memory(model_bytes)
+            .with_optimization_level(oxionnx::OptLevel::All)
+            .load_from_bytes(model_bytes)
             .map_err(|e| {
                 CvError::detection_failed(format!("Failed to load model from memory: {e}"))
             })?;
@@ -453,27 +440,41 @@ impl YoloDetector {
 
     /// Run model inference and return extracted tensor data.
     fn run_inference(&mut self, input: &ArrayD<f32>) -> CvResult<ArrayD<f32>> {
-        // Create input value from array
-        let input_value = Value::from_array(input.clone())
-            .map_err(|e| CvError::detection_failed(format!("Failed to create input value: {e}")))?;
+        // Convert ndarray → flat Vec<f32> + shape for oxionnx
+        let flat: Vec<f32> = input.iter().copied().collect();
+        let shape: Vec<usize> = input.shape().to_vec();
+        let tensor = oxionnx::Tensor::new(flat, shape);
 
-        // Run inference and extract owned data to release the session borrow
-        let output_tensor = {
-            let outputs = self
-                .session
-                .run(ort::inputs![input_value])
-                .map_err(|e| CvError::detection_failed(format!("Inference failed: {e}")))?;
-            let (shape, data) = outputs[0].try_extract_tensor::<f32>().map_err(|e| {
-                CvError::detection_failed(format!("Failed to extract output tensor: {e}"))
-            })?;
-            let shape: Vec<usize> = shape.iter().map(|&x| x as usize).collect();
-            let data_vec: Vec<f32> = data.to_vec();
-            ArrayD::from_shape_vec(IxDyn(&shape), data_vec).map_err(|e| {
-                CvError::detection_failed(format!("Failed to create output array: {e}"))
-            })?
-        };
+        // Determine input name (use first available, or fall back to "images")
+        let input_name = self
+            .session
+            .input_names()
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "images".to_string());
 
-        Ok(output_tensor)
+        // Run inference
+        let mut inputs = HashMap::new();
+        inputs.insert(input_name.as_str(), tensor);
+        let outputs = self
+            .session
+            .run(&inputs)
+            .map_err(|e| CvError::detection_failed(format!("Inference failed: {e}")))?;
+
+        // Extract first output tensor
+        let output_name = self
+            .session
+            .output_names()
+            .first()
+            .cloned()
+            .unwrap_or_default();
+        let out_tensor = outputs
+            .get(&output_name)
+            .ok_or_else(|| CvError::detection_failed("No output tensor found".to_owned()))?;
+
+        let out_shape: Vec<usize> = out_tensor.shape.clone();
+        ArrayD::from_shape_vec(IxDyn(&out_shape), out_tensor.data.clone())
+            .map_err(|e| CvError::detection_failed(format!("Failed to create output array: {e}")))
     }
 
     /// Postprocess model outputs to detections.

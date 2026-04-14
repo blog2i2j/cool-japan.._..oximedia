@@ -163,9 +163,9 @@ mod tests {
 
     #[test]
     fn test_hd_1080p_25fps() {
-        let preset = hd_1080p_25fps().expect("broadcast preset should be valid");
+        let preset = hd_1080p_25fps().unwrap();
         assert_eq!(preset.container, ContainerFormat::MpegTs);
-        let video = preset.video.expect("broadcast preset should be valid");
+        let video = preset.video.unwrap();
         assert_eq!(video.width, Some(1920));
         assert_eq!(video.height, Some(1080));
         assert_eq!(video.frame_rate, Some(25.0));
@@ -173,11 +173,11 @@ mod tests {
 
     #[test]
     fn test_sd_pal_vs_ntsc() {
-        let pal = sd_pal().expect("broadcast preset should be valid");
-        let ntsc = sd_ntsc().expect("broadcast preset should be valid");
+        let pal = sd_pal().unwrap();
+        let ntsc = sd_ntsc().unwrap();
 
-        let pal_video = pal.video.expect("broadcast preset should be valid");
-        let ntsc_video = ntsc.video.expect("broadcast preset should be valid");
+        let pal_video = pal.video.unwrap();
+        let ntsc_video = ntsc.video.unwrap();
 
         assert_eq!(pal_video.height, Some(576));
         assert_eq!(ntsc_video.height, Some(480));
@@ -187,8 +187,8 @@ mod tests {
 
     #[test]
     fn test_uhd_4k() {
-        let preset = uhd_4k().expect("broadcast preset should be valid");
-        let video = preset.video.expect("broadcast preset should be valid");
+        let preset = uhd_4k().unwrap();
+        let video = preset.video.unwrap();
         assert_eq!(video.width, Some(3840));
         assert_eq!(video.height, Some(2160));
         assert_eq!(video.codec, VideoCodec::Av1);

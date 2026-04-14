@@ -388,6 +388,209 @@ impl AbTest {
     pub fn total_impressions(&self) -> u64 {
         self.results.values().map(|r| r.impressions).sum()
     }
+
+    /// Perform a Pearson chi-squared test comparing click/no-click contingency
+    /// tables for `control` and `treatment`.
+    ///
+    /// Returns `(chi2, significant)` where `chi2` is the test statistic and
+    /// `significant` indicates whether it exceeds the critical value at the
+    /// experiment's significance level with 1 degree of freedom.
+    ///
+    /// The chi-squared critical values used are:
+    /// - α = 0.01 → χ² = 6.635
+    /// - α = 0.05 → χ² = 3.841
+    /// - α = 0.10 → χ² = 2.706
+    /// - otherwise → χ² = 2.072
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
+    pub fn chi_squared_test(
+        &self,
+        control_id: &str,
+        treatment_id: &str,
+    ) -> Option<ChiSquaredResult> {
+        let ctrl = self.results.get(control_id)?;
+        let treat = self.results.get(treatment_id)?;
+
+        let n1 = ctrl.impressions as f64;
+        let n2 = treat.impressions as f64;
+        if n1 == 0.0 || n2 == 0.0 {
+            return None;
+        }
+
+        // Observed: [[ctrl_click, ctrl_no_click], [treat_click, treat_no_click]]
+        let a = ctrl.conversions as f64; // ctrl clicks
+        let b = n1 - a; // ctrl no-click
+        let c = treat.conversions as f64; // treat clicks
+        let d = n2 - c; // treat no-click
+
+        if b < 0.0 || d < 0.0 {
+            return None;
+        }
+
+        let n = n1 + n2;
+        let row1 = a + b; // = n1
+        let row2 = c + d; // = n2
+        let col1 = a + c;
+        let col2 = b + d;
+
+        // Expected frequencies
+        let e_a = row1 * col1 / n;
+        let e_b = row1 * col2 / n;
+        let e_c = row2 * col1 / n;
+        let e_d = row2 * col2 / n;
+
+        // Guard against zero expected frequencies
+        if e_a < 1e-10 || e_b < 1e-10 || e_c < 1e-10 || e_d < 1e-10 {
+            return None;
+        }
+
+        let chi2 = (a - e_a).powi(2) / e_a
+            + (b - e_b).powi(2) / e_b
+            + (c - e_c).powi(2) / e_c
+            + (d - e_d).powi(2) / e_d;
+
+        let critical = match () {
+            () if self.significance_level <= 0.01 => 6.635,
+            () if self.significance_level <= 0.05 => 3.841,
+            () if self.significance_level <= 0.10 => 2.706,
+            () => 2.072,
+        };
+
+        Some(ChiSquaredResult {
+            chi2,
+            degrees_of_freedom: 1,
+            significant: chi2 > critical,
+            critical_value: critical,
+            control_rate: ctrl.conversion_rate(),
+            treatment_rate: treat.conversion_rate(),
+        })
+    }
+
+    /// Perform a Welch's t-test comparing the continuous metric distributions
+    /// (e.g., watch time) of `control` and `treatment`.
+    ///
+    /// Returns `None` if either variant has fewer than 2 conversions.
+    ///
+    /// The t-statistic is:
+    ///
+    /// ```text
+    /// t = (μ₁ − μ₂) / sqrt(s₁²/n₁ + s₂²/n₂)
+    /// ```
+    ///
+    /// Degrees of freedom are approximated via the Welch–Satterthwaite equation.
+    /// Critical values are taken from the t-distribution at large df (z-approx):
+    /// - α = 0.01 → t = 2.576
+    /// - α = 0.05 → t = 1.960
+    /// - α = 0.10 → t = 1.645
+    /// - otherwise → t = 1.282
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)]
+    pub fn welch_t_test(&self, control_id: &str, treatment_id: &str) -> Option<WelchTTestResult> {
+        let ctrl = self.results.get(control_id)?;
+        let treat = self.results.get(treatment_id)?;
+
+        if ctrl.conversions < 2 || treat.conversions < 2 {
+            return None;
+        }
+
+        let n1 = ctrl.conversions as f64;
+        let n2 = treat.conversions as f64;
+        let mu1 = ctrl.mean_metric();
+        let mu2 = treat.mean_metric();
+        let var1 = ctrl.metric_variance();
+        let var2 = treat.metric_variance();
+
+        let se_sq = var1 / n1 + var2 / n2;
+        if se_sq < f64::EPSILON {
+            return None;
+        }
+
+        let t = (mu1 - mu2).abs() / se_sq.sqrt();
+
+        // Welch–Satterthwaite degrees of freedom
+        let df_num = se_sq.powi(2);
+        let df_den = (var1 / n1).powi(2) / (n1 - 1.0) + (var2 / n2).powi(2) / (n2 - 1.0);
+        let df = if df_den > f64::EPSILON {
+            df_num / df_den
+        } else {
+            (n1 + n2 - 2.0).max(1.0)
+        };
+
+        // Use large-sample z-approximation for critical value
+        let critical = match () {
+            () if self.significance_level <= 0.01 => 2.576,
+            () if self.significance_level <= 0.05 => 1.960,
+            () if self.significance_level <= 0.10 => 1.645,
+            () => 1.282,
+        };
+
+        Some(WelchTTestResult {
+            t_statistic: t,
+            degrees_of_freedom: df,
+            significant: t > critical,
+            critical_value: critical,
+            control_mean: mu1,
+            treatment_mean: mu2,
+            effect_size: (mu2 - mu1) / ((var1 + var2) / 2.0).sqrt().max(f64::EPSILON),
+        })
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Statistical test result types
+// ---------------------------------------------------------------------------
+
+/// Result of a Pearson chi-squared test for independence.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct ChiSquaredResult {
+    /// Computed chi-squared statistic.
+    pub chi2: f64,
+    /// Degrees of freedom (1 for a 2×2 contingency table).
+    pub degrees_of_freedom: u32,
+    /// Whether the result is statistically significant at the experiment's α level.
+    pub significant: bool,
+    /// Critical value used for the significance decision.
+    pub critical_value: f64,
+    /// Conversion rate of the control group.
+    pub control_rate: f64,
+    /// Conversion rate of the treatment group.
+    pub treatment_rate: f64,
+}
+
+impl ChiSquaredResult {
+    /// Absolute lift: treatment rate − control rate.
+    #[must_use]
+    pub fn absolute_lift(&self) -> f64 {
+        self.treatment_rate - self.control_rate
+    }
+
+    /// Relative lift: (treatment − control) / control (undefined if control = 0).
+    #[must_use]
+    pub fn relative_lift(&self) -> Option<f64> {
+        if self.control_rate.abs() < f64::EPSILON {
+            return None;
+        }
+        Some(self.absolute_lift() / self.control_rate)
+    }
+}
+
+/// Result of a Welch's t-test for two independent means.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct WelchTTestResult {
+    /// Computed t-statistic.
+    pub t_statistic: f64,
+    /// Welch–Satterthwaite degrees of freedom.
+    pub degrees_of_freedom: f64,
+    /// Whether the result is statistically significant at the experiment's α level.
+    pub significant: bool,
+    /// Critical value used for the significance decision.
+    pub critical_value: f64,
+    /// Mean metric value for the control group.
+    pub control_mean: f64,
+    /// Mean metric value for the treatment group.
+    pub treatment_mean: f64,
+    /// Cohen's d-like effect size: (μ₂ − μ₁) / pooled_std.
+    pub effect_size: f64,
 }
 
 #[cfg(test)]
@@ -544,5 +747,240 @@ mod tests {
         r.record_conversion(20.0);
         r.record_conversion(30.0);
         assert!(r.standard_error() > 0.0);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Chi-squared test
+    // ─────────────────────────────────────────────────────────────────────────
+
+    fn make_test_with_data(
+        ctrl_imp: u64,
+        ctrl_conv: u64,
+        treat_imp: u64,
+        treat_conv: u64,
+        alpha: f64,
+    ) -> AbTest {
+        let variants = make_variants();
+        let mut test = AbTest::new("chi2_test", variants)
+            .with_min_observations(1)
+            .with_significance_level(alpha);
+        for _ in 0..ctrl_imp {
+            test.record_impression("control");
+        }
+        for _ in 0..ctrl_conv {
+            test.record_conversion("control", 1.0);
+        }
+        for _ in 0..treat_imp {
+            test.record_impression("treatment");
+        }
+        for _ in 0..treat_conv {
+            test.record_conversion("treatment", 1.0);
+        }
+        test
+    }
+
+    #[test]
+    fn test_chi_squared_significant_difference() {
+        // Control: 10% CTR (20/200), Treatment: 30% CTR (60/200)
+        let test = make_test_with_data(200, 20, 200, 60, 0.05);
+        let result = test
+            .chi_squared_test("control", "treatment")
+            .expect("should compute chi2");
+        assert!(
+            result.chi2 > 3.841,
+            "chi2={} should exceed 3.841",
+            result.chi2
+        );
+        assert!(result.significant, "should be significant");
+    }
+
+    #[test]
+    fn test_chi_squared_no_difference() {
+        // Control and treatment both 50% CTR
+        let test = make_test_with_data(100, 50, 100, 50, 0.05);
+        let result = test
+            .chi_squared_test("control", "treatment")
+            .expect("should compute chi2");
+        assert!(
+            result.chi2 < 3.841,
+            "chi2={} should be below critical",
+            result.chi2
+        );
+        assert!(!result.significant);
+    }
+
+    #[test]
+    fn test_chi_squared_none_when_no_impressions() {
+        let variants = make_variants();
+        let test = AbTest::new("empty", variants);
+        let result = test.chi_squared_test("control", "treatment");
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_chi_squared_result_absolute_lift() {
+        let test = make_test_with_data(100, 10, 100, 30, 0.05);
+        let result = test
+            .chi_squared_test("control", "treatment")
+            .expect("should compute chi2");
+        let lift = result.absolute_lift();
+        assert!((lift - 0.20).abs() < 1e-9, "lift={lift}");
+    }
+
+    #[test]
+    fn test_chi_squared_result_relative_lift() {
+        let test = make_test_with_data(100, 10, 100, 20, 0.05);
+        let result = test
+            .chi_squared_test("control", "treatment")
+            .expect("should compute chi2");
+        let rel = result.relative_lift().expect("control rate > 0");
+        assert!(
+            (rel - 1.0).abs() < 1e-9,
+            "expected +100% rel lift, got {rel}"
+        );
+    }
+
+    #[test]
+    fn test_chi_squared_relative_lift_none_if_zero_control() {
+        // control has zero conversions so control_rate = 0
+        let test = make_test_with_data(100, 0, 100, 50, 0.05);
+        let result = test
+            .chi_squared_test("control", "treatment")
+            .expect("should compute chi2");
+        assert!(result.relative_lift().is_none());
+    }
+
+    #[test]
+    fn test_chi_squared_unknown_variant_returns_none() {
+        let test = make_test_with_data(100, 20, 100, 30, 0.05);
+        assert!(test.chi_squared_test("control", "nonexistent").is_none());
+        assert!(test.chi_squared_test("nonexistent", "treatment").is_none());
+    }
+
+    #[test]
+    fn test_chi_squared_degrees_of_freedom() {
+        let test = make_test_with_data(200, 40, 200, 80, 0.05);
+        let result = test
+            .chi_squared_test("control", "treatment")
+            .expect("should compute chi2");
+        assert_eq!(result.degrees_of_freedom, 1);
+    }
+
+    #[test]
+    fn test_chi_squared_critical_value_for_alpha_001() {
+        let test = make_test_with_data(200, 40, 200, 80, 0.01);
+        let result = test
+            .chi_squared_test("control", "treatment")
+            .expect("should compute chi2");
+        assert!((result.critical_value - 6.635).abs() < 1e-9);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Welch's t-test
+    // ─────────────────────────────────────────────────────────────────────────
+
+    fn make_test_with_metric_data(ctrl_values: &[f64], treat_values: &[f64], alpha: f64) -> AbTest {
+        let variants = make_variants();
+        let mut test = AbTest::new("t_test", variants).with_significance_level(alpha);
+        for &v in ctrl_values {
+            test.record_impression("control");
+            test.record_conversion("control", v);
+        }
+        for &v in treat_values {
+            test.record_impression("treatment");
+            test.record_conversion("treatment", v);
+        }
+        test
+    }
+
+    #[test]
+    fn test_welch_t_test_significant_means_different() {
+        // Control: watch times ~10s, Treatment: watch times ~30s
+        let ctrl: Vec<f64> = (0..50).map(|i| 10.0 + (i % 3) as f64 * 0.1).collect();
+        let treat: Vec<f64> = (0..50).map(|i| 30.0 + (i % 3) as f64 * 0.1).collect();
+        let test = make_test_with_metric_data(&ctrl, &treat, 0.05);
+        let result = test
+            .welch_t_test("control", "treatment")
+            .expect("should compute t-test");
+        assert!(
+            result.significant,
+            "t={} should be significant",
+            result.t_statistic
+        );
+        assert!(result.t_statistic > 1.96);
+    }
+
+    #[test]
+    fn test_welch_t_test_no_difference() {
+        // Both groups identical metric values
+        let values: Vec<f64> = (0..30).map(|i| 20.0 + (i % 5) as f64).collect();
+        let test = make_test_with_metric_data(&values, &values, 0.05);
+        let result = test
+            .welch_t_test("control", "treatment")
+            .expect("should compute t-test");
+        // t should be 0 or near 0 since the distributions are identical
+        assert!(result.t_statistic < f64::EPSILON);
+        assert!(!result.significant);
+    }
+
+    #[test]
+    fn test_welch_t_test_none_when_insufficient_conversions() {
+        let variants = make_variants();
+        let mut test = AbTest::new("small", variants);
+        test.record_impression("control");
+        test.record_conversion("control", 5.0);
+        // treatment has only 1 conversion → not enough
+        test.record_impression("treatment");
+        test.record_conversion("treatment", 10.0);
+        let result = test.welch_t_test("control", "treatment");
+        assert!(result.is_none(), "should be None for n < 2");
+    }
+
+    #[test]
+    fn test_welch_t_test_effect_size_direction() {
+        // Treatment has higher mean → positive effect size.
+        // Use varied data so variance > 0 (required for Welch t-test).
+        let ctrl: Vec<f64> = (0..20).map(|i| 10.0 + (i % 4) as f64 * 0.5).collect();
+        let treat: Vec<f64> = (0..20).map(|i| 15.0 + (i % 4) as f64 * 0.5).collect();
+        let test = make_test_with_metric_data(&ctrl, &treat, 0.05);
+        let result = test
+            .welch_t_test("control", "treatment")
+            .expect("should compute t-test");
+        assert!(
+            result.effect_size > 0.0,
+            "treatment is better, effect_size should be positive"
+        );
+    }
+
+    #[test]
+    fn test_welch_t_test_degrees_of_freedom_positive() {
+        let ctrl: Vec<f64> = (0..20).map(|i| 5.0 + i as f64 * 0.3).collect();
+        let treat: Vec<f64> = (0..20).map(|i| 8.0 + i as f64 * 0.3).collect();
+        let test = make_test_with_metric_data(&ctrl, &treat, 0.05);
+        let result = test
+            .welch_t_test("control", "treatment")
+            .expect("should compute t-test");
+        assert!(result.degrees_of_freedom > 0.0);
+    }
+
+    #[test]
+    fn test_welch_t_test_critical_value_for_alpha_001() {
+        // Use varied data so variance > 0
+        let ctrl: Vec<f64> = (0..10).map(|i| 10.0 + i as f64 * 0.3).collect();
+        let treat: Vec<f64> = (0..10).map(|i| 20.0 + i as f64 * 0.3).collect();
+        let test = make_test_with_metric_data(&ctrl, &treat, 0.01);
+        let result = test
+            .welch_t_test("control", "treatment")
+            .expect("should compute t-test");
+        assert!((result.critical_value - 2.576).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_welch_t_test_unknown_variant_returns_none() {
+        let ctrl: Vec<f64> = vec![10.0; 10];
+        let treat: Vec<f64> = vec![20.0; 10];
+        let test = make_test_with_metric_data(&ctrl, &treat, 0.05);
+        assert!(test.welch_t_test("control", "ghost").is_none());
+        assert!(test.welch_t_test("ghost", "treatment").is_none());
     }
 }

@@ -7,7 +7,7 @@
 //! - APNG animation: acTL, fcTL, fdAT chunks
 //! - All 5 PNG filter types (None, Sub, Up, Average, Paeth)
 //! - CRC32 chunk validation
-//! - Pure-Rust zlib via miniz_oxide
+//! - Pure-Rust zlib via oxiarc_deflate
 
 #![allow(dead_code)]
 #![allow(clippy::cast_possible_truncation)]
@@ -16,7 +16,6 @@
 
 use crate::error::{ImageError, ImageResult};
 use crate::{ColorSpace, ImageData, ImageFrame, PixelType};
-use std::io::{Read, Write};
 use std::path::Path;
 
 // ── Constants ────────────────────────────────────────────────────────────────
@@ -126,7 +125,9 @@ impl PngColorType {
             3 => Ok(Self::Indexed),
             4 => Ok(Self::GrayscaleAlpha),
             6 => Ok(Self::Rgba),
-            _ => Err(ImageError::invalid_format(format!("Unknown PNG color type: {v}"))),
+            _ => Err(ImageError::invalid_format(format!(
+                "Unknown PNG color type: {v}"
+            ))),
         }
     }
 
@@ -221,7 +222,9 @@ impl PngFilter {
             2 => Ok(Self::Up),
             3 => Ok(Self::Average),
             4 => Ok(Self::Paeth),
-            _ => Err(ImageError::invalid_format(format!("Unknown PNG filter: {v}"))),
+            _ => Err(ImageError::invalid_format(format!(
+                "Unknown PNG filter: {v}"
+            ))),
         }
     }
 }
@@ -242,12 +245,7 @@ fn paeth_predictor(a: i32, b: i32, c: i32) -> i32 {
 }
 
 /// Reconstruct a filtered scanline in-place.
-fn reconstruct_scanline(
-    filter: PngFilter,
-    current: &mut [u8],
-    previous: &[u8],
-    bpp: usize,
-) {
+fn reconstruct_scanline(filter: PngFilter, current: &mut [u8], previous: &[u8], bpp: usize) {
     match filter {
         PngFilter::None => {}
         PngFilter::Sub => {
@@ -271,7 +269,11 @@ fn reconstruct_scanline(
             for i in 0..current.len() {
                 let a = if i >= bpp { current[i - bpp] as i32 } else { 0 };
                 let b = previous[i] as i32;
-                let c = if i >= bpp { previous[i - bpp] as i32 } else { 0 };
+                let c = if i >= bpp {
+                    previous[i - bpp] as i32
+                } else {
+                    0
+                };
                 current[i] = current[i].wrapping_add(paeth_predictor(a, b, c) as u8);
             }
         }
@@ -326,7 +328,11 @@ impl PngImage {
             2 => PngColorType::GrayscaleAlpha,
             3 => PngColorType::Rgb,
             4 => PngColorType::Rgba,
-            n => return Err(ImageError::unsupported(format!("PNG: {n} components unsupported"))),
+            n => {
+                return Err(ImageError::unsupported(format!(
+                    "PNG: {n} components unsupported"
+                )))
+            }
         };
         Ok(Self {
             width: frame.width,
@@ -355,7 +361,7 @@ impl PngDecoder {
     /// Decode a PNG from a byte slice.
     pub fn decode(&self, data: &[u8]) -> ImageResult<PngImage> {
         // Validate signature
-        if data.len() < 8 || &data[..8] != &PNG_SIGNATURE {
+        if data.len() < 8 || data[..8] != PNG_SIGNATURE {
             return Err(ImageError::invalid_format("Not a PNG file (bad signature)"));
         }
 
@@ -365,17 +371,19 @@ impl PngDecoder {
         let mut metadata = std::collections::HashMap::new();
 
         while pos + 8 <= data.len() {
-            let length = u32::from_be_bytes([data[pos], data[pos+1], data[pos+2], data[pos+3]]) as usize;
+            let length =
+                u32::from_be_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]])
+                    as usize;
             pos += 4;
             if pos + 4 > data.len() {
                 break;
             }
-            let chunk_type = [data[pos], data[pos+1], data[pos+2], data[pos+3]];
+            let chunk_type = [data[pos], data[pos + 1], data[pos + 2], data[pos + 3]];
             pos += 4;
             if pos + length > data.len() {
                 return Err(ImageError::invalid_format("PNG chunk data truncated"));
             }
-            let chunk_data = &data[pos..pos+length];
+            let chunk_data = &data[pos..pos + length];
             pos += length;
             // Skip CRC (4 bytes)
             if pos + 4 <= data.len() {
@@ -394,7 +402,8 @@ impl PngDecoder {
                     // key\0value
                     if let Some(null_pos) = chunk_data.iter().position(|&b| b == 0) {
                         let key = String::from_utf8_lossy(&chunk_data[..null_pos]).into_owned();
-                        let value = String::from_utf8_lossy(&chunk_data[null_pos+1..]).into_owned();
+                        let value =
+                            String::from_utf8_lossy(&chunk_data[null_pos + 1..]).into_owned();
                         metadata.insert(key, value);
                     }
                 }
@@ -408,8 +417,8 @@ impl PngDecoder {
         }
 
         // Decompress IDAT
-        let raw = miniz_oxide::inflate::decompress_to_vec_zlib(&idat_data)
-            .map_err(|e| ImageError::Compression(format!("PNG inflate error: {e:?}")))?;
+        let raw = oxiarc_deflate::zlib_decompress(&idat_data)
+            .map_err(|e| ImageError::Compression(format!("PNG inflate error: {e}")))?;
 
         // Defilter
         let channels = ihdr.color_type.channels();
@@ -418,7 +427,9 @@ impl PngDecoder {
         let expected = (row_stride + 1) * ihdr.height as usize;
         if raw.len() < expected {
             return Err(ImageError::invalid_format(format!(
-                "PNG decompressed data too short: {} < {}", raw.len(), expected
+                "PNG decompressed data too short: {} < {}",
+                raw.len(),
+                expected
             )));
         }
 
@@ -463,7 +474,9 @@ pub struct PngEncoder {
 
 impl Default for PngEncoder {
     fn default() -> Self {
-        Self { compression_level: 6 }
+        Self {
+            compression_level: 6,
+        }
     }
 }
 
@@ -471,7 +484,9 @@ impl PngEncoder {
     /// Create a new encoder with compression level.
     #[must_use]
     pub fn new(compression_level: u8) -> Self {
-        Self { compression_level: compression_level.min(10) }
+        Self {
+            compression_level: compression_level.min(10),
+        }
     }
 
     /// Encode a `PngImage` to bytes.
@@ -503,8 +518,8 @@ impl PngEncoder {
             filtered.extend_from_slice(&image.pixels[row_start..row_start + row_stride]);
         }
 
-        let level = miniz_oxide::deflate::CompressionLevel::DefaultLevel;
-        let compressed = miniz_oxide::deflate::compress_to_vec_zlib(&filtered, level as u8);
+        let compressed = oxiarc_deflate::zlib_compress(&filtered, 6)
+            .map_err(|e| ImageError::Compression(format!("PNG deflate error: {e}")))?;
         let idat_chunk = PngChunk::new(*b"IDAT", compressed);
         out.extend_from_slice(&idat_chunk.to_bytes());
 
@@ -576,7 +591,11 @@ impl ApngFrameControl {
     /// Duration in seconds.
     #[must_use]
     pub fn duration_secs(&self) -> f64 {
-        let den = if self.delay_den == 0 { 100 } else { self.delay_den };
+        let den = if self.delay_den == 0 {
+            100
+        } else {
+            self.delay_den
+        };
         self.delay_num as f64 / den as f64
     }
 }
@@ -659,7 +678,7 @@ pub fn read_png_frame(path: &Path) -> ImageResult<ImageFrame> {
 
 /// Decode an APNG from bytes.
 pub fn decode_apng(data: &[u8]) -> ImageResult<ApngAnimation> {
-    if data.len() < 8 || &data[..8] != &PNG_SIGNATURE {
+    if data.len() < 8 || data[..8] != PNG_SIGNATURE {
         return Err(ImageError::invalid_format("Not a PNG/APNG file"));
     }
 
@@ -674,17 +693,22 @@ pub fn decode_apng(data: &[u8]) -> ImageResult<ApngAnimation> {
     let mut is_apng = false;
 
     while pos + 8 <= data.len() {
-        let length = u32::from_be_bytes([data[pos], data[pos+1], data[pos+2], data[pos+3]]) as usize;
+        let length =
+            u32::from_be_bytes([data[pos], data[pos + 1], data[pos + 2], data[pos + 3]]) as usize;
         pos += 4;
-        if pos + 4 > data.len() { break; }
-        let chunk_type = [data[pos], data[pos+1], data[pos+2], data[pos+3]];
+        if pos + 4 > data.len() {
+            break;
+        }
+        let chunk_type = [data[pos], data[pos + 1], data[pos + 2], data[pos + 3]];
         pos += 4;
         if pos + length > data.len() {
             return Err(ImageError::invalid_format("APNG chunk truncated"));
         }
-        let chunk_data = &data[pos..pos+length];
+        let chunk_data = &data[pos..pos + length];
         pos += length;
-        if pos + 4 <= data.len() { pos += 4; } // skip CRC
+        if pos + 4 <= data.len() {
+            pos += 4;
+        } // skip CRC
 
         match &chunk_type {
             b"IHDR" => {
@@ -693,8 +717,18 @@ pub fn decode_apng(data: &[u8]) -> ImageResult<ApngAnimation> {
             b"acTL" => {
                 if chunk_data.len() >= 8 {
                     is_apng = true;
-                    num_frames = u32::from_be_bytes([chunk_data[0], chunk_data[1], chunk_data[2], chunk_data[3]]);
-                    num_plays = u32::from_be_bytes([chunk_data[4], chunk_data[5], chunk_data[6], chunk_data[7]]);
+                    num_frames = u32::from_be_bytes([
+                        chunk_data[0],
+                        chunk_data[1],
+                        chunk_data[2],
+                        chunk_data[3],
+                    ]);
+                    num_plays = u32::from_be_bytes([
+                        chunk_data[4],
+                        chunk_data[5],
+                        chunk_data[6],
+                        chunk_data[7],
+                    ]);
                 }
             }
             b"fcTL" => {
@@ -747,7 +781,10 @@ pub fn decode_apng(data: &[u8]) -> ImageResult<ApngAnimation> {
             height: png.height,
             color_type: png.color_type,
             num_plays: 1,
-            frames: vec![ApngFrame { control, pixels: png.pixels }],
+            frames: vec![ApngFrame {
+                control,
+                pixels: png.pixels,
+            }],
         });
     }
 
@@ -757,12 +794,12 @@ pub fn decode_apng(data: &[u8]) -> ImageResult<ApngAnimation> {
     let mut frames = Vec::new();
 
     for (i, idat) in frame_idat_seqs.iter().enumerate() {
-        let raw = miniz_oxide::inflate::decompress_to_vec_zlib(idat)
-            .map_err(|e| ImageError::Compression(format!("APNG inflate frame {i}: {e:?}")))?;
+        let raw = oxiarc_deflate::zlib_decompress(idat)
+            .map_err(|e| ImageError::Compression(format!("APNG inflate frame {i}: {e}")))?;
 
-        let fc = frame_controls.get(i).ok_or_else(|| {
-            ImageError::invalid_format(format!("Missing fcTL for frame {i}"))
-        })?;
+        let fc = frame_controls
+            .get(i)
+            .ok_or_else(|| ImageError::invalid_format(format!("Missing fcTL for frame {i}")))?;
         let frame_row_stride = fc.width as usize * channels;
         let expected = (frame_row_stride + 1) * fc.height as usize;
         if raw.len() < expected {
@@ -853,7 +890,8 @@ pub fn encode_apng(anim: &ApngAnimation) -> ImageResult<Vec<u8>> {
             let row_start = y * frame_row_stride;
             filtered.extend_from_slice(&frame.pixels[row_start..row_start + frame_row_stride]);
         }
-        let compressed = miniz_oxide::deflate::compress_to_vec_zlib(&filtered, 6);
+        let compressed = oxiarc_deflate::zlib_compress(&filtered, 6)
+            .map_err(|e| ImageError::Compression(format!("APNG deflate error: {e}")))?;
 
         if i == 0 {
             // First frame: use IDAT
@@ -1000,17 +1038,14 @@ mod tests {
         let data = vec![0u8; 20];
         let result = PngDecoder::new().decode(&data);
         assert!(result.is_err());
-        let err = result.err().expect("should be error");
+        let err = result.expect_err("should be error");
         assert!(err.to_string().contains("signature") || err.to_string().contains("PNG"));
     }
 
     #[test]
     fn test_encode_decode_rgb_roundtrip() {
         // Create a 2x2 RGB image
-        let pixels: Vec<u8> = vec![
-            255, 0, 0,    0, 255, 0,
-            0, 0, 255,    255, 255, 0,
-        ];
+        let pixels: Vec<u8> = vec![255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0];
         let image = PngImage {
             width: 2,
             height: 2,
@@ -1032,9 +1067,7 @@ mod tests {
 
     #[test]
     fn test_encode_decode_rgba_roundtrip() {
-        let pixels: Vec<u8> = vec![
-            100, 150, 200, 255,  50, 100, 150, 128,
-        ];
+        let pixels: Vec<u8> = vec![100, 150, 200, 255, 50, 100, 150, 128];
         let image = PngImage {
             width: 2,
             height: 1,
@@ -1103,10 +1136,16 @@ mod tests {
             blend_op: 0,
         };
         let pixels = vec![0u8; 2 * 2 * 3];
-        anim.add_frame(ApngFrame { control: control.clone(), pixels: pixels.clone() });
+        anim.add_frame(ApngFrame {
+            control: control.clone(),
+            pixels: pixels.clone(),
+        });
         let mut control2 = control;
         control2.sequence_number = 1;
-        anim.add_frame(ApngFrame { control: control2, pixels });
+        anim.add_frame(ApngFrame {
+            control: control2,
+            pixels,
+        });
         assert_eq!(anim.frame_count(), 2);
     }
 
@@ -1142,7 +1181,10 @@ mod tests {
             blend_op: 0,
         };
         let pixels = vec![255u8, 0, 0, 0, 255, 0];
-        anim.add_frame(ApngFrame { control, pixels: pixels.clone() });
+        anim.add_frame(ApngFrame {
+            control,
+            pixels: pixels.clone(),
+        });
 
         let encoded = encode_apng(&anim).expect("encode APNG");
         let decoded = decode_apng(&encoded).expect("decode APNG");

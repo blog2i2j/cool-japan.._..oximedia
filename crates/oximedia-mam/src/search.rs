@@ -491,7 +491,9 @@ impl SearchEngine {
         let total = searcher.search(&final_query, &count_collector)?;
 
         // Get top docs
-        let top_docs_collector = TopDocs::with_limit(query.limit).and_offset(query.offset);
+        let top_docs_collector = TopDocs::with_limit(query.limit)
+            .and_offset(query.offset)
+            .order_by_score();
         let top_docs = searcher.search(&final_query, &top_docs_collector)?;
 
         // Convert to search results
@@ -653,7 +655,7 @@ impl SearchEngine {
 
         let query = FuzzyTermQuery::new(term_obj, 2, true);
 
-        let top_docs = searcher.search(&query, &TopDocs::with_limit(limit))?;
+        let top_docs = searcher.search(&query, &TopDocs::with_limit(limit).order_by_score())?;
 
         let mut suggestions = Vec::new();
         for (_score, doc_address) in top_docs {

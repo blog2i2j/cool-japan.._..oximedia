@@ -1276,4 +1276,150 @@ mod tests {
         assert_eq!(umhex.cross_range, 16);
         assert_eq!(umhex.early_exit_threshold, 8);
     }
+
+    // =========================================================================
+    // Additional tests for exported HexagonalSearch, UMHexSearch, ExtendedDiamond
+    // =========================================================================
+
+    fn make_ref_block(width: usize, height: usize, val: u8, bx: usize, by: usize) -> Vec<u8> {
+        let mut r = vec![0u8; width * height];
+        for row in 0..8 {
+            for col in 0..8 {
+                let y = by + row;
+                let x = bx + col;
+                if y < height && x < width {
+                    r[y * width + x] = val;
+                }
+            }
+        }
+        r
+    }
+
+    #[test]
+    fn test_hexagonal_search_diagonal_motion() {
+        let src = vec![220u8; 64];
+        let ref_frame = make_ref_block(20, 20, 220, 2, 2);
+        let ctx = SearchContext::new(&src, 8, &ref_frame, 20, BlockSize::Block8x8, 0, 0, 20, 20);
+        let config = SearchConfig::with_range(SearchRange::symmetric(8));
+        let hex = HexagonalSearch::new();
+        let result = hex.search(&ctx, &config);
+        assert!(
+            result.sad < 600,
+            "HexagonalSearch diagonal: SAD={}",
+            result.sad
+        );
+    }
+
+    #[test]
+    fn test_hexagonal_search_outer_ring_used() {
+        let src = vec![180u8; 64];
+        let ref_frame = make_ref_block(24, 24, 180, 4, 0);
+        let ctx = SearchContext::new(&src, 8, &ref_frame, 24, BlockSize::Block8x8, 0, 0, 24, 24);
+        let config = SearchConfig::with_range(SearchRange::symmetric(10));
+        let hex = HexagonalSearch::new();
+        let result = hex.search(&ctx, &config);
+        assert!(result.sad < 1500, "Outer ring test SAD={}", result.sad);
+    }
+
+    #[test]
+    fn test_hexagonal_search_with_predictor_improves() {
+        let src = vec![160u8; 64];
+        let ref_frame = make_ref_block(24, 24, 160, 3, 3);
+        let ctx = SearchContext::new(&src, 8, &ref_frame, 24, BlockSize::Block8x8, 0, 0, 24, 24);
+        let config = SearchConfig::with_range(SearchRange::symmetric(10));
+        let hex = HexagonalSearch::new();
+        let result_zero = hex.search(&ctx, &config);
+        let result_pred =
+            hex.search_with_predictor(&ctx, &config, MotionVector::from_full_pel(3, 3));
+        assert!(
+            result_pred.sad <= result_zero.sad,
+            "Predictor must not worsen result: pred={} zero={}",
+            result_pred.sad,
+            result_zero.sad
+        );
+    }
+
+    #[test]
+    fn test_hexagonal_search_inner_pattern_length() {
+        let hex = HexagonalSearch::new();
+        assert_eq!(hex.inner.len(), 6);
+        assert_eq!(hex.outer.len(), 6);
+    }
+
+    #[test]
+    fn test_hexagonal_search_default_max_iterations() {
+        let hex = HexagonalSearch::new();
+        assert_eq!(hex.max_iterations, 8);
+    }
+
+    #[test]
+    fn test_umhex_hex1_and_hex2_sizes() {
+        assert_eq!(UMHexSearch::HEX1.len(), 6);
+        assert_eq!(UMHexSearch::HEX2.len(), 12);
+    }
+
+    #[test]
+    fn test_umhex_vertical_motion() {
+        let src = vec![210u8; 64];
+        let ref_frame = make_ref_block(20, 20, 210, 0, 4);
+        let ctx = SearchContext::new(&src, 8, &ref_frame, 20, BlockSize::Block8x8, 0, 0, 20, 20);
+        let config = SearchConfig::with_range(SearchRange::symmetric(8));
+        let umhex = UMHexSearch::new();
+        let result = umhex.search(&ctx, &config);
+        assert!(result.sad < 1200, "UMHex vertical SAD={}", result.sad);
+    }
+
+    #[test]
+    fn test_umhex_search_returns_valid_block_match() {
+        let src = vec![100u8; 64];
+        let ref_frame = vec![100u8; 400];
+        let ctx = SearchContext::new(&src, 8, &ref_frame, 20, BlockSize::Block8x8, 0, 0, 20, 20);
+        let config = SearchConfig::with_range(SearchRange::symmetric(8));
+        let umhex = UMHexSearch::new();
+        let result = umhex.search(&ctx, &config);
+        // Perfect match: SAD must be 0, cost (u32) must be a valid non-overflowed value.
+        assert_eq!(result.sad, 0);
+        // `cost` is u32; for zero SAD it should be 0 (no penalty).
+        let _ = result.cost; // access the field to verify it compiles
+    }
+
+    #[test]
+    fn test_extended_diamond_all_rings() {
+        let src = vec![130u8; 64];
+        let ref_frame = make_ref_block(20, 20, 130, 3, 0);
+        let ctx = SearchContext::new(&src, 8, &ref_frame, 20, BlockSize::Block8x8, 0, 0, 20, 20);
+        let config = SearchConfig::with_range(SearchRange::symmetric(6));
+        let ext = ExtendedDiamond::new();
+        let (mv, sad) = ext.search(&ctx, &config, MotionVector::zero());
+        assert_eq!(mv.full_pel_x(), 3);
+        assert_eq!(sad, 0);
+    }
+
+    #[test]
+    fn test_extended_diamond_pattern_sizes() {
+        let ext = ExtendedDiamond::new();
+        assert_eq!(ext.inner.len(), 4);
+        assert_eq!(ext.middle.len(), 8);
+        assert_eq!(ext.outer.len(), 4);
+    }
+
+    #[test]
+    fn test_hexagonal_vs_diamond_quality_on_diagonal() {
+        let src = vec![170u8; 64];
+        let ref_frame = make_ref_block(24, 24, 170, 1, 1);
+        let ctx = SearchContext::new(&src, 8, &ref_frame, 24, BlockSize::Block8x8, 0, 0, 24, 24);
+        let config = SearchConfig::with_range(SearchRange::symmetric(8));
+        let hex_result = HexagonalSearch::new().search(&ctx, &config);
+        let adaptive_result = AdaptiveDiamond::new().search(&ctx, &config);
+        assert!(
+            hex_result.sad < 500,
+            "Hexagonal SAD too high: {}",
+            hex_result.sad
+        );
+        assert!(
+            adaptive_result.sad < 500,
+            "AdaptiveDiamond SAD too high: {}",
+            adaptive_result.sad
+        );
+    }
 }

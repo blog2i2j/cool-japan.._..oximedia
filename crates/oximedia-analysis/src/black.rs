@@ -19,6 +19,7 @@
 //! ```
 //! use oximedia_analysis::black::BlackFrameDetector;
 //!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let mut detector = BlackFrameDetector::new(16, 10);
 //!
 //! // Process frames
@@ -27,6 +28,8 @@
 //!
 //! let segments = detector.finalize();
 //! println!("Found {} black segments", segments.len());
+//! # Ok(())
+//! # }
 //! ```
 
 use crate::{AnalysisError, AnalysisResult};

@@ -1,7 +1,7 @@
 # oximedia-normalize TODO
 
 ## Current Status
-- 43 source files covering loudness normalization for broadcast and streaming
+- 42 source files covering loudness normalization for broadcast and streaming
 - Core: Normalizer (two-pass), RealtimeNormalizer (one-pass with lookahead), BatchProcessor (directory processing)
 - Standards: EBU R128, ATSC A/85, Spotify, YouTube, Apple Music, Netflix, Amazon Prime, ReplayGain
 - Processing: linear gain, DRC, true peak limiting, multiband normalization, multipass
@@ -11,25 +11,18 @@
 
 ## Enhancements
 - [ ] Integrate phase_correction into the main Normalizer pipeline as an optional pre-processing step
-- [ ] Implement actual spectral_balance processing -- equalize frequency balance before normalization
 - [ ] Wire dc_offset removal into the processing chain as a pre-processing step (before analysis)
 - [ ] Add crossfade_norm support for gapless album normalization (crossfade between tracks at target level)
 - [ ] Improve surround_norm to handle 7.1.4 Atmos layouts with proper channel weighting
-- [ ] Add stem_loudness support for normalizing individual stems (vocals, drums, bass) independently
-- [ ] Implement voice_activity detection to apply dialogue normalization only to speech segments
-- [ ] Add loudness gate to agc module to prevent AGC from boosting silence/noise between speech
 
 ## New Features
-- [ ] Implement Podcast loudness standard (-16 LUFS for Spotify, -14 LUFS for Apple Podcasts)
+- [x] Add A/B comparison output -- generate both normalized and original for quality assessment — `ab_comparison.rs`
+- [x] Implement automatic format detection and appropriate standard selection (broadcast file -> EBU R128, music file -> Spotify) — `format_detect.rs`
+- [ ] Add podcast loudness standard (-16 LUFS for Spotify, -14 LUFS for Apple Podcasts)
 - [ ] Add cinema loudness normalization (Dolby Atmos -27 LUFS dialogue-gated measurement)
-- [ ] Implement album/compilation normalization mode -- normalize all tracks relative to the loudest track
-- [ ] Add live streaming normalization with adaptive target (adjust target based on content type detection)
-- [ ] Implement loudness normalization with dynamics preservation (multiband approach preserving LRA)
-- [ ] Add A/B comparison output -- generate both normalized and original for quality assessment
-- [ ] Implement automatic format detection and appropriate standard selection (broadcast file -> EBU R128, music file -> Spotify)
 
 ## Performance
-- [ ] Process channels in parallel using rayon for surround content (>2 channels)
+- [x] Process channels in parallel using rayon for surround content (>2 channels) — `parallel_channels.rs`
 - [ ] Use SIMD for gain application loop (multiply all samples by gain factor)
 - [ ] Implement in-place processing mode to avoid the separate input/output buffer requirement
 - [ ] Add buffer recycling in RealtimeNormalizer to reduce allocation during streaming

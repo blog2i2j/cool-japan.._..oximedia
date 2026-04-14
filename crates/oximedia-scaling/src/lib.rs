@@ -47,6 +47,57 @@ pub mod seam_carve;
 #[allow(unsafe_code)]
 pub mod simd_interp;
 
+/// Aspect-ratio-preserving crop helper.
+pub mod aspect_ratio_crop;
+
+/// Edge-directed interpolation (NEDI-like) for improved diagonal edge rendering.
+pub mod edge_directed_interpolation;
+
+/// Film grain removal before scaling and re-synthesis at target resolution.
+pub mod film_grain_scale;
+
+/// PQ/HLG tone-mapping during resolution changes.
+pub mod hdr_scaling;
+
+/// Multi-pass scaling for extreme scale ratios.
+pub mod multi_pass_scale;
+
+/// Internal format negotiation helpers.
+pub mod negotiate;
+
+/// Lightweight neural 2x/4x upscaling.
+pub mod neural_upscale;
+
+/// Internal padding utilities.
+pub mod padding;
+
+/// Parallel (rayon) row processing for VideoScaler.
+pub mod parallel_scale;
+
+/// PSNR/SSIM quality regression helpers.
+pub mod quality_regression;
+
+/// Resolution recommendation engine.
+pub mod resolution_recommender;
+
+/// Ring-buffer row cache for vertical filter passes.
+pub mod ring_buffer_cache;
+
+/// Fast low-quality preview scaling.
+pub mod scale_preview;
+
+/// Sharpness analysis helpers.
+pub mod sharpness;
+
+/// Temporal scaling / frame-rate conversion.
+pub mod temporal_scaling;
+
+/// Thumbnail generation pipeline.
+pub mod thumbnail_generator;
+
+/// Watermark-safe scaling that preserves watermark positions.
+pub mod watermark_safe_scale;
+
 // Re-exports from new modules for ergonomic access.
 pub use ewa_resample::{lanczos_kernel, mitchell_filter, sinc, EwaFilter, EwaResampler};
 pub use half_pixel::{

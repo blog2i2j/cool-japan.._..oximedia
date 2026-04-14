@@ -250,6 +250,13 @@ impl CodecMapper {
                 direct_copy: true,
                 score: 100,
             },
+            CodecMapping {
+                source: CodecFamily::Opus,
+                target: CodecFamily::Opus,
+                container: "webm",
+                direct_copy: true,
+                score: 100,
+            },
         ]
     }
 
@@ -294,6 +301,412 @@ impl CodecMapper {
             .into_iter()
             .filter(|m| m.container == container_lc.as_str())
             .collect()
+    }
+
+    /// Validate the compatibility of a proposed codec/container combination and
+    /// return a structured [`CompatibilityReport`].
+    ///
+    /// The report includes:
+    /// - Whether the combination is directly compatible (no transcode needed).
+    /// - A recommended target codec when transcoding is required.
+    /// - Human-readable issues and suggestions.
+    #[must_use]
+    pub fn validate_compatibility(
+        &self,
+        source: CodecFamily,
+        container: &str,
+    ) -> CompatibilityReport {
+        let container_lc = container.to_ascii_lowercase();
+        let mapping = self.get_mapping(source, container);
+
+        let is_compatible;
+        let recommended_codec;
+        let mut issues: Vec<String> = Vec::new();
+        let mut suggestions: Vec<String> = Vec::new();
+
+        if let Some(ref m) = mapping {
+            is_compatible = m.is_compatible();
+            recommended_codec = m.target;
+            if m.needs_transcode() {
+                issues.push(format!(
+                    "Codec '{}' cannot be directly placed in '{}'; transcode required.",
+                    source.name(),
+                    container_lc,
+                ));
+                suggestions.push(format!(
+                    "Transcode to '{}' for best compatibility (score {}/100).",
+                    recommended_codec.name(),
+                    m.score,
+                ));
+            }
+            if m.score < 80 && !m.direct_copy {
+                suggestions.push(format!(
+                    "Compatibility score is {}/100; consider a higher-compatibility codec.",
+                    m.score,
+                ));
+            }
+        } else {
+            is_compatible = false;
+            recommended_codec = CodecFamily::Unknown;
+            issues.push(format!(
+                "No known mapping for codec '{}' → container '{}'. \
+                 This combination may be unsupported.",
+                source.name(),
+                container_lc,
+            ));
+            let alternatives = self.available_codecs(container);
+            if alternatives.is_empty() {
+                issues.push(format!(
+                    "Container '{}' has no registered codec mappings.",
+                    container_lc
+                ));
+            } else {
+                let alt_names: Vec<&str> = alternatives.iter().map(CodecFamily::name).collect();
+                suggestions.push(format!(
+                    "Supported codecs for '{}': {}.",
+                    container_lc,
+                    alt_names.join(", ")
+                ));
+            }
+        }
+
+        // Lossless-in-lossy-container advisory.
+        if source.is_lossless() && matches!(container_lc.as_str(), "mp4" | "webm") {
+            suggestions.push(format!(
+                "Lossless codec '{}' in '{}' may produce very large files; \
+                 consider a lossless container such as 'mkv'.",
+                source.name(),
+                container_lc,
+            ));
+        }
+
+        // Video-in-audio-only container advisory.
+        if source.is_video() && matches!(container_lc.as_str(), "ogg" | "flac") {
+            issues.push(format!(
+                "Video codec '{}' is not suitable for audio-only container '{}'.",
+                source.name(),
+                container_lc,
+            ));
+        }
+
+        CompatibilityReport {
+            source_codec: source,
+            container: container_lc,
+            is_compatible,
+            recommended_codec,
+            issues,
+            suggestions,
+        }
+    }
+}
+
+/// A structured report describing the compatibility of a codec/container pair.
+#[derive(Debug, Clone)]
+pub struct CompatibilityReport {
+    /// The source codec family that was evaluated.
+    pub source_codec: CodecFamily,
+    /// The target container (lowercase extension string).
+    pub container: String,
+    /// Whether the codec can be placed directly in the container without
+    /// re-encoding (`true`) or a transcode is required (`false`).
+    pub is_compatible: bool,
+    /// The recommended codec family for the target container.
+    /// `CodecFamily::Unknown` when no mapping exists.
+    pub recommended_codec: CodecFamily,
+    /// Human-readable compatibility issues (empty means no issues).
+    pub issues: Vec<String>,
+    /// Human-readable suggestions for resolving issues or improving quality.
+    pub suggestions: Vec<String>,
+}
+
+impl CompatibilityReport {
+    /// Returns `true` if there are no compatibility issues.
+    #[must_use]
+    pub fn is_clean(&self) -> bool {
+        self.issues.is_empty()
+    }
+
+    /// Returns the number of detected issues.
+    #[must_use]
+    pub fn issue_count(&self) -> usize {
+        self.issues.len()
+    }
+}
+
+// ── Severity / Findings ───────────────────────────────────────────────────────
+
+/// Severity level attached to a compatibility finding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum IssueSeverity {
+    /// Informational note; no action required.
+    Info,
+    /// A potential problem that may affect quality or file size.
+    Warning,
+    /// A hard incompatibility that will cause the conversion to fail or produce
+    /// an invalid output without intervention.
+    Error,
+}
+
+impl IssueSeverity {
+    /// Short string tag for display.
+    #[must_use]
+    pub const fn tag(&self) -> &'static str {
+        match self {
+            Self::Info => "INFO",
+            Self::Warning => "WARN",
+            Self::Error => "ERROR",
+        }
+    }
+}
+
+/// A single annotated compatibility finding.
+#[derive(Debug, Clone)]
+pub struct CompatibilityFinding {
+    /// Codec that the finding applies to.
+    pub codec: CodecFamily,
+    /// Severity of the finding.
+    pub severity: IssueSeverity,
+    /// Human-readable message.
+    pub message: String,
+    /// Optional suggested action.
+    pub suggestion: Option<String>,
+}
+
+impl CompatibilityFinding {
+    /// Construct an error-level finding.
+    #[must_use]
+    pub fn error(codec: CodecFamily, msg: impl Into<String>) -> Self {
+        Self {
+            codec,
+            severity: IssueSeverity::Error,
+            message: msg.into(),
+            suggestion: None,
+        }
+    }
+
+    /// Construct a warning-level finding.
+    #[must_use]
+    pub fn warning(codec: CodecFamily, msg: impl Into<String>) -> Self {
+        Self {
+            codec,
+            severity: IssueSeverity::Warning,
+            message: msg.into(),
+            suggestion: None,
+        }
+    }
+
+    /// Construct an informational finding.
+    #[must_use]
+    pub fn info(codec: CodecFamily, msg: impl Into<String>) -> Self {
+        Self {
+            codec,
+            severity: IssueSeverity::Info,
+            message: msg.into(),
+            suggestion: None,
+        }
+    }
+
+    /// Attach a suggestion to the finding.
+    #[must_use]
+    pub fn with_suggestion(mut self, suggestion: impl Into<String>) -> Self {
+        self.suggestion = Some(suggestion.into());
+        self
+    }
+}
+
+/// Summary produced by validating a complete set of codecs against a container.
+#[derive(Debug, Clone)]
+pub struct CodecValidationSummary {
+    /// Target container format (lowercase).
+    pub container: String,
+    /// All findings, ordered by severity (errors first).
+    pub findings: Vec<CompatibilityFinding>,
+    /// Codecs that are directly compatible (no transcoding required).
+    pub compatible_codecs: Vec<CodecFamily>,
+    /// Codecs that require transcoding, paired with their recommended target.
+    pub transcode_required: Vec<(CodecFamily, CodecFamily)>,
+    /// Codecs with no known mapping for the target container.
+    pub unmapped_codecs: Vec<CodecFamily>,
+}
+
+impl CodecValidationSummary {
+    /// Returns `true` when there are no error-level findings.
+    #[must_use]
+    pub fn is_clean(&self) -> bool {
+        !self
+            .findings
+            .iter()
+            .any(|f| f.severity == IssueSeverity::Error)
+    }
+
+    /// Number of error-level findings.
+    #[must_use]
+    pub fn error_count(&self) -> usize {
+        self.findings
+            .iter()
+            .filter(|f| f.severity == IssueSeverity::Error)
+            .count()
+    }
+
+    /// Number of warning-level findings.
+    #[must_use]
+    pub fn warning_count(&self) -> usize {
+        self.findings
+            .iter()
+            .filter(|f| f.severity == IssueSeverity::Warning)
+            .count()
+    }
+
+    /// Returns `true` when at least one codec is directly compatible.
+    #[must_use]
+    pub fn has_compatible_codecs(&self) -> bool {
+        !self.compatible_codecs.is_empty()
+    }
+
+    /// Returns findings whose severity is at least `min_severity`.
+    #[must_use]
+    pub fn findings_at_least(&self, min_severity: IssueSeverity) -> Vec<&CompatibilityFinding> {
+        self.findings
+            .iter()
+            .filter(|f| f.severity >= min_severity)
+            .collect()
+    }
+}
+
+/// Validates a complete set of codecs against a single target container.
+///
+/// Unlike [`CodecMapper::validate_compatibility`] — which operates on one
+/// `(source, container)` pair — `MultiCodecValidator` batches the operation
+/// across an entire set of codecs and produces a unified
+/// [`CodecValidationSummary`].
+///
+/// # Usage
+///
+/// ```
+/// use oximedia_convert::codec_mapper::{MultiCodecValidator, CodecFamily};
+///
+/// let v = MultiCodecValidator::new();
+/// let summary = v.validate(&[CodecFamily::H264, CodecFamily::Aac], "webm");
+/// // H264 → WebM needs transcode (warning level)
+/// assert!(summary.warning_count() > 0);
+/// ```
+#[derive(Debug, Clone, Default)]
+pub struct MultiCodecValidator {
+    mapper: CodecMapper,
+}
+
+impl MultiCodecValidator {
+    /// Create a new validator backed by a default `CodecMapper`.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Validate `codecs` against `container` and return a unified summary.
+    #[must_use]
+    pub fn validate(&self, codecs: &[CodecFamily], container: &str) -> CodecValidationSummary {
+        let container_lc = container.to_ascii_lowercase();
+        let mut findings: Vec<CompatibilityFinding> = Vec::new();
+        let mut compatible_codecs: Vec<CodecFamily> = Vec::new();
+        let mut transcode_required: Vec<(CodecFamily, CodecFamily)> = Vec::new();
+        let mut unmapped_codecs: Vec<CodecFamily> = Vec::new();
+
+        for &codec in codecs {
+            let report = self.mapper.validate_compatibility(codec, &container_lc);
+
+            if report.recommended_codec == CodecFamily::Unknown && !report.is_compatible {
+                unmapped_codecs.push(codec);
+                let mut finding = CompatibilityFinding::error(
+                    codec,
+                    format!(
+                        "Codec '{}' has no known mapping for container '{container_lc}'.",
+                        codec.name()
+                    ),
+                );
+                if let Some(first) = report.suggestions.first() {
+                    finding = finding.with_suggestion(first.clone());
+                }
+                findings.push(finding);
+            } else if report.is_compatible {
+                compatible_codecs.push(codec);
+                for s in &report.suggestions {
+                    findings.push(CompatibilityFinding::info(codec, s.clone()));
+                }
+            } else {
+                transcode_required.push((codec, report.recommended_codec));
+                let msg = format!(
+                    "Codec '{}' requires transcoding to '{}' for '{container_lc}'.",
+                    codec.name(),
+                    report.recommended_codec.name(),
+                );
+                let mut finding = CompatibilityFinding::warning(codec, msg);
+                if let Some(first) = report.issues.first() {
+                    finding = finding.with_suggestion(first.clone());
+                }
+                findings.push(finding);
+                for s in &report.suggestions {
+                    findings.push(CompatibilityFinding::info(codec, s.clone()));
+                }
+            }
+        }
+
+        // Sort: errors first, then warnings, then info.
+        findings.sort_by(|a, b| b.severity.cmp(&a.severity));
+
+        CodecValidationSummary {
+            container: container_lc,
+            findings,
+            compatible_codecs,
+            transcode_required,
+            unmapped_codecs,
+        }
+    }
+
+    /// Check whether a single codec is directly compatible with a container.
+    #[must_use]
+    pub fn is_direct_compatible(&self, codec: CodecFamily, container: &str) -> bool {
+        self.mapper
+            .validate_compatibility(codec, container)
+            .is_compatible
+    }
+
+    /// Return all codecs from `candidates` that are directly compatible with
+    /// `container`, sorted by compatibility score (best first).
+    #[must_use]
+    pub fn filter_compatible(
+        &self,
+        candidates: &[CodecFamily],
+        container: &str,
+    ) -> Vec<CodecFamily> {
+        let mut compat: Vec<(CodecFamily, u8)> = candidates
+            .iter()
+            .filter_map(|&c| {
+                let m = self.mapper.get_mapping(c, container)?;
+                if m.is_compatible() {
+                    Some((c, m.score))
+                } else {
+                    None
+                }
+            })
+            .collect();
+        compat.sort_by(|a, b| b.1.cmp(&a.1));
+        compat.into_iter().map(|(c, _)| c).collect()
+    }
+
+    /// Suggest the best alternative codec for `source` in `container`.
+    ///
+    /// Returns `None` if the source is already directly compatible or has no
+    /// known mapping.
+    #[must_use]
+    pub fn suggest_alternative(&self, source: CodecFamily, container: &str) -> Option<CodecFamily> {
+        let report = self.mapper.validate_compatibility(source, container);
+        if report.is_compatible {
+            return None;
+        }
+        if report.recommended_codec == CodecFamily::Unknown {
+            return None;
+        }
+        Some(report.recommended_codec)
     }
 }
 
@@ -422,5 +835,203 @@ mod tests {
         let a = m.available_codecs("MP4");
         let b = m.available_codecs("mp4");
         assert_eq!(a.len(), b.len());
+    }
+
+    // ── validate_compatibility ────────────────────────────────────────────────
+
+    #[test]
+    fn test_validate_h264_mp4_is_compatible() {
+        let report = mapper().validate_compatibility(CodecFamily::H264, "mp4");
+        assert!(report.is_compatible, "H264 in mp4 should be compatible");
+        assert!(report.is_clean(), "no issues expected for direct-copy");
+    }
+
+    #[test]
+    fn test_validate_h264_webm_needs_transcode() {
+        let report = mapper().validate_compatibility(CodecFamily::H264, "webm");
+        assert!(!report.is_compatible, "H264 cannot go directly into WebM");
+        assert!(report.issue_count() > 0, "should report at least one issue");
+        assert_eq!(report.recommended_codec, CodecFamily::Vpx);
+    }
+
+    #[test]
+    fn test_validate_unknown_codec_has_no_mapping() {
+        let report = mapper().validate_compatibility(CodecFamily::Mpeg2Video, "webm");
+        assert!(!report.is_compatible);
+        assert_eq!(report.recommended_codec, CodecFamily::Unknown);
+        assert!(!report.issues.is_empty());
+        assert!(!report.suggestions.is_empty());
+    }
+
+    #[test]
+    fn test_validate_av1_mkv_is_compatible() {
+        let report = mapper().validate_compatibility(CodecFamily::Av1, "mkv");
+        assert!(report.is_compatible, "AV1 → MKV is direct copy");
+        assert!(report.is_clean());
+    }
+
+    #[test]
+    fn test_validate_video_in_ogg_reports_issue() {
+        let report = mapper().validate_compatibility(CodecFamily::H264, "ogg");
+        let has_issue = report.issues.iter().any(|s| {
+            s.contains("not suitable") || s.contains("No known") || s.contains("no known")
+        });
+        assert!(has_issue, "should report video-in-ogg issue");
+    }
+
+    #[test]
+    fn test_validate_flac_in_mp4_lossless_advisory() {
+        let report = mapper().validate_compatibility(CodecFamily::Flac, "mp4");
+        let advisory = report
+            .suggestions
+            .iter()
+            .any(|s| s.contains("lossless") || s.contains("large"));
+        assert!(advisory, "should warn about lossless in mp4");
+    }
+
+    // ── MultiCodecValidator tests ─────────────────────────────────────────────
+
+    fn validator() -> MultiCodecValidator {
+        MultiCodecValidator::new()
+    }
+
+    #[test]
+    fn multi_empty_codecs_produces_clean_summary() {
+        let summary = validator().validate(&[], "webm");
+        assert!(summary.is_clean());
+        assert_eq!(summary.error_count(), 0);
+        assert!(summary.compatible_codecs.is_empty());
+        assert!(summary.transcode_required.is_empty());
+        assert!(summary.unmapped_codecs.is_empty());
+    }
+
+    #[test]
+    fn multi_all_compatible_is_clean() {
+        // AV1 + Opus are both direct-copy in WebM
+        let summary = validator().validate(&[CodecFamily::Av1, CodecFamily::Opus], "webm");
+        assert!(summary.is_clean(), "all-compatible should be clean");
+        assert!(summary.has_compatible_codecs());
+        assert!(summary.transcode_required.is_empty());
+    }
+
+    #[test]
+    fn multi_h264_in_webm_needs_transcode() {
+        let summary = validator().validate(&[CodecFamily::H264, CodecFamily::Opus], "webm");
+        assert!(
+            summary
+                .transcode_required
+                .iter()
+                .any(|(src, _)| *src == CodecFamily::H264),
+            "H264 should be in transcode_required"
+        );
+        assert!(summary.compatible_codecs.contains(&CodecFamily::Opus));
+    }
+
+    #[test]
+    fn multi_unmapped_codec_is_error() {
+        let summary = validator().validate(&[CodecFamily::Mpeg2Video], "webm");
+        assert!(
+            summary.error_count() > 0,
+            "unmapped codec should be an error"
+        );
+        assert!(summary.unmapped_codecs.contains(&CodecFamily::Mpeg2Video));
+    }
+
+    #[test]
+    fn multi_findings_sorted_errors_first() {
+        let codecs = [CodecFamily::Mpeg2Video, CodecFamily::H264, CodecFamily::Av1];
+        let summary = validator().validate(&codecs, "webm");
+        let severities: Vec<IssueSeverity> = summary.findings.iter().map(|f| f.severity).collect();
+        for w in severities.windows(2) {
+            assert!(
+                w[0] >= w[1],
+                "findings must be in descending severity order"
+            );
+        }
+    }
+
+    #[test]
+    fn multi_transcode_includes_recommended_codec() {
+        let summary = validator().validate(&[CodecFamily::H264], "webm");
+        assert!(!summary.transcode_required.is_empty());
+        let (src, tgt) = summary.transcode_required[0];
+        assert_eq!(src, CodecFamily::H264);
+        assert_eq!(tgt, CodecFamily::Vpx);
+    }
+
+    #[test]
+    fn multi_is_direct_compatible_true() {
+        assert!(validator().is_direct_compatible(CodecFamily::Av1, "webm"));
+        assert!(validator().is_direct_compatible(CodecFamily::H264, "mp4"));
+    }
+
+    #[test]
+    fn multi_is_direct_compatible_false() {
+        assert!(!validator().is_direct_compatible(CodecFamily::H264, "webm"));
+    }
+
+    #[test]
+    fn multi_filter_compatible_excludes_transcode_codecs() {
+        let candidates = [
+            CodecFamily::Av1,
+            CodecFamily::H264,
+            CodecFamily::Vorbis,
+            CodecFamily::Opus,
+        ];
+        let compat = validator().filter_compatible(&candidates, "webm");
+        assert!(compat.contains(&CodecFamily::Av1));
+        assert!(!compat.contains(&CodecFamily::H264));
+    }
+
+    #[test]
+    fn multi_suggest_alternative_h264_to_webm() {
+        let alt = validator().suggest_alternative(CodecFamily::H264, "webm");
+        assert_eq!(alt, Some(CodecFamily::Vpx));
+    }
+
+    #[test]
+    fn multi_suggest_alternative_none_for_compatible() {
+        let alt = validator().suggest_alternative(CodecFamily::Av1, "webm");
+        assert!(
+            alt.is_none(),
+            "no alternative needed for already-compatible codec"
+        );
+    }
+
+    #[test]
+    fn multi_summary_container_normalised() {
+        let summary = validator().validate(&[CodecFamily::Av1], "WebM");
+        assert_eq!(summary.container, "webm");
+    }
+
+    // ── IssueSeverity / CompatibilityFinding tests ────────────────────────────
+
+    #[test]
+    fn severity_ordering() {
+        assert!(IssueSeverity::Error > IssueSeverity::Warning);
+        assert!(IssueSeverity::Warning > IssueSeverity::Info);
+    }
+
+    #[test]
+    fn severity_tags() {
+        assert_eq!(IssueSeverity::Error.tag(), "ERROR");
+        assert_eq!(IssueSeverity::Warning.tag(), "WARN");
+        assert_eq!(IssueSeverity::Info.tag(), "INFO");
+    }
+
+    #[test]
+    fn finding_with_suggestion() {
+        let f = CompatibilityFinding::error(CodecFamily::H264, "test error")
+            .with_suggestion("use VP9 instead");
+        assert_eq!(f.severity, IssueSeverity::Error);
+        assert_eq!(f.suggestion.as_deref(), Some("use VP9 instead"));
+    }
+
+    #[test]
+    fn summary_findings_at_least_error() {
+        let summary = validator().validate(&[CodecFamily::Mpeg2Video, CodecFamily::H264], "webm");
+        for f in summary.findings_at_least(IssueSeverity::Error) {
+            assert!(f.severity >= IssueSeverity::Error);
+        }
     }
 }

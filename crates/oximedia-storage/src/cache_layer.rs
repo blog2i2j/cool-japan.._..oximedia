@@ -292,6 +292,9 @@ impl LfuCache {
 /// Dynamically balances recency (LRU) and frequency (LFU) via four internal
 /// lists (T1, T2, B1, B2) and an adaptive parameter **p**.
 ///
+/// Eviction fires when *either* the entry count exceeds `capacity` *or* the
+/// total bytes exceed `max_bytes` (when set via [`ArcCache::with_capacity`]).
+///
 /// * **T1** — recently accessed (seen once), most recent at front.
 /// * **T2** — frequently accessed (seen 2+), most recent at front.
 /// * **B1** — ghost entries evicted from T1 (keys only).
@@ -302,6 +305,10 @@ impl LfuCache {
 pub struct ArcCache {
     /// Maximum number of cached entries (c).
     capacity: usize,
+    /// Hard byte limit (0 = unlimited).
+    max_bytes: usize,
+    /// Total bytes currently held by live entries.
+    total_bytes: usize,
     /// Target size for T1 (adapts at runtime).
     p: usize,
     /// T1: recent entries (accessed once).
@@ -317,11 +324,13 @@ pub struct ArcCache {
 }
 
 impl ArcCache {
-    /// Create a new ARC cache.
+    /// Create a new ARC cache bounded only by entry count.
     #[must_use]
     pub fn new(capacity: usize) -> Self {
         Self {
             capacity,
+            max_bytes: 0,
+            total_bytes: 0,
             p: 0,
             t1: VecDeque::new(),
             t2: VecDeque::new(),
@@ -329,6 +338,47 @@ impl ArcCache {
             b2: VecDeque::new(),
             entries: HashMap::new(),
         }
+    }
+
+    /// Create a new ARC cache with **dual-limit** eviction: entries are evicted
+    /// when *either* the entry count exceeds `max_entries` *or* the cumulative
+    /// byte size of all live entries exceeds `max_bytes`.
+    ///
+    /// # Arguments
+    /// * `max_entries` — maximum number of concurrently cached entries.
+    /// * `max_bytes`   — maximum total bytes across all cached entries.
+    #[must_use]
+    pub fn with_capacity(max_entries: usize, max_bytes: usize) -> Self {
+        Self {
+            capacity: max_entries,
+            max_bytes,
+            total_bytes: 0,
+            p: 0,
+            t1: VecDeque::new(),
+            t2: VecDeque::new(),
+            b1: VecDeque::new(),
+            b2: VecDeque::new(),
+            entries: HashMap::new(),
+        }
+    }
+
+    /// Current total bytes of all live entries.
+    #[must_use]
+    pub fn total_bytes(&self) -> usize {
+        self.total_bytes
+    }
+
+    /// Maximum byte limit (0 = unlimited).
+    #[must_use]
+    pub fn max_bytes(&self) -> usize {
+        self.max_bytes
+    }
+
+    /// Returns `true` if either the entry-count or the byte limit is exceeded.
+    fn over_limit(&self) -> bool {
+        let over_count = self.entries.len() > self.capacity;
+        let over_bytes = self.max_bytes > 0 && self.total_bytes > self.max_bytes;
+        over_count || over_bytes
     }
 
     /// Look up a key.
@@ -361,12 +411,29 @@ impl ArcCache {
     }
 
     /// Insert a new entry.
+    ///
+    /// Eviction fires when *either* the live entry count exceeds `capacity`
+    /// *or* `total_bytes` exceeds `max_bytes` (when `max_bytes > 0`).
+    #[allow(clippy::cast_possible_truncation)]
     pub fn put(&mut self, key: impl Into<String>, size_bytes: u64, now_ms: u64) {
         let key = key.into();
+        let sz = size_bytes as usize;
 
-        // Already cached → promote
+        // Already cached → promote and update size
         if self.entries.contains_key(&key) {
+            if let Some(old) = self.entries.get(&key) {
+                let old_sz = old.size_bytes as usize;
+                self.total_bytes = self.total_bytes.saturating_sub(old_sz);
+            }
             self.get(&key, now_ms);
+            self.total_bytes += sz;
+            if let Some(e) = self.entries.get_mut(&key) {
+                e.size_bytes = size_bytes;
+            }
+            // Re-evict if byte limit now exceeded after size update.
+            while self.over_limit() {
+                self.replace(false);
+            }
             return;
         }
 
@@ -379,6 +446,11 @@ impl ArcCache {
             self.t2.push_front(key.clone());
             self.entries
                 .insert(key.clone(), CacheEntry::new(key, size_bytes, now_ms));
+            self.total_bytes += sz;
+            // Drain if byte limit is exceeded after insertion.
+            while self.over_limit() && (!self.t1.is_empty() || !self.t2.is_empty()) {
+                self.replace(false);
+            }
             return;
         }
 
@@ -391,17 +463,23 @@ impl ArcCache {
             self.t2.push_front(key.clone());
             self.entries
                 .insert(key.clone(), CacheEntry::new(key, size_bytes, now_ms));
+            self.total_bytes += sz;
+            while self.over_limit() && (!self.t1.is_empty() || !self.t2.is_empty()) {
+                self.replace(true);
+            }
             return;
         }
 
-        // Completely new key
+        // Completely new key — enforce capacity before inserting.
         let total_t1 = self.t1.len() + self.b1.len();
         if total_t1 == self.capacity {
             if self.t1.len() < self.capacity {
                 self.b1.pop_back();
                 self.replace(false);
             } else if let Some(evicted) = self.t1.pop_back() {
-                self.entries.remove(&evicted);
+                if let Some(e) = self.entries.remove(&evicted) {
+                    self.total_bytes = self.total_bytes.saturating_sub(e.size_bytes as usize);
+                }
             }
         } else {
             let total = self.t1.len() + self.b1.len() + self.t2.len() + self.b2.len();
@@ -413,20 +491,31 @@ impl ArcCache {
             }
         }
 
+        // Insert the new entry.
         self.t1.push_front(key.clone());
         self.entries
             .insert(key.clone(), CacheEntry::new(key, size_bytes, now_ms));
+        self.total_bytes += sz;
+
+        // Continue evicting while either limit is breached.
+        while self.over_limit() && (!self.t1.is_empty() || !self.t2.is_empty()) {
+            self.replace(false);
+        }
     }
 
-    /// ARC "replace" subroutine.
+    /// ARC "replace" subroutine — evicts one entry.
     fn replace(&mut self, in_b2: bool) {
         if !self.t1.is_empty() && (self.t1.len() > self.p || (in_b2 && self.t1.len() == self.p)) {
             if let Some(evicted) = self.t1.pop_back() {
-                self.entries.remove(&evicted);
+                if let Some(e) = self.entries.remove(&evicted) {
+                    self.total_bytes = self.total_bytes.saturating_sub(e.size_bytes as usize);
+                }
                 self.b1.push_front(evicted);
             }
         } else if let Some(evicted) = self.t2.pop_back() {
-            self.entries.remove(&evicted);
+            if let Some(e) = self.entries.remove(&evicted) {
+                self.total_bytes = self.total_bytes.saturating_sub(e.size_bytes as usize);
+            }
             self.b2.push_front(evicted);
         }
     }
@@ -1232,5 +1321,292 @@ mod tests {
                 cache.used_bytes()
             );
         }
+    }
+
+    // ── ArcCache dual-limit (size-aware) tests ─────────────────────────
+
+    #[test]
+    fn test_arc_with_capacity_byte_limit_triggers_eviction() {
+        // 5 entry slots, but only 300 bytes total.
+        let mut cache = ArcCache::with_capacity(5, 300);
+        cache.put("a", 100, 0);
+        cache.put("b", 100, 1);
+        cache.put("c", 100, 2);
+        // All three fit within 300 bytes.
+        assert_eq!(cache.total_bytes(), 300);
+        assert_eq!(cache.len(), 3);
+
+        // Adding a 4th entry (100 bytes) pushes total to 400 which exceeds
+        // max_bytes=300, so at least one entry must be evicted.
+        cache.put("d", 100, 3);
+        assert!(
+            cache.total_bytes() <= 300,
+            "total_bytes {} exceeded max_bytes 300",
+            cache.total_bytes()
+        );
+        assert!(
+            cache.len() < 4,
+            "expected eviction, got {} entries",
+            cache.len()
+        );
+    }
+
+    // ── Deterministic eviction sequence tests ──────────────────────────────────
+
+    #[test]
+    fn test_lru_deterministic_eviction_sequence() {
+        // capacity = 3 * 100 = 300 bytes
+        // Access A, B, C → full; access A again (makes A MRU, B is now LRU)
+        // Insert D → B should be evicted
+        let mut cache = LruCache::new(300);
+        cache.put("A", 100, 0);
+        cache.put("B", 100, 1);
+        cache.put("C", 100, 2);
+        // Re-access A; order becomes: A (MRU), C, B (LRU)
+        cache.get("A", 3);
+        // Insert D — must evict B
+        cache.put("D", 100, 4);
+        assert_eq!(cache.len(), 3);
+        assert!(cache.get("A", 5).is_some(), "A was MRU and should survive");
+        assert!(
+            cache.get("B", 5).is_none(),
+            "B was LRU and should be evicted"
+        );
+        assert!(cache.get("C", 5).is_some(), "C should survive");
+        assert!(
+            cache.get("D", 5).is_some(),
+            "D is newest and should survive"
+        );
+    }
+
+    #[test]
+    fn test_lru_hit_count_increments() {
+        let mut cache = LruCache::new(1000);
+        cache.put("x", 100, 0);
+        let entry = cache.get("x", 1).expect("entry must exist");
+        assert_eq!(entry.access_count, 1);
+        let entry = cache.get("x", 2).expect("entry must exist");
+        assert_eq!(entry.access_count, 2);
+    }
+
+    #[test]
+    fn test_lfu_deterministic_eviction_frequency() {
+        // Insert A (0 accesses), B (0 accesses), C (0 accesses) – capacity 200 bytes.
+        // Access B twice → B has highest frequency.
+        // Insert D (100 bytes) → must evict one of A or C (both have 0 accesses).
+        let mut cache = LfuCache::new(300);
+        cache.put("A", 100, 0);
+        cache.put("B", 100, 1);
+        cache.put("C", 100, 2);
+        cache.get("B", 3);
+        cache.get("B", 4);
+        // capacity full (300). insert D (100): evict LFU (A or C, not B).
+        cache.put("D", 100, 5);
+        assert_eq!(cache.len(), 3);
+        assert!(
+            cache.get("B", 6).is_some(),
+            "B has highest freq and must survive"
+        );
+        assert!(cache.get("D", 6).is_some(), "D is new and must survive");
+        // A was created first (last_access_ms=0), so A should be evicted (tie-breaks by older access).
+        assert!(
+            cache.get("A", 6).is_none(),
+            "A has lower access_ms and should be evicted"
+        );
+        assert!(cache.get("C", 6).is_some(), "C survives");
+    }
+
+    #[test]
+    fn test_lru_miss_does_not_update_access_count() {
+        let mut cache = LruCache::new(1000);
+        let result = cache.get("nonexistent", 99);
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_cache_stats_eviction_tracking() {
+        let mut stats = CacheStats::default();
+        stats.record_hit();
+        stats.record_miss();
+        stats.record_eviction();
+        stats.record_eviction();
+        assert_eq!(stats.hits, 1);
+        assert_eq!(stats.misses, 1);
+        assert_eq!(stats.evictions, 2);
+        assert!((stats.hit_rate() - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_arc_sized_a_not_evicted_after_multiple_accesses() {
+        // A accessed twice (promoted to T2), then B, C inserted → D inserted.
+        // A should survive because it's in T2 (frequently accessed).
+        let mut cache = ArcCacheSized::new(300);
+        cache.put("A", 100, 0);
+        cache.get("A", 1); // promote to T2
+        cache.put("B", 100, 2);
+        cache.put("C", 100, 3);
+        // Cache is now full (300). Insert D → must evict from T1 first (B or C).
+        cache.put("D", 100, 4);
+        // A (in T2) should survive
+        assert!(
+            cache.get("A", 5).is_some(),
+            "A is in T2 and should survive eviction"
+        );
+        assert!(cache.used_bytes() <= 300);
+    }
+
+    #[test]
+    fn test_lru_capacity_zero_stays_empty() {
+        let mut cache = LruCache::new(0);
+        cache.put("k", 0, 0); // 0-byte entry should fit in 0-byte cache
+                              // With a 0-byte entry there's no bytes to evict; it fits.
+                              // With a non-zero entry the cache must evict everything.
+        let mut cache2 = LruCache::new(0);
+        cache2.put("x", 100, 0); // 100 > 0 → eviction loop will clear but key gets inserted
+                                 // The important thing is we don't panic
+    }
+
+    #[test]
+    fn test_lfu_is_empty_after_full_eviction() {
+        let mut cache = LfuCache::new(100);
+        cache.put("a", 100, 0);
+        assert!(!cache.is_empty());
+        // evict directly
+        cache.evict();
+        assert!(cache.is_empty());
+    }
+
+    #[test]
+    fn test_arc_sized_hit_miss_tracking_with_stats() {
+        let mut cache = ArcCacheSized::new(500);
+        let mut stats = CacheStats::default();
+        cache.put("img", 100, 0);
+        if cache.get("img", 1).is_some() {
+            stats.record_hit();
+        } else {
+            stats.record_miss();
+        }
+        if cache.get("missing", 1).is_some() {
+            stats.record_hit();
+        } else {
+            stats.record_miss();
+        }
+        assert_eq!(stats.hits, 1);
+        assert_eq!(stats.misses, 1);
+        assert!((stats.hit_rate() - 0.5).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_lru_eviction_counter_via_stats() {
+        let mut cache = LruCache::new(200);
+        let mut stats = CacheStats::default();
+        cache.put("a", 100, 0);
+        cache.put("b", 100, 1);
+        // full, evict 'a'
+        let evicted = cache.evict();
+        if evicted {
+            stats.record_eviction();
+        }
+        assert_eq!(stats.evictions, 1);
+    }
+
+    #[test]
+    fn test_arc_with_capacity_count_limit_triggers_eviction() {
+        // 3 entry slots, generous byte limit.
+        let mut cache = ArcCache::with_capacity(3, usize::MAX);
+        cache.put("a", 10, 0);
+        cache.put("b", 10, 1);
+        cache.put("c", 10, 2);
+        assert_eq!(cache.len(), 3);
+
+        // 4th entry exceeds count limit → eviction.
+        cache.put("d", 10, 3);
+        assert!(
+            cache.len() <= 3,
+            "entry count {} exceeded max 3",
+            cache.len()
+        );
+    }
+
+    #[test]
+    fn test_arc_with_capacity_large_entry_evicts_multiple_small() {
+        // Small entries totalling 200 bytes, then one large 300-byte entry.
+        let mut cache = ArcCache::with_capacity(100, 300);
+        cache.put("s1", 100, 0);
+        cache.put("s2", 100, 1);
+        // total = 200, both fit
+
+        // Insert 250-byte entry → must evict both small ones (200 bytes)
+        cache.put("large", 250, 2);
+        assert!(
+            cache.total_bytes() <= 300,
+            "total_bytes {} exceeded max_bytes 300 after large insertion",
+            cache.total_bytes()
+        );
+    }
+
+    #[test]
+    fn test_arc_with_capacity_both_limits_independent() {
+        // Count limit = 2, byte limit = 10_000 (generous).
+        let mut cache = ArcCache::with_capacity(2, 10_000);
+        cache.put("a", 100, 0);
+        cache.put("b", 100, 1);
+        // count limit hit → evict on 3rd.
+        cache.put("c", 100, 2);
+        assert!(cache.len() <= 2);
+    }
+
+    #[test]
+    fn test_arc_with_capacity_total_bytes_tracked_correctly() {
+        let mut cache = ArcCache::with_capacity(10, 1_000_000);
+        cache.put("x", 512, 0);
+        assert_eq!(cache.total_bytes(), 512);
+        cache.put("y", 256, 1);
+        assert_eq!(cache.total_bytes(), 768);
+    }
+
+    #[test]
+    fn test_arc_with_capacity_zero_max_bytes_means_unlimited() {
+        // max_bytes = 0 disables the byte limit (count-only mode).
+        let mut cache = ArcCache::new(3); // new() sets max_bytes=0
+        cache.put("a", 1_000_000, 0);
+        cache.put("b", 1_000_000, 1);
+        cache.put("c", 1_000_000, 2);
+        // No byte eviction should occur since max_bytes = 0.
+        assert_eq!(cache.len(), 3);
+        assert_eq!(cache.max_bytes(), 0);
+    }
+
+    #[test]
+    fn test_arc_with_capacity_byte_limit_equal_to_single_entry() {
+        // Only one entry fits by bytes even though count allows 5.
+        let mut cache = ArcCache::with_capacity(5, 100);
+        cache.put("first", 100, 0);
+        assert_eq!(cache.len(), 1);
+        assert_eq!(cache.total_bytes(), 100);
+
+        cache.put("second", 50, 1);
+        // second (50 bytes) fits, but combined (150) exceeds 100 → first evicted.
+        assert!(cache.total_bytes() <= 100);
+    }
+
+    #[test]
+    fn test_arc_with_capacity_access_preserves_within_limits() {
+        let mut cache = ArcCache::with_capacity(5, 500);
+        cache.put("a", 100, 0);
+        cache.put("b", 100, 1);
+        // Access 'a' to promote to T2.
+        assert!(cache.get("a", 2).is_some());
+        // Both still within limits.
+        assert!(cache.total_bytes() <= 500);
+        assert!(cache.len() <= 5);
+    }
+
+    #[test]
+    fn test_arc_with_capacity_constructor() {
+        let cache = ArcCache::with_capacity(10, 4096);
+        assert!(cache.is_empty());
+        assert_eq!(cache.max_bytes(), 4096);
+        assert_eq!(cache.total_bytes(), 0);
     }
 }

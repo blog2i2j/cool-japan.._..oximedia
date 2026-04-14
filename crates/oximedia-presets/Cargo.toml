@@ -19,6 +19,7 @@ chrono = { workspace = true }
 
 [lints.rust]
 unsafe_code = "forbid"
+missing_docs = "allow"
 
 [lints.clippy]
 all = { level = "warn", priority = -2 }
@@ -27,7 +28,6 @@ pedantic = { level = "warn", priority = -1 }
 # ── Documentation lints ──────────────────────────────────────────────────────
 missing_errors_doc = "allow"
 missing_panics_doc = "allow"
-missing_docs = "allow"
 doc_markdown = "allow"
 doc_link_with_quotes = "allow"
 doc_overindented_list_items = "allow"

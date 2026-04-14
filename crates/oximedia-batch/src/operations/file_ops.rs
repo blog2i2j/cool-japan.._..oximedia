@@ -4,15 +4,14 @@ use crate::error::{BatchError, Result};
 use crate::job::BatchJob;
 use crate::operations::OperationExecutor;
 use async_trait::async_trait;
-use flate2::write::GzEncoder;
-use flate2::Compression;
 use oxiarc_archive::zip::{ZipCompressionLevel, ZipWriter};
+use oxiarc_archive::TarWriter;
+use oxiarc_deflate::GzipStreamEncoder;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use tar::Builder;
 use walkdir::WalkDir;
 
 /// File operation types
@@ -212,48 +211,92 @@ impl FileOperationExecutor {
         let file = fs::File::create(output)?;
 
         if gzip {
-            let enc = GzEncoder::new(file, Compression::default());
-            let mut tar = Builder::new(enc);
-
-            for input_path in files {
-                if input_path.is_file() {
-                    let name = input_path.file_name().ok_or_else(|| {
-                        BatchError::FileOperationError("Invalid file name".to_string())
-                    })?;
-                    tar.append_file(name, &mut fs::File::open(input_path)?)?;
-                } else if input_path.is_dir() {
-                    tar.append_dir_all(
-                        input_path.file_name().ok_or_else(|| {
-                            BatchError::FileOperationError("Invalid dir name".to_string())
-                        })?,
-                        input_path,
-                    )?;
-                }
-            }
-
-            tar.finish()?;
+            let enc = GzipStreamEncoder::new(file, 6);
+            let mut tar_writer = TarWriter::new(enc);
+            Self::add_paths_to_tar(&mut tar_writer, files)?;
+            let gzip_encoder = tar_writer.into_inner().map_err(|e| {
+                BatchError::FileOperationError(format!("Failed to finish tar: {e}"))
+            })?;
+            gzip_encoder.finish().map_err(|e| {
+                BatchError::FileOperationError(format!("Failed to finish gzip: {e}"))
+            })?;
         } else {
-            let mut tar = Builder::new(file);
-
-            for input_path in files {
-                if input_path.is_file() {
-                    let name = input_path.file_name().ok_or_else(|| {
-                        BatchError::FileOperationError("Invalid file name".to_string())
-                    })?;
-                    tar.append_file(name, &mut fs::File::open(input_path)?)?;
-                } else if input_path.is_dir() {
-                    tar.append_dir_all(
-                        input_path.file_name().ok_or_else(|| {
-                            BatchError::FileOperationError("Invalid dir name".to_string())
-                        })?,
-                        input_path,
-                    )?;
-                }
-            }
-
-            tar.finish()?;
+            let mut tar_writer = TarWriter::new(file);
+            Self::add_paths_to_tar(&mut tar_writer, files)?;
+            tar_writer.finish().map_err(|e| {
+                BatchError::FileOperationError(format!("Failed to finish tar: {e}"))
+            })?;
         }
 
+        Ok(())
+    }
+
+    fn add_paths_to_tar<W: std::io::Write>(
+        tar_writer: &mut TarWriter<W>,
+        files: &[PathBuf],
+    ) -> Result<()> {
+        for input_path in files {
+            if input_path.is_file() {
+                let name = input_path
+                    .file_name()
+                    .ok_or_else(|| BatchError::FileOperationError("Invalid file name".to_string()))?
+                    .to_str()
+                    .ok_or_else(|| {
+                        BatchError::FileOperationError("Non-UTF8 file name".to_string())
+                    })?;
+                let mut f = fs::File::open(input_path)?;
+                let mut buffer = Vec::new();
+                f.read_to_end(&mut buffer)?;
+                tar_writer
+                    .add_file(name, &buffer)
+                    .map_err(|e| BatchError::FileOperationError(format!("Tar add error: {e}")))?;
+            } else if input_path.is_dir() {
+                let dir_name = input_path
+                    .file_name()
+                    .ok_or_else(|| BatchError::FileOperationError("Invalid dir name".to_string()))?
+                    .to_str()
+                    .ok_or_else(|| {
+                        BatchError::FileOperationError("Non-UTF8 dir name".to_string())
+                    })?;
+                for entry in WalkDir::new(input_path) {
+                    let entry = entry
+                        .map_err(|e| BatchError::FileOperationError(format!("Walk error: {e}")))?;
+                    let path = entry.path();
+                    if path.is_file() {
+                        let rel = path.strip_prefix(input_path).map_err(|e| {
+                            BatchError::FileOperationError(format!("Path error: {e}"))
+                        })?;
+                        let archive_name = format!(
+                            "{}/{}",
+                            dir_name,
+                            rel.to_str().ok_or_else(|| {
+                                BatchError::FileOperationError("Non-UTF8 path".to_string())
+                            })?
+                        );
+                        let mut f = fs::File::open(path)?;
+                        let mut buffer = Vec::new();
+                        f.read_to_end(&mut buffer)?;
+                        tar_writer.add_file(&archive_name, &buffer).map_err(|e| {
+                            BatchError::FileOperationError(format!("Tar add error: {e}"))
+                        })?;
+                    } else if path.is_dir() && path != input_path {
+                        let rel = path.strip_prefix(input_path).map_err(|e| {
+                            BatchError::FileOperationError(format!("Path error: {e}"))
+                        })?;
+                        let archive_name = format!(
+                            "{}/{}",
+                            dir_name,
+                            rel.to_str().ok_or_else(|| {
+                                BatchError::FileOperationError("Non-UTF8 path".to_string())
+                            })?
+                        );
+                        tar_writer.add_directory(&archive_name).map_err(|e| {
+                            BatchError::FileOperationError(format!("Tar add dir error: {e}"))
+                        })?;
+                    }
+                }
+            }
+        }
         Ok(())
     }
 

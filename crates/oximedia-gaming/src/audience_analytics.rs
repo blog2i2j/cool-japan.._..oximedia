@@ -164,9 +164,7 @@ impl AudienceTracker {
     /// Get the current viewer count (latest sample).
     #[must_use]
     pub fn current_viewers(&self) -> u32 {
-        self.viewer_samples
-            .back()
-            .map_or(0, |s| s.viewers)
+        self.viewer_samples.back().map_or(0, |s| s.viewers)
     }
 
     /// Get the peak viewer count.

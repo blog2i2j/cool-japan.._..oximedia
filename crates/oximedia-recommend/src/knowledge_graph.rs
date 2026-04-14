@@ -163,9 +163,9 @@ impl Default for GraphQueryConfig {
 pub struct MediaKnowledgeGraph {
     /// All entities by ID.
     entities: HashMap<String, Entity>,
-    /// Adjacency list: entity_id → Vec<Edge>.
+    /// Adjacency list: entity_id → `Vec<Edge>`.
     adjacency: HashMap<String, Vec<Edge>>,
-    /// Reverse adjacency: entity_id → Vec<Edge> (for traversing backwards).
+    /// Reverse adjacency: entity_id → `Vec<Edge>` (for traversing backwards).
     reverse_adjacency: HashMap<String, Vec<Edge>>,
     /// Total number of edges.
     edge_count: usize,

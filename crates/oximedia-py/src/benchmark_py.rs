@@ -150,14 +150,14 @@ impl Timer {
 ///
 /// Example
 /// -------
-/// .. code-block:: python
-///
-///     counter = oximedia.benchmark.ThroughputCounter("frames_per_sec")
-///     counter.start()
-///     for frame in frames:
-///         encode(frame)
-///         counter.tick()
-///     fps = counter.stop()
+/// ```python
+/// counter = oximedia.benchmark.ThroughputCounter("frames_per_sec")
+/// counter.start()
+/// for frame in frames:
+///     encode(frame)
+///     counter.tick()
+/// fps = counter.stop()
+/// ```
 #[pyclass]
 pub struct ThroughputCounter {
     /// Counter name.
@@ -314,14 +314,14 @@ impl BenchmarkResult {
 ///
 /// Example
 /// -------
-/// .. code-block:: python
-///
-///     suite = oximedia.benchmark.BenchmarkSuite("codec_comparison")
-///     suite.add_result("av1_crf28", elapsed_ms=250.5, frames=300)
-///     suite.add_result("vp9_crf28", elapsed_ms=180.2, frames=300)
-///     for r in suite.results():
-///         print(r.name, r.fps)
-///     print(suite.fastest().name)
+/// ```python
+/// suite = oximedia.benchmark.BenchmarkSuite("codec_comparison")
+/// suite.add_result("av1_crf28", elapsed_ms=250.5, frames=300)
+/// suite.add_result("vp9_crf28", elapsed_ms=180.2, frames=300)
+/// for r in suite.results():
+///     print(r.name, r.fps)
+/// print(suite.fastest().name)
+/// ```
 #[pyclass]
 pub struct BenchmarkSuite {
     /// Suite name.

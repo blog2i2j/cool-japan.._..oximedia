@@ -126,8 +126,8 @@ impl ComputePipelineManager {
             .device
             .create_pipeline_layout(&PipelineLayoutDescriptor {
                 label: Some(&format!("{label} Layout")),
-                bind_group_layouts: &[bind_group_layout],
-                push_constant_ranges: &[],
+                bind_group_layouts: &[Some(bind_group_layout)],
+                immediate_size: 0,
             });
 
         Ok(self

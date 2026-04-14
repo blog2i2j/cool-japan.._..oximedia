@@ -317,10 +317,7 @@ mod tests {
         let mut q = BatchConvertQueue::new();
         q.enqueue(make_job("first"));
         q.enqueue(make_job("second"));
-        let id = q
-            .dequeue()
-            .map(|j| j.job_id.clone())
-            .expect("queue should have a job");
+        let id = q.dequeue().map(|j| j.job_id.clone()).unwrap();
         assert_eq!(id, "first");
     }
 

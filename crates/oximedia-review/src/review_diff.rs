@@ -138,13 +138,19 @@ impl ReviewDiffResult {
     /// Get entries filtered by change kind.
     #[must_use]
     pub fn filter_by_kind(&self, kind: DiffChangeKind) -> Vec<&DiffEntry> {
-        self.entries.iter().filter(|e| e.change_kind == kind).collect()
+        self.entries
+            .iter()
+            .filter(|e| e.change_kind == kind)
+            .collect()
     }
 
     /// Get entries filtered by category.
     #[must_use]
     pub fn filter_by_category(&self, category: DiffCategory) -> Vec<&DiffEntry> {
-        self.entries.iter().filter(|e| e.category == category).collect()
+        self.entries
+            .iter()
+            .filter(|e| e.category == category)
+            .collect()
     }
 
     /// Get the average severity of all changes.
@@ -261,7 +267,9 @@ impl ReviewDiffAnalyzer {
                         category: DiffCategory::MetadataChange,
                         frame_position: None,
                         frame_duration: None,
-                        description: format!("Key '{key}' changed from '{source_val}' to '{target_val}'"),
+                        description: format!(
+                            "Key '{key}' changed from '{source_val}' to '{target_val}'"
+                        ),
                         severity: 0.3,
                     });
                 } else if self.config.include_unchanged {
@@ -336,18 +344,42 @@ mod tests {
     #[test]
     fn test_change_count_excludes_unchanged() {
         let mut result = ReviewDiffResult::new("v1", "v2");
-        result.add_entry(sample_entry(DiffChangeKind::Added, DiffCategory::AudioChange, 0.5));
-        result.add_entry(sample_entry(DiffChangeKind::Unchanged, DiffCategory::VideoChange, 0.0));
-        result.add_entry(sample_entry(DiffChangeKind::Modified, DiffCategory::ColorChange, 0.3));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Added,
+            DiffCategory::AudioChange,
+            0.5,
+        ));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Unchanged,
+            DiffCategory::VideoChange,
+            0.0,
+        ));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Modified,
+            DiffCategory::ColorChange,
+            0.3,
+        ));
         assert_eq!(result.change_count(), 2);
     }
 
     #[test]
     fn test_filter_by_kind() {
         let mut result = ReviewDiffResult::new("v1", "v2");
-        result.add_entry(sample_entry(DiffChangeKind::Added, DiffCategory::AudioChange, 0.5));
-        result.add_entry(sample_entry(DiffChangeKind::Removed, DiffCategory::VideoChange, 0.7));
-        result.add_entry(sample_entry(DiffChangeKind::Added, DiffCategory::EffectsChange, 0.4));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Added,
+            DiffCategory::AudioChange,
+            0.5,
+        ));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Removed,
+            DiffCategory::VideoChange,
+            0.7,
+        ));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Added,
+            DiffCategory::EffectsChange,
+            0.4,
+        ));
         let added = result.filter_by_kind(DiffChangeKind::Added);
         assert_eq!(added.len(), 2);
     }
@@ -355,9 +387,21 @@ mod tests {
     #[test]
     fn test_filter_by_category() {
         let mut result = ReviewDiffResult::new("v1", "v2");
-        result.add_entry(sample_entry(DiffChangeKind::Added, DiffCategory::AudioChange, 0.5));
-        result.add_entry(sample_entry(DiffChangeKind::Modified, DiffCategory::AudioChange, 0.3));
-        result.add_entry(sample_entry(DiffChangeKind::Removed, DiffCategory::VideoChange, 0.7));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Added,
+            DiffCategory::AudioChange,
+            0.5,
+        ));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Modified,
+            DiffCategory::AudioChange,
+            0.3,
+        ));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Removed,
+            DiffCategory::VideoChange,
+            0.7,
+        ));
         let audio = result.filter_by_category(DiffCategory::AudioChange);
         assert_eq!(audio.len(), 2);
     }
@@ -365,8 +409,16 @@ mod tests {
     #[test]
     fn test_average_severity() {
         let mut result = ReviewDiffResult::new("v1", "v2");
-        result.add_entry(sample_entry(DiffChangeKind::Added, DiffCategory::AudioChange, 0.4));
-        result.add_entry(sample_entry(DiffChangeKind::Modified, DiffCategory::VideoChange, 0.6));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Added,
+            DiffCategory::AudioChange,
+            0.4,
+        ));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Modified,
+            DiffCategory::VideoChange,
+            0.6,
+        ));
         let avg = result.average_severity();
         assert!((avg - 0.5).abs() < 1e-10);
     }
@@ -380,18 +432,42 @@ mod tests {
     #[test]
     fn test_max_severity() {
         let mut result = ReviewDiffResult::new("v1", "v2");
-        result.add_entry(sample_entry(DiffChangeKind::Added, DiffCategory::AudioChange, 0.3));
-        result.add_entry(sample_entry(DiffChangeKind::Modified, DiffCategory::VideoChange, 0.9));
-        result.add_entry(sample_entry(DiffChangeKind::Removed, DiffCategory::ColorChange, 0.5));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Added,
+            DiffCategory::AudioChange,
+            0.3,
+        ));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Modified,
+            DiffCategory::VideoChange,
+            0.9,
+        ));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Removed,
+            DiffCategory::ColorChange,
+            0.5,
+        ));
         assert!((result.max_severity() - 0.9).abs() < 1e-10);
     }
 
     #[test]
     fn test_filter_above_severity() {
         let mut result = ReviewDiffResult::new("v1", "v2");
-        result.add_entry(sample_entry(DiffChangeKind::Added, DiffCategory::AudioChange, 0.2));
-        result.add_entry(sample_entry(DiffChangeKind::Modified, DiffCategory::VideoChange, 0.8));
-        result.add_entry(sample_entry(DiffChangeKind::Removed, DiffCategory::ColorChange, 0.5));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Added,
+            DiffCategory::AudioChange,
+            0.2,
+        ));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Modified,
+            DiffCategory::VideoChange,
+            0.8,
+        ));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Removed,
+            DiffCategory::ColorChange,
+            0.5,
+        ));
         let high = result.filter_above_severity(0.5);
         assert_eq!(high.len(), 2);
     }
@@ -399,9 +475,21 @@ mod tests {
     #[test]
     fn test_summary_by_kind() {
         let mut result = ReviewDiffResult::new("v1", "v2");
-        result.add_entry(sample_entry(DiffChangeKind::Added, DiffCategory::AudioChange, 0.5));
-        result.add_entry(sample_entry(DiffChangeKind::Added, DiffCategory::VideoChange, 0.5));
-        result.add_entry(sample_entry(DiffChangeKind::Removed, DiffCategory::ColorChange, 0.5));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Added,
+            DiffCategory::AudioChange,
+            0.5,
+        ));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Added,
+            DiffCategory::VideoChange,
+            0.5,
+        ));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Removed,
+            DiffCategory::ColorChange,
+            0.5,
+        ));
         let summary = result.summary_by_kind();
         assert_eq!(summary.get(&DiffChangeKind::Added), Some(&2));
         assert_eq!(summary.get(&DiffChangeKind::Removed), Some(&1));
@@ -410,9 +498,21 @@ mod tests {
     #[test]
     fn test_summary_by_category() {
         let mut result = ReviewDiffResult::new("v1", "v2");
-        result.add_entry(sample_entry(DiffChangeKind::Added, DiffCategory::AudioChange, 0.5));
-        result.add_entry(sample_entry(DiffChangeKind::Modified, DiffCategory::AudioChange, 0.3));
-        result.add_entry(sample_entry(DiffChangeKind::Removed, DiffCategory::VideoChange, 0.7));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Added,
+            DiffCategory::AudioChange,
+            0.5,
+        ));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Modified,
+            DiffCategory::AudioChange,
+            0.3,
+        ));
+        result.add_entry(sample_entry(
+            DiffChangeKind::Removed,
+            DiffCategory::VideoChange,
+            0.7,
+        ));
         let summary = result.summary_by_category();
         assert_eq!(summary.get(&DiffCategory::AudioChange), Some(&2));
         assert_eq!(summary.get(&DiffCategory::VideoChange), Some(&1));

@@ -1,9 +1,23 @@
-#![allow(dead_code)]
 //! LUT validation and integrity checking.
 //!
 //! Provides tools to validate 1D and 3D LUT data for correctness,
-//! range compliance, monotonicity, and structural integrity before
+//! range compliance, monotonicity, smoothness, and structural integrity before
 //! applying them in production color pipelines.
+//!
+//! ## Monotonicity Checks (1D LUTs)
+//!
+//! A 1D LUT used as a transfer function should be **monotonic** — each output
+//! must be >= the previous output (increasing) or <= (decreasing).
+//! [`check_1d_monotonicity`] and [`check_1d_strictly_increasing`] perform full
+//! per-channel analysis and return detailed [`MonotonicityReport`]s.
+//!
+//! ## Smoothness Checks (3D LUTs)
+//!
+//! A well-behaved 3D LUT should vary smoothly across the lattice.  Large
+//! first-differences between adjacent lattice neighbours indicate discontinuities.
+//! [`check_3d_smoothness`] computes the distribution of inter-neighbour gradients
+//! and returns a [`SmoothnessReport`] with mean, maximum, p95, and a
+//! user-configurable roughness threshold.
 
 use std::fmt;
 
@@ -410,6 +424,306 @@ pub fn is_standard_lut_size(size: usize) -> bool {
     matches!(size, 17 | 33 | 65 | 129)
 }
 
+// ============================================================================
+// Monotonicity checks for 1D LUTs
+// ============================================================================
+
+/// Direction of monotonicity detected in a single 1D LUT channel.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MonotonicDirection {
+    /// All consecutive differences are non-negative.
+    Increasing,
+    /// All consecutive differences are non-positive.
+    Decreasing,
+    /// At least one pair violates the dominant direction.
+    NonMonotonic,
+}
+
+/// A single monotonicity violation in a 1D LUT channel.
+#[derive(Clone, Debug)]
+pub struct MonotonicityViolation {
+    /// Index of the first element in the violating pair.
+    pub index: usize,
+    /// Value at `index`.
+    pub value_a: f64,
+    /// Value at `index + 1`.
+    pub value_b: f64,
+}
+
+/// Per-channel monotonicity result.
+#[derive(Clone, Debug)]
+pub struct ChannelMonotonicityResult {
+    /// Channel name ("R", "G", or "B").
+    pub channel: String,
+    /// Detected direction or NonMonotonic.
+    pub direction: MonotonicDirection,
+    /// All violations (empty when monotonic).
+    pub violations: Vec<MonotonicityViolation>,
+}
+
+impl ChannelMonotonicityResult {
+    /// Returns `true` when the channel has no violations.
+    #[must_use]
+    pub fn is_monotonic(&self) -> bool {
+        self.direction != MonotonicDirection::NonMonotonic
+    }
+}
+
+/// Report produced by monotonicity checks.
+#[derive(Clone, Debug)]
+pub struct MonotonicityReport {
+    /// Per-channel results (always 3 for an interleaved RGB 1D LUT).
+    pub channels: Vec<ChannelMonotonicityResult>,
+    /// `true` when every channel passes the check.
+    pub all_monotonic: bool,
+}
+
+impl MonotonicityReport {
+    /// Number of channels that are NOT monotonic.
+    #[must_use]
+    pub fn failing_channel_count(&self) -> usize {
+        self.channels.iter().filter(|c| !c.is_monotonic()).count()
+    }
+
+    /// Total number of violations across all channels.
+    #[must_use]
+    pub fn total_violations(&self) -> usize {
+        self.channels.iter().map(|c| c.violations.len()).sum()
+    }
+}
+
+/// Check the monotonicity of a 1D LUT stored as interleaved RGB triples.
+///
+/// `data` must have length `size * 3` (packed as `[r0, g0, b0, r1, g1, b1, …]`).
+///
+/// Returns `None` when `size < 2` or `data.len() != size * 3`.
+#[must_use]
+pub fn check_1d_monotonicity(data: &[f64], size: usize) -> Option<MonotonicityReport> {
+    if size < 2 || data.len() != size * 3 {
+        return None;
+    }
+
+    const NAMES: [&str; 3] = ["R", "G", "B"];
+    let mut channels = Vec::with_capacity(3);
+
+    for ch in 0..3_usize {
+        let vals: Vec<f64> = (0..size).map(|i| data[i * 3 + ch]).collect();
+
+        // Determine dominant direction from first non-zero step.
+        let dominant_increasing = vals
+            .windows(2)
+            .find(|w| (w[1] - w[0]).abs() > 1e-12)
+            .map_or(true, |w| w[1] > w[0]);
+
+        let mut violations = Vec::new();
+        for (i, w) in vals.windows(2).enumerate() {
+            let diff = w[1] - w[0];
+            let is_violation = if dominant_increasing {
+                diff < -1e-12
+            } else {
+                diff > 1e-12
+            };
+            if is_violation {
+                violations.push(MonotonicityViolation {
+                    index: i,
+                    value_a: w[0],
+                    value_b: w[1],
+                });
+            }
+        }
+
+        let direction = if violations.is_empty() {
+            if dominant_increasing {
+                MonotonicDirection::Increasing
+            } else {
+                MonotonicDirection::Decreasing
+            }
+        } else {
+            MonotonicDirection::NonMonotonic
+        };
+
+        channels.push(ChannelMonotonicityResult {
+            channel: NAMES[ch].to_string(),
+            direction,
+            violations,
+        });
+    }
+
+    let all_monotonic = channels.iter().all(|c| c.is_monotonic());
+    Some(MonotonicityReport {
+        channels,
+        all_monotonic,
+    })
+}
+
+/// Strictly-increasing check: requires every step to be > 0 (no plateaux).
+///
+/// Returns `None` for invalid inputs (same conditions as [`check_1d_monotonicity`]).
+#[must_use]
+pub fn check_1d_strictly_increasing(data: &[f64], size: usize) -> Option<MonotonicityReport> {
+    if size < 2 || data.len() != size * 3 {
+        return None;
+    }
+
+    const NAMES: [&str; 3] = ["R", "G", "B"];
+    let mut channels = Vec::with_capacity(3);
+
+    for ch in 0..3_usize {
+        let mut violations = Vec::new();
+        for i in 0..(size - 1) {
+            let a = data[i * 3 + ch];
+            let b = data[(i + 1) * 3 + ch];
+            if b <= a + 1e-12 {
+                violations.push(MonotonicityViolation {
+                    index: i,
+                    value_a: a,
+                    value_b: b,
+                });
+            }
+        }
+        let direction = if violations.is_empty() {
+            MonotonicDirection::Increasing
+        } else {
+            MonotonicDirection::NonMonotonic
+        };
+        channels.push(ChannelMonotonicityResult {
+            channel: NAMES[ch].to_string(),
+            direction,
+            violations,
+        });
+    }
+
+    let all_monotonic = channels.iter().all(|c| c.is_monotonic());
+    Some(MonotonicityReport {
+        channels,
+        all_monotonic,
+    })
+}
+
+// ============================================================================
+// Smoothness checks for 3D LUTs
+// ============================================================================
+
+/// Gradient distribution statistics.
+#[derive(Clone, Debug)]
+pub struct GradientStats {
+    /// Mean Euclidean gradient between adjacent lattice points.
+    pub mean: f64,
+    /// Maximum gradient.
+    pub max: f64,
+    /// 95th-percentile gradient.
+    pub p95: f64,
+    /// Total gradient samples measured.
+    pub sample_count: usize,
+}
+
+/// Smoothness report from [`check_3d_smoothness`].
+#[derive(Clone, Debug)]
+pub struct SmoothnessReport {
+    /// Gradient statistics across all axis-aligned lattice pairs.
+    pub gradient_stats: GradientStats,
+    /// `true` when the `rough_pair_count` is zero.
+    pub passes: bool,
+    /// The threshold used.
+    pub roughness_threshold: f64,
+    /// Number of lattice pairs whose gradient exceeded `roughness_threshold`.
+    pub rough_pair_count: usize,
+}
+
+/// Check the smoothness of a 3D LUT stored as a flat slice of RGB triplets.
+///
+/// For every axis-aligned pair of adjacent lattice nodes, the Euclidean distance
+/// between their RGB outputs is computed.  The distribution of these gradients is
+/// summarised in a [`SmoothnessReport`].
+///
+/// An identity LUT has gradients of `1/(size-1)` per axis step.  Much larger
+/// values indicate discontinuities that may cause banding artefacts.
+///
+/// # Arguments
+///
+/// * `data`                – `size³` RGB entries as `[f64; 3]` slices.
+/// * `size`                – number of lattice points per axis.
+/// * `roughness_threshold` – gradient threshold; pairs above this are flagged.
+///   Pass `f64::INFINITY` to disable.
+///
+/// Returns `None` when `data.len() != size³` or `size < 2`.
+#[must_use]
+pub fn check_3d_smoothness(
+    data: &[[f64; 3]],
+    size: usize,
+    roughness_threshold: f64,
+) -> Option<SmoothnessReport> {
+    if size < 2 || data.len() != size * size * size {
+        return None;
+    }
+
+    let mut gradients: Vec<f64> = Vec::with_capacity(3 * size * size * (size - 1));
+    let idx = |r: usize, g: usize, b: usize| r * size * size + g * size + b;
+
+    // R axis
+    for g in 0..size {
+        for b in 0..size {
+            for r in 0..(size - 1) {
+                gradients.push(euclid_rgb(&data[idx(r, g, b)], &data[idx(r + 1, g, b)]));
+            }
+        }
+    }
+    // G axis
+    for r in 0..size {
+        for b in 0..size {
+            for g in 0..(size - 1) {
+                gradients.push(euclid_rgb(&data[idx(r, g, b)], &data[idx(r, g + 1, b)]));
+            }
+        }
+    }
+    // B axis
+    for r in 0..size {
+        for g in 0..size {
+            for b in 0..(size - 1) {
+                gradients.push(euclid_rgb(&data[idx(r, g, b)], &data[idx(r, g, b + 1)]));
+            }
+        }
+    }
+
+    let n = gradients.len();
+    if n == 0 {
+        return None;
+    }
+
+    let sum: f64 = gradients.iter().sum();
+    let mean = sum / n as f64;
+    let max = gradients.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
+
+    let mut sorted = gradients.clone();
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    let p95_idx = ((n - 1) as f64 * 0.95) as usize;
+    let p95 = sorted[p95_idx];
+
+    let rough_pair_count = gradients
+        .iter()
+        .filter(|&&g| g > roughness_threshold)
+        .count();
+
+    Some(SmoothnessReport {
+        gradient_stats: GradientStats {
+            mean,
+            max,
+            p95,
+            sample_count: n,
+        },
+        passes: rough_pair_count == 0,
+        roughness_threshold,
+        rough_pair_count,
+    })
+}
+
+fn euclid_rgb(a: &[f64; 3], b: &[f64; 3]) -> f64 {
+    let dr = a[0] - b[0];
+    let dg = a[1] - b[1];
+    let db = a[2] - b[2];
+    (dr * dr + dg * dg + db * db).sqrt()
+}
+
 /// Generate identity 3D LUT data for a given size.
 #[must_use]
 pub fn generate_identity_3d(size: usize) -> Vec<f64> {
@@ -582,5 +896,189 @@ mod tests {
         let report = v.validate_1d_channel(&data, "B");
         assert!(report.passed); // out-of-range is a warning, not error
         assert_eq!(report.warnings().len(), 1);
+    }
+
+    // -----------------------------------------------------------------------
+    // Monotonicity tests (Item 2 implementation)
+    // -----------------------------------------------------------------------
+
+    fn make_increasing_interleaved(size: usize) -> Vec<f64> {
+        let scale = (size - 1) as f64;
+        (0..size)
+            .flat_map(|i| {
+                let v = i as f64 / scale;
+                [v, v, v]
+            })
+            .collect()
+    }
+
+    fn make_decreasing_interleaved(size: usize) -> Vec<f64> {
+        let scale = (size - 1) as f64;
+        (0..size)
+            .flat_map(|i| {
+                let v = 1.0 - i as f64 / scale;
+                [v, v, v]
+            })
+            .collect()
+    }
+
+    fn make_identity_3d_rgb(size: usize) -> Vec<[f64; 3]> {
+        let scale = (size - 1) as f64;
+        let mut data = Vec::with_capacity(size * size * size);
+        for r in 0..size {
+            for g in 0..size {
+                for b in 0..size {
+                    data.push([r as f64 / scale, g as f64 / scale, b as f64 / scale]);
+                }
+            }
+        }
+        data
+    }
+
+    #[test]
+    fn test_monotonicity_increasing_passes() {
+        let data = make_increasing_interleaved(17);
+        let report = check_1d_monotonicity(&data, 17).expect("valid");
+        assert!(report.all_monotonic);
+        assert_eq!(report.total_violations(), 0);
+        for ch in &report.channels {
+            assert_eq!(ch.direction, MonotonicDirection::Increasing);
+        }
+    }
+
+    #[test]
+    fn test_monotonicity_decreasing_passes() {
+        let data = make_decreasing_interleaved(9);
+        let report = check_1d_monotonicity(&data, 9).expect("valid");
+        assert!(report.all_monotonic);
+        for ch in &report.channels {
+            assert_eq!(ch.direction, MonotonicDirection::Decreasing);
+        }
+    }
+
+    #[test]
+    fn test_monotonicity_non_monotonic_detected() {
+        let mut data = make_increasing_interleaved(11);
+        let mid = 5;
+        data[mid * 3] = data[(mid - 1) * 3] - 0.05; // inject reversal in R
+        let report = check_1d_monotonicity(&data, 11).expect("valid");
+        assert!(!report.all_monotonic);
+        assert!(report.total_violations() > 0);
+        assert!(report.failing_channel_count() >= 1);
+    }
+
+    #[test]
+    fn test_monotonicity_violation_location_recorded() {
+        let mut data = make_increasing_interleaved(11);
+        let mid = 5;
+        data[mid * 3] = data[(mid - 1) * 3] - 0.05;
+        let report = check_1d_monotonicity(&data, 11).expect("valid");
+        let red = report
+            .channels
+            .iter()
+            .find(|c| c.channel == "R")
+            .expect("R");
+        assert!(!red.violations.is_empty());
+        for v in &red.violations {
+            assert!(v.index < 10);
+        }
+    }
+
+    #[test]
+    fn test_monotonicity_invalid_returns_none() {
+        let data = vec![0.0f64; 15];
+        assert!(check_1d_monotonicity(&data, 1).is_none()); // size < 2
+        assert!(check_1d_monotonicity(&data, 10).is_none()); // len mismatch
+    }
+
+    #[test]
+    fn test_strict_increasing_identity_passes() {
+        let data = make_increasing_interleaved(33);
+        let report = check_1d_strictly_increasing(&data, 33).expect("valid");
+        assert!(report.all_monotonic);
+        assert_eq!(report.total_violations(), 0);
+    }
+
+    #[test]
+    fn test_strict_increasing_plateau_fails() {
+        let mut data = make_increasing_interleaved(9);
+        data[3 * 3 + 1] = data[4 * 3 + 1]; // plateau in G
+        let report = check_1d_strictly_increasing(&data, 9).expect("valid");
+        assert!(!report.all_monotonic);
+        let g = report
+            .channels
+            .iter()
+            .find(|c| c.channel == "G")
+            .expect("G");
+        assert!(!g.violations.is_empty());
+    }
+
+    #[test]
+    fn test_strict_increasing_failing_count() {
+        let mut data = make_increasing_interleaved(9);
+        data[2 * 3] = data[3 * 3]; // R plateau
+        let report = check_1d_strictly_increasing(&data, 9).expect("valid");
+        assert!(report.failing_channel_count() >= 1);
+    }
+
+    // -----------------------------------------------------------------------
+    // Smoothness tests (3D LUT)
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_smoothness_identity_lut_passes() {
+        let size = 5_usize;
+        let data = make_identity_3d_rgb(size);
+        let report = check_3d_smoothness(&data, size, 0.5).expect("valid");
+        assert!(report.passes);
+        assert_eq!(report.rough_pair_count, 0);
+        assert!(report.gradient_stats.mean > 0.0);
+        assert!(report.gradient_stats.max < 0.5);
+    }
+
+    #[test]
+    fn test_smoothness_discontinuity_detected() {
+        let size = 5_usize;
+        let mut data = make_identity_3d_rgb(size);
+        data[0] = [0.9, 0.9, 0.9]; // large jump
+        let report = check_3d_smoothness(&data, size, 0.2).expect("valid");
+        assert!(!report.passes);
+        assert!(report.rough_pair_count > 0);
+    }
+
+    #[test]
+    fn test_smoothness_gradient_stats_sane() {
+        let size = 3_usize;
+        let data = make_identity_3d_rgb(size);
+        let report = check_3d_smoothness(&data, size, f64::INFINITY).expect("valid");
+        assert!(report.passes);
+        assert!(report.gradient_stats.mean > 0.0);
+        assert!(report.gradient_stats.max >= report.gradient_stats.mean);
+        assert!(report.gradient_stats.p95 <= report.gradient_stats.max);
+    }
+
+    #[test]
+    fn test_smoothness_invalid_returns_none() {
+        let data = vec![[0.5f64; 3]; 27];
+        assert!(check_3d_smoothness(&data, 1, 1.0).is_none()); // size < 2
+        assert!(check_3d_smoothness(&data, 4, 1.0).is_none()); // 4³=64 ≠ 27
+    }
+
+    #[test]
+    fn test_smoothness_sample_count() {
+        let size = 4_usize;
+        let data = make_identity_3d_rgb(size);
+        let report = check_3d_smoothness(&data, size, f64::INFINITY).expect("valid");
+        let expected = 3 * size * size * (size - 1);
+        assert_eq!(report.gradient_stats.sample_count, expected);
+    }
+
+    #[test]
+    fn test_smoothness_constant_lut_zero_gradient() {
+        let size = 3_usize;
+        let data = vec![[0.5f64; 3]; size * size * size];
+        let report = check_3d_smoothness(&data, size, 0.0001).expect("valid");
+        assert!(report.passes);
+        assert!(report.gradient_stats.max < 1e-12);
     }
 }

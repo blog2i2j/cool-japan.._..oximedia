@@ -223,6 +223,101 @@ impl EasManager {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// EAS playout controller — tracks audio/video interruption and restoration
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Describes which content type is currently on-air.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum OutputType {
+    /// Regular programme content.
+    Normal,
+    /// EAS alert is interrupting normal content.
+    Eas,
+}
+
+/// Lightweight controller that tracks whether an EAS alert is currently
+/// interrupting normal playout.
+///
+/// This struct uses simulated elapsed time to determine whether the active
+/// alert has expired, modelling the audio/video restoration that occurs when
+/// an EAS break ends.  It is deliberately synchronous so tests can exercise
+/// it without a Tokio runtime.
+pub struct EasPlayoutController {
+    /// Queued alerts: (alert, duration after which it expires).
+    alerts: Vec<(EasAlert, Duration)>,
+    /// Content identifier for the background programme.
+    background: String,
+    /// Simulated elapsed time (advanced by `advance_time`).
+    elapsed: Duration,
+}
+
+impl EasPlayoutController {
+    /// Create a new playout controller.
+    pub fn new() -> Self {
+        Self {
+            alerts: Vec::new(),
+            background: String::new(),
+            elapsed: Duration::ZERO,
+        }
+    }
+
+    /// Set the background programme content identifier.
+    pub fn set_background_content(&mut self, content: &str) {
+        self.background = content.to_string();
+    }
+
+    /// Insert an EAS alert.  Higher-priority alerts pre-empt lower-priority
+    /// ones.  The alert is valid for `duration` of simulated time from the
+    /// moment it is inserted, measured from the current simulated clock.
+    pub fn insert_alert(&mut self, alert: EasAlert, duration: Duration) {
+        // Store the absolute simulated expiry time.
+        let expires_at = self.elapsed + duration;
+        self.alerts.push((alert, expires_at));
+        // Sort by priority descending (highest first).
+        self.alerts.sort_by(|a, b| b.0.priority.cmp(&a.0.priority));
+    }
+
+    /// Advance the simulated clock by `delta`.
+    ///
+    /// Any alerts whose simulated expiry time has passed are removed.
+    pub fn advance_time(&mut self, delta: Duration) {
+        self.elapsed += delta;
+        self.alerts
+            .retain(|(_, expires_at)| self.elapsed < *expires_at);
+    }
+
+    /// Return the current output type based on whether any alert is active.
+    pub fn current_output(&self) -> OutputType {
+        if self.alerts.is_empty() {
+            OutputType::Normal
+        } else {
+            OutputType::Eas
+        }
+    }
+
+    /// Return the highest-priority active alert, if any.
+    pub fn highest_priority_alert(&self) -> Option<&EasAlert> {
+        self.alerts.first().map(|(a, _)| a)
+    }
+
+    /// Return the current background content identifier.
+    pub fn background_content(&self) -> &str {
+        &self.background
+    }
+
+    /// Return the number of active alerts.
+    pub fn active_alert_count(&self) -> usize {
+        self.alerts.len()
+    }
+}
+
+impl Default for EasPlayoutController {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // CAP (Common Alerting Protocol) XML parsing
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -404,6 +499,196 @@ mod tests {
 
         let active = manager.get_active_alerts().await;
         assert_eq!(active.len(), 1);
+    }
+
+    // ─── EasPlayoutController tests ─────────────────────────────────────────
+
+    #[test]
+    fn eas_playout_controller_starts_in_normal_mode() {
+        let ctrl = EasPlayoutController::new();
+        assert_eq!(ctrl.current_output(), OutputType::Normal);
+        assert_eq!(ctrl.active_alert_count(), 0);
+    }
+
+    #[test]
+    fn eas_alert_interrupts_playout() {
+        let mut ctrl = EasPlayoutController::new();
+        ctrl.set_background_content("normal_show");
+        assert_eq!(ctrl.background_content(), "normal_show");
+        assert_eq!(ctrl.current_output(), OutputType::Normal);
+
+        // Insert a Critical EAS alert lasting 60 simulated seconds.
+        let alert = EasAlert::new(
+            EasAlertType::NationalEmergencyMessage,
+            "National emergency!".to_string(),
+            Duration::from_secs(60),
+        );
+        ctrl.insert_alert(alert, Duration::from_secs(60));
+
+        assert_eq!(
+            ctrl.current_output(),
+            OutputType::Eas,
+            "output must switch to EAS after alert insertion"
+        );
+    }
+
+    #[test]
+    fn eas_alert_restoration_after_duration() {
+        let mut ctrl = EasPlayoutController::new();
+        ctrl.set_background_content("normal_show");
+
+        let alert = EasAlert::new(
+            EasAlertType::TornadoWarning,
+            "Tornado warning!".to_string(),
+            Duration::from_secs(30),
+        );
+        ctrl.insert_alert(alert, Duration::from_secs(30));
+        assert_eq!(ctrl.current_output(), OutputType::Eas);
+
+        // Advance past the alert's duration.
+        ctrl.advance_time(Duration::from_secs(31));
+        assert_eq!(
+            ctrl.current_output(),
+            OutputType::Normal,
+            "output must restore to Normal after alert expires"
+        );
+    }
+
+    #[test]
+    fn eas_higher_priority_alert_preempts_lower() {
+        let mut ctrl = EasPlayoutController::new();
+
+        let low = EasAlert::new(
+            EasAlertType::RequiredWeeklyTest,
+            "Weekly test".to_string(),
+            Duration::from_secs(60),
+        );
+        let high = EasAlert::new(
+            EasAlertType::EmergencyActionNotification,
+            "Emergency!".to_string(),
+            Duration::from_secs(60),
+        );
+
+        ctrl.insert_alert(low, Duration::from_secs(60));
+        ctrl.insert_alert(high.clone(), Duration::from_secs(60));
+
+        let top = ctrl
+            .highest_priority_alert()
+            .expect("at least one alert active");
+        assert_eq!(
+            top.priority,
+            AlertPriority::Critical,
+            "Critical alert should be first in queue"
+        );
+        assert_eq!(top.event_code, high.event_code);
+    }
+
+    #[test]
+    fn eas_priority_ordering_extreme_to_low() {
+        // AlertPriority uses integer discriminants: Low=1, Medium=2, High=3, Critical=4
+        assert!(AlertPriority::Critical > AlertPriority::High);
+        assert!(AlertPriority::High > AlertPriority::Medium);
+        assert!(AlertPriority::Medium > AlertPriority::Low);
+    }
+
+    #[test]
+    fn eas_multiple_alerts_queued_highest_shown_first() {
+        let mut ctrl = EasPlayoutController::new();
+
+        for alert_type in [
+            EasAlertType::RequiredMonthlyTest,
+            EasAlertType::SevereThunderstormWarning,
+            EasAlertType::TornadoWarning,
+            EasAlertType::CivilEmergencyMessage,
+        ] {
+            let a = EasAlert::new(alert_type, "msg".to_string(), Duration::from_secs(60));
+            ctrl.insert_alert(a, Duration::from_secs(60));
+        }
+
+        assert_eq!(ctrl.active_alert_count(), 4);
+        let top = ctrl.highest_priority_alert().expect("alerts present");
+        assert_eq!(top.priority, AlertPriority::Critical);
+    }
+
+    #[test]
+    fn eas_lower_priority_expires_higher_remains() {
+        let mut ctrl = EasPlayoutController::new();
+
+        // Low-priority alert expires after 10 s.
+        let low = EasAlert::new(
+            EasAlertType::RequiredWeeklyTest,
+            "test".to_string(),
+            Duration::from_secs(10),
+        );
+        // High-priority alert lasts 60 s.
+        let high = EasAlert::new(
+            EasAlertType::FlashFloodWarning,
+            "flood".to_string(),
+            Duration::from_secs(60),
+        );
+
+        ctrl.insert_alert(low, Duration::from_secs(10));
+        ctrl.insert_alert(high, Duration::from_secs(60));
+        assert_eq!(ctrl.active_alert_count(), 2);
+
+        // Advance past low-priority expiry but before high-priority.
+        ctrl.advance_time(Duration::from_secs(11));
+        assert_eq!(
+            ctrl.active_alert_count(),
+            1,
+            "low-priority alert should have expired"
+        );
+        assert_eq!(
+            ctrl.current_output(),
+            OutputType::Eas,
+            "high-priority still active"
+        );
+    }
+
+    #[test]
+    fn eas_all_alerts_expire_restores_to_normal() {
+        let mut ctrl = EasPlayoutController::new();
+        ctrl.set_background_content("show");
+
+        let a = EasAlert::new(
+            EasAlertType::TornadoWarning,
+            "Tornado".to_string(),
+            Duration::from_secs(5),
+        );
+        ctrl.insert_alert(a, Duration::from_secs(5));
+        assert_eq!(ctrl.current_output(), OutputType::Eas);
+
+        ctrl.advance_time(Duration::from_secs(6));
+        assert_eq!(ctrl.current_output(), OutputType::Normal);
+        assert_eq!(ctrl.background_content(), "show");
+    }
+
+    #[tokio::test]
+    async fn eas_manager_priority_sort_on_handle() {
+        let mut manager = EasManager::new().await.expect("new should succeed");
+
+        let low = EasAlert::new(
+            EasAlertType::RequiredWeeklyTest,
+            "Test".to_string(),
+            Duration::from_secs(120),
+        );
+        let critical = EasAlert::new(
+            EasAlertType::NationalEmergencyMessage,
+            "National emergency".to_string(),
+            Duration::from_secs(120),
+        );
+
+        manager.handle_alert(low).await.expect("handle low");
+        manager
+            .handle_alert(critical)
+            .await
+            .expect("handle critical");
+
+        let top = manager
+            .get_highest_priority_alert()
+            .await
+            .expect("should have an alert");
+        assert_eq!(top.priority, AlertPriority::Critical);
     }
 
     #[test]

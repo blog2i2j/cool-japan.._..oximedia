@@ -24,9 +24,9 @@ pcm = []
 oximedia-core.workspace = true
 bytes.workspace = true
 thiserror.workspace = true
-rubato = "1.0"
-audioadapter = "2.0"
-audioadapter-buffers = "2.0"
+rubato = "2.0"
+audioadapter = "3.0"
+audioadapter-buffers = "3.0"
 oxifft.workspace = true
 
 [dev-dependencies]

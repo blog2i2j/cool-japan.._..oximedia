@@ -8,7 +8,7 @@
 
 use crate::error::{NetError, NetResult};
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;

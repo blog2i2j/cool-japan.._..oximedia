@@ -514,6 +514,310 @@ impl ReframeSequence {
 }
 
 // ---------------------------------------------------------------------------
+// SubjectTracker — multi-frame subject tracking for smooth panning
+// ---------------------------------------------------------------------------
+
+/// A bounding box for a tracked subject within a frame.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SubjectBounds {
+    /// Center X in source pixels.
+    pub cx: f32,
+    /// Center Y in source pixels.
+    pub cy: f32,
+    /// Bounding-box width in source pixels.
+    pub width: f32,
+    /// Bounding-box height in source pixels.
+    pub height: f32,
+    /// Detection confidence `[0, 1]`.
+    pub confidence: f32,
+}
+
+impl SubjectBounds {
+    /// Create bounds, clamping `confidence` to `[0, 1]`.
+    #[must_use]
+    pub fn new(cx: f32, cy: f32, width: f32, height: f32, confidence: f32) -> Self {
+        Self {
+            cx,
+            cy,
+            width,
+            height,
+            confidence: confidence.clamp(0.0, 1.0),
+        }
+    }
+
+    /// Return the centre `(cx, cy)` as the recommended crop focus point.
+    #[must_use]
+    pub fn focus_point(&self) -> (f32, f32) {
+        (self.cx, self.cy)
+    }
+}
+
+/// Tracks a subject across multiple frames using an exponential moving average
+/// (EMA) to produce a smooth panning trajectory for reframing.
+#[derive(Debug, Clone)]
+pub struct SubjectTracker {
+    /// EMA smoothing factor in `[0, 1]`. Higher = more lag / smoother.
+    pub smoothing: f32,
+    /// Detections below this threshold are ignored.
+    pub min_confidence: f32,
+    history: Vec<(u64, SubjectBounds)>,
+    ema_cx: Option<f32>,
+    ema_cy: Option<f32>,
+}
+
+impl SubjectTracker {
+    /// Create a new tracker.
+    #[must_use]
+    pub fn new(smoothing: f32, min_confidence: f32) -> Self {
+        Self {
+            smoothing: smoothing.clamp(0.0, 1.0),
+            min_confidence: min_confidence.clamp(0.0, 1.0),
+            history: Vec::new(),
+            ema_cx: None,
+            ema_cy: None,
+        }
+    }
+
+    /// Feed a new detection at `frame_idx`.
+    ///
+    /// Detections below `self.min_confidence` carry the previous EMA forward.
+    pub fn update(&mut self, frame_idx: u64, bounds: SubjectBounds) {
+        if bounds.confidence < self.min_confidence {
+            if let (Some(ex), Some(ey)) = (self.ema_cx, self.ema_cy) {
+                let synth = SubjectBounds::new(ex, ey, bounds.width, bounds.height, 0.0);
+                self.history.push((frame_idx, synth));
+            }
+            return;
+        }
+        let new_cx = self.ema_cx.map_or(bounds.cx, |p| {
+            p * self.smoothing + bounds.cx * (1.0 - self.smoothing)
+        });
+        let new_cy = self.ema_cy.map_or(bounds.cy, |p| {
+            p * self.smoothing + bounds.cy * (1.0 - self.smoothing)
+        });
+        self.ema_cx = Some(new_cx);
+        self.ema_cy = Some(new_cy);
+        self.history.push((
+            frame_idx,
+            SubjectBounds::new(
+                new_cx,
+                new_cy,
+                bounds.width,
+                bounds.height,
+                bounds.confidence,
+            ),
+        ));
+    }
+
+    /// Clear all history and reset the EMA.
+    pub fn reset(&mut self) {
+        self.history.clear();
+        self.ema_cx = None;
+        self.ema_cy = None;
+    }
+
+    /// Borrow the raw tracking history.
+    #[must_use]
+    pub fn history(&self) -> &[(u64, SubjectBounds)] {
+        &self.history
+    }
+
+    /// Return the latest EMA position `(cx, cy)`, if any.
+    #[must_use]
+    pub fn current_position(&self) -> Option<(f32, f32)> {
+        self.ema_cx.zip(self.ema_cy)
+    }
+
+    /// Build a [`ReframeSequence`] centered on tracked positions.
+    #[must_use]
+    pub fn generate_sequence(
+        &self,
+        src_w: u32,
+        src_h: u32,
+        target: &ReframeTarget,
+        total_frames: u64,
+    ) -> ReframeSequence {
+        let (crop_w, crop_h) = target.crop_size_for_source(src_w, src_h);
+        let kfs = self
+            .history
+            .iter()
+            .map(|(idx, b)| {
+                let (fx, fy) = b.focus_point();
+                let w = ReframeWindow {
+                    x: (fx - crop_w as f32 / 2.0).round() as i32,
+                    y: (fy - crop_h as f32 / 2.0).round() as i32,
+                    width: crop_w,
+                    height: crop_h,
+                }
+                .clamped(src_w, src_h);
+                (*idx, w)
+            })
+            .collect();
+        ReframeSequence::new(kfs, total_frames)
+    }
+
+    /// Build a smooth [`ReframeSequence`] with an extra trajectory-smoothing pass.
+    #[must_use]
+    pub fn generate_smooth_sequence(
+        &self,
+        src_w: u32,
+        src_h: u32,
+        target: &ReframeTarget,
+        total_frames: u64,
+        trajectory_smoothing: f32,
+    ) -> ReframeSequence {
+        let raw = self.generate_sequence(src_w, src_h, target, total_frames);
+        let wins: Vec<ReframeWindow> = raw.frames.iter().map(|(_, w)| *w).collect();
+        let smoothed = SmartReframer::smooth_trajectory(&wins, trajectory_smoothing);
+        let kfs = raw
+            .frames
+            .iter()
+            .zip(smoothed.iter())
+            .map(|((idx, _), w)| (*idx, *w))
+            .collect();
+        ReframeSequence::new(kfs, total_frames)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Vertical-to-horizontal reframing
+// ---------------------------------------------------------------------------
+
+/// Orientation of a video frame derived from its dimensions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FrameOrientation {
+    /// Width > Height.
+    Landscape,
+    /// Height > Width.
+    Portrait,
+    /// Width == Height.
+    Square,
+}
+
+impl FrameOrientation {
+    /// Detect from pixel dimensions.
+    #[must_use]
+    pub fn from_dimensions(width: u32, height: u32) -> Self {
+        match width.cmp(&height) {
+            std::cmp::Ordering::Greater => Self::Landscape,
+            std::cmp::Ordering::Less => Self::Portrait,
+            std::cmp::Ordering::Equal => Self::Square,
+        }
+    }
+}
+
+/// Strategy for filling the side bars when placing a portrait source in a
+/// landscape output canvas.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum VerticalToHorizontalStrategy {
+    /// Black pillarboxes.
+    Pillarbox,
+    /// Blurred / stretched fill (common on platforms).
+    BlurredSides,
+    /// Horizontal stretch (distorts).
+    Stretch,
+    /// Mirror the left/right edges.
+    MirrorSides,
+    /// Saliency-guided dual crop.
+    SmartCrop,
+}
+
+/// Parameters for converting a portrait (vertical) source frame to a
+/// landscape (horizontal) output canvas.
+#[derive(Debug, Clone)]
+pub struct VerticalToHorizontalParams {
+    /// Source frame width.
+    pub src_width: u32,
+    /// Source frame height.
+    pub src_height: u32,
+    /// Output canvas width.
+    pub output_width: u32,
+    /// Output canvas height.
+    pub output_height: u32,
+    /// Conversion strategy.
+    pub strategy: VerticalToHorizontalStrategy,
+}
+
+impl VerticalToHorizontalParams {
+    /// Convenience preset: 9:16 (1080×1920) → 16:9 (1920×1080).
+    #[must_use]
+    pub fn vertical_to_widescreen() -> Self {
+        Self {
+            src_width: 1080,
+            src_height: 1920,
+            output_width: 1920,
+            output_height: 1080,
+            strategy: VerticalToHorizontalStrategy::BlurredSides,
+        }
+    }
+
+    /// Create with explicit dimensions and strategy.
+    #[must_use]
+    pub fn new(
+        src_width: u32,
+        src_height: u32,
+        output_width: u32,
+        output_height: u32,
+        strategy: VerticalToHorizontalStrategy,
+    ) -> Self {
+        Self {
+            src_width,
+            src_height,
+            output_width,
+            output_height,
+            strategy,
+        }
+    }
+
+    /// Placement of the primary (subject) area in the output canvas.
+    ///
+    /// Returns `(out_x, out_y, placed_width, placed_height)` in output pixels.
+    #[must_use]
+    pub fn primary_placement(&self) -> (i32, i32, u32, u32) {
+        let scale = self.output_height as f64 / self.src_height as f64;
+        let placed_w = (self.src_width as f64 * scale).round() as u32;
+        let placed_h = self.output_height;
+        let out_x = ((self.output_width as i32 - placed_w as i32) / 2).max(0);
+        (out_x, 0, placed_w.min(self.output_width), placed_h)
+    }
+
+    /// Side-bar regions in output coordinates.
+    ///
+    /// Returns `(left_x, left_w, right_x, right_w)`.
+    #[must_use]
+    pub fn side_regions(&self) -> (u32, u32, u32, u32) {
+        let (out_x, _, placed_w, _) = self.primary_placement();
+        let left_w = out_x as u32;
+        let right_x = (out_x as u32 + placed_w).min(self.output_width);
+        let right_w = self.output_width.saturating_sub(right_x);
+        (0, left_w, right_x, right_w)
+    }
+
+    /// Saliency-guided crop window (in *source* coordinates) for the primary area.
+    #[must_use]
+    pub fn saliency_crop_window(&self, saliency: &SaliencyMap) -> ReframeWindow {
+        let scale = self.output_height as f64 / self.src_height as f64;
+        let placed_w = (self.src_width as f64 * scale).round() as u32;
+        if placed_w >= self.output_width {
+            let target = ReframeTarget {
+                aspect_width: self.output_width,
+                aspect_height: self.output_height,
+                output_width: self.output_width,
+                output_height: self.output_height,
+            };
+            SmartReframer::compute_optimal_crop(self.src_width, self.src_height, saliency, &target)
+        } else {
+            ReframeWindow {
+                x: 0,
+                y: 0,
+                width: self.src_width,
+                height: self.src_height,
+            }
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
@@ -776,5 +1080,174 @@ mod tests {
         ];
         let seq = ReframeSequence::new(kfs, 120);
         assert_eq!(seq.keyframe_count(), 3);
+    }
+
+    // SubjectBounds
+
+    #[test]
+    fn test_subject_bounds_clamps_confidence() {
+        let hi = SubjectBounds::new(0.0, 0.0, 10.0, 10.0, 2.0);
+        assert!(hi.confidence <= 1.0);
+        let lo = SubjectBounds::new(0.0, 0.0, 10.0, 10.0, -0.5);
+        assert!(lo.confidence >= 0.0);
+    }
+
+    #[test]
+    fn test_subject_bounds_focus_point() {
+        let b = SubjectBounds::new(100.0, 200.0, 50.0, 80.0, 0.9);
+        let (fx, fy) = b.focus_point();
+        assert!((fx - 100.0).abs() < 0.01);
+        assert!((fy - 200.0).abs() < 0.01);
+    }
+
+    // SubjectTracker
+
+    fn make_bounds(cx: f32, cy: f32, conf: f32) -> SubjectBounds {
+        SubjectBounds::new(cx, cy, 100.0, 150.0, conf)
+    }
+
+    #[test]
+    fn test_tracker_no_smoothing_follows_raw() {
+        let mut t = SubjectTracker::new(0.0, 0.0);
+        t.update(0, make_bounds(100.0, 200.0, 1.0));
+        t.update(1, make_bounds(300.0, 400.0, 1.0));
+        let (cx, cy) = t.current_position().expect("pos");
+        assert!((cx - 300.0).abs() < 1.0, "cx={cx}");
+        assert!((cy - 400.0).abs() < 1.0, "cy={cy}");
+    }
+
+    #[test]
+    fn test_tracker_ema_reduces_jump() {
+        let mut t = SubjectTracker::new(0.5, 0.0);
+        t.update(0, make_bounds(0.0, 0.0, 1.0));
+        t.update(1, make_bounds(200.0, 200.0, 1.0));
+        let (cx, _) = t.current_position().expect("pos");
+        assert!((cx - 100.0).abs() < 1.0, "cx={cx}");
+    }
+
+    #[test]
+    fn test_tracker_ignores_low_confidence() {
+        let mut t = SubjectTracker::new(0.0, 0.8);
+        t.update(0, make_bounds(100.0, 100.0, 1.0));
+        t.update(1, make_bounds(900.0, 900.0, 0.1));
+        let (cx, _) = t.current_position().expect("pos");
+        assert!((cx - 100.0).abs() < 1.0, "cx={cx}");
+    }
+
+    #[test]
+    fn test_tracker_reset() {
+        let mut t = SubjectTracker::new(0.0, 0.0);
+        t.update(0, make_bounds(100.0, 100.0, 1.0));
+        t.reset();
+        assert!(t.current_position().is_none());
+        assert!(t.history().is_empty());
+    }
+
+    #[test]
+    fn test_tracker_history_count() {
+        let mut t = SubjectTracker::new(0.0, 0.0);
+        for i in 0..5u64 {
+            t.update(i, make_bounds(i as f32 * 10.0, 0.0, 1.0));
+        }
+        assert_eq!(t.history().len(), 5);
+    }
+
+    #[test]
+    fn test_tracker_generate_sequence_count() {
+        let mut t = SubjectTracker::new(0.0, 0.0);
+        t.update(0, make_bounds(540.0, 960.0, 1.0));
+        t.update(30, make_bounds(600.0, 900.0, 1.0));
+        let seq = t.generate_sequence(1080, 1920, &ReframeTarget::landscape_1080p(), 60);
+        assert_eq!(seq.keyframe_count(), 2);
+    }
+
+    #[test]
+    fn test_tracker_generate_sequence_clamped() {
+        let mut t = SubjectTracker::new(0.0, 0.0);
+        t.update(0, make_bounds(5.0, 5.0, 1.0));
+        let seq = t.generate_sequence(1080, 1920, &ReframeTarget::landscape_1080p(), 30);
+        let w = seq.interpolate_at(0);
+        assert!(w.x >= 0 && w.y >= 0);
+    }
+
+    #[test]
+    fn test_tracker_smooth_sequence_count() {
+        let mut t = SubjectTracker::new(0.0, 0.0);
+        for i in 0..8u64 {
+            t.update(i * 5, make_bounds(i as f32 * 30.0, 500.0, 1.0));
+        }
+        let seq =
+            t.generate_smooth_sequence(1080, 1920, &ReframeTarget::landscape_1080p(), 60, 0.5);
+        assert_eq!(seq.keyframe_count(), 8);
+    }
+
+    // FrameOrientation
+
+    #[test]
+    fn test_frame_orientation_landscape() {
+        assert_eq!(
+            FrameOrientation::from_dimensions(1920, 1080),
+            FrameOrientation::Landscape
+        );
+    }
+
+    #[test]
+    fn test_frame_orientation_portrait() {
+        assert_eq!(
+            FrameOrientation::from_dimensions(1080, 1920),
+            FrameOrientation::Portrait
+        );
+    }
+
+    #[test]
+    fn test_frame_orientation_square() {
+        assert_eq!(
+            FrameOrientation::from_dimensions(1080, 1080),
+            FrameOrientation::Square
+        );
+    }
+
+    // VerticalToHorizontalParams
+
+    #[test]
+    fn test_primary_placement_centered() {
+        let p = VerticalToHorizontalParams::vertical_to_widescreen();
+        let (out_x, out_y, placed_w, placed_h) = p.primary_placement();
+        assert_eq!(placed_h, 1080);
+        assert!(placed_w < 1920);
+        let expected_x = (1920 - placed_w as i32) / 2;
+        assert_eq!(out_x, expected_x);
+        assert_eq!(out_y, 0);
+    }
+
+    #[test]
+    fn test_side_regions_sum() {
+        let p = VerticalToHorizontalParams::vertical_to_widescreen();
+        let (_, _, placed_w, _) = p.primary_placement();
+        let (_, left_w, _, right_w) = p.side_regions();
+        assert_eq!(left_w + placed_w + right_w, p.output_width);
+    }
+
+    #[test]
+    fn test_saliency_crop_full_source() {
+        let p = VerticalToHorizontalParams::vertical_to_widescreen();
+        let sal = SaliencyMap::uniform(p.src_width, p.src_height);
+        let w = p.saliency_crop_window(&sal);
+        assert_eq!(w.width, p.src_width);
+        assert_eq!(w.height, p.src_height);
+    }
+
+    #[test]
+    fn test_square_source_in_landscape() {
+        let p = VerticalToHorizontalParams::new(
+            1080,
+            1080,
+            1920,
+            1080,
+            VerticalToHorizontalStrategy::Pillarbox,
+        );
+        let (out_x, _, placed_w, _) = p.primary_placement();
+        assert_eq!(placed_w, 1080);
+        assert!(out_x > 0);
     }
 }

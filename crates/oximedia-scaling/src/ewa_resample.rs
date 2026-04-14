@@ -288,6 +288,330 @@ impl EwaResampler {
     }
 }
 
+// ── FilterWeightTable ─────────────────────────────────────────────────────────
+
+/// A precomputed 1D filter weight table for a specific (src_len, dst_len) pair.
+///
+/// Computing filter weights for each output sample during scaling is expensive
+/// when the same scale factor is applied to many rows or columns (e.g., when
+/// scaling all rows of an image to the same target width).  This structure
+/// amortises that cost by precomputing all weights once and storing them in a
+/// flat, cache-friendly layout.
+///
+/// # Memory layout
+///
+/// Weights are stored in row-major order: the weights for output sample `i`
+/// occupy `self.entries[i]` which is a `Vec<WeightEntry>`.  To avoid
+/// per-lookup allocation the table uses a flat `Vec<f32>` and a separate
+/// `Vec<(usize, usize)>` slice index.
+///
+/// # Example
+///
+/// ```
+/// use oximedia_scaling::ewa_resample::{EwaFilter, FilterWeightTable};
+///
+/// // Precompute weights for 2x downscale (8 → 4) with Mitchell filter.
+/// let table = FilterWeightTable::build(
+///     &EwaFilter::Mitchell(1.0 / 3.0, 1.0 / 3.0),
+///     8, 4,
+/// );
+/// assert_eq!(table.dst_len(), 4);
+/// // Apply the table to a source signal.
+/// let src: Vec<f32> = (0..8).map(|i| i as f32 / 7.0).collect();
+/// let dst = table.apply(&src);
+/// assert_eq!(dst.len(), 4);
+/// // Output should be monotonically increasing.
+/// for w in dst.windows(2) {
+///     assert!(w[1] >= w[0] - 0.01, "non-monotone");
+/// }
+/// ```
+#[derive(Debug, Clone)]
+pub struct FilterWeightTable {
+    /// Scale ratio: src_len / dst_len.
+    scale: f32,
+    /// Source length this table was computed for.
+    src_len: usize,
+    /// Destination length this table was computed for.
+    dst_len: usize,
+    /// Flat weight storage.  The weights for output sample `i` start at offset
+    /// `offsets[i].0` and have count `offsets[i].1`.  Weights are normalised
+    /// so their sum is 1.0.
+    weights: Vec<f32>,
+    /// `(start_offset, count)` for each output sample.
+    offsets: Vec<(usize, usize)>,
+    /// Source sample index corresponding to each weight entry.
+    src_indices: Vec<usize>,
+}
+
+impl FilterWeightTable {
+    /// Build a weight table for resampling from `src_len` to `dst_len` samples
+    /// using the given `filter`.
+    ///
+    /// # Panics
+    ///
+    /// Does not panic; returns a zero-sized table when either dimension is 0.
+    #[must_use]
+    pub fn build(filter: &EwaFilter, src_len: usize, dst_len: usize) -> Self {
+        if src_len == 0 || dst_len == 0 {
+            return Self {
+                scale: 1.0,
+                src_len,
+                dst_len,
+                weights: Vec::new(),
+                offsets: Vec::new(),
+                src_indices: Vec::new(),
+            };
+        }
+
+        let scale = src_len as f32 / dst_len as f32;
+        let support = filter.support_radius() * scale.max(1.0);
+
+        let mut weights: Vec<f32> = Vec::new();
+        let mut offsets: Vec<(usize, usize)> = Vec::with_capacity(dst_len);
+        let mut src_indices: Vec<usize> = Vec::new();
+
+        for i in 0..dst_len {
+            // Centre of output sample `i` mapped back to source space.
+            let centre = (i as f32 + 0.5) * scale - 0.5;
+            let lo = (centre - support).floor() as i64;
+            let hi = (centre + support).ceil() as i64;
+
+            let entry_start = weights.len();
+            let mut weight_sum = 0.0f32;
+
+            for s in lo..=hi {
+                let clamped = s.clamp(0, src_len as i64 - 1) as usize;
+                let x = (s as f32 - centre) / scale.max(1.0);
+                let w = filter.evaluate(x);
+                weight_sum += w;
+                weights.push(w);
+                src_indices.push(clamped);
+            }
+
+            let count = weights.len() - entry_start;
+
+            // Normalise weights so they sum to 1.0.
+            if weight_sum.abs() > 1e-8 {
+                let inv = 1.0 / weight_sum;
+                for w in &mut weights[entry_start..entry_start + count] {
+                    *w *= inv;
+                }
+            }
+
+            offsets.push((entry_start, count));
+        }
+
+        Self {
+            scale,
+            src_len,
+            dst_len,
+            weights,
+            offsets,
+            src_indices,
+        }
+    }
+
+    /// Returns the number of source samples this table was built for.
+    #[inline]
+    #[must_use]
+    pub fn src_len(&self) -> usize {
+        self.src_len
+    }
+
+    /// Returns the number of destination samples this table will produce.
+    #[inline]
+    #[must_use]
+    pub fn dst_len(&self) -> usize {
+        self.dst_len
+    }
+
+    /// Returns the scale ratio (src/dst) for this table.
+    #[inline]
+    #[must_use]
+    pub fn scale(&self) -> f32 {
+        self.scale
+    }
+
+    /// Apply the precomputed weights to a source signal slice.
+    ///
+    /// `src` must have length `>= src_len`.  If it is shorter, missing values
+    /// are treated as 0.  Returns a `Vec<f32>` of length `dst_len`.
+    #[must_use]
+    pub fn apply(&self, src: &[f32]) -> Vec<f32> {
+        if self.dst_len == 0 || self.offsets.is_empty() {
+            return Vec::new();
+        }
+        let mut dst = vec![0.0f32; self.dst_len];
+        for (i, (start, count)) in self.offsets.iter().enumerate() {
+            let mut acc = 0.0f32;
+            for j in 0..*count {
+                let src_idx = self.src_indices[start + j];
+                let w = self.weights[start + j];
+                let sample = src.get(src_idx).copied().unwrap_or(0.0);
+                acc += w * sample;
+            }
+            dst[i] = acc;
+        }
+        dst
+    }
+
+    /// Apply the precomputed weights to a u8 source signal, returning `Vec<f32>`
+    /// in `[0, 255]` floating-point range.
+    ///
+    /// Useful for integer pixel data; caller can clamp and convert back to u8.
+    #[must_use]
+    pub fn apply_u8(&self, src: &[u8]) -> Vec<f32> {
+        if self.dst_len == 0 {
+            return Vec::new();
+        }
+        let mut dst = vec![0.0f32; self.dst_len];
+        for (i, (start, count)) in self.offsets.iter().enumerate() {
+            let mut acc = 0.0f32;
+            for j in 0..*count {
+                let src_idx = self.src_indices[start + j];
+                let w = self.weights[start + j];
+                let sample = src.get(src_idx).copied().unwrap_or(0) as f32;
+                acc += w * sample;
+            }
+            dst[i] = acc;
+        }
+        dst
+    }
+
+    /// Use this table to scale a 2D grayscale image (horizontal pass).
+    ///
+    /// The table is applied independently to each row of the `src` image.
+    /// `src` must have length `src_h * src_len`.  Returns a buffer of size
+    /// `src_h * dst_len`.
+    #[must_use]
+    pub fn apply_horizontal_pass(&self, src: &[f32], src_h: usize) -> Vec<f32> {
+        let mut out = vec![0.0f32; src_h * self.dst_len];
+        for row in 0..src_h {
+            let src_row = &src[row * self.src_len..(row + 1) * self.src_len];
+            let dst_row = self.apply(src_row);
+            out[row * self.dst_len..(row + 1) * self.dst_len].copy_from_slice(&dst_row);
+        }
+        out
+    }
+
+    /// Use this table to scale a 2D grayscale image (vertical pass).
+    ///
+    /// Each column of `src` (width `src_w`, height `src_len`) is resampled to
+    /// height `dst_len`.  Returns a buffer of size `dst_len * src_w`.
+    #[must_use]
+    pub fn apply_vertical_pass(&self, src: &[f32], src_w: usize) -> Vec<f32> {
+        let src_h = self.src_len;
+        let dst_h = self.dst_len;
+        let mut out = vec![0.0f32; dst_h * src_w];
+
+        for col in 0..src_w {
+            // Extract column into a temporary buffer.
+            let col_buf: Vec<f32> = (0..src_h).map(|r| src[r * src_w + col]).collect();
+            let resampled = self.apply(&col_buf);
+            for (row, &v) in resampled.iter().enumerate() {
+                out[row * src_w + col] = v;
+            }
+        }
+        out
+    }
+}
+
+/// A pair of precomputed weight tables for 2D image scaling.
+///
+/// Holds one table for the horizontal pass and one for the vertical pass,
+/// enabling full-image scaling with a single pair of builds followed by
+/// O(dst_w × src_h + dst_h × dst_w) work — far faster than the EWA
+/// per-pixel approach when scaling many rows to the same target size.
+///
+/// # Example
+///
+/// ```
+/// use oximedia_scaling::ewa_resample::{EwaFilter, ScaleWeightCache};
+///
+/// let cache = ScaleWeightCache::build(
+///     &EwaFilter::Mitchell(1.0/3.0, 1.0/3.0),
+///     8, 8,   // src dimensions
+///     4, 4,   // dst dimensions
+/// );
+/// let src: Vec<f32> = (0..64).map(|i| i as f32 / 63.0).collect();
+/// let dst = cache.apply(&src);
+/// assert_eq!(dst.len(), 16); // 4 × 4
+/// ```
+#[derive(Debug, Clone)]
+pub struct ScaleWeightCache {
+    h_table: FilterWeightTable,
+    v_table: FilterWeightTable,
+}
+
+impl ScaleWeightCache {
+    /// Build horizontal and vertical weight tables for scaling from
+    /// `(src_w, src_h)` to `(dst_w, dst_h)`.
+    #[must_use]
+    pub fn build(
+        filter: &EwaFilter,
+        src_w: usize,
+        src_h: usize,
+        dst_w: usize,
+        dst_h: usize,
+    ) -> Self {
+        Self {
+            h_table: FilterWeightTable::build(filter, src_w, dst_w),
+            v_table: FilterWeightTable::build(filter, src_h, dst_h),
+        }
+    }
+
+    /// Apply the cached tables to scale `src` from the configured source
+    /// dimensions to the configured destination dimensions.
+    ///
+    /// Performs a horizontal pass (each row scaled to `dst_w`) followed by a
+    /// vertical pass (each column scaled to `dst_h`).
+    ///
+    /// Returns a flat `Vec<f32>` of length `dst_w × dst_h`.
+    #[must_use]
+    pub fn apply(&self, src: &[f32]) -> Vec<f32> {
+        let src_h = self.v_table.src_len();
+        let dst_w = self.h_table.dst_len();
+        let dst_h = self.v_table.dst_len();
+
+        if dst_w == 0 || dst_h == 0 || src.is_empty() {
+            return vec![0.0f32; dst_w * dst_h];
+        }
+
+        // Horizontal pass: for each row, resample from src_w to dst_w.
+        let h_out = self.h_table.apply_horizontal_pass(src, src_h);
+        // Vertical pass: for each column of h_out, resample from src_h to dst_h.
+        self.v_table.apply_vertical_pass(&h_out, dst_w)
+    }
+
+    /// Source width (from horizontal table).
+    #[inline]
+    #[must_use]
+    pub fn src_w(&self) -> usize {
+        self.h_table.src_len()
+    }
+
+    /// Source height (from vertical table).
+    #[inline]
+    #[must_use]
+    pub fn src_h(&self) -> usize {
+        self.v_table.src_len()
+    }
+
+    /// Destination width.
+    #[inline]
+    #[must_use]
+    pub fn dst_w(&self) -> usize {
+        self.h_table.dst_len()
+    }
+
+    /// Destination height.
+    #[inline]
+    #[must_use]
+    pub fn dst_h(&self) -> usize {
+        self.v_table.dst_len()
+    }
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -555,5 +879,183 @@ mod tests {
             (left - right).abs() < 0.01,
             "discontinuity at 1: {left} vs {right}"
         );
+    }
+
+    // ── FilterWeightTable ─────────────────────────────────────────────────────
+
+    #[test]
+    fn filter_weight_table_dst_len_matches() {
+        let f = EwaFilter::Mitchell(1.0 / 3.0, 1.0 / 3.0);
+        let t = FilterWeightTable::build(&f, 8, 4);
+        assert_eq!(t.dst_len(), 4);
+    }
+
+    #[test]
+    fn filter_weight_table_src_len_matches() {
+        let f = EwaFilter::Lanczos(3);
+        let t = FilterWeightTable::build(&f, 16, 8);
+        assert_eq!(t.src_len(), 16);
+    }
+
+    #[test]
+    fn filter_weight_table_apply_produces_correct_length() {
+        let f = EwaFilter::Mitchell(1.0 / 3.0, 1.0 / 3.0);
+        let t = FilterWeightTable::build(&f, 8, 4);
+        let src: Vec<f32> = (0..8).map(|i| i as f32 / 7.0).collect();
+        let dst = t.apply(&src);
+        assert_eq!(dst.len(), 4);
+    }
+
+    #[test]
+    fn filter_weight_table_zero_dimensions_returns_empty() {
+        let f = EwaFilter::Catrom;
+        let t = FilterWeightTable::build(&f, 0, 4);
+        assert_eq!(t.dst_len(), 4);
+        let dst = t.apply(&[]);
+        assert!(dst.is_empty());
+
+        let t2 = FilterWeightTable::build(&f, 8, 0);
+        assert_eq!(t2.dst_len(), 0);
+        let dst2 = t2.apply(&[1.0; 8]);
+        assert!(dst2.is_empty());
+    }
+
+    #[test]
+    fn filter_weight_table_apply_uniform_signal_stays_constant() {
+        // A uniform signal should produce a constant output regardless of scale.
+        let f = EwaFilter::Mitchell(1.0 / 3.0, 1.0 / 3.0);
+        let t = FilterWeightTable::build(&f, 8, 4);
+        let src = vec![0.5f32; 8];
+        let dst = t.apply(&src);
+        for &v in &dst {
+            assert!((v - 0.5).abs() < 0.02, "uniform signal deviated: {v}");
+        }
+    }
+
+    #[test]
+    fn filter_weight_table_downscale_monotone_ramp() {
+        let f = EwaFilter::Lanczos(3);
+        let t = FilterWeightTable::build(&f, 8, 4);
+        let src: Vec<f32> = (0..8).map(|i| i as f32 / 7.0).collect();
+        let dst = t.apply(&src);
+        assert_eq!(dst.len(), 4);
+        for w in dst.windows(2) {
+            assert!(w[1] >= w[0] - 0.05, "non-monotone: {:?}", w);
+        }
+    }
+
+    #[test]
+    fn filter_weight_table_apply_u8_uniform() {
+        let f = EwaFilter::Catrom;
+        let t = FilterWeightTable::build(&f, 8, 4);
+        let src = vec![128u8; 8];
+        let dst = t.apply_u8(&src);
+        for &v in &dst {
+            assert!((v - 128.0).abs() < 3.0, "u8 uniform deviated: {v}");
+        }
+    }
+
+    #[test]
+    fn filter_weight_table_horizontal_pass_size() {
+        let f = EwaFilter::Mitchell(1.0 / 3.0, 1.0 / 3.0);
+        let t = FilterWeightTable::build(&f, 8, 4);
+        let src = vec![0.5f32; 8 * 6]; // 8 wide, 6 rows
+        let out = t.apply_horizontal_pass(&src, 6);
+        assert_eq!(
+            out.len(),
+            4 * 6,
+            "horizontal pass: expected {} got {}",
+            4 * 6,
+            out.len()
+        );
+    }
+
+    #[test]
+    fn filter_weight_table_vertical_pass_size() {
+        let f = EwaFilter::Lanczos(3);
+        let t = FilterWeightTable::build(&f, 8, 4);
+        let src = vec![0.5f32; 8 * 10]; // 10 wide, 8 tall
+        let out = t.apply_vertical_pass(&src, 10);
+        assert_eq!(out.len(), 4 * 10);
+    }
+
+    #[test]
+    fn filter_weight_table_scale_ratio() {
+        let f = EwaFilter::Catrom;
+        let t = FilterWeightTable::build(&f, 8, 4);
+        assert!(
+            (t.scale() - 2.0).abs() < 1e-5,
+            "expected scale=2.0 got {}",
+            t.scale()
+        );
+    }
+
+    // ── ScaleWeightCache ──────────────────────────────────────────────────────
+
+    #[test]
+    fn scale_weight_cache_output_size() {
+        let f = EwaFilter::Mitchell(1.0 / 3.0, 1.0 / 3.0);
+        let cache = ScaleWeightCache::build(&f, 8, 8, 4, 4);
+        let src = vec![0.5f32; 64];
+        let dst = cache.apply(&src);
+        assert_eq!(dst.len(), 16);
+    }
+
+    #[test]
+    fn scale_weight_cache_uniform_image() {
+        let f = EwaFilter::Lanczos(3);
+        let cache = ScaleWeightCache::build(&f, 8, 8, 4, 4);
+        let src = vec![0.7f32; 64];
+        let dst = cache.apply(&src);
+        for &v in &dst {
+            assert!((v - 0.7).abs() < 0.05, "uniform image deviated: {v}");
+        }
+    }
+
+    #[test]
+    fn scale_weight_cache_dimension_accessors() {
+        let f = EwaFilter::Catrom;
+        let cache = ScaleWeightCache::build(&f, 16, 12, 8, 6);
+        assert_eq!(cache.src_w(), 16);
+        assert_eq!(cache.src_h(), 12);
+        assert_eq!(cache.dst_w(), 8);
+        assert_eq!(cache.dst_h(), 6);
+    }
+
+    #[test]
+    fn scale_weight_cache_upscale_output_size() {
+        let f = EwaFilter::Mitchell(1.0 / 3.0, 1.0 / 3.0);
+        let cache = ScaleWeightCache::build(&f, 4, 4, 8, 8);
+        let src = vec![0.3f32; 16];
+        let dst = cache.apply(&src);
+        assert_eq!(dst.len(), 64);
+    }
+
+    #[test]
+    fn scale_weight_cache_monotone_ramp_2x_downscale() {
+        // A horizontal ramp image should remain roughly monotone after 2x downscale.
+        let f = EwaFilter::Mitchell(1.0 / 3.0, 1.0 / 3.0);
+        let cache = ScaleWeightCache::build(&f, 8, 8, 4, 4);
+        let src: Vec<f32> = (0..64).map(|i| (i % 8) as f32 / 7.0).collect();
+        let dst = cache.apply(&src);
+        // Check that each output row is roughly non-decreasing.
+        for row in 0..4 {
+            for col in 1..4 {
+                let prev = dst[row * 4 + col - 1];
+                let curr = dst[row * 4 + col];
+                assert!(curr >= prev - 0.1, "row {row} col {col}: {curr} < {prev}");
+            }
+        }
+    }
+
+    #[test]
+    fn scale_weight_cache_empty_src_returns_zeros() {
+        let f = EwaFilter::Catrom;
+        let cache = ScaleWeightCache::build(&f, 8, 8, 4, 4);
+        let dst = cache.apply(&[]);
+        assert_eq!(dst.len(), 16);
+        for &v in &dst {
+            assert_eq!(v, 0.0);
+        }
     }
 }

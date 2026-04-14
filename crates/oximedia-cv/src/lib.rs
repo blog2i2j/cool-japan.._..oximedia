@@ -75,7 +75,9 @@
 #![allow(unused_imports, unused_variables)]
 #![allow(unused_mut)]
 
+pub mod action_recognition;
 pub mod background_subtraction;
+pub mod blob_detector;
 pub mod bounding_box;
 pub mod chroma_key;
 pub mod color_cluster;
@@ -91,10 +93,12 @@ pub mod fingerprint;
 pub mod histogram_backproject;
 pub mod hough_transform;
 pub mod image;
+pub mod instance_segmentation;
 pub mod interlace;
 pub mod interpolate;
 pub mod keypoint;
 pub mod lane_detect;
+pub mod lens_distortion;
 #[cfg(feature = "onnx")]
 pub mod ml;
 pub mod morphology;
@@ -102,16 +106,20 @@ pub mod motion_blur;
 pub mod motion_vector;
 pub mod obj_tracking;
 pub mod optical_flow_field;
+pub mod panorama_stitch;
 pub mod pose_estimation;
 pub mod quality;
 pub mod scale;
 pub mod scene;
 pub mod segmentation;
 pub mod stabilize;
+pub mod style_transfer;
 pub mod superpixel;
+pub mod text_detect;
 pub mod texture_analysis;
 pub mod tracking;
 pub mod transform;
+pub mod video_matting;
 
 // Re-export commonly used items at crate root
 pub use error::{CvError, CvResult};

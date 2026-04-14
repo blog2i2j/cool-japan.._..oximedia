@@ -9,10 +9,12 @@
 pub mod bitcrusher;
 pub mod fuzz;
 pub mod overdrive;
+pub mod oversampler;
 pub mod waveshaper;
 
 // Re-exports
 pub use bitcrusher::{BitCrusher, BitCrusherConfig};
 pub use fuzz::{Fuzz, FuzzConfig};
 pub use overdrive::{Overdrive, OverdriveConfig};
+pub use oversampler::{OversampledDistortion, Oversampler, OversamplingFactor};
 pub use waveshaper::{DistortionAlgorithm, DistortionEffect};

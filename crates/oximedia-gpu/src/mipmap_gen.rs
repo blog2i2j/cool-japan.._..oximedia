@@ -32,8 +32,11 @@ impl MipLevel {
 
 impl fmt::Display for MipLevel {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "Mip[{}]: {}x{} (offset={}, size={})",
-            self.level, self.width, self.height, self.offset, self.size)
+        write!(
+            f,
+            "Mip[{}]: {}x{} (offset={}, size={})",
+            self.level, self.width, self.height, self.offset, self.size
+        )
     }
 }
 
@@ -54,7 +57,12 @@ impl MipChain {
     /// Compute the full mip chain for a texture with given dimensions.
     ///
     /// Generates levels down to 1x1 unless `max_levels` limits the count.
-    pub fn compute(base_width: u32, base_height: u32, channels: u32, max_levels: Option<u32>) -> Self {
+    pub fn compute(
+        base_width: u32,
+        base_height: u32,
+        channels: u32,
+        max_levels: Option<u32>,
+    ) -> Self {
         let full_count = compute_mip_count(base_width, base_height);
         let level_count = max_levels.map_or(full_count, |m| m.min(full_count));
 
@@ -126,12 +134,7 @@ pub fn mip_dimension(base: u32, level: u32) -> u32 {
 /// Downsample a single-channel u8 image by 2x using a box filter (CPU path).
 ///
 /// The source dimensions must be at least 2x2.
-pub fn downsample_box_u8(
-    src: &[u8],
-    src_width: u32,
-    src_height: u32,
-    channels: u32,
-) -> Vec<u8> {
+pub fn downsample_box_u8(src: &[u8], src_width: u32, src_height: u32, channels: u32) -> Vec<u8> {
     let dst_width = (src_width / 2).max(1);
     let dst_height = (src_height / 2).max(1);
     let ch = channels as usize;
@@ -260,7 +263,13 @@ mod tests {
 
     #[test]
     fn test_mip_level_display() {
-        let level = MipLevel { level: 2, width: 64, height: 32, offset: 1000, size: 2048 };
+        let level = MipLevel {
+            level: 2,
+            width: 64,
+            height: 32,
+            offset: 1000,
+            size: 2048,
+        };
         assert_eq!(format!("{level}"), "Mip[2]: 64x32 (offset=1000, size=2048)");
     }
 
@@ -305,7 +314,13 @@ mod tests {
 
     #[test]
     fn test_mip_level_pixel_count() {
-        let level = MipLevel { level: 0, width: 100, height: 50, offset: 0, size: 0 };
+        let level = MipLevel {
+            level: 0,
+            width: 100,
+            height: 50,
+            offset: 0,
+            size: 0,
+        };
         assert_eq!(level.pixel_count(), 5000);
     }
 }

@@ -313,7 +313,7 @@ impl ProvenanceChain {
             }
         }
 
-        format!("{:x}", hasher.finalize())
+        hex::encode(hasher.finalize())
     }
 }
 
@@ -351,7 +351,7 @@ fn hmac_sha256(key: &[u8], message: &[u8]) -> String {
     outer_hasher.update(&outer_key);
     outer_hasher.update(inner_hash);
 
-    format!("{:x}", outer_hasher.finalize())
+    hex::encode(outer_hasher.finalize())
 }
 
 /// A cryptographically signed provenance chain.

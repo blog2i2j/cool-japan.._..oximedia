@@ -16,10 +16,10 @@
 - [ ] Implement chunk-level retry in `failure_recovery` instead of full-frame retry on transient errors
 
 ## New Features
-- [ ] Add a `render_template` module for reusable render configuration presets (resolution, codec, quality, frame range)
-- [ ] Add a `worker_benchmark` module to auto-profile worker performance and assign capability scores
+- [x] Add a `render_template` module for reusable render configuration presets (resolution, codec, quality, frame range)
+- [x] Add a `worker_benchmark` module to auto-profile worker performance and assign capability scores
 - [ ] Implement a `render_cache` module for caching intermediate render outputs (e.g., lighting passes) across jobs
-- [ ] Add an `alert_rule` module with configurable alert thresholds (queue depth, idle workers, budget overrun)
+- [x] Add an `alert_rule` module with configurable alert thresholds (queue depth, idle workers, budget overrun)
 - [ ] Implement a `resource_reservation` module for reserving worker capacity for scheduled high-priority jobs
 - [ ] Add a `render_artifact` module for managing output files (checksums, storage locations, lifecycle policies)
 - [ ] Implement `job_template` inheritance so child jobs inherit parent settings with overrides

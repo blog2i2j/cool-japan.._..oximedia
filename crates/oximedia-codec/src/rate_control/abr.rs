@@ -261,8 +261,9 @@ impl MultiPassAllocator {
         // Calculate allocation with lookahead consideration
         let lookahead_mult = self.calculate_lookahead_multiplier(first_pass);
 
-        let allocated = (base_allocation as f64 * type_mult * complexity_mult as f64 * lookahead_mult)
-            .max(base_allocation as f64 * 0.25) as u64;
+        let allocated =
+            (base_allocation as f64 * type_mult * complexity_mult as f64 * lookahead_mult)
+                .max(base_allocation as f64 * 0.25) as u64;
 
         self.bits_used += allocated;
         self.frames_remaining = self.frames_remaining.saturating_sub(1);
@@ -273,10 +274,12 @@ impl MultiPassAllocator {
     /// Calculate multiplier based on future complexity.
     fn calculate_lookahead_multiplier(&self, first_pass: &FirstPassStats) -> f64 {
         // Simplified lookahead - check remaining complexity distribution
+        let skip_count =
+            (first_pass.frame_count as usize).saturating_sub(self.frames_remaining as usize);
         let remaining_complexity: f64 = first_pass
             .frames
             .iter()
-            .skip(first_pass.frame_count as usize - self.frames_remaining as usize)
+            .skip(skip_count)
             .map(|f| f.combined_complexity as f64)
             .sum();
 
@@ -346,8 +349,8 @@ impl LookaheadAnalyzer {
             return LookaheadAnalysis::default();
         }
 
-        let avg_complexity: f32 = self.complexity_buffer.iter().sum::<f32>()
-            / self.complexity_buffer.len() as f32;
+        let avg_complexity: f32 =
+            self.complexity_buffer.iter().sum::<f32>() / self.complexity_buffer.len() as f32;
 
         let current_complexity = self.complexity_buffer[0];
 
@@ -372,7 +375,11 @@ impl LookaheadAnalyzer {
             current_complexity,
             has_scene_cut,
             complexity_trend: trend,
-            recommend_bits_multiplier: self.calculate_multiplier(current_complexity, avg_complexity, trend),
+            recommend_bits_multiplier: self.calculate_multiplier(
+                current_complexity,
+                avg_complexity,
+                trend,
+            ),
         }
     }
 
@@ -382,7 +389,8 @@ impl LookaheadAnalyzer {
             return false;
         }
 
-        for i in 1..self.complexity_buffer.len().min(5) {
+        let window = self.complexity_buffer.len().min(self.depth);
+        for i in 1..window {
             let prev = self.complexity_buffer[i - 1];
             let curr = self.complexity_buffer[i];
             if prev > 0.0 && (curr / prev) > (1.0 + self.scene_threshold) {
@@ -837,19 +845,19 @@ impl AbrController {
         // Use rate model to estimate QP
         let base_qp = if target_bits > 0 {
             // Inverse model: estimate QP from bits and complexity
-            let model_prediction = self.rc_model.predict(complexity, 28.0);
+            let model_prediction = self.rc_model.predict(complexity, 28.0_f32) as f64;
             let ratio = target_bits as f64 / model_prediction;
 
             // Adjust QP based on ratio
             if ratio > 1.0 {
                 // More bits available, decrease QP
-                28.0 - (ratio.ln() * 3.0)
+                28.0_f64 - (ratio.ln() * 3.0)
             } else {
                 // Fewer bits available, increase QP
-                28.0 + ((1.0 / ratio).ln() * 3.0)
+                28.0_f64 + ((1.0_f64 / ratio).ln() * 3.0)
             }
         } else {
-            28.0
+            28.0_f64
         };
 
         // Apply frame type offset

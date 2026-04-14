@@ -94,9 +94,7 @@ impl ChecksumEntry {
     /// Render a single line in `md5sum` format.
     #[must_use]
     pub fn md5sum_line(&self) -> Option<String> {
-        self.md5
-            .as_ref()
-            .map(|h| format!("{}  {}", h, self.path))
+        self.md5.as_ref().map(|h| format!("{}  {}", h, self.path))
     }
 
     /// Render a single line in BLAKE3 bsum format.
@@ -386,11 +384,7 @@ impl SidecarGenerator {
     /// Compute checksums for a file's byte content and return a `ChecksumEntry`.
     ///
     /// Computes whichever algorithms are enabled in the config.
-    pub fn compute_entry(
-        &self,
-        path: &str,
-        data: &[u8],
-    ) -> ChecksumEntry {
+    pub fn compute_entry(&self, path: &str, data: &[u8]) -> ChecksumEntry {
         let mut entry = ChecksumEntry::new(path, data.len() as u64);
 
         if self.config.generate_sha256 {
@@ -482,8 +476,14 @@ mod tests {
         assert_eq!(SidecarFormat::Sha256Sum.file_extension(), "sha256");
         assert_eq!(SidecarFormat::Md5Sum.file_extension(), "md5");
         assert_eq!(SidecarFormat::Blake3Sum.file_extension(), "blake3");
-        assert_eq!(SidecarFormat::JsonManifest.file_extension(), "checksums.json");
-        assert_eq!(SidecarFormat::TextManifest.file_extension(), "checksums.txt");
+        assert_eq!(
+            SidecarFormat::JsonManifest.file_extension(),
+            "checksums.json"
+        );
+        assert_eq!(
+            SidecarFormat::TextManifest.file_extension(),
+            "checksums.txt"
+        );
     }
 
     // --- ChecksumEntry ---
@@ -776,5 +776,137 @@ mod tests {
         assert_eq!(parsed.len(), 1);
         assert_eq!(parsed[0].0, entry.sha256.as_deref().expect("sha256 set"));
         assert_eq!(parsed[0].1, "round.bin");
+    }
+
+    // --- New tests for sidecar generation (implementation items) ---
+
+    #[test]
+    fn test_manifest_generator_field() {
+        let m = SidecarManifest::new("test-arc");
+        assert_eq!(m.generator, "oximedia-archive");
+    }
+
+    #[test]
+    fn test_manifest_generated_at_is_rfc3339() {
+        let m = SidecarManifest::new("test-arc");
+        // Should be parseable as RFC-3339
+        let parsed = chrono::DateTime::parse_from_rfc3339(&m.generated_at);
+        assert!(
+            parsed.is_ok(),
+            "generated_at should be valid RFC-3339: {}",
+            m.generated_at
+        );
+    }
+
+    #[test]
+    fn test_entry_recorded_at_is_rfc3339() {
+        let e = ChecksumEntry::new("file.bin", 100);
+        let parsed = chrono::DateTime::parse_from_rfc3339(&e.recorded_at);
+        assert!(
+            parsed.is_ok(),
+            "recorded_at should be valid RFC-3339: {}",
+            e.recorded_at
+        );
+    }
+
+    #[test]
+    fn test_manifest_total_bytes_multiple_entries() {
+        let mut m = SidecarManifest::new("arc");
+        m.add(ChecksumEntry::new("a.bin", 1000));
+        m.add(ChecksumEntry::new("b.bin", 2000));
+        m.add(ChecksumEntry::new("c.bin", 3000));
+        assert_eq!(m.total_bytes(), 6000);
+    }
+
+    #[test]
+    fn test_render_text_includes_size_total() {
+        let mut m = SidecarManifest::new("size-arc");
+        m.add(ChecksumEntry::new("a.bin", 512));
+        m.add(ChecksumEntry::new("b.bin", 1024));
+        let content = m.render(SidecarFormat::TextManifest).expect("render text");
+        // Total bytes (512 + 1024 = 1536) should appear in the header
+        assert!(
+            content.contains("1536 bytes"),
+            "expected total bytes in header: {content}"
+        );
+    }
+
+    #[test]
+    fn test_sha256sum_comment_lines_skipped_in_parse() {
+        let content = "# Auto-generated\n# Generator: oximedia\nabc  file.bin\n";
+        let entries = parse_sha256sum_file(content);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].1, "file.bin");
+    }
+
+    #[test]
+    fn test_generator_compute_entry_blake3_known_vector() {
+        let cfg = SidecarConfig {
+            generate_sha256: false,
+            generate_md5: false,
+            generate_blake3: true,
+            generate_json: false,
+            generate_text: false,
+            inline: true,
+            sidecar_dir: None,
+        };
+        let gen = SidecarGenerator::new(cfg);
+        let data = b"hello";
+        let entry = gen.compute_entry("hello.bin", data);
+        let expected = blake3::hash(data).to_hex().to_string();
+        assert_eq!(entry.blake3.as_deref(), Some(expected.as_str()));
+    }
+
+    #[test]
+    fn test_manifest_json_has_all_fields() {
+        let mut m = SidecarManifest::new("json-fields");
+        m.add(make_entry("test.mxf", 4096, "abcdef"));
+        let json = m.render(SidecarFormat::JsonManifest).expect("render json");
+        // Verify key fields appear in JSON
+        assert!(json.contains("\"archive_name\""), "missing archive_name");
+        assert!(json.contains("\"generator\""), "missing generator");
+        assert!(json.contains("\"generated_at\""), "missing generated_at");
+        assert!(json.contains("\"entries\""), "missing entries");
+    }
+
+    #[test]
+    fn test_sidecar_config_default_disables_md5() {
+        let cfg = SidecarConfig::default();
+        assert!(!cfg.generate_md5, "MD5 should be disabled by default");
+        assert!(cfg.generate_sha256, "SHA-256 should be enabled by default");
+        assert!(cfg.generate_blake3, "BLAKE3 should be enabled by default");
+    }
+
+    #[test]
+    fn test_parse_sha256sum_single_space_separator() {
+        // Some tools emit one space instead of two
+        let content = "abc123 file.bin\n";
+        let entries = parse_sha256sum_file(content);
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].0, "abc123");
+    }
+
+    #[test]
+    fn test_sidecar_write_directory_created() {
+        let dir = std::env::temp_dir().join("oximedia_sidecar_dir_create_test");
+        // Ensure dir does NOT exist beforehand
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let sidecar_subdir = dir.join("sidecars");
+        let cfg = SidecarConfig {
+            generate_sha256: true,
+            generate_md5: false,
+            generate_blake3: false,
+            generate_json: false,
+            generate_text: false,
+            inline: false,
+            sidecar_dir: Some(sidecar_subdir.clone()),
+        };
+        let gen = SidecarGenerator::new(cfg);
+        let manifest = SidecarManifest::new("dir-create-arc");
+        gen.write_sidecars(&manifest, &dir)
+            .expect("write should create dir");
+        assert!(sidecar_subdir.exists(), "sidecar dir should be created");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

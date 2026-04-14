@@ -14,8 +14,8 @@ workspace = true
 
 [features]
 default = []
-onnx = ["ort"]
-cuda = ["onnx"]
+onnx = ["dep:oxionnx", "dep:oxionnx-core"]
+cuda = ["onnx", "oxionnx/cuda"]
 rocm = ["onnx"]
 tensorrt = ["onnx"]
 
@@ -23,12 +23,10 @@ tensorrt = ["onnx"]
 oximedia-core = { workspace = true }
 oximedia-codec = { workspace = true, default-features = true }
 thiserror = { workspace = true }
-ort = { workspace = true, optional = true }
+oxionnx = { workspace = true, optional = true }
+oxionnx-core = { workspace = true, optional = true }
 ndarray = { workspace = true }
 bytes = { workspace = true }
 rayon = { workspace = true }
 serde = { workspace = true }
 oxifft = { workspace = true }
-
-[build-dependencies]
-cc.workspace = true

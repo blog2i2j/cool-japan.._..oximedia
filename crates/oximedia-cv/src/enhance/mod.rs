@@ -55,7 +55,7 @@
 //! };
 //!
 //! // Super-resolution with quality mode (requires 'onnx' feature)
-//! let model = SuperResolutionModel::from_quality_mode(
+//! let mut model = SuperResolutionModel::from_quality_mode(
 //!     QualityMode::HighQuality,
 //!     UpscaleFactor::X4,
 //! )?;

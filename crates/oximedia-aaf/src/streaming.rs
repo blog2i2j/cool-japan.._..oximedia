@@ -493,4 +493,52 @@ mod tests {
         let ev = reader.next_event().expect("no error");
         assert!(ev.is_some());
     }
+
+    #[test]
+    fn test_collect_events_exact_sequence_header_then_end() {
+        // The bootstrap sequence for an empty reader is exactly [Header, End]
+        let mut reader = empty_reader();
+        let events = collect_events(&mut reader).expect("collect must not error");
+        assert_eq!(
+            events.len(),
+            2,
+            "expected [Header, End], got {}",
+            events.len()
+        );
+        assert!(
+            matches!(events[0], AafEvent::Header(_)),
+            "first event must be Header"
+        );
+        assert!(
+            matches!(events[1], AafEvent::End),
+            "second event must be End"
+        );
+    }
+
+    #[test]
+    fn test_mob_start_info_fields() {
+        let mob_id = Uuid::new_v4();
+        let info = MobStartInfo {
+            mob_id,
+            name: "TestMob".to_string(),
+            mob_kind: StreamMobKind::Composition,
+        };
+        assert_eq!(info.mob_id, mob_id);
+        assert_eq!(info.name, "TestMob");
+        assert_eq!(info.mob_kind, StreamMobKind::Composition);
+    }
+
+    #[test]
+    fn test_track_start_info_fields() {
+        use crate::dictionary::Auid;
+        use crate::timeline::EditRate;
+        let info = TrackStartInfo {
+            slot_id: 7,
+            name: "V1".to_string(),
+            edit_rate: EditRate::new(30000, 1001),
+            data_definition: Auid::null(),
+        };
+        assert_eq!(info.slot_id, 7);
+        assert_eq!(info.name, "V1");
+    }
 }

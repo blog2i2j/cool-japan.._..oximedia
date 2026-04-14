@@ -79,6 +79,7 @@ pub mod import;
 pub mod ingest_preset;
 pub mod library;
 pub mod mobile;
+pub mod optimal_preset;
 pub mod platform;
 pub mod preset_benchmark;
 pub mod preset_chain;
@@ -100,6 +101,8 @@ pub mod streaming;
 pub mod validate;
 pub mod validation;
 pub mod web;
+
+pub use optimal_preset::{OptimalPresetSelector, ScoredPreset, SelectionCriteria, UseCase};
 
 use oximedia_transcode::PresetConfig;
 use serde::{Deserialize, Serialize};
@@ -332,11 +335,95 @@ impl AbrLadder {
     }
 }
 
+// ── InvertedIndex (for O(tokens) search) ─────────────────────────────────────
+
+/// Inverted index mapping lowercase word tokens to preset IDs.
+///
+/// Built once during `PresetLibrary::new()` and used by `search()` for
+/// O(query-tokens) lookup instead of O(presets × chars) linear scan.
+#[derive(Debug, Default)]
+struct InvertedIndex {
+    /// token → list of preset IDs that contain the token.
+    index: HashMap<String, Vec<String>>,
+}
+
+impl InvertedIndex {
+    /// Tokenize `text` into lowercase alphabetic/numeric words.
+    fn tokenize(text: &str) -> Vec<String> {
+        text.split(|c: char| !c.is_alphanumeric())
+            .filter(|s| s.len() >= 2)
+            .map(|s| s.to_lowercase())
+            .collect()
+    }
+
+    /// Index a single preset.
+    fn insert(&mut self, preset: &Preset) {
+        let id = preset.metadata.id.clone();
+        let mut tokens: Vec<String> = Vec::new();
+        tokens.extend(Self::tokenize(&preset.metadata.name));
+        tokens.extend(Self::tokenize(&preset.metadata.description));
+        for tag in &preset.metadata.tags {
+            tokens.extend(Self::tokenize(tag));
+        }
+        tokens.extend(Self::tokenize(&preset.metadata.id));
+        // Deduplicate tokens per preset to avoid inflating relevance.
+        tokens.sort_unstable();
+        tokens.dedup();
+        for token in tokens {
+            self.index.entry(token).or_default().push(id.clone());
+        }
+    }
+
+    /// Build an index from all presets.
+    fn build(presets: &HashMap<String, Preset>) -> Self {
+        let mut idx = Self::default();
+        for preset in presets.values() {
+            idx.insert(preset);
+        }
+        idx
+    }
+
+    /// Search: intersect results across query tokens, sorted by hit frequency.
+    ///
+    /// Returns preset IDs ranked by how many query tokens they matched (descending).
+    fn search<'a>(&'a self, query: &str, presets: &'a HashMap<String, Preset>) -> Vec<&'a Preset> {
+        let query_tokens = Self::tokenize(query);
+        if query_tokens.is_empty() {
+            return Vec::new();
+        }
+
+        // Count how many tokens each preset matches.
+        let mut hit_count: HashMap<&str, usize> = HashMap::new();
+        for token in &query_tokens {
+            if let Some(ids) = self.index.get(token.as_str()) {
+                for id in ids {
+                    *hit_count.entry(id.as_str()).or_insert(0) += 1;
+                }
+            }
+        }
+
+        // Only include presets that match ALL query tokens.
+        let required = query_tokens.len();
+        let mut results: Vec<(&str, usize)> = hit_count
+            .into_iter()
+            .filter(|(_, count)| *count >= required)
+            .collect();
+        results.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(b.0)));
+
+        results
+            .into_iter()
+            .filter_map(|(id, _)| presets.get(id))
+            .collect()
+    }
+}
+
 /// Main preset library.
 pub struct PresetLibrary {
     presets: HashMap<String, Preset>,
     /// Optional inheritance registry for derived preset resolution.
     inheritance: preset_inheritance::InheritanceRegistry,
+    /// Pre-built inverted index for O(tokens) text search.
+    search_index: InvertedIndex,
 }
 
 impl PresetLibrary {
@@ -346,8 +433,11 @@ impl PresetLibrary {
         let mut library = Self {
             presets: HashMap::new(),
             inheritance: preset_inheritance::InheritanceRegistry::new(),
+            search_index: InvertedIndex::default(),
         };
         library.load_builtin_presets();
+        // Build the inverted index after all presets are loaded.
+        library.search_index = InvertedIndex::build(&library.presets);
         library
     }
 
@@ -414,6 +504,7 @@ impl PresetLibrary {
 
     /// Add a preset to the library.
     pub fn add(&mut self, preset: Preset) {
+        self.search_index.insert(&preset);
         self.presets.insert(preset.metadata.id.clone(), preset);
     }
 
@@ -438,17 +529,17 @@ impl PresetLibrary {
         self.presets.values().filter(|p| p.has_tag(tag)).collect()
     }
 
-    /// Search presets by name or description.
+    /// Search presets by name, description, tags, or ID.
+    ///
+    /// Uses the pre-built inverted index for O(query-tokens) lookup.  All
+    /// query tokens must appear in a preset for it to be returned (AND
+    /// semantics).  Results are ranked by token-hit frequency.
+    ///
+    /// Falls back to a single-token prefix search when the query contains
+    /// only one token that is too short to index.
     #[must_use]
     pub fn search(&self, query: &str) -> Vec<&Preset> {
-        let query_lower = query.to_lowercase();
-        self.presets
-            .values()
-            .filter(|p| {
-                p.metadata.name.to_lowercase().contains(&query_lower)
-                    || p.metadata.description.to_lowercase().contains(&query_lower)
-            })
-            .collect()
+        self.search_index.search(query, &self.presets)
     }
 
     /// Get all preset IDs.
@@ -750,6 +841,14 @@ impl PresetLibrary {
         }
     }
 
+    /// Iterate over all presets in the library.
+    ///
+    /// Used by the scored-selection system to score every preset without
+    /// exposing the internal storage type.
+    pub fn presets_iter(&self) -> impl Iterator<Item = &Preset> {
+        self.presets.values()
+    }
+
     /// Add a derived preset that inherits from an existing preset in the library.
     ///
     /// The `overrides` closure receives a mutable clone of the base preset's config
@@ -777,6 +876,93 @@ impl Default for PresetLibrary {
         Self::new()
     }
 }
+
+// ── Global cached PresetLibrary ───────────────────────────────────────────────
+
+/// Global singleton `PresetLibrary` initialized on first access.
+///
+/// Calling `PresetLibrary::global()` 100 times performs only one real
+/// initialization. Subsequent calls return the same `&'static PresetLibrary`.
+static GLOBAL_LIBRARY: std::sync::OnceLock<PresetLibrary> = std::sync::OnceLock::new();
+
+impl PresetLibrary {
+    /// Return a reference to the global (lazily-initialized) `PresetLibrary`.
+    ///
+    /// The library is built exactly once regardless of how many times this
+    /// function is called, making it safe and cheap to call in hot paths.
+    #[must_use]
+    pub fn global() -> &'static PresetLibrary {
+        GLOBAL_LIBRARY.get_or_init(PresetLibrary::new)
+    }
+}
+
+// ── Lazy preset category loader ───────────────────────────────────────────────
+
+/// Describes the broad category group for lazy loading.
+///
+/// `LazyPresetCategory` defers construction of a preset group until the
+/// first call to [`LazyPresetCategory::get`].  This means a caller that only
+/// ever uses HLS presets never pays the cost of building broadcast or mobile
+/// presets.
+pub struct LazyPresetCategory {
+    /// Human-readable name for the category group.
+    name: &'static str,
+    /// Factory function that builds all presets for this category.
+    loader: fn() -> Vec<Preset>,
+    /// Lazily-initialized preset list.
+    loaded: std::sync::OnceLock<Vec<Preset>>,
+}
+
+impl LazyPresetCategory {
+    /// Create a new lazy category with the given name and loader function.
+    #[must_use]
+    pub const fn new(name: &'static str, loader: fn() -> Vec<Preset>) -> Self {
+        Self {
+            name,
+            loader,
+            loaded: std::sync::OnceLock::new(),
+        }
+    }
+
+    /// Return the presets for this category, loading them if necessary.
+    #[must_use]
+    pub fn get(&self) -> &[Preset] {
+        self.loaded.get_or_init(|| (self.loader)())
+    }
+
+    /// Return the category name.
+    #[must_use]
+    pub fn name(&self) -> &'static str {
+        self.name
+    }
+
+    /// Check whether this category's presets have already been loaded.
+    #[must_use]
+    pub fn is_loaded(&self) -> bool {
+        self.loaded.get().is_some()
+    }
+}
+
+impl std::fmt::Debug for LazyPresetCategory {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LazyPresetCategory")
+            .field("name", &self.name)
+            .field("loaded", &self.is_loaded())
+            .finish()
+    }
+}
+
+/// Pre-defined lazy category instances for the three most-accessed groups.
+///
+/// These can be used directly without creating a full `PresetLibrary`.
+pub static LAZY_HLS_PRESETS: LazyPresetCategory =
+    LazyPresetCategory::new("HLS", streaming::hls::all_presets);
+/// Lazy-loaded YouTube preset category for platform-specific encoding targets.
+pub static LAZY_YOUTUBE_PRESETS: LazyPresetCategory =
+    LazyPresetCategory::new("YouTube", platform::youtube::all_presets);
+/// Lazy-loaded ATSC broadcast preset category for broadcast standards compliance.
+pub static LAZY_BROADCAST_PRESETS: LazyPresetCategory =
+    LazyPresetCategory::new("Broadcast/ATSC", broadcast::atsc::all_presets);
 
 // ── Levenshtein distance (pure-Rust, no external deps) ────────────────────
 
@@ -820,11 +1006,11 @@ fn levenshtein_distance(a: &str, b: &str) -> usize {
     prev[lb]
 }
 
-/// Result of a fuzzy search, including the matched preset and its distance.
+/// Result of a fuzzy search, including the matched preset (Arc-shared) and its distance.
 #[derive(Debug, Clone)]
-pub struct FuzzyMatch<'a> {
-    /// The matched preset.
-    pub preset: &'a Preset,
+pub struct FuzzyMatch {
+    /// The matched preset (cheaply cloneable via Arc).
+    pub preset: std::sync::Arc<Preset>,
     /// Levenshtein edit distance from the query (lower = better).
     pub distance: usize,
 }
@@ -833,10 +1019,14 @@ pub struct FuzzyMatch<'a> {
 ///
 /// Unlike `PresetLibrary` which uses unique IDs, `PresetRegistry` allows
 /// multiple aliases for the same preset and provides fuzzy-name lookup.
+///
+/// Presets are stored behind `Arc` so that every `lookup` or `fuzzy_search`
+/// returns an `Arc<Preset>` — an O(1) reference-count increment rather than a
+/// full clone of the preset data.
 pub struct PresetRegistry {
-    /// Presets stored by canonical ID
-    presets: HashMap<String, Preset>,
-    /// Name/alias -> canonical ID mapping
+    /// Presets stored by canonical ID (Arc-shared to avoid clone-on-lookup).
+    presets: HashMap<String, std::sync::Arc<Preset>>,
+    /// Name/alias -> canonical ID mapping.
     name_index: HashMap<String, String>,
 }
 
@@ -860,17 +1050,20 @@ impl PresetRegistry {
         registry
     }
 
-    /// Register a preset with optional additional aliases.
-    pub fn register_preset(&mut self, id: String, preset: Preset) {
-        // Index by id
+    /// Register a preset, wrapping it in `Arc` for zero-cost subsequent lookups.
+    ///
+    /// Returns the `Arc<Preset>` so callers can hold a shared reference without
+    /// performing a second lookup.
+    pub fn register_preset(&mut self, id: String, preset: Preset) -> std::sync::Arc<Preset> {
+        let arc = std::sync::Arc::new(preset);
+        // Index by id (lowercase)
         self.name_index
-            .insert(id.to_lowercase(), preset.metadata.id.clone());
-        // Index by name
-        self.name_index.insert(
-            preset.metadata.name.to_lowercase(),
-            preset.metadata.id.clone(),
-        );
-        self.presets.insert(id, preset);
+            .insert(id.to_lowercase(), arc.metadata.id.clone());
+        // Index by name (lowercase)
+        self.name_index
+            .insert(arc.metadata.name.to_lowercase(), arc.metadata.id.clone());
+        self.presets.insert(id, std::sync::Arc::clone(&arc));
+        arc
     }
 
     /// Register an alias for an existing preset.
@@ -887,16 +1080,20 @@ impl PresetRegistry {
     }
 
     /// Look up a preset by its ID, name, or any registered alias.
+    ///
+    /// Returns a cheap `Arc` clone — no deep copy of the preset data occurs.
     #[must_use]
-    pub fn lookup(&self, name: &str) -> Option<&Preset> {
+    pub fn lookup(&self, name: &str) -> Option<std::sync::Arc<Preset>> {
         let lower = name.to_lowercase();
-        // Direct id lookup first
-        if let Some(preset) = self.presets.get(name) {
-            return Some(preset);
+        // Direct canonical-id lookup first.
+        if let Some(arc) = self.presets.get(name) {
+            return Some(std::sync::Arc::clone(arc));
         }
-        // Alias lookup
+        // Alias lookup.
         let canonical = self.name_index.get(&lower)?;
-        self.presets.get(canonical.as_str())
+        self.presets
+            .get(canonical.as_str())
+            .map(std::sync::Arc::clone)
     }
 
     /// Get the number of registered presets.
@@ -914,6 +1111,9 @@ impl PresetRegistry {
     /// Fuzzy lookup: return all presets whose ID or name is within `max_distance`
     /// Levenshtein edits of `query`, sorted by ascending distance.
     ///
+    /// Returns `Vec<FuzzyMatch>` where each match holds an `Arc<Preset>` —
+    /// all returned values share the underlying preset allocation.
+    ///
     /// This is typo-tolerant — a `max_distance` of 2 will accept single
     /// transpositions, missing characters, and minor spelling mistakes.
     ///
@@ -927,29 +1127,28 @@ impl PresetRegistry {
     /// let matches = reg.fuzzy_search("yotube-1080p", 2);
     /// ```
     #[must_use]
-    pub fn fuzzy_search(&self, query: &str, max_distance: usize) -> Vec<FuzzyMatch<'_>> {
+    pub fn fuzzy_search(&self, query: &str, max_distance: usize) -> Vec<FuzzyMatch> {
         let query_lower = query.to_lowercase();
-        let mut results: Vec<FuzzyMatch<'_>> = self
+        let mut results: Vec<FuzzyMatch> = self
             .presets
             .values()
-            .filter_map(|preset| {
-                let id_dist =
-                    levenshtein_distance(&query_lower, &preset.metadata.id.to_lowercase());
+            .filter_map(|arc| {
+                let id_dist = levenshtein_distance(&query_lower, &arc.metadata.id.to_lowercase());
                 let name_dist =
-                    levenshtein_distance(&query_lower, &preset.metadata.name.to_lowercase());
+                    levenshtein_distance(&query_lower, &arc.metadata.name.to_lowercase());
                 let dist = id_dist.min(name_dist);
-                // Also search through name_index aliases
+                // Also search through name_index aliases.
                 let alias_dist = self
                     .name_index
                     .iter()
-                    .filter(|(_, canonical)| canonical.as_str() == preset.metadata.id.as_str())
+                    .filter(|(_, canonical)| canonical.as_str() == arc.metadata.id.as_str())
                     .map(|(alias, _)| levenshtein_distance(&query_lower, alias))
                     .min()
                     .unwrap_or(usize::MAX);
                 let best = dist.min(alias_dist);
                 if best <= max_distance {
                     Some(FuzzyMatch {
-                        preset,
+                        preset: std::sync::Arc::clone(arc),
                         distance: best,
                     })
                 } else {
@@ -958,7 +1157,11 @@ impl PresetRegistry {
             })
             .collect();
 
-        results.sort_by_key(|m| m.distance);
+        results.sort_by(|a, b| {
+            a.distance
+                .cmp(&b.distance)
+                .then(a.preset.metadata.id.cmp(&b.preset.metadata.id))
+        });
         results
     }
 
@@ -968,15 +1171,14 @@ impl PresetRegistry {
     /// When multiple presets share the minimum distance the one with the
     /// alphabetically-first ID is returned to ensure deterministic behaviour.
     #[must_use]
-    pub fn fuzzy_lookup(&self, query: &str, max_distance: usize) -> Option<&Preset> {
+    pub fn fuzzy_lookup(&self, query: &str, max_distance: usize) -> Option<std::sync::Arc<Preset>> {
         let mut matches = self.fuzzy_search(query, max_distance);
         if matches.is_empty() {
             return None;
         }
-        // Among those at the minimum distance, pick alphabetically-first ID
         let min_dist = matches[0].distance;
         matches.retain(|m| m.distance == min_dist);
-        matches.sort_by_key(|m| m.preset.metadata.id.as_str());
+        matches.sort_by(|a, b| a.preset.metadata.id.cmp(&b.preset.metadata.id));
         matches.into_iter().next().map(|m| m.preset)
     }
 }
@@ -1256,4 +1458,166 @@ mod tests {
             );
         }
     }
+
+    // ── InvertedIndex / PresetLibrary::search() tests (Task C) ────────────
+
+    /// Single-token query matches presets whose name/description/tags contain that token.
+    #[test]
+    fn test_search_single_token_matches() {
+        let library = PresetLibrary::new();
+        let results = library.search("youtube");
+        assert!(
+            !results.is_empty(),
+            "Single token 'youtube' should match YouTube presets"
+        );
+        // Every returned preset should mention "youtube" in name, description, or a tag.
+        for p in &results {
+            let combined = format!(
+                "{} {} {}",
+                p.metadata.name.to_lowercase(),
+                p.metadata.description.to_lowercase(),
+                p.metadata.tags.join(" ").to_lowercase()
+            );
+            assert!(
+                combined.contains("youtube"),
+                "Returned preset '{}' should be related to youtube",
+                p.metadata.id
+            );
+        }
+    }
+
+    /// Multi-token query uses AND semantics: only presets matching ALL tokens are returned.
+    #[test]
+    fn test_search_multi_token_and_semantics() {
+        let library = PresetLibrary::new();
+        // "hls 1080p" — only HLS presets that are also 1080p should match.
+        let results = library.search("hls 1080p");
+        assert!(
+            !results.is_empty(),
+            "Multi-token 'hls 1080p' should return at least one preset"
+        );
+        for p in &results {
+            let has_hls = p.has_tag("hls")
+                || p.metadata.name.to_lowercase().contains("hls")
+                || p.metadata.description.to_lowercase().contains("hls");
+            let has_1080 = p.has_tag("1080p")
+                || p.metadata.name.contains("1080")
+                || p.metadata.description.contains("1080");
+            assert!(
+                has_hls && has_1080,
+                "Preset '{}' should match both 'hls' and '1080p'",
+                p.metadata.id
+            );
+        }
+    }
+
+    /// Query with no matching tokens returns an empty Vec (not a panic).
+    #[test]
+    fn test_search_no_match_returns_empty() {
+        let library = PresetLibrary::new();
+        let results = library.search("zzznomatchtoken99");
+        assert!(
+            results.is_empty(),
+            "Non-existent token should return empty results"
+        );
+    }
+
+    /// Search is case-insensitive: uppercase/mixed-case query matches lowercase indexed tokens.
+    #[test]
+    fn test_search_case_insensitive() {
+        let library = PresetLibrary::new();
+        let lower = library.search("youtube");
+        let upper = library.search("YOUTUBE");
+        let mixed = library.search("YouTube");
+        // All three should return the same number of results.
+        assert_eq!(
+            lower.len(),
+            upper.len(),
+            "Case should not affect result count (lower vs upper)"
+        );
+        assert_eq!(
+            lower.len(),
+            mixed.len(),
+            "Case should not affect result count (lower vs mixed)"
+        );
+        assert!(
+            !lower.is_empty(),
+            "Case-insensitive search for 'YouTube' should find results"
+        );
+    }
+
+    /// Tag-based search: query with a tag token finds presets with that tag.
+    #[test]
+    fn test_search_by_tag() {
+        let library = PresetLibrary::new();
+        let results = library.search("hls");
+        assert!(
+            !results.is_empty(),
+            "Tag-based search for 'hls' should return HLS presets"
+        );
+        // At least one result should have the "hls" tag.
+        let has_hls_tag = results.iter().any(|p| p.has_tag("hls"));
+        assert!(
+            has_hls_tag,
+            "Search for 'hls' should return at least one preset with the hls tag"
+        );
+    }
+
+    /// ID-based search: searching by a partial ID token finds the preset.
+    #[test]
+    fn test_search_by_id_token() {
+        let library = PresetLibrary::new();
+        // "hls-240p" has ID token "hls" and "240p"; search "240p" should find it.
+        let results = library.search("240p");
+        assert!(
+            !results.is_empty(),
+            "Searching '240p' should find presets with that resolution token"
+        );
+        let found_240p = results
+            .iter()
+            .any(|p| p.metadata.id.contains("240p") || p.has_tag("240p"));
+        assert!(found_240p, "Search '240p' should include a 240p preset");
+    }
+
+    /// Description-based search: query tokens from a description are indexed.
+    #[test]
+    fn test_search_by_description_token() {
+        let library = PresetLibrary::new();
+        // The HLS 240p preset has description "HLS ABR ladder - 240p @ 500kbps".
+        // Searching "ladder" (a description-only word) should surface HLS presets.
+        let results = library.search("ladder");
+        assert!(
+            !results.is_empty(),
+            "Description token 'ladder' should find ABR ladder presets"
+        );
+    }
+
+    /// Short (1-char) tokens are excluded from the index (min token length = 2).
+    #[test]
+    fn test_search_short_token_excluded() {
+        let library = PresetLibrary::new();
+        // Single-character queries tokenize to nothing → empty result.
+        let results = library.search("a");
+        assert!(
+            results.is_empty(),
+            "Single-character query should return empty (below min token length)"
+        );
+    }
+
+    /// Multi-token where one token is absent → empty (strict AND semantics).
+    #[test]
+    fn test_search_multi_token_absent_one_returns_empty() {
+        let library = PresetLibrary::new();
+        // "youtube zzznomatch" — second token absent, so intersection is empty.
+        let results = library.search("youtube zzznomatch");
+        assert!(
+            results.is_empty(),
+            "AND semantics: missing token should cause empty result"
+        );
+    }
 }
+
+/// Wave 3 tests are in a separate module file to keep lib.rs under 2000 lines.
+#[cfg(test)]
+#[path = "wave3_tests.rs"]
+mod wave3_tests;

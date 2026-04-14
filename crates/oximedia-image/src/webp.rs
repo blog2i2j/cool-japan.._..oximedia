@@ -28,7 +28,6 @@
 
 use crate::error::{ImageError, ImageResult};
 use crate::{ColorSpace, ImageData, ImageFrame, PixelType};
-use std::io::{Read, Write};
 
 // ---------------------------------------------------------------------------
 // RIFF / WebP constants

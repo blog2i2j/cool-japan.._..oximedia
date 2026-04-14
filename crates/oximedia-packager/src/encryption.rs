@@ -5,12 +5,11 @@ use crate::error::{PackagerError, PackagerResult};
 use bytes::{BufMut, BytesMut};
 
 #[cfg(feature = "encryption")]
+use aes::cipher::{BlockModeDecrypt, BlockModeEncrypt, KeyIvInit};
+#[cfg(feature = "encryption")]
 use aes::Aes128;
 #[cfg(feature = "encryption")]
-use cbc::{
-    cipher::{BlockDecryptMut, BlockEncryptMut, KeyIvInit},
-    Decryptor, Encryptor,
-};
+use cbc::{Decryptor, Encryptor};
 
 /// Encryption key information.
 #[derive(Debug, Clone)]
@@ -154,7 +153,7 @@ impl EncryptionHandler {
         buf[..msg_len].copy_from_slice(data);
 
         let encrypted = cipher
-            .encrypt_padded_mut::<block_padding::Pkcs7>(&mut buf, msg_len)
+            .encrypt_padded::<block_padding::Pkcs7>(&mut buf, msg_len)
             .map_err(|e| PackagerError::EncryptionError(format!("Encryption failed: {e}")))?;
 
         Ok(encrypted.to_vec())
@@ -183,7 +182,7 @@ impl EncryptionHandler {
 
         let mut buf = data.to_vec();
         let decrypted = cipher
-            .decrypt_padded_mut::<block_padding::Pkcs7>(&mut buf)
+            .decrypt_padded::<block_padding::Pkcs7>(&mut buf)
             .map_err(|e| PackagerError::EncryptionError(format!("Decryption failed: {e}")))?;
 
         Ok(decrypted.to_vec())

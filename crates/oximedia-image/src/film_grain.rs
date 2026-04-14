@@ -567,9 +567,7 @@ mod tests {
                 GrainPixelFormat::Gray8,
             )
             .expect("apply should succeed");
-        for &p in &pixels {
-            assert!(p <= 255, "pixel value out of range: {p}");
-        }
+        assert!(!pixels.is_empty());
     }
 
     // -----------------------------------------------------------------------
@@ -768,10 +766,8 @@ mod tests {
             .apply(&mut [pixels.as_mut_slice()], 32, 32, GrainPixelFormat::Rgb8)
             .expect("RGB8 apply should succeed");
 
-        // All values must remain in [0, 255]
-        for &p in &pixels {
-            assert!(p <= 255);
-        }
+        // All values remain valid u8
+        assert!(!pixels.is_empty());
     }
 
     // -----------------------------------------------------------------------

@@ -1,12 +1,12 @@
 # oximedia-storage
 
-![Status: Partial](https://img.shields.io/badge/status-partial-orange)
+![Status: Stable](https://img.shields.io/badge/status-stable-green)
 
 Cloud storage abstraction layer for OxiMedia providing unified access to S3, Azure Blob Storage, and Google Cloud Storage.
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.1 — 2026-03-10
+Version: 0.1.3 — 2026-04-15
 
 ## Features
 
@@ -63,10 +63,10 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-storage = { version = "0.1.1", features = ["azure", "gcs"] }
+oximedia-storage = { version = "0.1.3", features = ["azure", "gcs"] }
 
 # Enable S3 (requires Rust 1.91+)
-# oximedia-storage = { version = "0.1.1", features = ["s3"] }
+# oximedia-storage = { version = "0.1.3", features = ["s3"] }
 ```
 
 ```rust

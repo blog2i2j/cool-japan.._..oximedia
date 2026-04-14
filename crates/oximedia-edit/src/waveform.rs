@@ -320,4 +320,105 @@ mod tests {
         let all_positive_rms = data.peaks.iter().all(|p| p.rms > 0.0);
         assert!(all_positive_rms, "RMS should be > 0 for non-silent audio");
     }
+
+    // ── Additional comprehensive tests ──────────────────────────────────────
+
+    #[test]
+    fn test_waveform_peak_is_silent_true() {
+        let p = WaveformPeak::new(0.0, 0.0, 0.0);
+        assert!(p.is_silent());
+    }
+
+    #[test]
+    fn test_waveform_peak_is_silent_false_nonzero_max() {
+        let p = WaveformPeak::new(0.0, 0.1, 0.0);
+        assert!(!p.is_silent());
+    }
+
+    #[test]
+    fn test_waveform_peak_is_silent_false_nonzero_rms() {
+        let p = WaveformPeak::new(0.0, 0.0, 0.05);
+        assert!(!p.is_silent());
+    }
+
+    #[test]
+    fn test_waveform_data_width_matches_peaks_len() {
+        let gen = WaveformGenerator::default();
+        let audio = vec![0.3_f32; 960];
+        let data = gen.generate(&audio, 60);
+        assert_eq!(data.width(), data.peaks.len());
+        assert_eq!(data.width(), 60);
+    }
+
+    #[test]
+    fn test_waveform_data_peak_amplitude_silent() {
+        let gen = WaveformGenerator::new(1);
+        let data = gen.generate(&[], 10);
+        assert_eq!(data.peak_amplitude(), 0.0);
+    }
+
+    #[test]
+    fn test_generate_single_pixel_output() {
+        let audio = vec![0.5_f32; 100];
+        let data = WaveformGenerator::new(1).generate(&audio, 1);
+        assert_eq!(data.width(), 1);
+        assert!((data.peaks[0].max - 0.5).abs() < 1e-5);
+    }
+
+    #[test]
+    fn test_multichannel_four_channels() {
+        // 4-channel audio where all channels sum to zero → silent after mixdown
+        let n_frames = 100;
+        let audio: Vec<f32> = (0..n_frames * 4)
+            .map(|i| match i % 4 {
+                0 => 1.0,
+                1 => -1.0,
+                2 => 0.5,
+                3 => -0.5,
+                _ => 0.0,
+            })
+            .collect();
+        let data = WaveformGenerator::new(4).generate(&audio, 10);
+        // Each frame: (1 + -1 + 0.5 + -0.5) / 4 = 0 → silent
+        assert!(data.is_silent(), "4-channel mix should be silent");
+    }
+
+    #[test]
+    fn test_normalised_clamps_rms_proportionally() {
+        // Constant +0.5 signal: max = 0.5, rms = 0.5
+        let audio = vec![0.5_f32; 1000];
+        let data = WaveformGenerator::new(1).generate_normalised(&audio, 20);
+        // After normalisation by peak (0.5), max should be 1.0
+        for p in &data.peaks {
+            assert!((p.max - 1.0).abs() < 1e-5, "Normalised max should be 1.0");
+        }
+    }
+
+    #[test]
+    fn test_total_samples_matches_input_length_mono() {
+        let audio: Vec<f32> = (0..777).map(|i| (i as f32) * 0.001).collect();
+        let data = WaveformGenerator::new(1).generate(&audio, 20);
+        assert_eq!(data.total_samples, 777);
+    }
+
+    #[test]
+    fn test_total_samples_after_stereo_mixdown() {
+        // Stereo: 200 interleaved samples → 100 frames
+        let audio = vec![0.3_f32; 200];
+        let data = WaveformGenerator::new(2).generate(&audio, 10);
+        // After mixdown we have 100 mono frames
+        assert_eq!(data.total_samples, 100);
+    }
+
+    #[test]
+    fn test_generator_default_is_mono() {
+        let gen = WaveformGenerator::default();
+        assert_eq!(gen.channels, 1);
+    }
+
+    #[test]
+    fn test_generator_zero_channels_clamped_to_one() {
+        let gen = WaveformGenerator::new(0);
+        assert_eq!(gen.channels, 1);
+    }
 }

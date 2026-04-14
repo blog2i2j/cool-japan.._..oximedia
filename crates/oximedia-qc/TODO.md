@@ -8,9 +8,9 @@
 - Dependencies: oximedia-core, oximedia-io, oximedia-container, oximedia-codec, oximedia-timecode, oximedia-audio-analysis, rayon, chrono, bitflags
 
 ## Enhancements
-- [ ] Add auto-fix capability for common QC failures (loudness normalization, bitrate adjustment)
+- [x] Add auto-fix capability for common QC failures (loudness normalization, bitrate adjustment)
 - [ ] Implement severity levels in `rules::CheckResult` (error, warning, info) with configurable thresholds
-- [ ] Extend `broadcast_safe` with region-specific broadcast standards (NTSC/PAL/SECAM color space checks)
+- [x] Extend `broadcast_safe` with region-specific broadcast standards (NTSC/PAL/SECAM color space checks)
 - [ ] Add `batch` module parallel processing with per-file progress reporting callbacks
 - [ ] Implement `qc_template` inheritance — derive custom templates from built-in presets
 - [ ] Extend `dolby_vision_qc` with RPU metadata validation (profile, level, compatibility)
@@ -23,7 +23,7 @@
 - [ ] Add SMPTE ST 2067 (IMF) and ST 2084 (PQ) compliance rules
 - [ ] Implement QC watch folder — auto-validate files on arrival in monitored directories
 - [ ] Add QC comparison mode — diff two files and highlight quality differences
-- [ ] Implement `caption_qc_checker` with timing gap/overlap detection and reading speed validation
+- [x] Implement `caption_qc_checker` with timing gap/overlap detection and reading speed validation
 - [ ] Add network stream QC — validate live RTMP/SRT/HLS streams in real-time
 - [ ] Implement PDF report generation in `report` module (feature-gated)
 

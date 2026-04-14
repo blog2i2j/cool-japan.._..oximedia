@@ -140,11 +140,8 @@ impl ErrorHistogram {
     /// Return sorted entries from most to least frequent.
     #[must_use]
     pub fn sorted_entries(&self) -> Vec<(&str, u64)> {
-        let mut entries: Vec<(&str, u64)> = self
-            .buckets
-            .iter()
-            .map(|(k, &v)| (k.as_str(), v))
-            .collect();
+        let mut entries: Vec<(&str, u64)> =
+            self.buckets.iter().map(|(k, &v)| (k.as_str(), v)).collect();
         entries.sort_by(|a, b| b.1.cmp(&a.1));
         entries
     }
@@ -347,12 +344,7 @@ impl DashboardDataProvider {
     }
 
     /// Record a workflow completing (successfully or otherwise).
-    pub fn on_workflow_completed(
-        &mut self,
-        workflow_id: &str,
-        success: bool,
-        now_secs: u64,
-    ) {
+    pub fn on_workflow_completed(&mut self, workflow_id: &str, success: bool, now_secs: u64) {
         if self.counters.running_workflows > 0 {
             self.counters.running_workflows -= 1;
         }
@@ -401,16 +393,14 @@ impl DashboardDataProvider {
                 record.failed_tasks += 1;
             }
             let done = record.completed_tasks + record.failed_tasks + record.skipped_tasks;
-            record.progress_pct =
-                WorkflowStatusSummary::compute_progress(done, record.total_tasks);
+            record.progress_pct = WorkflowStatusSummary::compute_progress(done, record.total_tasks);
 
             // Compute ETA from elapsed and progress
             if let Some(start) = record.started_at_secs {
                 let elapsed = now_secs.saturating_sub(start);
                 record.elapsed_secs = Some(elapsed);
                 if record.progress_pct > 0.0 && record.progress_pct < 100.0 {
-                    let total_estimated =
-                        (elapsed as f64 / (record.progress_pct / 100.0)) as u64;
+                    let total_estimated = (elapsed as f64 / (record.progress_pct / 100.0)) as u64;
                     record.eta_secs = Some(total_estimated.saturating_sub(elapsed));
                 }
             }
@@ -445,24 +435,20 @@ impl DashboardDataProvider {
     }
 
     /// Record a task failure with an error message.
-    pub fn on_task_failed(
-        &mut self,
-        task_name: &str,
-        error: impl Into<String>,
-        retry_count: u32,
-    ) {
+    pub fn on_task_failed(&mut self, task_name: &str, error: impl Into<String>, retry_count: u32) {
         let error_msg = error.into();
         self.error_histogram.record(task_name);
-        let entry = self.task_health.entry(task_name.to_string()).or_insert_with(|| {
-            TaskHealthEntry {
+        let entry = self
+            .task_health
+            .entry(task_name.to_string())
+            .or_insert_with(|| TaskHealthEntry {
                 task_name: task_name.to_string(),
                 state: "failed".to_string(),
                 retry_count: 0,
                 last_error: None,
                 avg_duration_secs: 0.0,
                 healthy: false,
-            }
-        });
+            });
         entry.state = "failed".to_string();
         entry.last_error = Some(error_msg);
         entry.retry_count = retry_count;
@@ -506,11 +492,7 @@ impl DashboardDataProvider {
             .iter()
             .filter(|&&t| t >= cutoff)
             .count() as u64;
-        let failed = self
-            .failed_events
-            .iter()
-            .filter(|&&t| t >= cutoff)
-            .count() as u64;
+        let failed = self.failed_events.iter().filter(|&&t| t >= cutoff).count() as u64;
         ThroughputWindow::compute(completed, failed, window_secs)
     }
 

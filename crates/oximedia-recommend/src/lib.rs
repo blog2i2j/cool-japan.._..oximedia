@@ -71,40 +71,59 @@
 pub mod ab_test;
 pub mod als;
 pub mod bandits;
+pub mod batch_recommend;
 pub mod calibration;
 pub mod cold_start;
 pub mod collab_filter;
 pub mod collaborative;
 pub mod content;
 pub mod content_based;
+pub mod content_filter;
 pub mod context_signal;
+pub mod contextual_bandits;
+pub mod cross_domain;
 pub mod decay_model;
 pub mod dense_linalg;
 pub mod diversity;
+pub mod diversity_rerank;
+pub mod embargo;
 pub mod error;
+pub mod evaluation;
 pub mod explain;
 pub mod exploration_policy;
+pub mod fairness;
 pub mod feature_store;
+pub mod federated;
 pub mod feedback_signal;
 pub mod freshness;
+pub mod genre_affinity;
 pub mod history;
 pub mod hybrid;
 pub mod impression_tracker;
 pub mod item_similarity;
+pub mod knowledge_graph;
 pub mod lsh;
+pub mod multi_objective;
+pub mod novelty;
 pub mod personalize;
+pub mod playlist_generator;
 pub mod popularity_bias;
 pub mod profile;
 pub mod rank;
 pub mod ranking;
+pub mod rate_limit;
 pub mod rating;
 pub mod recommendation_score;
 pub mod score_cache;
 pub mod sequence_model;
 pub mod session;
+pub mod session_recommend;
 pub mod svd_pp;
 pub mod trending;
+pub mod trending_detection;
 pub mod user_profile;
+pub mod user_segment;
+pub mod watch_history;
 
 // Re-export commonly used items
 pub use error::{RecommendError, RecommendResult};
@@ -134,6 +153,8 @@ pub struct RecommendationEngine {
     diversity_enforcer: diversity::ensure::DiversityEnforcer,
     /// Freshness balancer
     freshness_balancer: freshness::balance::FreshnessBalancer,
+    /// Optional rate limiter (None = no rate limiting)
+    rate_limiter: Option<rate_limit::RecommendationRateLimiter>,
 }
 
 /// Recommendation request configuration
@@ -309,7 +330,7 @@ pub struct RecommendationResults {
 }
 
 impl RecommendationEngine {
-    /// Create a new recommendation engine
+    /// Create a new recommendation engine with no rate limiting.
     #[must_use]
     pub fn new() -> Self {
         Self {
@@ -323,7 +344,66 @@ impl RecommendationEngine {
             personalization_engine: personalize::engine::PersonalizationEngine::new(),
             diversity_enforcer: diversity::ensure::DiversityEnforcer::new(),
             freshness_balancer: freshness::balance::FreshnessBalancer::new(0.3, 30),
+            rate_limiter: None,
         }
+    }
+
+    /// Create a new recommendation engine with rate limiting enabled.
+    ///
+    /// `config` controls per-user and global token-bucket parameters.
+    /// `now` is the initial Unix timestamp (seconds) used to seed the buckets.
+    #[must_use]
+    pub fn with_rate_limiter(config: rate_limit::RateLimitConfig, now: i64) -> Self {
+        let limiter = rate_limit::RecommendationRateLimiter::new(config, now);
+        Self {
+            content_recommender: content::similarity::ContentRecommender::new(),
+            collaborative_engine: collaborative::matrix::CollaborativeEngine::new(),
+            hybrid_combiner: hybrid::combine::HybridCombiner::new(),
+            profile_manager: profile::user::UserProfileManager::new(),
+            history_tracker: history::track::HistoryTracker::new(),
+            rating_manager: rating::explicit::RatingManager::new(),
+            trending_detector: trending::detect::TrendingDetector::new(),
+            personalization_engine: personalize::engine::PersonalizationEngine::new(),
+            diversity_enforcer: diversity::ensure::DiversityEnforcer::new(),
+            freshness_balancer: freshness::balance::FreshnessBalancer::new(0.3, 30),
+            rate_limiter: Some(limiter),
+        }
+    }
+
+    /// Enable (or replace) the rate limiter on an existing engine.
+    pub fn set_rate_limiter(&mut self, config: rate_limit::RateLimitConfig, now: i64) {
+        self.rate_limiter = Some(rate_limit::RecommendationRateLimiter::new(config, now));
+    }
+
+    /// Disable rate limiting on this engine.
+    pub fn disable_rate_limiter(&mut self) {
+        self.rate_limiter = None;
+    }
+
+    /// Returns `true` if rate limiting is currently enabled.
+    #[must_use]
+    pub fn has_rate_limiter(&self) -> bool {
+        self.rate_limiter.is_some()
+    }
+
+    /// Query how many tokens remain for a user without consuming any.
+    ///
+    /// Returns `None` if rate limiting is disabled or if the user has no bucket yet.
+    #[must_use]
+    pub fn user_available_tokens(&self, user_id: &str) -> Option<f64> {
+        self.rate_limiter
+            .as_ref()
+            .and_then(|rl| rl.user_available_tokens(user_id))
+    }
+
+    /// Query how many global tokens remain without consuming any.
+    ///
+    /// Returns `None` if rate limiting is disabled.
+    #[must_use]
+    pub fn global_available_tokens(&self) -> Option<f64> {
+        self.rate_limiter
+            .as_ref()
+            .map(|rl| rl.global_available_tokens())
     }
 
     /// Get recommendations for a user
@@ -333,14 +413,34 @@ impl RecommendationEngine {
     /// content ID, taking the maximum score for any item that appeared in
     /// multiple strategy outputs.
     ///
+    /// If a rate limiter is configured, the request is checked against both the
+    /// per-user and global token buckets.  When the limit is exceeded a
+    /// [`RecommendError::RateLimited`] error is returned immediately.
+    ///
     /// # Errors
     ///
-    /// Returns an error if recommendation generation fails
+    /// Returns an error if recommendation generation fails or the caller is rate-limited.
     pub fn recommend(
-        &self,
+        &mut self,
         request: &RecommendationRequest,
     ) -> RecommendResult<RecommendationResults> {
         use std::collections::HashMap;
+
+        // Check rate limit before doing any work
+        if let Some(ref mut rl) = self.rate_limiter {
+            let user_key = request.user_id.to_string();
+            let now = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap_or_default()
+                .as_secs() as i64;
+            let decision = rl.check_and_consume(&user_key, now);
+            if !decision.is_allowed() {
+                return Err(RecommendError::RateLimited(format!(
+                    "User {} exceeded rate limit: {decision:?}",
+                    request.user_id
+                )));
+            }
+        }
 
         let start = std::time::Instant::now();
 
@@ -669,7 +769,7 @@ mod tests {
 
     #[test]
     fn test_recommend_hybrid_parallel_succeeds() {
-        let engine = RecommendationEngine::new();
+        let mut engine = RecommendationEngine::new();
         let request = RecommendationRequest {
             strategy: RecommendationStrategy::Hybrid,
             limit: 10,
@@ -686,7 +786,7 @@ mod tests {
 
     #[test]
     fn test_recommend_all_strategies_run() {
-        let engine = RecommendationEngine::new();
+        let mut engine = RecommendationEngine::new();
         for strategy in [
             RecommendationStrategy::ContentBased,
             RecommendationStrategy::Collaborative,
@@ -702,5 +802,164 @@ mod tests {
             let result = engine.recommend(&request);
             assert!(result.is_ok(), "strategy {strategy:?} failed");
         }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // Rate limiter integration tests
+    // ─────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_engine_no_rate_limiter_by_default() {
+        let engine = RecommendationEngine::new();
+        assert!(!engine.has_rate_limiter());
+        assert!(engine.global_available_tokens().is_none());
+    }
+
+    #[test]
+    fn test_engine_with_rate_limiter_enabled() {
+        let config = rate_limit::RateLimitConfig::default();
+        let engine = RecommendationEngine::with_rate_limiter(config, 0);
+        assert!(engine.has_rate_limiter());
+        assert!(engine.global_available_tokens().is_some());
+    }
+
+    #[test]
+    fn test_engine_rate_limiter_allows_under_limit() {
+        let config = rate_limit::RateLimitConfig {
+            per_user_capacity: 10.0,
+            per_user_refill_rate: 1.0,
+            global_capacity: 100.0,
+            global_refill_rate: 10.0,
+            tokens_per_request: 1.0,
+        };
+        let mut engine = RecommendationEngine::with_rate_limiter(config, 0);
+        let request = RecommendationRequest::default();
+        // Should succeed (not rate-limited)
+        let result = engine.recommend(&request);
+        assert!(result.is_ok(), "should be allowed: {result:?}");
+    }
+
+    #[test]
+    fn test_engine_rate_limiter_rejects_when_exhausted() {
+        let config = rate_limit::RateLimitConfig {
+            per_user_capacity: 2.0,
+            per_user_refill_rate: 0.0, // no refill
+            global_capacity: 1000.0,
+            global_refill_rate: 100.0,
+            tokens_per_request: 1.0,
+        };
+        let mut engine = RecommendationEngine::with_rate_limiter(config, 0);
+        let user_id = uuid::Uuid::new_v4();
+        let request = RecommendationRequest {
+            user_id,
+            ..Default::default()
+        };
+        // First two should be allowed
+        assert!(engine.recommend(&request).is_ok());
+        assert!(engine.recommend(&request).is_ok());
+        // Third should be rate-limited
+        let result = engine.recommend(&request);
+        assert!(result.is_err());
+        let err_str = result.unwrap_err().to_string();
+        assert!(err_str.contains("Rate limited") || err_str.contains("rate limit"));
+    }
+
+    #[test]
+    fn test_engine_set_rate_limiter() {
+        let mut engine = RecommendationEngine::new();
+        assert!(!engine.has_rate_limiter());
+        let config = rate_limit::RateLimitConfig::default();
+        engine.set_rate_limiter(config, 0);
+        assert!(engine.has_rate_limiter());
+    }
+
+    #[test]
+    fn test_engine_disable_rate_limiter() {
+        let config = rate_limit::RateLimitConfig::default();
+        let mut engine = RecommendationEngine::with_rate_limiter(config, 0);
+        assert!(engine.has_rate_limiter());
+        engine.disable_rate_limiter();
+        assert!(!engine.has_rate_limiter());
+    }
+
+    #[test]
+    fn test_engine_user_available_tokens_after_request() {
+        let config = rate_limit::RateLimitConfig {
+            per_user_capacity: 10.0,
+            per_user_refill_rate: 1.0,
+            global_capacity: 1000.0,
+            global_refill_rate: 100.0,
+            tokens_per_request: 1.0,
+        };
+        let mut engine = RecommendationEngine::with_rate_limiter(config, 0);
+        let user_id = uuid::Uuid::new_v4();
+        let request = RecommendationRequest {
+            user_id,
+            ..Default::default()
+        };
+        engine.recommend(&request).ok();
+        let tokens = engine.user_available_tokens(&user_id.to_string());
+        assert!(tokens.is_some());
+        // Should have consumed 1 token from a 10-token bucket
+        let t = tokens.expect("should have bucket");
+        assert!((t - 9.0).abs() < f64::EPSILON, "expected 9.0 but got {t}");
+    }
+
+    #[test]
+    fn test_engine_global_tokens_decrease_per_request() {
+        let config = rate_limit::RateLimitConfig {
+            per_user_capacity: 100.0,
+            per_user_refill_rate: 10.0,
+            global_capacity: 50.0,
+            global_refill_rate: 0.0,
+            tokens_per_request: 1.0,
+        };
+        let mut engine = RecommendationEngine::with_rate_limiter(config, 0);
+        let before = engine
+            .global_available_tokens()
+            .expect("should have global");
+        engine.recommend(&RecommendationRequest::default()).ok();
+        let after = engine
+            .global_available_tokens()
+            .expect("should have global");
+        assert!((before - after - 1.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn test_engine_multiple_users_independent_limits() {
+        let config = rate_limit::RateLimitConfig {
+            per_user_capacity: 1.0,
+            per_user_refill_rate: 0.0,
+            global_capacity: 1000.0,
+            global_refill_rate: 100.0,
+            tokens_per_request: 1.0,
+        };
+        let mut engine = RecommendationEngine::with_rate_limiter(config, 0);
+
+        let user_a = uuid::Uuid::new_v4();
+        let user_b = uuid::Uuid::new_v4();
+
+        let req_a = RecommendationRequest {
+            user_id: user_a,
+            ..Default::default()
+        };
+        let req_b = RecommendationRequest {
+            user_id: user_b,
+            ..Default::default()
+        };
+
+        // Both get one request each
+        assert!(engine.recommend(&req_a).is_ok(), "user_a first request");
+        assert!(engine.recommend(&req_b).is_ok(), "user_b first request");
+
+        // Both are now exhausted
+        assert!(
+            engine.recommend(&req_a).is_err(),
+            "user_a should be rate-limited"
+        );
+        assert!(
+            engine.recommend(&req_b).is_err(),
+            "user_b should be rate-limited"
+        );
     }
 }

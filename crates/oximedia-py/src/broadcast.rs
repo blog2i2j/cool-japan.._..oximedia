@@ -148,13 +148,13 @@ impl ClipEntry {
 ///
 /// Example
 /// -------
-/// .. code-block:: python
-///
-///     scheduler = oximedia.PlayoutScheduler()
-///     scheduler.add_clip("intro.mkv", start_tc="10:00:00:00")
-///     scheduler.add_clip("main.mkv",  start_tc="10:00:05:00")
-///     scheduler.validate()
-///     schedule = scheduler.export_schedule()
+/// ```python
+/// scheduler = oximedia.PlayoutScheduler()
+/// scheduler.add_clip("intro.mkv", start_tc="10:00:00:00")
+/// scheduler.add_clip("main.mkv",  start_tc="10:00:05:00")
+/// scheduler.validate()
+/// schedule = scheduler.export_schedule()
+/// ```
 #[pyclass]
 pub struct PlayoutScheduler {
     clips: Vec<ClipEntry>,
@@ -405,13 +405,13 @@ impl ValidationReport {
 ///
 /// Example
 /// -------
-/// .. code-block:: python
-///
-///     validator = oximedia.BroadcastValidator()
-///     report = validator.validate_file("video.mkv", profile="ebu_r103")
-///     print(report.loudness_pass, report.video_pass)
-///     for issue in report.issues:
-///         print(" •", issue)
+/// ```python
+/// validator = oximedia.BroadcastValidator()
+/// report = validator.validate_file("video.mkv", profile="ebu_r103")
+/// print(report.loudness_pass, report.video_pass)
+/// for issue in report.issues:
+///     print(" •", issue)
+/// ```
 #[pyclass]
 pub struct BroadcastValidator {
     // Reserved for future stateful configuration (e.g. custom thresholds).

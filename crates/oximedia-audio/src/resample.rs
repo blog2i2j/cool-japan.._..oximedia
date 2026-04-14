@@ -826,6 +826,189 @@ fn interleaved_owned_to_planar(
     planar
 }
 
+// ── Tests for ResamplerQuality presets (draft/good/best) ─────────────────────
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{AudioBuffer, ChannelLayout};
+    use bytes::Bytes;
+    use oximedia_core::SampleFormat;
+
+    fn mono_f32_frame(n: usize, value: f32, sample_rate: u32) -> AudioFrame {
+        let mut bytes = Vec::with_capacity(n * 4);
+        for _ in 0..n {
+            bytes.extend_from_slice(&value.to_le_bytes());
+        }
+        let mut frame = AudioFrame::new(SampleFormat::F32, sample_rate, ChannelLayout::Mono);
+        frame.samples = AudioBuffer::Interleaved(Bytes::from(bytes));
+        frame
+    }
+
+    #[test]
+    fn test_draft_is_alias_for_low() {
+        assert_eq!(ResamplerQuality::Draft.canonical(), ResamplerQuality::Low);
+    }
+
+    #[test]
+    fn test_good_is_alias_for_high() {
+        assert_eq!(ResamplerQuality::Good.canonical(), ResamplerQuality::High);
+    }
+
+    #[test]
+    fn test_best_canonical_is_best() {
+        assert_eq!(ResamplerQuality::Best.canonical(), ResamplerQuality::Best);
+    }
+
+    #[test]
+    fn test_medium_canonical_is_medium() {
+        assert_eq!(
+            ResamplerQuality::Medium.canonical(),
+            ResamplerQuality::Medium
+        );
+    }
+
+    #[test]
+    fn test_low_fft_chunk_size_smallest() {
+        let low = ResamplerQuality::Low.fft_chunk_size();
+        let medium = ResamplerQuality::Medium.fft_chunk_size();
+        let high = ResamplerQuality::High.fft_chunk_size();
+        assert!(low <= medium, "Low ({low}) should be <= Medium ({medium})");
+        assert!(
+            medium <= high,
+            "Medium ({medium}) should be <= High ({high})"
+        );
+    }
+
+    #[test]
+    fn test_best_sinc_len_ge_low() {
+        let low_params = ResamplerQuality::Low.sinc_params();
+        let best_params = ResamplerQuality::Best.sinc_params();
+        assert!(
+            best_params.sinc_len >= low_params.sinc_len,
+            "Best sinc_len ({}) should be >= Low ({})",
+            best_params.sinc_len,
+            low_params.sinc_len
+        );
+    }
+
+    #[test]
+    fn test_draft_fft_chunk_same_as_low() {
+        assert_eq!(
+            ResamplerQuality::Draft.fft_chunk_size(),
+            ResamplerQuality::Low.fft_chunk_size(),
+        );
+    }
+
+    #[test]
+    fn test_good_fft_chunk_same_as_high() {
+        assert_eq!(
+            ResamplerQuality::Good.fft_chunk_size(),
+            ResamplerQuality::High.fft_chunk_size(),
+        );
+    }
+
+    #[test]
+    fn test_resampler_passthrough_same_rate() {
+        let r = Resampler::new(48_000, 48_000, 1, ResamplerQuality::Medium)
+            .expect("passthrough resampler");
+        assert!(r.is_passthrough());
+        assert_eq!(r.ratio(), 1.0);
+    }
+
+    #[test]
+    fn test_resampler_upsample_ratio() {
+        let r =
+            Resampler::new(44_100, 48_000, 1, ResamplerQuality::Low).expect("upsample resampler");
+        assert!(!r.is_passthrough());
+        let expected = 48_000.0 / 44_100.0;
+        assert!((r.ratio() - expected).abs() < 1e-6, "ratio mismatch");
+    }
+
+    #[test]
+    fn test_resampler_construction_draft_quality() {
+        let r = Resampler::new(44_100, 48_000, 2, ResamplerQuality::Draft);
+        assert!(
+            r.is_ok(),
+            "Draft resampler construction failed: {:?}",
+            r.err()
+        );
+    }
+
+    #[test]
+    fn test_resampler_construction_good_quality() {
+        let r = Resampler::new(44_100, 48_000, 1, ResamplerQuality::Good);
+        assert!(
+            r.is_ok(),
+            "Good resampler construction failed: {:?}",
+            r.err()
+        );
+    }
+
+    #[test]
+    fn test_resampler_construction_best_quality() {
+        let r = Resampler::new(44_100, 48_000, 1, ResamplerQuality::Best);
+        assert!(
+            r.is_ok(),
+            "Best resampler construction failed: {:?}",
+            r.err()
+        );
+    }
+
+    #[test]
+    fn test_resampler_passthrough_returns_correct_sample_rate() {
+        let mut r =
+            Resampler::new(48_000, 48_000, 1, ResamplerQuality::Medium).expect("passthrough");
+        let frame = mono_f32_frame(512, 0.5, 48_000);
+        let out = r.resample(&frame).expect("passthrough resample");
+        assert_eq!(out.sample_rate, 48_000);
+        assert_eq!(out.format, SampleFormat::F32);
+    }
+
+    #[test]
+    fn test_resampler_source_target_rate_accessors() {
+        let r = Resampler::new(44_100, 48_000, 1, ResamplerQuality::Low).expect("resampler");
+        assert_eq!(r.source_rate(), 44_100);
+        assert_eq!(r.target_rate(), 48_000);
+        assert_eq!(r.channels(), 1);
+    }
+
+    #[test]
+    fn test_resampler_output_sample_count_upsample() {
+        let r = Resampler::new(44_100, 48_000, 1, ResamplerQuality::Low).expect("resampler");
+        let out_count = r.output_sample_count(441);
+        assert!(out_count >= 480, "expected >= 480, got {out_count}");
+        assert!(out_count <= 483, "expected <= 483, got {out_count}");
+    }
+
+    #[test]
+    fn test_resampler_error_on_zero_sample_rate() {
+        let r = Resampler::new(0, 48_000, 1, ResamplerQuality::Low);
+        assert!(r.is_err(), "zero source rate should fail");
+    }
+
+    #[test]
+    fn test_resampler_error_on_zero_channels() {
+        let r = Resampler::new(44_100, 48_000, 0, ResamplerQuality::Low);
+        assert!(r.is_err(), "zero channels should fail");
+    }
+
+    #[test]
+    fn test_resampler_quality_accessor() {
+        let r = Resampler::new(44_100, 48_000, 1, ResamplerQuality::Best).expect("resampler");
+        assert_eq!(r.quality(), ResamplerQuality::Best);
+    }
+
+    #[test]
+    fn test_low_sub_chunks_le_high() {
+        let low_sc = ResamplerQuality::Low.fft_sub_chunks();
+        let high_sc = ResamplerQuality::High.fft_sub_chunks();
+        assert!(
+            low_sc <= high_sc,
+            "Low sub_chunks ({low_sc}) <= High ({high_sc})"
+        );
+    }
+}
+
 /// Common sample rate constants.
 pub mod sample_rates {
     /// 8 kHz - Telephone quality.

@@ -367,8 +367,14 @@ mod tests {
             NotificationEvent::CommentAdded,
             NotificationChannel::Email,
         );
-        assert!(rule.matches(NotificationEvent::CommentAdded, NotificationPriority::Normal));
-        assert!(!rule.matches(NotificationEvent::VersionUploaded, NotificationPriority::Normal));
+        assert!(rule.matches(
+            NotificationEvent::CommentAdded,
+            NotificationPriority::Normal
+        ));
+        assert!(!rule.matches(
+            NotificationEvent::VersionUploaded,
+            NotificationPriority::Normal
+        ));
     }
 
     #[test]
@@ -379,9 +385,18 @@ mod tests {
             NotificationChannel::Slack,
         );
         rule.set_min_priority(NotificationPriority::High);
-        assert!(!rule.matches(NotificationEvent::ApprovalChanged, NotificationPriority::Normal));
-        assert!(rule.matches(NotificationEvent::ApprovalChanged, NotificationPriority::High));
-        assert!(rule.matches(NotificationEvent::ApprovalChanged, NotificationPriority::Critical));
+        assert!(!rule.matches(
+            NotificationEvent::ApprovalChanged,
+            NotificationPriority::Normal
+        ));
+        assert!(rule.matches(
+            NotificationEvent::ApprovalChanged,
+            NotificationPriority::High
+        ));
+        assert!(rule.matches(
+            NotificationEvent::ApprovalChanged,
+            NotificationPriority::Critical
+        ));
     }
 
     #[test]
@@ -392,7 +407,10 @@ mod tests {
             NotificationChannel::Email,
         );
         rule.enabled = false;
-        assert!(!rule.matches(NotificationEvent::CommentAdded, NotificationPriority::Normal));
+        assert!(!rule.matches(
+            NotificationEvent::CommentAdded,
+            NotificationPriority::Normal
+        ));
     }
 
     #[test]
@@ -410,8 +428,16 @@ mod tests {
     #[test]
     fn test_rule_set_add_and_remove() {
         let mut set = NotificationRuleSet::new("user-1");
-        set.add_rule(NotificationRule::new("r1", NotificationEvent::CommentAdded, NotificationChannel::Email));
-        set.add_rule(NotificationRule::new("r2", NotificationEvent::VersionUploaded, NotificationChannel::Slack));
+        set.add_rule(NotificationRule::new(
+            "r1",
+            NotificationEvent::CommentAdded,
+            NotificationChannel::Email,
+        ));
+        set.add_rule(NotificationRule::new(
+            "r2",
+            NotificationEvent::VersionUploaded,
+            NotificationChannel::Slack,
+        ));
         assert_eq!(set.rule_count(), 2);
         assert!(set.remove_rule("r1"));
         assert_eq!(set.rule_count(), 1);
@@ -421,9 +447,21 @@ mod tests {
     #[test]
     fn test_rule_set_matching_rules() {
         let mut set = NotificationRuleSet::new("user-1");
-        set.add_rule(NotificationRule::new("r1", NotificationEvent::CommentAdded, NotificationChannel::Email));
-        set.add_rule(NotificationRule::new("r2", NotificationEvent::VersionUploaded, NotificationChannel::Slack));
-        let matches = set.matching_rules(NotificationEvent::CommentAdded, NotificationPriority::Normal, "s1");
+        set.add_rule(NotificationRule::new(
+            "r1",
+            NotificationEvent::CommentAdded,
+            NotificationChannel::Email,
+        ));
+        set.add_rule(NotificationRule::new(
+            "r2",
+            NotificationEvent::VersionUploaded,
+            NotificationChannel::Slack,
+        ));
+        let matches = set.matching_rules(
+            NotificationEvent::CommentAdded,
+            NotificationPriority::Normal,
+            "s1",
+        );
         assert_eq!(matches.len(), 1);
         assert_eq!(matches[0].name, "r1");
     }
@@ -431,11 +469,23 @@ mod tests {
     #[test]
     fn test_rule_set_channels_for_event() {
         let mut set = NotificationRuleSet::new("user-1");
-        let mut rule = NotificationRule::new("r1", NotificationEvent::CommentAdded, NotificationChannel::Email);
+        let mut rule = NotificationRule::new(
+            "r1",
+            NotificationEvent::CommentAdded,
+            NotificationChannel::Email,
+        );
         rule.add_channel(NotificationChannel::Push);
         set.add_rule(rule);
-        set.add_rule(NotificationRule::new("r2", NotificationEvent::CommentAdded, NotificationChannel::Slack));
-        let channels = set.channels_for_event(NotificationEvent::CommentAdded, NotificationPriority::Normal, "s1");
+        set.add_rule(NotificationRule::new(
+            "r2",
+            NotificationEvent::CommentAdded,
+            NotificationChannel::Slack,
+        ));
+        let channels = set.channels_for_event(
+            NotificationEvent::CommentAdded,
+            NotificationPriority::Normal,
+            "s1",
+        );
         assert_eq!(channels.len(), 3);
         assert!(channels.contains(&NotificationChannel::Email));
         assert!(channels.contains(&NotificationChannel::Push));
@@ -445,9 +495,17 @@ mod tests {
     #[test]
     fn test_rule_set_disabled_globally() {
         let mut set = NotificationRuleSet::new("user-1");
-        set.add_rule(NotificationRule::new("r1", NotificationEvent::CommentAdded, NotificationChannel::Email));
+        set.add_rule(NotificationRule::new(
+            "r1",
+            NotificationEvent::CommentAdded,
+            NotificationChannel::Email,
+        ));
         set.disable_all();
-        let matches = set.matching_rules(NotificationEvent::CommentAdded, NotificationPriority::Normal, "s1");
+        let matches = set.matching_rules(
+            NotificationEvent::CommentAdded,
+            NotificationPriority::Normal,
+            "s1",
+        );
         assert!(matches.is_empty());
     }
 
@@ -470,12 +528,28 @@ mod tests {
 
     #[test]
     fn test_add_multiple_events_to_rule() {
-        let mut rule = NotificationRule::new("multi", NotificationEvent::CommentAdded, NotificationChannel::Email);
+        let mut rule = NotificationRule::new(
+            "multi",
+            NotificationEvent::CommentAdded,
+            NotificationChannel::Email,
+        );
         rule.add_event(NotificationEvent::VersionUploaded);
         rule.add_event(NotificationEvent::ApprovalChanged);
-        assert!(rule.matches(NotificationEvent::CommentAdded, NotificationPriority::Normal));
-        assert!(rule.matches(NotificationEvent::VersionUploaded, NotificationPriority::Normal));
-        assert!(rule.matches(NotificationEvent::ApprovalChanged, NotificationPriority::Normal));
-        assert!(!rule.matches(NotificationEvent::TaskAssigned, NotificationPriority::Normal));
+        assert!(rule.matches(
+            NotificationEvent::CommentAdded,
+            NotificationPriority::Normal
+        ));
+        assert!(rule.matches(
+            NotificationEvent::VersionUploaded,
+            NotificationPriority::Normal
+        ));
+        assert!(rule.matches(
+            NotificationEvent::ApprovalChanged,
+            NotificationPriority::Normal
+        ));
+        assert!(!rule.matches(
+            NotificationEvent::TaskAssigned,
+            NotificationPriority::Normal
+        ));
     }
 }

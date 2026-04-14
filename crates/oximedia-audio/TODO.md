@@ -12,10 +12,10 @@
 - [x] Add multi-band compressor in `compressor` (crossover network + per-band compression)
 - [x] Implement look-ahead delay in `compressor` and `gate` for attack anticipation
 - [x] Add wet/dry mix parameter to all `effects` (chorus, flanger, phaser)
-- [ ] Implement sidechain input for `compressor` and `gate` (external key signal)
+- [x] Implement sidechain input for `compressor` and `gate` (external key signal)
 - [ ] Add auto-gain in `loudness/normalize` to maintain consistent output level after processing
-- [ ] Implement `Resampler` quality presets (draft/good/best) mapping to rubato configurations
-- [ ] Add `AudioFrame` format conversion utilities (interleaved <-> planar, bit depth conversion)
+- [x] Implement `Resampler` quality presets (draft/good/best) mapping to rubato configurations
+- [x] Add `AudioFrame` format conversion utilities (interleaved <-> planar, bit depth conversion)
 - [ ] Implement FLAC encoder compression level parameter (0-8) in `flac/encoder`
 
 ## New Features

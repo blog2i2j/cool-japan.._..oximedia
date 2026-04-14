@@ -506,4 +506,202 @@ mod tests {
             .iter()
             .any(|(_, e)| *e == CaptionError::Overlap));
     }
+
+    // ── Additional caption QC checker tests ────────────────────────────────
+
+    #[test]
+    fn test_checker_detects_too_long_line() {
+        let checker = CaptionQcChecker::broadcast_default(); // max_chars = 42
+                                                             // 43 characters — exceeds limit
+        let long_text = "A".repeat(43);
+        let lines = vec![CaptionLine::new(long_text, 0, 50)];
+        let report = checker.check(&lines);
+        assert!(
+            report
+                .errors
+                .iter()
+                .any(|(_, e)| *e == CaptionError::TooLong),
+            "Expected TooLong error for a line with 43 characters"
+        );
+    }
+
+    #[test]
+    fn test_checker_no_error_for_exactly_max_chars() {
+        let checker = CaptionQcChecker::broadcast_default(); // max_chars = 42
+        let text = "A".repeat(42);
+        let lines = vec![CaptionLine::new(text, 0, 50)];
+        let report = checker.check(&lines);
+        assert!(
+            !report
+                .errors
+                .iter()
+                .any(|(_, e)| *e == CaptionError::TooLong),
+            "Exactly max_chars should not produce TooLong"
+        );
+    }
+
+    #[test]
+    fn test_checker_detects_reading_speed_too_fast() {
+        // At 25 fps, 1 word in 1 frame = 25*60 = 1500 WPM >> 180 WPM limit
+        let checker = CaptionQcChecker::broadcast_default();
+        let lines = vec![CaptionLine::new("Fast", 0, 1)];
+        let report = checker.check(&lines);
+        assert!(
+            report
+                .errors
+                .iter()
+                .any(|(_, e)| *e == CaptionError::TooFast),
+            "Expected TooFast error for extremely short display duration"
+        );
+    }
+
+    #[test]
+    fn test_checker_detects_insufficient_gap() {
+        // min_gap_frames = 2 (broadcast_default); gap of 1 frame should flag Overlap
+        let checker = CaptionQcChecker::broadcast_default();
+        let lines = vec![
+            CaptionLine::new("First.", 0, 50),
+            CaptionLine::new("Second.", 51, 100), // gap of 1 frame < 2
+        ];
+        let report = checker.check(&lines);
+        assert!(
+            report
+                .errors
+                .iter()
+                .any(|(_, e)| *e == CaptionError::Overlap),
+            "Gap of 1 frame should be flagged when min_gap_frames = 2"
+        );
+    }
+
+    #[test]
+    fn test_checker_sufficient_gap_no_error() {
+        // Gap of exactly 2 frames should NOT be flagged
+        let checker = CaptionQcChecker::broadcast_default();
+        let lines = vec![
+            CaptionLine::new("First.", 0, 50),
+            CaptionLine::new("Second.", 52, 100), // gap of 2 frames
+        ];
+        let report = checker.check(&lines);
+        assert!(
+            !report
+                .errors
+                .iter()
+                .any(|(_, e)| *e == CaptionError::Overlap),
+            "Gap of exactly min_gap_frames should not be flagged"
+        );
+    }
+
+    #[test]
+    fn test_checker_gap_collection() {
+        let checker = CaptionQcChecker::broadcast_default();
+        let lines = vec![
+            CaptionLine::new("One.", 0, 25),
+            CaptionLine::new("Two.", 30, 55),   // gap = 5 frames
+            CaptionLine::new("Three.", 60, 85), // gap = 5 frames
+        ];
+        let report = checker.check(&lines);
+        assert_eq!(report.gaps.len(), 2, "Should record 2 gaps for 3 lines");
+        assert_eq!(report.gaps[0].gap_frames, 5);
+        assert_eq!(report.gaps[1].gap_frames, 5);
+    }
+
+    #[test]
+    fn test_checker_gap_durations_secs() {
+        let checker = CaptionQcChecker::broadcast_default();
+        let lines = vec![
+            CaptionLine::new("A.", 0, 25),
+            CaptionLine::new("B.", 50, 75), // gap = 25 frames = 1.0 sec at 25fps
+        ];
+        let report = checker.check(&lines);
+        let secs = report.gap_durations_secs(25.0);
+        assert_eq!(secs.len(), 1);
+        assert!((secs[0] - 1.0).abs() < 0.01, "gap should be 1.0 second");
+    }
+
+    #[test]
+    fn test_checker_cps_limit_enforced() {
+        // 17 chars / 1 second = 17 CPS exactly at limit (should pass)
+        // 18 chars / 1 second = 18 CPS > 17 CPS (should fail)
+        let checker = CaptionQcChecker::broadcast_default(); // max_cps = Some(17.0)
+                                                             // 25 frames = 1 second at 25 fps; 18 chars → 18 CPS
+        let lines = vec![CaptionLine::new("A".repeat(18), 0, 25)];
+        let report = checker.check(&lines);
+        assert!(
+            report
+                .errors
+                .iter()
+                .any(|(_, e)| *e == CaptionError::TooFast),
+            "18 chars in 1s exceeds 17 CPS limit"
+        );
+    }
+
+    #[test]
+    fn test_checker_cps_disabled() {
+        // Disable CPS check; the same fast line should not produce TooFast for CPS
+        let checker = CaptionQcChecker::broadcast_default()
+            .with_max_cps(None)
+            // Also raise WPM limit so only CPS would have caught it
+            ;
+        let lines = vec![CaptionLine::new("A".repeat(18), 0, 25)];
+        // Without CPS check, high chars-per-second no longer flags TooFast.
+        // (WPM is word-based, not char-based, so a single 18-char token at
+        // 25fps = 60 WPM which is under the 180 WPM limit.)
+        let report = checker.check(&lines);
+        assert!(
+            !report
+                .errors
+                .iter()
+                .any(|(_, e)| *e == CaptionError::TooFast),
+            "TooFast should not be triggered when CPS check is disabled and WPM is in range"
+        );
+    }
+
+    #[test]
+    fn test_checker_chars_per_second_calculation() {
+        let checker = CaptionQcChecker::broadcast_default();
+        // 10 chars in 25 frames at 25 fps = 10 chars / 1 sec = 10 CPS
+        let line = CaptionLine::new("0123456789", 0, 25);
+        let cps = checker.chars_per_second(&line);
+        assert!((cps - 10.0).abs() < 0.1, "Expected ~10.0 CPS, got {cps}");
+    }
+
+    #[test]
+    fn test_checker_empty_lines_no_panic() {
+        let checker = CaptionQcChecker::broadcast_default();
+        let report = checker.check(&[]);
+        assert!(!report.has_errors());
+        assert!(report.gaps.is_empty());
+    }
+
+    #[test]
+    fn test_checker_single_line_no_gap() {
+        let checker = CaptionQcChecker::broadcast_default();
+        let lines = vec![CaptionLine::new("Hello world.", 0, 50)];
+        let report = checker.check(&lines);
+        assert!(report.gaps.is_empty(), "Single line produces no gaps");
+    }
+
+    #[test]
+    fn test_streaming_checker_higher_wpm_limit() {
+        // Streaming allows up to 220 WPM vs broadcast 180 WPM
+        let broadcast = CaptionQcChecker::broadcast_default();
+        let streaming = CaptionQcChecker::streaming_default();
+        assert!(streaming.max_wpm > broadcast.max_wpm);
+    }
+
+    #[test]
+    fn test_gap_back_to_back_is_zero() {
+        let checker = CaptionQcChecker::broadcast_default().with_min_gap_frames(0);
+        let lines = vec![
+            CaptionLine::new("A.", 0, 25),
+            CaptionLine::new("B.", 25, 50), // gap = 0 (back-to-back)
+        ];
+        let report = checker.check(&lines);
+        assert_eq!(report.gaps[0].gap_frames, 0);
+        // With min_gap_frames=0 no Overlap error should be generated
+        assert!(!report
+            .errors
+            .iter()
+            .any(|(_, e)| *e == CaptionError::Overlap));
+    }
 }

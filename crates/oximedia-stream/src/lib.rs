@@ -6,39 +6,69 @@
 //! | Module | Purpose |
 //! |---|---|
 //! | [`adaptive_pipeline`] | Quality ladder, BOLA-inspired ABR switching |
-//! | [`segment_manager`] | Segment state machine, prefetch/eviction |
-//! | [`stream_health`] | QoE scoring, issue detection, history |
-//! | [`scte35`] | SCTE-35 splice information encoding/parsing/scheduling |
-//! | [`multi_cdn`] | Multi-CDN failover routing with EWMA latency tracking |
-//! | [`manifest_builder`] | HLS master/media playlist and DASH MPD generation |
-//! | [`stream_packager`] | Media unit accumulation and segment packaging |
-//! | [`ll_hls`] | Low-Latency HLS with partial segments (RFC 8216bis) |
-//! | [`ll_dash`] | Low-Latency DASH with CMAF chunked transfer encoding |
+//! | [`bola`] | BOLA-E buffer-occupancy ABR algorithm implementation |
+//! | [`cdn_health`] | CDN health checking with sliding-window probe tracking |
+//! | [`cdn_upload`] | Parallel multi-CDN segment upload fan-out |
+//! | [`cmaf`] | CMAF chunk muxer for fragmented MP4 output |
+//! | [`cmaf_sequencer`] | CMAF chunk accumulator / sequencer |
+//! | [`dash_mpd_updater`] | Incremental DASH MPD period update helper |
 //! | [`drm_signaling`] | DRM system signaling (Widevine, FairPlay, PlayReady) |
-//! | [`thumbnail_track`] | I-frame-only playlists and trick-play manifests |
-//! | [`multi_audio`] | Multiple audio track variants and language management |
-//! | [`subtitle_track`] | WebVTT subtitle segment packaging and manifest integration |
-//! | [`stream_analytics`] | Viewer-side playback metrics and QoE aggregation |
 //! | [`dvr_recorder`] | DVR sliding-window recorder with VOD playlist generation |
+//! | [`file_recorder`] | Filesystem-backed live stream recorder |
+//! | [`ll_dash`] | Low-Latency DASH with CMAF chunked transfer encoding |
+//! | [`ll_hls`] | Low-Latency HLS with partial segments (RFC 8216bis) |
+//! | [`manifest_builder`] | HLS master/media playlist and DASH MPD generation |
+//! | [`multi_audio`] | Multiple audio track variants and language management |
+//! | [`multi_cdn`] | Multi-CDN failover routing with EWMA latency tracking |
+//! | [`prefetch_scheduler`] | Bandwidth-aware segment prefetch depth scheduler |
+//! | [`retry`] | Exponential back-off retry policy for segment fetches |
+//! | [`scte35`] | SCTE-35 splice information encoding/parsing/scheduling |
+//! | [`segment`] | Segment lifecycle state machine and buffer |
+//! | [`segment_cache`] | In-memory LRU segment cache for repeated request serving |
+//! | [`segment_manager`] | Segment state machine, prefetch/eviction |
+//! | [`srt_ingest`] | SRT protocol ingest as input to the streaming pipeline |
+//! | [`stream_analytics`] | Viewer-side playback metrics and QoE aggregation |
+//! | [`stream_health`] | QoE scoring, issue detection, history |
+//! | [`stream_packager`] | Media unit accumulation and segment packaging |
+//! | [`stream_recorder`] | Live stream recorder with DVR sliding-window |
+//! | [`subtitle_track`] | WebVTT subtitle segment packaging and manifest integration |
+//! | [`thumbnail_track`] | I-frame-only playlists and trick-play manifests |
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![allow(dead_code)]
 
+// ─── Internal error types (used by bola, segment) ────────────────────────────
+pub(crate) mod error;
+
 pub mod adaptive_pipeline;
+pub mod bola;
+pub mod cdn_health;
+pub mod cdn_upload;
 pub mod cmaf;
+pub mod cmaf_sequencer;
+pub mod dash_mpd_updater;
 pub mod drm_signaling;
+pub mod dvr_recorder;
+pub mod file_recorder;
 pub mod ll_dash;
 pub mod ll_hls;
 pub mod manifest_builder;
 pub mod multi_audio;
 pub mod multi_cdn;
+pub mod prefetch_scheduler;
+pub mod retry;
 pub mod scte35;
+pub mod segment;
+pub mod segment_cache;
 pub mod segment_manager;
+pub mod srt_ingest;
 pub mod stream_analytics;
 pub mod stream_health;
 pub mod stream_packager;
+pub mod stream_recorder;
 pub mod subtitle_track;
+pub mod throughput_abr;
 pub mod thumbnail_track;
 
 // ─── Crate-level error type ───────────────────────────────────────────────────
@@ -131,9 +161,30 @@ pub use subtitle_track::{
 pub use stream_analytics::{PlaybackEvent, PlaybackStats, StreamAnalytics};
 
 // dvr_recorder
-pub mod dvr_recorder;
 pub use dvr_recorder::{DvrConfig, DvrRecorder, DvrSegment};
 
 // throughput_abr
-pub mod throughput_abr;
 pub use throughput_abr::{ThroughputAbr, ThroughputMeasurement};
+
+// bola
+pub use bola::{BolaConfig, BolaState};
+
+// cdn_health
+pub use cdn_health::{CdnHealthRegistry, HealthCheckConfig, ProbeOutcome, ProviderStatus};
+
+// cdn_upload
+pub use cdn_upload::{CdnUploadManager, UploadBatch, UploadTarget};
+
+// srt_ingest
+pub use srt_ingest::{SrtConfig, SrtIngest, SrtPacket, SrtStream};
+
+// segment_cache
+pub use segment_cache::{CacheStats, SegmentCache};
+
+// prefetch_scheduler
+pub use prefetch_scheduler::{PrefetchConfig as PrefetchSchedulerConfig, PrefetchScheduler};
+
+// stream_recorder
+pub use stream_recorder::{
+    DvrWindow, LiveRecorder, RecordingConfig, RecordingStats, StreamRecorder,
+};

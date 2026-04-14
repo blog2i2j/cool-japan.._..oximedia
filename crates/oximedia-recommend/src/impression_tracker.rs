@@ -313,6 +313,159 @@ impl Default for ImpressionTracker {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Seen-content deduplication filter
+// ---------------------------------------------------------------------------
+
+/// Configuration for the seen-content filter.
+#[derive(Debug, Clone)]
+pub struct SeenContentConfig {
+    /// Maximum number of seen items to remember per user.
+    /// When this limit is reached, the oldest entries are evicted (FIFO).
+    pub max_seen_per_user: usize,
+    /// If `true`, only clicked impressions count as "seen".  If `false`,
+    /// any impression (even without a click) counts.
+    pub click_only: bool,
+}
+
+impl Default for SeenContentConfig {
+    fn default() -> Self {
+        Self {
+            max_seen_per_user: 500,
+            click_only: false,
+        }
+    }
+}
+
+/// Filter that tracks which content items each user has already seen and
+/// provides deduplication for recommendation lists.
+///
+/// Internally, each user has an ordered ring buffer of content IDs so that
+/// eviction is O(1) and look-up is O(1) via a `HashSet`.
+#[derive(Debug)]
+pub struct SeenContentFilter {
+    /// Per-user: (ordered FIFO queue of content IDs, HashSet for fast lookup)
+    seen: HashMap<
+        String,
+        (
+            std::collections::VecDeque<String>,
+            std::collections::HashSet<String>,
+        ),
+    >,
+    /// Configuration.
+    config: SeenContentConfig,
+    /// Total items filtered out across all calls to `filter_unseen`.
+    total_filtered: u64,
+}
+
+impl SeenContentFilter {
+    /// Create a new filter with the given configuration.
+    #[must_use]
+    pub fn new(config: SeenContentConfig) -> Self {
+        Self {
+            seen: HashMap::new(),
+            config,
+            total_filtered: 0,
+        }
+    }
+
+    /// Mark `content_id` as seen for `user_id`.
+    ///
+    /// If the user's seen buffer is at capacity, the oldest entry is evicted.
+    pub fn mark_seen(&mut self, user_id: &str, content_id: &str) {
+        let entry = self.seen.entry(user_id.to_string()).or_insert_with(|| {
+            (
+                std::collections::VecDeque::new(),
+                std::collections::HashSet::new(),
+            )
+        });
+
+        if !entry.1.contains(content_id) {
+            // Evict oldest if at capacity
+            if entry.0.len() >= self.config.max_seen_per_user {
+                if let Some(oldest) = entry.0.pop_front() {
+                    entry.1.remove(&oldest);
+                }
+            }
+            entry.0.push_back(content_id.to_string());
+            entry.1.insert(content_id.to_string());
+        }
+    }
+
+    /// Returns `true` if `user_id` has already seen `content_id`.
+    #[must_use]
+    pub fn has_seen(&self, user_id: &str, content_id: &str) -> bool {
+        self.seen
+            .get(user_id)
+            .map_or(false, |(_, set)| set.contains(content_id))
+    }
+
+    /// Filter a list of content IDs, returning only items the user has NOT seen.
+    ///
+    /// Updates the `total_filtered` counter by the number of removed items.
+    pub fn filter_unseen(&mut self, user_id: &str, content_ids: Vec<String>) -> Vec<String> {
+        let before = content_ids.len();
+        let filtered: Vec<String> = content_ids
+            .into_iter()
+            .filter(|cid| !self.has_seen(user_id, cid))
+            .collect();
+        let removed = before - filtered.len();
+        self.total_filtered += removed as u64;
+        filtered
+    }
+
+    /// Ingest all impressions from an `ImpressionTracker` for a given user.
+    ///
+    /// Marks every item that appears in the tracker's impression log as seen
+    /// for `user_id`.  If `config.click_only` is `true`, only clicked
+    /// impressions are imported.
+    pub fn ingest_from_tracker(&mut self, tracker: &ImpressionTracker, user_id: &str) {
+        for imp in tracker.impressions.values() {
+            if imp.user_id != user_id {
+                continue;
+            }
+            if self.config.click_only && !imp.clicked {
+                continue;
+            }
+            self.mark_seen(user_id, &imp.content_id);
+        }
+    }
+
+    /// Clear all seen data for a single user.
+    pub fn clear_user(&mut self, user_id: &str) {
+        self.seen.remove(user_id);
+    }
+
+    /// Clear all seen data for all users.
+    pub fn clear_all(&mut self) {
+        self.seen.clear();
+    }
+
+    /// Number of seen items for a specific user.
+    #[must_use]
+    pub fn seen_count(&self, user_id: &str) -> usize {
+        self.seen.get(user_id).map_or(0, |(q, _)| q.len())
+    }
+
+    /// Total number of users being tracked.
+    #[must_use]
+    pub fn tracked_users(&self) -> usize {
+        self.seen.len()
+    }
+
+    /// Total items filtered out across all `filter_unseen` calls.
+    #[must_use]
+    pub fn total_filtered(&self) -> u64 {
+        self.total_filtered
+    }
+}
+
+impl Default for SeenContentFilter {
+    fn default() -> Self {
+        Self::new(SeenContentConfig::default())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -449,5 +602,174 @@ mod tests {
     fn test_impression_id_display() {
         let id = ImpressionId("imp_42".to_string());
         assert_eq!(id.to_string(), "imp_42");
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // SeenContentFilter tests
+    // ─────────────────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_seen_filter_new_user_has_not_seen_anything() {
+        let filter = SeenContentFilter::default();
+        assert!(!filter.has_seen("alice", "video1"));
+        assert_eq!(filter.seen_count("alice"), 0);
+    }
+
+    #[test]
+    fn test_seen_filter_mark_and_check_seen() {
+        let mut filter = SeenContentFilter::default();
+        filter.mark_seen("alice", "video1");
+        assert!(filter.has_seen("alice", "video1"));
+        assert!(!filter.has_seen("alice", "video2"));
+    }
+
+    #[test]
+    fn test_seen_filter_mark_multiple_users_independent() {
+        let mut filter = SeenContentFilter::default();
+        filter.mark_seen("alice", "video1");
+        filter.mark_seen("bob", "video2");
+        assert!(filter.has_seen("alice", "video1"));
+        assert!(!filter.has_seen("alice", "video2"));
+        assert!(filter.has_seen("bob", "video2"));
+        assert!(!filter.has_seen("bob", "video1"));
+    }
+
+    #[test]
+    fn test_seen_filter_evicts_oldest_on_capacity() {
+        let config = SeenContentConfig {
+            max_seen_per_user: 3,
+            click_only: false,
+        };
+        let mut filter = SeenContentFilter::new(config);
+        filter.mark_seen("alice", "v1");
+        filter.mark_seen("alice", "v2");
+        filter.mark_seen("alice", "v3");
+        // Capacity is 3 — adding v4 evicts v1
+        filter.mark_seen("alice", "v4");
+        assert!(
+            !filter.has_seen("alice", "v1"),
+            "v1 should have been evicted"
+        );
+        assert!(filter.has_seen("alice", "v2"));
+        assert!(filter.has_seen("alice", "v3"));
+        assert!(filter.has_seen("alice", "v4"));
+        assert_eq!(filter.seen_count("alice"), 3);
+    }
+
+    #[test]
+    fn test_seen_filter_duplicate_mark_does_not_grow() {
+        let mut filter = SeenContentFilter::default();
+        filter.mark_seen("alice", "v1");
+        filter.mark_seen("alice", "v1"); // duplicate
+        assert_eq!(filter.seen_count("alice"), 1);
+    }
+
+    #[test]
+    fn test_seen_filter_filter_unseen_removes_seen_items() {
+        let mut filter = SeenContentFilter::default();
+        filter.mark_seen("alice", "v1");
+        filter.mark_seen("alice", "v3");
+        let ids = vec![
+            "v1".to_string(),
+            "v2".to_string(),
+            "v3".to_string(),
+            "v4".to_string(),
+        ];
+        let result = filter.filter_unseen("alice", ids);
+        assert_eq!(result, vec!["v2".to_string(), "v4".to_string()]);
+    }
+
+    #[test]
+    fn test_seen_filter_filter_unseen_counts_filtered() {
+        let mut filter = SeenContentFilter::default();
+        filter.mark_seen("alice", "v1");
+        filter.mark_seen("alice", "v2");
+        let ids = vec!["v1".to_string(), "v2".to_string(), "v3".to_string()];
+        filter.filter_unseen("alice", ids);
+        assert_eq!(filter.total_filtered(), 2);
+    }
+
+    #[test]
+    fn test_seen_filter_filter_unseen_empty_list() {
+        let mut filter = SeenContentFilter::default();
+        let result = filter.filter_unseen("alice", vec![]);
+        assert!(result.is_empty());
+        assert_eq!(filter.total_filtered(), 0);
+    }
+
+    #[test]
+    fn test_seen_filter_ingest_from_tracker_all_impressions() {
+        let mut tracker = ImpressionTracker::new();
+        tracker.record_impression("alice", "v1", 0, 100);
+        tracker.record_impression("alice", "v2", 1, 200);
+        tracker.record_impression("bob", "v3", 2, 300);
+
+        let config = SeenContentConfig {
+            click_only: false,
+            ..Default::default()
+        };
+        let mut filter = SeenContentFilter::new(config);
+        filter.ingest_from_tracker(&tracker, "alice");
+
+        assert!(filter.has_seen("alice", "v1"));
+        assert!(filter.has_seen("alice", "v2"));
+        assert!(
+            !filter.has_seen("alice", "v3"),
+            "bob's impression should not affect alice"
+        );
+        assert_eq!(filter.seen_count("alice"), 2);
+    }
+
+    #[test]
+    fn test_seen_filter_ingest_click_only_skips_unclicked() {
+        let mut tracker = ImpressionTracker::new();
+        let id1 = tracker.record_impression("alice", "v1", 0, 100);
+        tracker.record_impression("alice", "v2", 1, 200);
+        tracker.record_click(&id1.0, 5000);
+
+        let config = SeenContentConfig {
+            click_only: true,
+            ..Default::default()
+        };
+        let mut filter = SeenContentFilter::new(config);
+        filter.ingest_from_tracker(&tracker, "alice");
+
+        assert!(
+            filter.has_seen("alice", "v1"),
+            "clicked item should be seen"
+        );
+        assert!(
+            !filter.has_seen("alice", "v2"),
+            "unclicked item should not be seen"
+        );
+    }
+
+    #[test]
+    fn test_seen_filter_clear_user() {
+        let mut filter = SeenContentFilter::default();
+        filter.mark_seen("alice", "v1");
+        filter.mark_seen("alice", "v2");
+        filter.clear_user("alice");
+        assert_eq!(filter.seen_count("alice"), 0);
+        assert!(!filter.has_seen("alice", "v1"));
+    }
+
+    #[test]
+    fn test_seen_filter_clear_all() {
+        let mut filter = SeenContentFilter::default();
+        filter.mark_seen("alice", "v1");
+        filter.mark_seen("bob", "v2");
+        filter.clear_all();
+        assert_eq!(filter.tracked_users(), 0);
+    }
+
+    #[test]
+    fn test_seen_filter_tracked_users() {
+        let mut filter = SeenContentFilter::default();
+        assert_eq!(filter.tracked_users(), 0);
+        filter.mark_seen("alice", "v1");
+        assert_eq!(filter.tracked_users(), 1);
+        filter.mark_seen("bob", "v1");
+        assert_eq!(filter.tracked_users(), 2);
     }
 }

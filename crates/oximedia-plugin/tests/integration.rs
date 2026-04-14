@@ -188,3 +188,175 @@ fn test_plugin_with_decoder_factory() {
     let err = result.err().expect("error");
     assert!(err.to_string().contains("Mock"));
 }
+
+// ── Extended plugin lifecycle integration tests ───────────────────────────────
+
+/// Priority ordering: higher-priority plugin wins codec lookup.
+#[test]
+fn test_lifecycle_priority_ordering_determines_codec_winner() {
+    let registry = PluginRegistry::empty();
+    let low = make_plugin("low-pri-plugin", &[("opus", true, true)]);
+    let high = make_plugin("high-pri-plugin", &[("opus", true, true)]);
+    registry
+        .register_with_priority(low, 0)
+        .expect("register low");
+    registry
+        .register_with_priority(high, 100)
+        .expect("register high");
+    let found = registry.find_plugin_for_codec("opus").expect("codec found");
+    assert_eq!(
+        found.name, "high-pri-plugin",
+        "highest priority plugin must win"
+    );
+}
+
+/// Unregister one plugin — other plugin\'s codecs remain available.
+#[test]
+fn test_lifecycle_unregister_one_codec_remains_through_other() {
+    let registry = PluginRegistry::empty();
+    registry
+        .register(make_plugin("flac-plugin", &[("flac", true, true)]))
+        .expect("register flac");
+    registry
+        .register(make_plugin("opus-plugin", &[("opus", true, true)]))
+        .expect("register opus");
+    registry.unregister("flac-plugin").expect("unregister flac");
+    assert!(!registry.has_codec("flac"), "flac must be gone");
+    assert!(registry.has_codec("opus"), "opus must still be available");
+}
+
+/// Unregister-then-reregister: codec becomes available again.
+#[test]
+fn test_lifecycle_unregister_then_reregister() {
+    let registry = PluginRegistry::empty();
+    registry
+        .register(make_plugin("vorbis-plugin", &[("vorbis", true, false)]))
+        .expect("register first");
+    assert!(registry.has_codec("vorbis"));
+    registry.unregister("vorbis-plugin").expect("unregister");
+    assert!(!registry.has_codec("vorbis"));
+    registry
+        .register(make_plugin("vorbis-plugin", &[("vorbis", true, true)]))
+        .expect("re-register");
+    assert!(registry.has_codec("vorbis"));
+    assert!(registry.has_encoder("vorbis"), "encoder now present");
+}
+
+/// find_plugin_for_codec returns None for unknown codec in empty registry.
+#[test]
+fn test_lifecycle_find_plugin_empty_registry() {
+    let registry = PluginRegistry::empty();
+    assert!(registry.find_plugin_for_codec("h264").is_none());
+    assert!(registry.find_plugin_for_codec("vp9").is_none());
+}
+
+/// A single plugin providing multiple codecs exposes all of them.
+#[test]
+fn test_lifecycle_multi_codec_plugin_all_codecs_accessible() {
+    let registry = PluginRegistry::empty();
+    let multi = make_plugin(
+        "multi-codec",
+        &[
+            ("av1", true, true),
+            ("vp9", true, true),
+            ("vp8", true, false),
+            ("theora", true, false),
+        ],
+    );
+    registry.register(multi).expect("register multi");
+    assert_eq!(registry.list_codecs().len(), 4);
+    for codec in &["av1", "vp9", "vp8", "theora"] {
+        assert!(
+            registry.has_codec(codec),
+            "codec {codec} should be available"
+        );
+    }
+    assert!(registry.has_encoder("av1"));
+    assert!(!registry.has_encoder("vp8"), "vp8 is decode-only");
+}
+
+/// Unregistering the primary codec provider makes the fallback take over.
+#[test]
+fn test_lifecycle_codec_failover_after_unregister() {
+    let registry = PluginRegistry::empty();
+    registry
+        .register(make_plugin("primary-h264", &[("h264", true, true)]))
+        .expect("register primary");
+    registry
+        .register(make_plugin("fallback-h264", &[("h264", true, false)]))
+        .expect("register fallback");
+    let winner = registry.find_plugin_for_codec("h264").expect("found");
+    assert_eq!(winner.name, "primary-h264");
+    registry
+        .unregister("primary-h264")
+        .expect("unregister primary");
+    let winner2 = registry.find_plugin_for_codec("h264").expect("fallback");
+    assert_eq!(winner2.name, "fallback-h264");
+}
+
+/// clear() removes all codecs from the capability cache.
+#[test]
+fn test_lifecycle_clear_invalidates_all_capability_lookups() {
+    let registry = PluginRegistry::empty();
+    registry
+        .register(make_plugin("codec-a", &[("av1", true, true)]))
+        .expect("a");
+    registry
+        .register(make_plugin("codec-b", &[("vp9", true, false)]))
+        .expect("b");
+    registry.clear();
+    assert!(!registry.has_codec("av1"), "av1 cleared");
+    assert!(!registry.has_codec("vp9"), "vp9 cleared");
+    assert_eq!(registry.plugin_count(), 0);
+}
+
+/// Negative priority plugins are registered but never preferred.
+#[test]
+fn test_lifecycle_negative_priority_plugin_still_registered() {
+    let registry = PluginRegistry::empty();
+    registry
+        .register_with_priority(
+            make_plugin("fallback-only", &[("theora", true, false)]),
+            -100,
+        )
+        .expect("negative priority");
+    assert_eq!(registry.plugin_count(), 1);
+    assert!(registry.has_codec("theora"));
+    assert_eq!(registry.plugin_priority("fallback-only"), Some(-100));
+}
+
+/// Unregistering a non-existent plugin returns an informative error.
+#[test]
+fn test_lifecycle_unregister_nonexistent_returns_not_found() {
+    let registry = PluginRegistry::empty();
+    registry
+        .register(make_plugin("real-plugin", &[("vp8", true, false)]))
+        .expect("register");
+    let err = registry
+        .unregister("ghost-plugin")
+        .expect_err("should fail");
+    let err_msg = err.to_string();
+    assert!(
+        err_msg.contains("not found") || err_msg.contains("ghost-plugin"),
+        "error must reference missing plugin, got: {err_msg}"
+    );
+}
+
+/// All registered plugins appear in list_plugins.
+#[test]
+fn test_lifecycle_list_plugins_contains_all_registered() {
+    let registry = PluginRegistry::empty();
+    let names = ["alpha", "beta", "gamma", "delta"];
+    for name in &names {
+        registry.register(make_plugin(name, &[])).expect("register");
+    }
+    let listed: Vec<String> = registry
+        .list_plugins()
+        .into_iter()
+        .map(|i| i.name)
+        .collect();
+    assert_eq!(listed.len(), names.len());
+    for name in &names {
+        assert!(listed.contains(&name.to_string()), "missing {name}");
+    }
+}

@@ -1,31 +1,59 @@
-#![allow(dead_code)]
 //! Bandwidth throttling for storage transfers.
 //!
 //! Provides token-bucket rate limiting, time-window throughput tracking,
-//! adaptive throttling, and per-key bandwidth allocation.
+//! adaptive throttling, per-key bandwidth allocation, and a
+//! `ThrottledTransfer` wrapper for the [`crate::CloudStorage`] trait.
+#![allow(dead_code)]
 
 use std::collections::HashMap;
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::sync::Mutex;
+use tokio::time::sleep;
 
-/// Token bucket rate limiter.
+/// Token bucket rate limiter with async blocking support.
+///
+/// The bucket holds up to `burst_bytes` tokens.  Each call to
+/// [`TokenBucket::try_consume`] checks synchronously whether tokens are
+/// available; [`TokenBucket::consume_blocking`] waits asynchronously until
+/// tokens are replenished at `rate_bytes_per_sec`.
 #[derive(Debug, Clone)]
 pub struct TokenBucket {
-    /// Maximum tokens (bytes) the bucket can hold.
-    capacity: u64,
+    /// Sustained rate in bytes per second (also used as the refill amount
+    /// for the legacy synchronous interface).
+    rate_bytes_per_sec: u64,
+    /// Maximum tokens (bytes) the bucket can hold — the burst allowance.
+    burst_bytes: u64,
     /// Current available tokens.
     tokens: u64,
-    /// Tokens added per refill interval.
+    /// Tokens added per refill interval (legacy interface).
     refill_amount: u64,
     /// Number of refill calls made.
     refill_count: u64,
 }
 
 impl TokenBucket {
+    /// Create a token bucket with an explicit `rate_bytes_per_sec` and
+    /// `burst_bytes` (maximum token capacity).
+    ///
+    /// The bucket starts full (tokens = `burst_bytes`).
+    pub fn with_rate(rate_bytes_per_sec: u64, burst_bytes: u64) -> Self {
+        Self {
+            rate_bytes_per_sec,
+            burst_bytes,
+            tokens: burst_bytes,
+            refill_amount: rate_bytes_per_sec,
+            refill_count: 0,
+        }
+    }
+
     /// Create a new token bucket.
     ///
     /// `capacity` is the burst size in bytes; `refill_amount` is bytes added per refill.
     pub fn new(capacity: u64, refill_amount: u64) -> Self {
         Self {
-            capacity,
+            rate_bytes_per_sec: refill_amount,
+            burst_bytes: capacity,
             tokens: capacity,
             refill_amount,
             refill_count: 0,
@@ -42,9 +70,49 @@ impl TokenBucket {
         }
     }
 
-    /// Refill the bucket by one interval.
+    /// Block asynchronously until `bytes` tokens are available, then consume them.
+    ///
+    /// Uses `tokio::time::sleep` to yield between checks; the sleep duration is
+    /// computed as `bytes / rate_bytes_per_sec` (minimum 1 ms) so the caller
+    /// never busy-loops.
+    ///
+    /// # Zero-rate handling
+    /// If `rate_bytes_per_sec == 0` the function sleeps indefinitely (it will
+    /// only return if the rate is changed externally, which this API does not
+    /// support — callers should check the rate before calling).
+    #[allow(clippy::cast_precision_loss)]
+    pub async fn consume_blocking(&mut self, bytes: u64) {
+        loop {
+            if self.tokens >= bytes {
+                self.tokens -= bytes;
+                return;
+            }
+
+            // How many additional tokens are needed?
+            let needed = bytes - self.tokens;
+
+            // How long until the needed tokens arrive?
+            let wait_ms = if self.rate_bytes_per_sec == 0 {
+                1_000 // 1 s default when rate is zero (will loop)
+            } else {
+                // ceiling division to avoid under-sleeping
+                let ms = (needed as f64 / self.rate_bytes_per_sec as f64 * 1_000.0).ceil() as u64;
+                ms.max(1)
+            };
+
+            sleep(Duration::from_millis(wait_ms)).await;
+
+            // Refill proportionally to elapsed time.
+            let added = self
+                .rate_bytes_per_sec
+                .min(self.burst_bytes - self.tokens.min(self.burst_bytes));
+            self.tokens = (self.tokens + added).min(self.burst_bytes);
+        }
+    }
+
+    /// Refill the bucket by one interval (legacy interface).
     pub fn refill(&mut self) {
-        self.tokens = (self.tokens + self.refill_amount).min(self.capacity);
+        self.tokens = (self.tokens + self.refill_amount).min(self.burst_bytes);
         self.refill_count += 1;
     }
 
@@ -53,9 +121,14 @@ impl TokenBucket {
         self.tokens
     }
 
-    /// Maximum capacity.
+    /// Maximum capacity (burst size).
     pub fn capacity(&self) -> u64 {
-        self.capacity
+        self.burst_bytes
+    }
+
+    /// Configured sustained rate in bytes per second.
+    pub fn rate_bytes_per_sec(&self) -> u64 {
+        self.rate_bytes_per_sec
     }
 
     /// Number of refills that have occurred.
@@ -66,10 +139,62 @@ impl TokenBucket {
     /// Utilization ratio (consumed / capacity).
     #[allow(clippy::cast_precision_loss)]
     pub fn utilization(&self) -> f64 {
-        if self.capacity == 0 {
+        if self.burst_bytes == 0 {
             return 0.0;
         }
-        1.0 - (self.tokens as f64 / self.capacity as f64)
+        1.0 - (self.tokens as f64 / self.burst_bytes as f64)
+    }
+}
+
+// ─── ThrottledTransfer ────────────────────────────────────────────────────────
+
+/// A [`crate::CloudStorage`] wrapper that applies token-bucket bandwidth
+/// limiting to all uploads and downloads.
+///
+/// The inner bucket is protected by a `tokio::sync::Mutex` so that multiple
+/// concurrent upload/download tasks share a single rate limit.
+#[derive(Debug, Clone)]
+pub struct ThrottledTransfer<S> {
+    inner: Arc<S>,
+    bucket: Arc<Mutex<TokenBucket>>,
+}
+
+impl<S> ThrottledTransfer<S> {
+    /// Wrap `storage` with a token-bucket throttle.
+    ///
+    /// The `rate_bytes_per_sec` controls the sustained transfer rate;
+    /// `burst_bytes` allows short bursts above that rate.
+    pub fn new(storage: S, rate_bytes_per_sec: u64, burst_bytes: u64) -> Self {
+        Self {
+            inner: Arc::new(storage),
+            bucket: Arc::new(Mutex::new(TokenBucket::with_rate(
+                rate_bytes_per_sec,
+                burst_bytes,
+            ))),
+        }
+    }
+
+    /// Access the underlying storage backend.
+    pub fn inner(&self) -> &S {
+        &self.inner
+    }
+
+    /// Consume `bytes` from the token bucket, sleeping if necessary.
+    pub async fn throttle(&self, bytes: u64) {
+        let mut bucket = self.bucket.lock().await;
+        bucket.consume_blocking(bytes).await;
+    }
+
+    /// Synchronously attempt to consume `bytes`; returns `false` if tokens are
+    /// insufficient (non-blocking path for callers that cannot sleep).
+    pub async fn try_throttle(&self, bytes: u64) -> bool {
+        let mut bucket = self.bucket.lock().await;
+        bucket.try_consume(bytes)
+    }
+
+    /// Available tokens at this instant.
+    pub async fn available_tokens(&self) -> u64 {
+        self.bucket.lock().await.available()
     }
 }
 
@@ -424,5 +549,81 @@ mod tests {
         assert!(matches!(t.mode(), ThrottleMode::Fixed(100)));
         let t2 = BandwidthThrottle::unlimited();
         assert!(matches!(t2.mode(), ThrottleMode::Unlimited));
+    }
+
+    // ── TokenBucket async tests (Task E) ──────────────────────────────────────
+
+    #[test]
+    fn test_token_bucket_with_rate_starts_full() {
+        let bucket = TokenBucket::with_rate(1000, 5000);
+        assert_eq!(bucket.available(), 5000);
+        assert_eq!(bucket.rate_bytes_per_sec(), 1000);
+    }
+
+    #[test]
+    fn test_token_bucket_try_consume_blocks_when_empty() {
+        let mut bucket = TokenBucket::with_rate(500, 1000);
+        // Consume everything
+        assert!(bucket.try_consume(1000));
+        // Bucket empty — next try_consume should fail
+        assert!(!bucket.try_consume(1));
+    }
+
+    #[test]
+    fn test_token_bucket_burst_allows_spike() {
+        // burst_bytes = 4000 → can absorb 4000 bytes in one shot
+        let mut bucket = TokenBucket::with_rate(1000, 4000);
+        assert!(bucket.try_consume(4000));
+        assert!(!bucket.try_consume(1)); // exhausted
+    }
+
+    #[tokio::test]
+    async fn test_consume_blocking_returns_when_tokens_available() {
+        // The bucket starts full with 1000 tokens; requesting 500 should
+        // return immediately without sleeping.
+        let mut bucket = TokenBucket::with_rate(10_000, 1000);
+        bucket.consume_blocking(500).await;
+        assert_eq!(bucket.available(), 500);
+    }
+
+    #[tokio::test]
+    async fn test_throttled_transfer_try_throttle_succeeds_within_burst() {
+        // Create a dummy no-op storage (just a unit type).
+        struct NoopStorage;
+        let throttle = ThrottledTransfer::new(NoopStorage, 1_000, 5_000);
+        // 4000 bytes within burst of 5000 — should succeed immediately.
+        let ok = throttle.try_throttle(4_000).await;
+        assert!(ok, "try_throttle should succeed within burst");
+    }
+
+    #[tokio::test]
+    async fn test_throttled_transfer_try_throttle_fails_over_burst() {
+        struct NoopStorage;
+        let throttle = ThrottledTransfer::new(NoopStorage, 1_000, 500);
+        // Requesting 1000 > burst of 500 → fails
+        let ok = throttle.try_throttle(1_000).await;
+        assert!(!ok, "try_throttle should fail when request exceeds burst");
+    }
+
+    #[tokio::test]
+    async fn test_throttled_transfer_available_tokens_decreases_on_consume() {
+        struct NoopStorage;
+        let throttle = ThrottledTransfer::new(NoopStorage, 10_000, 2_000);
+        let before = throttle.available_tokens().await;
+        // Consume half the burst.
+        throttle.try_throttle(1_000).await;
+        let after = throttle.available_tokens().await;
+        assert!(
+            after < before,
+            "available tokens should decrease after consume"
+        );
+    }
+
+    #[test]
+    fn test_token_bucket_utilization_with_rate() {
+        let mut bucket = TokenBucket::with_rate(1000, 1000);
+        assert!((bucket.utilization()).abs() < f64::EPSILON);
+        bucket.try_consume(500);
+        assert!((bucket.utilization() - 0.5).abs() < f64::EPSILON);
     }
 }

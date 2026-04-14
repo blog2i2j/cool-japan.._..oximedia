@@ -428,4 +428,137 @@ mod tests {
         mgr.remove_label("Custom");
         assert!(mgr.get_clip_label(1).is_none());
     }
+
+    // ── Additional comprehensive tests ────────────────────────────────────
+
+    #[test]
+    fn test_color_label_without_shortcut_is_none() {
+        let label = ColorLabel::new("NoShortcut", "#123456");
+        assert!(label.shortcut.is_none());
+    }
+
+    #[test]
+    fn test_color_label_shortcut_clamp_zero() {
+        // Shortcut 0 should clamp to 0 (min(0,9) == 0)
+        let label = ColorLabel::new("Zero", "#000000").with_shortcut(0);
+        assert_eq!(label.shortcut, Some(0));
+    }
+
+    #[test]
+    fn test_color_label_rgb_black() {
+        let label = ColorLabel::new("Black", "#000000");
+        assert_eq!(label.rgb(), Some((0, 0, 0)));
+    }
+
+    #[test]
+    fn test_color_label_rgb_white() {
+        let label = ColorLabel::new("White", "#FFFFFF");
+        assert_eq!(label.rgb(), Some((255, 255, 255)));
+    }
+
+    #[test]
+    fn test_color_label_rgb_lowercase_hex() {
+        // Lowercase hex should also parse correctly
+        let label = ColorLabel::new("Lower", "#aabbcc");
+        assert_eq!(label.rgb(), Some((0xAA, 0xBB, 0xCC)));
+    }
+
+    #[test]
+    fn test_color_label_rgb_short_hex_invalid() {
+        // Only 3 hex chars → invalid
+        let label = ColorLabel::new("Short", "#ABC");
+        assert!(label.rgb().is_none());
+    }
+
+    #[test]
+    fn test_standard_labels_all_have_shortcuts() {
+        let labels = StandardLabels::production();
+        for label in &labels {
+            assert!(
+                label.shortcut.is_some(),
+                "Label '{}' has no shortcut",
+                label.name
+            );
+        }
+    }
+
+    #[test]
+    fn test_standard_labels_all_have_valid_rgb() {
+        let labels = StandardLabels::production();
+        for label in &labels {
+            assert!(
+                label.rgb().is_some(),
+                "Label '{}' has invalid color '{}'",
+                label.name,
+                label.color
+            );
+        }
+    }
+
+    #[test]
+    fn test_tag_equality() {
+        let a = Tag::new("scene", "1");
+        let b = Tag::new("scene", "1");
+        let c = Tag::new("scene", "2");
+        assert_eq!(a, b);
+        assert_ne!(a, c);
+    }
+
+    #[test]
+    fn test_label_manager_multiple_tags_same_key_different_values() {
+        // A clip can have tags with the same key but different values.
+        let mut mgr = LabelManager::new();
+        mgr.add_clip_tag(1, Tag::new("actor", "Alice"));
+        mgr.add_clip_tag(1, Tag::new("actor", "Bob"));
+        assert_eq!(mgr.get_clip_tags(1).len(), 2);
+    }
+
+    #[test]
+    fn test_label_manager_clips_with_tag_value_exact_match() {
+        let mut mgr = LabelManager::new();
+        mgr.add_clip_tag(1, Tag::new("rating", "5"));
+        mgr.add_clip_tag(2, Tag::new("rating", "3"));
+        mgr.add_clip_tag(3, Tag::new("rating", "5"));
+
+        let five_star = mgr.clips_with_tag("rating", "5");
+        assert_eq!(five_star.len(), 2);
+        assert!(!five_star.contains(&2));
+    }
+
+    #[test]
+    fn test_label_manager_remove_clip_clears_both_label_and_tags() {
+        let mut mgr = LabelManager::with_standard_labels();
+        mgr.set_clip_label(42, "Music");
+        mgr.add_clip_tag(42, Tag::new("key", "value"));
+        mgr.remove_clip(42);
+        assert!(mgr.get_clip_label(42).is_none());
+        assert!(mgr.get_clip_tags(42).is_empty());
+    }
+
+    #[test]
+    fn test_label_manager_known_tag_keys_deduplicated() {
+        let mut mgr = LabelManager::new();
+        // Adding the same key via different clips
+        mgr.add_clip_tag(1, Tag::new("scene", "A"));
+        mgr.add_clip_tag(2, Tag::new("scene", "B"));
+        mgr.add_clip_tag(3, Tag::new("take", "1"));
+        let keys = mgr.known_tag_keys();
+        assert_eq!(keys.len(), 2, "Should deduplicate 'scene' key");
+    }
+
+    #[test]
+    fn test_label_manager_set_clip_label_updates_existing() {
+        let mut mgr = LabelManager::with_standard_labels();
+        mgr.set_clip_label(1, "Interview");
+        mgr.set_clip_label(1, "B-Roll"); // overwrite
+        let label = mgr.get_clip_label(1).expect("should exist");
+        assert_eq!(label.name, "B-Roll");
+    }
+
+    #[test]
+    fn test_label_manager_clips_with_label_empty_when_none_assigned() {
+        let mgr = LabelManager::with_standard_labels();
+        let clips = mgr.clips_with_label("Interview");
+        assert!(clips.is_empty());
+    }
 }

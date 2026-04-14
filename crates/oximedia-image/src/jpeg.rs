@@ -43,14 +43,9 @@ pub const JPEG_DRI: u16 = 0xFFDD;
 
 /// Standard JPEG zigzag scan order (maps position index → block index).
 pub const ZIGZAG: [u8; 64] = [
-     0,  1,  8, 16,  9,  2,  3, 10,
-    17, 24, 32, 25, 18, 11,  4,  5,
-    12, 19, 26, 33, 40, 48, 41, 34,
-    27, 20, 13,  6,  7, 14, 21, 28,
-    35, 42, 49, 56, 57, 50, 43, 36,
-    29, 22, 15, 23, 30, 37, 44, 51,
-    58, 59, 52, 45, 38, 31, 39, 46,
-    53, 60, 61, 54, 47, 55, 62, 63,
+    0, 1, 8, 16, 9, 2, 3, 10, 17, 24, 32, 25, 18, 11, 4, 5, 12, 19, 26, 33, 40, 48, 41, 34, 27, 20,
+    13, 6, 7, 14, 21, 28, 35, 42, 49, 56, 57, 50, 43, 36, 29, 22, 15, 23, 30, 37, 44, 51, 58, 59,
+    52, 45, 38, 31, 39, 46, 53, 60, 61, 54, 47, 55, 62, 63,
 ];
 
 /// Inverse zigzag: maps block index → position index.
@@ -68,26 +63,16 @@ pub const ZIGZAG_INV: [u8; 64] = {
 
 /// JPEG Annex K luma quantization table (quality=50 baseline).
 pub const LUMA_QUANT_BASE: [u8; 64] = [
-    16, 11, 10, 16, 24, 40, 51, 61,
-    12, 12, 14, 19, 26, 58, 60, 55,
-    14, 13, 16, 24, 40, 57, 69, 56,
-    14, 17, 22, 29, 51, 87, 80, 62,
-    18, 22, 37, 56, 68,109,103, 77,
-    24, 35, 55, 64, 81,104,113, 92,
-    49, 64, 78, 87,103,121,120,101,
-    72, 92, 95, 98,112,100,103, 99,
+    16, 11, 10, 16, 24, 40, 51, 61, 12, 12, 14, 19, 26, 58, 60, 55, 14, 13, 16, 24, 40, 57, 69, 56,
+    14, 17, 22, 29, 51, 87, 80, 62, 18, 22, 37, 56, 68, 109, 103, 77, 24, 35, 55, 64, 81, 104, 113,
+    92, 49, 64, 78, 87, 103, 121, 120, 101, 72, 92, 95, 98, 112, 100, 103, 99,
 ];
 
 /// JPEG Annex K chroma quantization table.
 pub const CHROMA_QUANT_BASE: [u8; 64] = [
-    17, 18, 24, 47, 99, 99, 99, 99,
-    18, 21, 26, 66, 99, 99, 99, 99,
-    24, 26, 56, 99, 99, 99, 99, 99,
-    47, 66, 99, 99, 99, 99, 99, 99,
-    99, 99, 99, 99, 99, 99, 99, 99,
-    99, 99, 99, 99, 99, 99, 99, 99,
-    99, 99, 99, 99, 99, 99, 99, 99,
-    99, 99, 99, 99, 99, 99, 99, 99,
+    17, 18, 24, 47, 99, 99, 99, 99, 18, 21, 26, 66, 99, 99, 99, 99, 24, 26, 56, 99, 99, 99, 99, 99,
+    47, 66, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
+    99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99, 99,
 ];
 
 /// Scale a quantization table by quality factor (1-100).
@@ -111,9 +96,9 @@ pub fn rgb_to_ycbcr(r: u8, g: u8, b: u8) -> (f32, f32, f32) {
     let r = r as f32;
     let g = g as f32;
     let b = b as f32;
-    let y  =  0.299   * r + 0.587   * g + 0.114   * b;
-    let cb = -0.168736 * r - 0.331264 * g + 0.5     * b + 128.0;
-    let cr =  0.5     * r - 0.418688 * g - 0.081312 * b + 128.0;
+    let y = 0.299 * r + 0.587 * g + 0.114 * b;
+    let cb = -0.168736 * r - 0.331264 * g + 0.5 * b + 128.0;
+    let cr = 0.5 * r - 0.418688 * g - 0.081312 * b + 128.0;
     (y, cb, cr)
 }
 
@@ -122,9 +107,9 @@ pub fn rgb_to_ycbcr(r: u8, g: u8, b: u8) -> (f32, f32, f32) {
 pub fn ycbcr_to_rgb(y: f32, cb: f32, cr: f32) -> (u8, u8, u8) {
     let cb = cb - 128.0;
     let cr = cr - 128.0;
-    let r = (y              + 1.402   * cr).clamp(0.0, 255.0) as u8;
-    let g = (y - 0.344136  * cb - 0.714136 * cr).clamp(0.0, 255.0) as u8;
-    let b = (y + 1.772     * cb             ).clamp(0.0, 255.0) as u8;
+    let r = (y + 1.402 * cr).clamp(0.0, 255.0) as u8;
+    let g = (y - 0.344136 * cb - 0.714136 * cr).clamp(0.0, 255.0) as u8;
+    let b = (y + 1.772 * cb).clamp(0.0, 255.0) as u8;
     (r, g, b)
 }
 
@@ -140,7 +125,7 @@ pub fn dct_8x8(block: &mut [f32; 64]) {
     }
     // 1D DCT on rows
     for row in 0..8 {
-        dct_1d(&mut block[row*8..(row+1)*8]);
+        dct_1d(&mut block[row * 8..(row + 1) * 8]);
     }
     // 1D DCT on columns (transposed)
     let mut col_buf = [0.0f32; 8];
@@ -159,7 +144,7 @@ pub fn dct_8x8(block: &mut [f32; 64]) {
 pub fn idct_8x8(block: &mut [f32; 64]) {
     // 1D IDCT on rows
     for row in 0..8 {
-        idct_1d(&mut block[row*8..(row+1)*8]);
+        idct_1d(&mut block[row * 8..(row + 1) * 8]);
     }
     // 1D IDCT on columns
     let mut col_buf = [0.0f32; 8];
@@ -283,7 +268,11 @@ impl JpegFrame {
     /// Convert to `ImageFrame`.
     #[must_use]
     pub fn to_image_frame(&self, frame_number: u32) -> ImageFrame {
-        let color_space = if self.components == 1 { ColorSpace::Luma } else { ColorSpace::Srgb };
+        let color_space = if self.components == 1 {
+            ColorSpace::Luma
+        } else {
+            ColorSpace::Srgb
+        };
         ImageFrame::new(
             frame_number,
             self.width,
@@ -311,19 +300,27 @@ impl JpegQuality {
 
     /// High quality (95).
     #[must_use]
-    pub const fn high() -> Self { Self(95) }
+    pub const fn high() -> Self {
+        Self(95)
+    }
 
     /// Medium quality (75).
     #[must_use]
-    pub const fn medium() -> Self { Self(75) }
+    pub const fn medium() -> Self {
+        Self(75)
+    }
 
     /// Low quality (50, Annex K baseline).
     #[must_use]
-    pub const fn low() -> Self { Self(50) }
+    pub const fn low() -> Self {
+        Self(50)
+    }
 }
 
 impl Default for JpegQuality {
-    fn default() -> Self { Self::medium() }
+    fn default() -> Self {
+        Self::medium()
+    }
 }
 
 // ── JPEG bit-stream reader ────────────────────────────────────────────────────
@@ -337,7 +334,12 @@ struct BitReader<'a> {
 
 impl<'a> BitReader<'a> {
     fn new(data: &'a [u8]) -> Self {
-        Self { data, pos: 0, bit_buf: 0, bits_left: 0 }
+        Self {
+            data,
+            pos: 0,
+            bit_buf: 0,
+            bits_left: 0,
+        }
     }
 
     fn fill(&mut self) {
@@ -345,7 +347,8 @@ impl<'a> BitReader<'a> {
             let byte = self.data[self.pos];
             self.pos += 1;
             // JPEG byte stuffing: 0xFF 0x00 → 0xFF
-            let byte = if byte == 0xFF && self.pos < self.data.len() && self.data[self.pos] == 0x00 {
+            let byte = if byte == 0xFF && self.pos < self.data.len() && self.data[self.pos] == 0x00
+            {
                 self.pos += 1;
                 0xFF
             } else {
@@ -357,9 +360,13 @@ impl<'a> BitReader<'a> {
     }
 
     fn read_bits(&mut self, n: u32) -> Option<u32> {
-        if n == 0 { return Some(0); }
+        if n == 0 {
+            return Some(0);
+        }
         self.fill();
-        if self.bits_left < n { return None; }
+        if self.bits_left < n {
+            return None;
+        }
         self.bits_left -= n;
         Some((self.bit_buf >> self.bits_left) & ((1 << n) - 1))
     }
@@ -449,7 +456,9 @@ pub struct JpegDecoder;
 impl JpegDecoder {
     /// Create a new decoder.
     #[must_use]
-    pub fn new() -> Self { Self }
+    pub fn new() -> Self {
+        Self
+    }
 
     /// Decode JPEG bytes to a `JpegFrame`.
     ///
@@ -546,15 +555,17 @@ impl JpegDecoder {
         }
 
         let sof = sof.ok_or_else(|| ImageError::invalid_format("JPEG: missing SOF0"))?;
-        let scan_start = scan_data_start
-            .ok_or_else(|| ImageError::invalid_format("JPEG: missing SOS"))?;
+        let scan_start =
+            scan_data_start.ok_or_else(|| ImageError::invalid_format("JPEG: missing SOS"))?;
 
         // Extract compressed scan data (removing byte stuffing markers)
         let mut scan_data = Vec::new();
         let mut sp = scan_start;
         while sp < data.len() {
             if data[sp] == 0xFF {
-                if sp + 1 >= data.len() { break; }
+                if sp + 1 >= data.len() {
+                    break;
+                }
                 let next = data[sp + 1];
                 if next == 0x00 {
                     scan_data.push(0xFF);
@@ -581,22 +592,29 @@ impl JpegDecoder {
         // For a real full JPEG decode we need full entropy decode.
         // Here we provide a well-structured baseline decode with real Huffman.
         // If tables are present, attempt real decode; else produce gradient placeholder.
-        let pixels = self.decode_scan(
-            &scan_data,
+        let pixels = self
+            .decode_scan(
+                &scan_data,
+                width,
+                height,
+                components,
+                &quant_tables,
+                &huff_dc,
+                &huff_ac,
+            )
+            .unwrap_or_else(|_| {
+                // Fallback: gray gradient
+                (0..num_pixels * components as usize)
+                    .map(|i| ((i / components as usize) % 256) as u8)
+                    .collect()
+            });
+
+        Ok(JpegFrame {
             width,
             height,
             components,
-            &quant_tables,
-            &huff_dc,
-            &huff_ac,
-        ).unwrap_or_else(|_| {
-            // Fallback: gray gradient
-            (0..num_pixels * components as usize)
-                .map(|i| ((i / components as usize) % 256) as u8)
-                .collect()
-        });
-
-        Ok(JpegFrame { width, height, components, pixels })
+            pixels,
+        })
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -615,18 +633,27 @@ impl JpegDecoder {
         let n_comp = components as usize;
         let mut out = vec![128u8; (width * height) as usize * n_comp];
 
-        let dc_table = huff_dc[0].as_ref()
+        let dc_table = huff_dc[0]
+            .as_ref()
             .ok_or_else(|| ImageError::invalid_format("Missing DC Huffman table"))?;
-        let ac_table = huff_ac[0].as_ref()
+        let ac_table = huff_ac[0]
+            .as_ref()
             .ok_or_else(|| ImageError::invalid_format("Missing AC Huffman table"))?;
-        let qt = quant_tables[0].as_ref()
+        let qt = quant_tables[0]
+            .as_ref()
             .ok_or_else(|| ImageError::invalid_format("Missing quantization table"))?;
 
         // Build decode maps for DC and AC
-        let dc_decode: std::collections::HashMap<(u32, u32), u8> = dc_table.build_codes()
-            .into_iter().map(|(sym, code, len)| ((code, len), sym)).collect();
-        let ac_decode: std::collections::HashMap<(u32, u32), u8> = ac_table.build_codes()
-            .into_iter().map(|(sym, code, len)| ((code, len), sym)).collect();
+        let _dc_decode: std::collections::HashMap<(u32, u32), u8> = dc_table
+            .build_codes()
+            .into_iter()
+            .map(|(sym, code, len)| ((code, len), sym))
+            .collect();
+        let _ac_decode: std::collections::HashMap<(u32, u32), u8> = ac_table
+            .build_codes()
+            .into_iter()
+            .map(|(sym, code, len)| ((code, len), sym))
+            .collect();
 
         let mut reader = BitReader::new(scan_data);
         let mut dc_pred = vec![0i32; n_comp];
@@ -638,10 +665,16 @@ impl JpegDecoder {
                     let dc_huff = huff_dc[comp.min(1)].as_ref().unwrap_or(dc_table);
                     let ac_huff = huff_ac[comp.min(1)].as_ref().unwrap_or(ac_table);
 
-                    let dc_dec: std::collections::HashMap<(u32, u32), u8> = dc_huff.build_codes()
-                        .into_iter().map(|(sym, code, len)| ((code, len), sym)).collect();
-                    let ac_dec: std::collections::HashMap<(u32, u32), u8> = ac_huff.build_codes()
-                        .into_iter().map(|(sym, code, len)| ((code, len), sym)).collect();
+                    let dc_dec: std::collections::HashMap<(u32, u32), u8> = dc_huff
+                        .build_codes()
+                        .into_iter()
+                        .map(|(sym, code, len)| ((code, len), sym))
+                        .collect();
+                    let ac_dec: std::collections::HashMap<(u32, u32), u8> = ac_huff
+                        .build_codes()
+                        .into_iter()
+                        .map(|(sym, code, len)| ((code, len), sym))
+                        .collect();
 
                     let mut coeffs = [0i32; 64];
 
@@ -651,7 +684,8 @@ impl JpegDecoder {
                     let diff = if cat == 0 {
                         0i32
                     } else {
-                        let bits = reader.read_bits(cat as u32)
+                        let bits = reader
+                            .read_bits(cat as u32)
                             .ok_or_else(|| ImageError::invalid_format("DC bits truncated"))?;
                         extend(bits, cat)
                     };
@@ -661,15 +695,21 @@ impl JpegDecoder {
                     // Decode AC
                     let mut k = 1usize;
                     while k < 64 {
-                        let rs = decode_huffman_symbol(&mut reader, &ac_dec)
-                            .ok_or_else(|| ImageError::invalid_format("AC Huffman decode failed"))?;
-                        if rs == 0x00 { break; } // EOB
+                        let rs = decode_huffman_symbol(&mut reader, &ac_dec).ok_or_else(|| {
+                            ImageError::invalid_format("AC Huffman decode failed")
+                        })?;
+                        if rs == 0x00 {
+                            break;
+                        } // EOB
                         let run = (rs >> 4) as usize;
                         let cat = rs & 0x0F;
                         k += run;
-                        if k >= 64 { break; }
+                        if k >= 64 {
+                            break;
+                        }
                         if cat > 0 {
-                            let bits = reader.read_bits(cat as u32)
+                            let bits = reader
+                                .read_bits(cat as u32)
                                 .ok_or_else(|| ImageError::invalid_format("AC bits truncated"))?;
                             coeffs[ZIGZAG[k] as usize] = extend(bits, cat);
                         }
@@ -691,10 +731,14 @@ impl JpegDecoder {
                     // Write to output
                     for by in 0..8usize {
                         let img_y = mcu_row * 8 + by;
-                        if img_y >= height as usize { continue; }
+                        if img_y >= height as usize {
+                            continue;
+                        }
                         for bx in 0..8usize {
                             let img_x = mcu_col * 8 + bx;
-                            if img_x >= width as usize { continue; }
+                            if img_x >= width as usize {
+                                continue;
+                            }
                             let pix_idx = (img_y * width as usize + img_x) * n_comp + comp;
                             let val = block[by * 8 + bx].clamp(0.0, 255.0) as u8;
                             if pix_idx < out.len() {
@@ -710,7 +754,7 @@ impl JpegDecoder {
         if n_comp == 3 {
             for i in 0..(width * height) as usize {
                 let base = i * 3;
-                let y  = out[base] as f32;
+                let y = out[base] as f32;
                 let cb = out[base + 1] as f32;
                 let cr = out[base + 2] as f32;
                 let (r, g, b) = ycbcr_to_rgb(y, cb, cr);
@@ -741,7 +785,9 @@ fn decode_huffman_symbol(
 
 /// Extend a sign-extended value from `nbit`-bit code.
 fn extend(v: u32, nbit: u8) -> i32 {
-    if nbit == 0 { return 0; }
+    if nbit == 0 {
+        return 0;
+    }
     let vt = 1 << (nbit - 1);
     if v as i32 >= vt {
         v as i32
@@ -761,7 +807,9 @@ pub struct JpegEncoder {
 
 impl Default for JpegEncoder {
     fn default() -> Self {
-        Self { quality: JpegQuality::default() }
+        Self {
+            quality: JpegQuality::default(),
+        }
     }
 }
 
@@ -774,7 +822,9 @@ impl JpegEncoder {
 
     /// Encode an `ImageFrame` as JPEG bytes.
     pub fn encode(&self, frame: &ImageFrame) -> ImageResult<Vec<u8>> {
-        let data = frame.data.as_slice()
+        let data = frame
+            .data
+            .as_slice()
             .ok_or_else(|| ImageError::invalid_format("JPEG encoder requires interleaved data"))?;
 
         let w = frame.width as usize;
@@ -802,12 +852,16 @@ impl JpegEncoder {
 
         // DQT: luma
         let mut dqt0 = vec![0x00u8]; // table 0, precision 8-bit
-        for &q in &luma_qt { dqt0.push(q.min(255) as u8); }
+        for &q in &luma_qt {
+            dqt0.push(q.min(255) as u8);
+        }
         write_segment(&mut out, JPEG_DQT, &dqt0);
 
         // DQT: chroma
         let mut dqt1 = vec![0x01u8]; // table 1
-        for &q in &chroma_qt { dqt1.push(q.min(255) as u8); }
+        for &q in &chroma_qt {
+            dqt1.push(q.min(255) as u8);
+        }
         write_segment(&mut out, JPEG_DQT, &dqt1);
 
         // SOF0
@@ -884,8 +938,16 @@ impl JpegEncoder {
             for mcu_col in 0..mcu_cols {
                 for comp in 0..n_comp {
                     let qt = if comp == 0 { luma_qt } else { chroma_qt };
-                    let dc_map = if comp == 0 { &luma_dc_map } else { &chroma_dc_map };
-                    let ac_map = if comp == 0 { &luma_ac_map } else { &chroma_ac_map };
+                    let dc_map = if comp == 0 {
+                        &luma_dc_map
+                    } else {
+                        &chroma_dc_map
+                    };
+                    let ac_map = if comp == 0 {
+                        &luma_ac_map
+                    } else {
+                        &chroma_ac_map
+                    };
 
                     // Extract 8x8 block
                     let mut block = [0.0f32; 64];
@@ -897,11 +959,26 @@ impl JpegEncoder {
                             let sample = if src_comp == 1 {
                                 pixels[pix_base] as f32
                             } else if comp == 0 {
-                                rgb_to_ycbcr(pixels[pix_base], pixels[pix_base+1], pixels[pix_base+2]).0
+                                rgb_to_ycbcr(
+                                    pixels[pix_base],
+                                    pixels[pix_base + 1],
+                                    pixels[pix_base + 2],
+                                )
+                                .0
                             } else if comp == 1 {
-                                rgb_to_ycbcr(pixels[pix_base], pixels[pix_base+1], pixels[pix_base+2]).1
+                                rgb_to_ycbcr(
+                                    pixels[pix_base],
+                                    pixels[pix_base + 1],
+                                    pixels[pix_base + 2],
+                                )
+                                .1
                             } else {
-                                rgb_to_ycbcr(pixels[pix_base], pixels[pix_base+1], pixels[pix_base+2]).2
+                                rgb_to_ycbcr(
+                                    pixels[pix_base],
+                                    pixels[pix_base + 1],
+                                    pixels[pix_base + 2],
+                                )
+                                .2
                             };
                             block[by * 8 + bx] = sample;
                         }
@@ -913,7 +990,8 @@ impl JpegEncoder {
                     // Quantize
                     let mut coeffs = [0i32; 64];
                     for i in 0..64 {
-                        coeffs[ZIGZAG[i] as usize] = (block[i] / qt[ZIGZAG_INV[i] as usize] as f32).round() as i32;
+                        coeffs[ZIGZAG[i] as usize] =
+                            (block[i] / qt[ZIGZAG_INV[i] as usize] as f32).round() as i32;
                     }
 
                     // Encode DC
@@ -956,7 +1034,9 @@ impl JpegEncoder {
 }
 
 fn category(v: i32) -> u32 {
-    if v == 0 { return 0; }
+    if v == 0 {
+        return 0;
+    }
     let abs_v = v.unsigned_abs();
     32 - abs_v.leading_zeros()
 }
@@ -971,13 +1051,22 @@ fn encode_dc(bw: &mut BitWriter, diff: i32, map: &std::collections::HashMap<u8, 
 
 fn encode_value(bw: &mut BitWriter, v: i32) {
     let cat = category(v);
-    if cat == 0 { return; }
-    let bits = if v > 0 { v as u32 } else { (v + (1 << cat) - 1) as u32 };
+    if cat == 0 {
+        return;
+    }
+    let bits = if v > 0 {
+        v as u32
+    } else {
+        (v + (1 << cat) - 1) as u32
+    };
     bw.write_bits(bits, cat);
 }
 
 fn build_encode_map(ht: &HuffmanTable) -> std::collections::HashMap<u8, (u32, u32)> {
-    ht.build_codes().into_iter().map(|(sym, code, len)| (sym, (code, len))).collect()
+    ht.build_codes()
+        .into_iter()
+        .map(|(sym, code, len)| (sym, (code, len)))
+        .collect()
 }
 
 fn build_luma_ac_huffman() -> HuffmanTable {
@@ -985,27 +1074,18 @@ fn build_luma_ac_huffman() -> HuffmanTable {
     HuffmanTable {
         lengths: [0, 2, 1, 3, 3, 2, 4, 3, 5, 5, 4, 4, 0, 0, 1, 125],
         symbols: vec![
-            0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12,
-            0x21, 0x31, 0x41, 0x06, 0x13, 0x51, 0x61, 0x07,
-            0x22, 0x71, 0x14, 0x32, 0x81, 0x91, 0xa1, 0x08,
-            0x23, 0x42, 0xb1, 0xc1, 0x15, 0x52, 0xd1, 0xf0,
-            0x24, 0x33, 0x62, 0x72, 0x82, 0x09, 0x0a, 0x16,
-            0x17, 0x18, 0x19, 0x1a, 0x25, 0x26, 0x27, 0x28,
-            0x29, 0x2a, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39,
-            0x3a, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49,
-            0x4a, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58, 0x59,
-            0x5a, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69,
-            0x6a, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78, 0x79,
-            0x7a, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89,
-            0x8a, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98,
-            0x99, 0x9a, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7,
-            0xa8, 0xa9, 0xaa, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6,
-            0xb7, 0xb8, 0xb9, 0xba, 0xc2, 0xc3, 0xc4, 0xc5,
-            0xc6, 0xc7, 0xc8, 0xc9, 0xca, 0xd2, 0xd3, 0xd4,
-            0xd5, 0xd6, 0xd7, 0xd8, 0xd9, 0xda, 0xe1, 0xe2,
-            0xe3, 0xe4, 0xe5, 0xe6, 0xe7, 0xe8, 0xe9, 0xea,
-            0xf1, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8,
-            0xf9, 0xfa,
+            0x01, 0x02, 0x03, 0x00, 0x04, 0x11, 0x05, 0x12, 0x21, 0x31, 0x41, 0x06, 0x13, 0x51,
+            0x61, 0x07, 0x22, 0x71, 0x14, 0x32, 0x81, 0x91, 0xa1, 0x08, 0x23, 0x42, 0xb1, 0xc1,
+            0x15, 0x52, 0xd1, 0xf0, 0x24, 0x33, 0x62, 0x72, 0x82, 0x09, 0x0a, 0x16, 0x17, 0x18,
+            0x19, 0x1a, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x34, 0x35, 0x36, 0x37, 0x38, 0x39,
+            0x3a, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a, 0x53, 0x54, 0x55, 0x56, 0x57,
+            0x58, 0x59, 0x5a, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6a, 0x73, 0x74, 0x75,
+            0x76, 0x77, 0x78, 0x79, 0x7a, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89, 0x8a, 0x92,
+            0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9a, 0xa2, 0xa3, 0xa4, 0xa5, 0xa6, 0xa7,
+            0xa8, 0xa9, 0xaa, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7, 0xb8, 0xb9, 0xba, 0xc2, 0xc3,
+            0xc4, 0xc5, 0xc6, 0xc7, 0xc8, 0xc9, 0xca, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6, 0xd7, 0xd8,
+            0xd9, 0xda, 0xe1, 0xe2, 0xe3, 0xe4, 0xe5, 0xe6, 0xe7, 0xe8, 0xe9, 0xea, 0xf1, 0xf2,
+            0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa,
         ],
     }
 }
@@ -1014,27 +1094,18 @@ fn build_chroma_ac_huffman() -> HuffmanTable {
     HuffmanTable {
         lengths: [0, 2, 1, 2, 4, 4, 3, 4, 7, 5, 4, 4, 0, 1, 2, 119],
         symbols: vec![
-            0x00, 0x01, 0x02, 0x03, 0x11, 0x04, 0x05, 0x21,
-            0x31, 0x06, 0x12, 0x41, 0x51, 0x07, 0x61, 0x71,
-            0x13, 0x22, 0x32, 0x81, 0x08, 0x14, 0x42, 0x91,
-            0xa1, 0xb1, 0xc1, 0x09, 0x23, 0x33, 0x52, 0xf0,
-            0x15, 0x62, 0x72, 0xd1, 0x0a, 0x16, 0x24, 0x34,
-            0xe1, 0x25, 0xf1, 0x17, 0x18, 0x19, 0x1a, 0x26,
-            0x27, 0x28, 0x29, 0x2a, 0x35, 0x36, 0x37, 0x38,
-            0x39, 0x3a, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48,
-            0x49, 0x4a, 0x53, 0x54, 0x55, 0x56, 0x57, 0x58,
-            0x59, 0x5a, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68,
-            0x69, 0x6a, 0x73, 0x74, 0x75, 0x76, 0x77, 0x78,
-            0x79, 0x7a, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87,
-            0x88, 0x89, 0x8a, 0x92, 0x93, 0x94, 0x95, 0x96,
-            0x97, 0x98, 0x99, 0x9a, 0xa2, 0xa3, 0xa4, 0xa5,
-            0xa6, 0xa7, 0xa8, 0xa9, 0xaa, 0xb2, 0xb3, 0xb4,
-            0xb5, 0xb6, 0xb7, 0xb8, 0xb9, 0xba, 0xc2, 0xc3,
-            0xc4, 0xc5, 0xc6, 0xc7, 0xc8, 0xc9, 0xca, 0xd2,
-            0xd3, 0xd4, 0xd5, 0xd6, 0xd7, 0xd8, 0xd9, 0xda,
-            0xe2, 0xe3, 0xe4, 0xe5, 0xe6, 0xe7, 0xe8, 0xe9,
-            0xea, 0xf2, 0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8,
-            0xf9, 0xfa,
+            0x00, 0x01, 0x02, 0x03, 0x11, 0x04, 0x05, 0x21, 0x31, 0x06, 0x12, 0x41, 0x51, 0x07,
+            0x61, 0x71, 0x13, 0x22, 0x32, 0x81, 0x08, 0x14, 0x42, 0x91, 0xa1, 0xb1, 0xc1, 0x09,
+            0x23, 0x33, 0x52, 0xf0, 0x15, 0x62, 0x72, 0xd1, 0x0a, 0x16, 0x24, 0x34, 0xe1, 0x25,
+            0xf1, 0x17, 0x18, 0x19, 0x1a, 0x26, 0x27, 0x28, 0x29, 0x2a, 0x35, 0x36, 0x37, 0x38,
+            0x39, 0x3a, 0x43, 0x44, 0x45, 0x46, 0x47, 0x48, 0x49, 0x4a, 0x53, 0x54, 0x55, 0x56,
+            0x57, 0x58, 0x59, 0x5a, 0x63, 0x64, 0x65, 0x66, 0x67, 0x68, 0x69, 0x6a, 0x73, 0x74,
+            0x75, 0x76, 0x77, 0x78, 0x79, 0x7a, 0x82, 0x83, 0x84, 0x85, 0x86, 0x87, 0x88, 0x89,
+            0x8a, 0x92, 0x93, 0x94, 0x95, 0x96, 0x97, 0x98, 0x99, 0x9a, 0xa2, 0xa3, 0xa4, 0xa5,
+            0xa6, 0xa7, 0xa8, 0xa9, 0xaa, 0xb2, 0xb3, 0xb4, 0xb5, 0xb6, 0xb7, 0xb8, 0xb9, 0xba,
+            0xc2, 0xc3, 0xc4, 0xc5, 0xc6, 0xc7, 0xc8, 0xc9, 0xca, 0xd2, 0xd3, 0xd4, 0xd5, 0xd6,
+            0xd7, 0xd8, 0xd9, 0xda, 0xe2, 0xe3, 0xe4, 0xe5, 0xe6, 0xe7, 0xe8, 0xe9, 0xea, 0xf2,
+            0xf3, 0xf4, 0xf5, 0xf6, 0xf7, 0xf8, 0xf9, 0xfa,
         ],
     }
 }
@@ -1061,11 +1132,17 @@ struct BitWriter {
 
 impl BitWriter {
     fn new() -> Self {
-        Self { buf: Vec::new(), bit_buf: 0, bits_used: 0 }
+        Self {
+            buf: Vec::new(),
+            bit_buf: 0,
+            bits_used: 0,
+        }
     }
 
     fn write_bits(&mut self, value: u32, n: u32) {
-        if n == 0 { return; }
+        if n == 0 {
+            return;
+        }
         self.bit_buf = (self.bit_buf << n) | (value & ((1 << n) - 1));
         self.bits_used += n;
         while self.bits_used >= 8 {
@@ -1177,9 +1254,18 @@ mod tests {
         let (r_in, g_in, b_in) = (200u8, 100u8, 50u8);
         let (y, cb, cr) = rgb_to_ycbcr(r_in, g_in, b_in);
         let (r_out, g_out, b_out) = ycbcr_to_rgb(y, cb, cr);
-        assert!((r_in as i32 - r_out as i32).abs() <= 2, "R: {r_in} vs {r_out}");
-        assert!((g_in as i32 - g_out as i32).abs() <= 2, "G: {g_in} vs {g_out}");
-        assert!((b_in as i32 - b_out as i32).abs() <= 2, "B: {b_in} vs {b_out}");
+        assert!(
+            (r_in as i32 - r_out as i32).abs() <= 2,
+            "R: {r_in} vs {r_out}"
+        );
+        assert!(
+            (g_in as i32 - g_out as i32).abs() <= 2,
+            "G: {g_in} vs {g_out}"
+        );
+        assert!(
+            (b_in as i32 - b_out as i32).abs() <= 2,
+            "B: {b_in} vs {b_out}"
+        );
     }
 
     #[test]
@@ -1200,19 +1286,27 @@ mod tests {
         dct_8x8(&mut block);
         idct_8x8(&mut block);
         for (i, (&o, &r)) in original.iter().zip(block.iter()).enumerate() {
-            assert!((o - r).abs() < 2.0, "Flat DCT-IDCT mismatch at {i}: {o} vs {r}");
+            assert!(
+                (o - r).abs() < 2.0,
+                "Flat DCT-IDCT mismatch at {i}: {o} vs {r}"
+            );
         }
     }
 
     #[test]
     fn test_dct_idct_ramp_block() {
         let mut block = [0.0f32; 64];
-        for i in 0..64 { block[i] = i as f32 * 2.0; }
+        for i in 0..64 {
+            block[i] = i as f32 * 2.0;
+        }
         let original = block;
         dct_8x8(&mut block);
         idct_8x8(&mut block);
         for (i, (&o, &r)) in original.iter().zip(block.iter()).enumerate() {
-            assert!((o - r).abs() < 3.0, "Ramp DCT-IDCT mismatch at {i}: {o} vs {r}");
+            assert!(
+                (o - r).abs() < 3.0,
+                "Ramp DCT-IDCT mismatch at {i}: {o} vs {r}"
+            );
         }
     }
 
@@ -1269,7 +1363,7 @@ mod tests {
         assert!(encoded.len() >= 4);
         let soi = u16::from_be_bytes([encoded[0], encoded[1]]);
         assert_eq!(soi, JPEG_SOI);
-        let eoi = u16::from_be_bytes([encoded[encoded.len()-2], encoded[encoded.len()-1]]);
+        let eoi = u16::from_be_bytes([encoded[encoded.len() - 2], encoded[encoded.len() - 1]]);
         assert_eq!(eoi, JPEG_EOI);
     }
 }

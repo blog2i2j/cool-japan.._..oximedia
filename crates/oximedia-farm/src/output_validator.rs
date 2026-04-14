@@ -210,7 +210,11 @@ fn compute_sha256<P: AsRef<Path>>(path: P) -> Result<String, ValidationError> {
         }
         hasher.update(&buf[..n]);
     }
-    Ok(format!("{:x}", hasher.finalize()))
+    Ok(hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect())
 }
 
 // ---------------------------------------------------------------------------

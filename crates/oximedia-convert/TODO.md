@@ -13,8 +13,9 @@
 - [ ] Improve `codec_mapper.rs` with automatic codec compatibility validation for target containers
 - [ ] Extend `conv_validate.rs` with pre-conversion validation (sufficient disk space, compatible formats)
 - [ ] Add conversion resumption in `pipeline/job.rs` for interrupted long-running conversions
-- [ ] Extend `progress.rs` with ETA calculation based on encoding speed and remaining frames
-- [ ] Improve `profile_match.rs` to auto-select the best profile based on input analysis
+- [x] Extend `progress.rs` with ETA calculation based on encoding speed and remaining frames
+- [x] Improve `profile_match.rs` to auto-select the best profile based on input analysis
+- [x] Improve `codec_mapper.rs` with automatic codec compatibility validation for target containers
 
 ## New Features
 - [ ] Implement watch folder conversion mode (monitor directory, auto-convert new files)

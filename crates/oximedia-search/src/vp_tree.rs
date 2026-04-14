@@ -13,10 +13,11 @@
 //! use oximedia_search::vp_tree::VpTree;
 //!
 //! // Hamming distance on u64 "perceptual hash" values
+//! let dist = |a: &u64, b: &u64| (a ^ b).count_ones() as f32;
 //! let items: Vec<u64> = vec![0b0000, 0b0001, 0b0011, 0b0111, 0b1111];
 //! let tree = VpTree::build(items, |a, b| (a ^ b).count_ones() as f32);
 //!
-//! let neighbours = tree.knn(&0b0000u64, 2);
+//! let neighbours = tree.knn(&0b0000u64, 2, &dist);
 //! assert_eq!(neighbours.len(), 2);
 //! assert_eq!(*neighbours[0].1, 0b0000u64); // exact match first
 //! ```

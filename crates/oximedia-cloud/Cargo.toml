@@ -26,22 +26,22 @@ chrono = { workspace = true }
 
 # AWS SDK (ring-based TLS to avoid aws-lc-sys C dependency)
 aws-config = { version = "1.8", default-features = false, features = ["rt-tokio", "credentials-process", "sso"] }
-aws-sdk-s3 = { version = "1.126", default-features = false, features = ["rustls", "rt-tokio"] }
-aws-sdk-mediaconvert = { version = "1.121", default-features = false, features = ["rustls", "rt-tokio"] }
-aws-sdk-medialive = { version = "1.130", default-features = false, features = ["rustls", "rt-tokio"] }
-aws-sdk-mediapackage = { version = "1.96", default-features = false, features = ["rustls", "rt-tokio"] }
-aws-sdk-cloudwatch = { version = "1.107", default-features = false, features = ["rustls", "rt-tokio"] }
-aws-sdk-sts = { version = "1.100", default-features = false, features = ["rustls", "rt-tokio"] }
-aws-sdk-kms = { version = "1.103", default-features = false, features = ["rustls", "rt-tokio"] }
+aws-sdk-s3 = { version = "1.129", default-features = false, features = ["rustls", "rt-tokio"] }
+aws-sdk-mediaconvert = { version = "1.124", default-features = false, features = ["rustls", "rt-tokio"] }
+aws-sdk-medialive = { version = "1.133", default-features = false, features = ["rustls", "rt-tokio"] }
+aws-sdk-mediapackage = { version = "1.97", default-features = false, features = ["rustls", "rt-tokio"] }
+aws-sdk-cloudwatch = { version = "1.109", default-features = false, features = ["rustls", "rt-tokio"] }
+aws-sdk-sts = { version = "1.101", default-features = false, features = ["rustls", "rt-tokio"] }
+aws-sdk-kms = { version = "1.104", default-features = false, features = ["rustls", "rt-tokio"] }
 aws-smithy-types = "1.4"
 aws-smithy-runtime = { version = "1", features = ["tls-rustls", "client"] }
 aws-smithy-runtime-api = "1.11"
 
 # Azure SDK
-azure_core = "0.33"
+azure_core = "0.34"
 azure_storage = "0.21"
 azure_storage_blobs = "0.21"
-azure_identity = "0.33"
+azure_identity = "0.34"
 
 # GCP (using reqwest for REST API)
 reqwest = { workspace = true, features = ["stream"] }
@@ -49,7 +49,7 @@ base64 = { workspace = true }
 url = "2.5"
 sha2 = { workspace = true }
 hmac = { workspace = true }
-md-5 = "0.10"
+md-5 = "0.11"
 hex = "0.4"
 
 # Additional utilities

@@ -392,6 +392,131 @@ pub fn decompose_time_series(
     })
 }
 
+// ─── Exponential Moving Average ───────────────────────────────────────────────
+
+/// Smoothing factor and configuration for exponential moving average (EMA).
+///
+/// EMA: `EMA(0) = y(0)`, `EMA(i) = alpha * y(i) + (1 - alpha) * EMA(i-1)`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct EmaConfig {
+    /// Smoothing factor `alpha ∈ (0.0, 1.0]`.
+    pub alpha: f64,
+}
+
+impl EmaConfig {
+    /// Build from explicit `alpha`. Returns `None` when `alpha ∉ (0.0, 1.0]`.
+    pub fn with_alpha(alpha: f64) -> Option<Self> {
+        if alpha > 0.0 && alpha <= 1.0 {
+            Some(Self { alpha })
+        } else {
+            None
+        }
+    }
+
+    /// Build from span N using `alpha = 2 / (N + 1)`. Returns `None` for span 0.
+    pub fn from_span(span: usize) -> Option<Self> {
+        if span == 0 {
+            return None;
+        }
+        Some(Self {
+            alpha: 2.0 / (span as f64 + 1.0),
+        })
+    }
+}
+
+impl Default for EmaConfig {
+    fn default() -> Self {
+        Self { alpha: 0.2 }
+    }
+}
+
+/// Result of an EMA computation over an engagement score time-series.
+#[derive(Debug, Clone)]
+pub struct EmaResult {
+    /// EMA-smoothed values aligned 1-to-1 with the input series.
+    pub smoothed: Vec<f64>,
+    /// The smoothing factor `alpha` applied.
+    pub alpha: f64,
+    /// Linear-regression slope of the smoothed series.
+    pub trend_slope: f64,
+}
+
+impl EmaResult {
+    /// Most recent smoothed value.
+    pub fn last_smoothed(&self) -> f64 {
+        self.smoothed.last().copied().unwrap_or(0.0)
+    }
+
+    /// First smoothed value (seeded from the first observation).
+    pub fn first_smoothed(&self) -> f64 {
+        self.smoothed.first().copied().unwrap_or(0.0)
+    }
+
+    /// Infer the trend direction from the EMA's slope.
+    pub fn trend_direction(&self, epsilon: f64) -> TrendDirection {
+        TrendDirection::from_slope(self.trend_slope, epsilon)
+    }
+}
+
+/// Trend direction inferred from slope analysis.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TrendDirection {
+    /// Score is growing over time.
+    Growing,
+    /// Score is declining over time.
+    Declining,
+    /// No discernible trend.
+    Flat,
+}
+
+impl TrendDirection {
+    /// Classify a slope value.
+    pub fn from_slope(slope: f64, epsilon: f64) -> Self {
+        if slope > epsilon {
+            Self::Growing
+        } else if slope < -epsilon {
+            Self::Declining
+        } else {
+            Self::Flat
+        }
+    }
+}
+
+/// Compute the exponential moving average of an engagement score series.
+///
+/// Returns `None` when the series is empty or `alpha ∉ (0.0, 1.0]`.
+pub fn exponential_moving_average(series: &[(i64, f32)], config: &EmaConfig) -> Option<EmaResult> {
+    if series.is_empty() || config.alpha <= 0.0 || config.alpha > 1.0 {
+        return None;
+    }
+
+    let alpha = config.alpha;
+    let one_minus = 1.0 - alpha;
+
+    let mut smoothed = Vec::with_capacity(series.len());
+    let mut prev = f64::from(series[0].1);
+    smoothed.push(prev);
+
+    for &(_, y) in &series[1..] {
+        let ema = alpha * f64::from(y) + one_minus * prev;
+        smoothed.push(ema);
+        prev = ema;
+    }
+
+    let indexed: Vec<(i64, f32)> = smoothed
+        .iter()
+        .enumerate()
+        .map(|(i, &v)| (i as i64, v as f32))
+        .collect();
+    let trend_slope = f64::from(linear_regression_slope(&indexed));
+
+    Some(EmaResult {
+        smoothed,
+        alpha,
+        trend_slope,
+    })
+}
+
 // ─── Ranking ──────────────────────────────────────────────────────────────────
 
 /// Ranks and recommends content items by their engagement score.
@@ -712,5 +837,117 @@ mod tests {
         let ranked = ContentRanker::rank_by_engagement(&scores);
         assert_eq!(ranked.len(), 1);
         assert_eq!(ranked[0].0, "only");
+    }
+
+    // ── EMA tests ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn ema_empty_series_returns_none() {
+        assert!(exponential_moving_average(&[], &EmaConfig::default()).is_none());
+    }
+
+    #[test]
+    fn ema_alpha_one_equals_original_series() {
+        // alpha=1.0 → EMA(i) = y(i).
+        let config = EmaConfig::with_alpha(1.0).expect("valid");
+        let series = vec![(0i64, 0.1f32), (1, 0.5), (2, 0.9), (3, 0.3)];
+        let result = exponential_moving_average(&series, &config).expect("result");
+        assert_eq!(result.smoothed.len(), series.len());
+        for (i, &(_, y)) in series.iter().enumerate() {
+            // f64::from(f32) then back: use 1e-6 tolerance for f32 → f64 conversion.
+            assert!(
+                (result.smoothed[i] - f64::from(y)).abs() < 1e-6,
+                "index {i}: ema={} y={}",
+                result.smoothed[i],
+                y
+            );
+        }
+    }
+
+    #[test]
+    fn ema_smooths_noisy_signal() {
+        let series: Vec<(i64, f32)> = (0i64..20)
+            .map(|i| (i, if i % 2 == 0 { 0.9 } else { 0.1 }))
+            .collect();
+        let config = EmaConfig::from_span(5).expect("valid span");
+        let result = exponential_moving_average(&series, &config).expect("result");
+        let last = result.last_smoothed();
+        assert!(
+            last > 0.2 && last < 0.8,
+            "smoothed last={last} should be near 0.5"
+        );
+    }
+
+    #[test]
+    fn ema_seeded_with_first_observation() {
+        // seed = y(0) = 0.7; second EMA = 0.5 * 0.1 + 0.5 * 0.7 = 0.4
+        let series = vec![(0i64, 0.7f32), (1, 0.1)];
+        let config = EmaConfig::with_alpha(0.5).expect("valid");
+        let result = exponential_moving_average(&series, &config).expect("result");
+        // f64::from(0.7f32) is ~0.699999988; use 1e-6 tolerance.
+        assert!(
+            (result.first_smoothed() - f64::from(0.7f32)).abs() < 1e-9,
+            "first_smoothed={} expected {}",
+            result.first_smoothed(),
+            f64::from(0.7f32)
+        );
+        // EMA[1] = 0.5 * f64::from(0.1f32) + 0.5 * f64::from(0.7f32)
+        let expected = 0.5 * f64::from(0.1f32) + 0.5 * f64::from(0.7f32);
+        assert!(
+            (result.smoothed[1] - expected).abs() < 1e-9,
+            "smoothed[1]={} expected {expected}",
+            result.smoothed[1]
+        );
+    }
+
+    #[test]
+    fn ema_from_span_produces_valid_alpha() {
+        let config = EmaConfig::from_span(9).expect("valid");
+        assert!((config.alpha - 0.2).abs() < 1e-12);
+    }
+
+    #[test]
+    fn ema_from_span_zero_returns_none() {
+        assert!(EmaConfig::from_span(0).is_none());
+    }
+
+    #[test]
+    fn ema_with_invalid_alpha_returns_none() {
+        assert!(EmaConfig::with_alpha(0.0).is_none());
+        assert!(EmaConfig::with_alpha(-0.1).is_none());
+        assert!(EmaConfig::with_alpha(1.1).is_none());
+    }
+
+    #[test]
+    fn ema_trend_slope_positive_for_growing_series() {
+        let series: Vec<(i64, f32)> = (0i64..10).map(|i| (i, i as f32 * 0.1)).collect();
+        let config = EmaConfig::with_alpha(0.3).expect("valid");
+        let result = exponential_moving_average(&series, &config).expect("result");
+        assert!(result.trend_slope > 0.0, "slope={}", result.trend_slope);
+        assert_eq!(result.trend_direction(1e-6), TrendDirection::Growing);
+    }
+
+    #[test]
+    fn ema_trend_direction_declining() {
+        let series: Vec<(i64, f32)> = (0i64..10).map(|i| (i, 1.0f32 - i as f32 * 0.1)).collect();
+        let config = EmaConfig::with_alpha(0.3).expect("valid");
+        let result = exponential_moving_average(&series, &config).expect("result");
+        assert_eq!(result.trend_direction(1e-6), TrendDirection::Declining);
+    }
+
+    #[test]
+    fn ema_trend_direction_flat_for_constant_series() {
+        let series: Vec<(i64, f32)> = (0i64..10).map(|i| (i, 0.5f32)).collect();
+        let config = EmaConfig::with_alpha(0.3).expect("valid");
+        let result = exponential_moving_average(&series, &config).expect("result");
+        assert_eq!(result.trend_direction(1e-6), TrendDirection::Flat);
+    }
+
+    #[test]
+    fn ema_result_alpha_stored_correctly() {
+        let series = vec![(0i64, 0.5f32), (1, 0.6)];
+        let config = EmaConfig::with_alpha(0.4).expect("valid");
+        let result = exponential_moving_average(&series, &config).expect("result");
+        assert!((result.alpha - 0.4).abs() < 1e-12);
     }
 }

@@ -1,7 +1,7 @@
 # oximedia-effects
 
 ![Status: Stable](https://img.shields.io/badge/status-stable-green)
-![Version: 0.1.1](https://img.shields.io/badge/version-0.1.1-blue)
+![Version: 0.1.3](https://img.shields.io/badge/version-0.1.3-blue)
 
 Professional audio and video effects suite for OxiMedia, providing production-quality implementations of reverb, delay, modulation, distortion, dynamics, filters, pitch/time, vocoding, and video effects.
 
@@ -37,7 +37,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-effects = "0.1.1"
+oximedia-effects = "0.1.3"
 ```
 
 ```rust

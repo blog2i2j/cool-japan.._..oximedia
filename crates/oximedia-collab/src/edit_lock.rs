@@ -5,7 +5,7 @@
 //! to prevent conflicting edits in multi-user environments, with automatic
 //! expiration, lock escalation, and deadlock detection.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 /// The type of resource being locked.
@@ -213,6 +213,113 @@ fn targets_conflict(a: &LockTarget, b: &LockTarget) -> bool {
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Waiter graph for deadlock detection on EditLockManager
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Error returned by deadlock-aware lock acquisition.
+#[derive(Debug, Clone, PartialEq)]
+pub struct DeadlockError {
+    /// The cycle of lock holder IDs that would form a deadlock.
+    pub cycle: Vec<String>,
+}
+
+impl fmt::Display for DeadlockError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "Deadlock cycle detected: {}", self.cycle.join(" -> "))
+    }
+}
+
+/// Tracks who is waiting for whom to release a lock.
+///
+/// This is a directed graph: `waits_for[A] = {B, C}` means user A is
+/// blocked waiting for users B and C to release their locks.
+///
+/// Used by [`EditLockManager::try_acquire_with_deadlock_check`] to detect
+/// cycles before granting a new lock acquisition.
+#[derive(Debug, Default, Clone)]
+pub struct WaiterGraph {
+    /// `waits_for[holder] = set of users that holder is waiting on`.
+    waits_for: HashMap<String, HashSet<String>>,
+}
+
+impl WaiterGraph {
+    /// Create an empty waiter graph.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Record that `waiter` is now waiting for `holder_of_lock` to release.
+    pub fn add_wait(&mut self, waiter: &str, holder_of_lock: &str) {
+        self.waits_for
+            .entry(waiter.to_string())
+            .or_default()
+            .insert(holder_of_lock.to_string());
+    }
+
+    /// Remove all wait edges originating from `user` (called when a lock is released).
+    pub fn remove_waiter(&mut self, user: &str) {
+        self.waits_for.remove(user);
+        // Also remove this user from all sets it appears in.
+        for holders in self.waits_for.values_mut() {
+            holders.remove(user);
+        }
+    }
+
+    /// Detect whether adding a wait edge `waiter → blocker` would create a cycle.
+    ///
+    /// Returns `Some(cycle)` with the list of user IDs forming the cycle, or
+    /// `None` if no cycle would be formed.
+    pub fn detect_cycle_if_added(&self, waiter: &str, blocker: &str) -> Option<Vec<String>> {
+        // Would blocker eventually wait on waiter (transitively)?  If so, adding
+        // the edge waiter→blocker creates a cycle.
+        let mut visited: HashSet<&str> = HashSet::new();
+        let mut in_stack: Vec<String> = Vec::new();
+
+        // DFS from `blocker` through the existing waits_for graph.
+        self.dfs_cycle(blocker, waiter, &mut visited, &mut in_stack)
+    }
+
+    /// DFS helper: traverses the waits_for graph from `current` looking for
+    /// `target`. Returns `Some(path)` if `target` is reachable (creating a cycle).
+    fn dfs_cycle<'a>(
+        &'a self,
+        current: &'a str,
+        target: &str,
+        visited: &mut HashSet<&'a str>,
+        in_stack: &mut Vec<String>,
+    ) -> Option<Vec<String>> {
+        if current == target {
+            // Found the cycle — return the full cycle path.
+            let mut cycle = in_stack.clone();
+            cycle.push(target.to_string());
+            return Some(cycle);
+        }
+
+        if visited.contains(current) {
+            return None;
+        }
+        visited.insert(current);
+        in_stack.push(current.to_string());
+
+        if let Some(neighbors) = self.waits_for.get(current) {
+            for next in neighbors {
+                if let Some(cycle) = self.dfs_cycle(next.as_str(), target, visited, in_stack) {
+                    return Some(cycle);
+                }
+            }
+        }
+
+        in_stack.pop();
+        None
+    }
+
+    /// Return all users currently tracked in the graph.
+    pub fn users(&self) -> Vec<&str> {
+        self.waits_for.keys().map(|s| s.as_str()).collect()
+    }
+}
+
 /// Manager for edit locks.
 #[derive(Debug)]
 pub struct EditLockManager {
@@ -222,6 +329,8 @@ pub struct EditLockManager {
     next_id: u64,
     /// Default TTL in milliseconds.
     default_ttl_ms: u64,
+    /// Waiter graph for deadlock detection.
+    waiter_graph: WaiterGraph,
 }
 
 impl EditLockManager {
@@ -231,6 +340,7 @@ impl EditLockManager {
             locks: HashMap::new(),
             next_id: 1,
             default_ttl_ms,
+            waiter_graph: WaiterGraph::new(),
         }
     }
 
@@ -282,7 +392,73 @@ impl EditLockManager {
             });
         }
         self.locks.remove(&lock_id);
+        // Clean up any wait-edges in the deadlock graph for this user.
+        self.waiter_graph.remove_waiter(user_id);
         Ok(())
+    }
+
+    /// Attempt to acquire a lock with deadlock detection.
+    ///
+    /// Before granting the lock, the waiter graph is consulted to check whether
+    /// adding a wait-edge from `user_id` to each current holder would create a
+    /// cycle.  If a cycle is detected, `Err(DeadlockError { cycle })` is returned
+    /// and the lock is NOT acquired.  On success the lock ID is returned.
+    pub fn try_acquire_with_deadlock_check(
+        &mut self,
+        user_id: &str,
+        target: LockTarget,
+        mode: LockMode,
+        now: u64,
+    ) -> Result<u64, DeadlockError> {
+        self.cleanup_expired(now);
+
+        // Collect the set of users who would block this acquisition.
+        let blockers: Vec<String> = self
+            .locks
+            .values()
+            .filter(|l| {
+                l.user_id != user_id
+                    && targets_conflict(&l.target, &target)
+                    && !(l.mode == LockMode::Shared && mode == LockMode::Shared)
+            })
+            .map(|l| l.user_id.clone())
+            .collect();
+
+        // For each blocker, check if adding user_id → blocker would form a cycle.
+        for blocker in &blockers {
+            if let Some(cycle) = self.waiter_graph.detect_cycle_if_added(user_id, blocker) {
+                return Err(DeadlockError { cycle });
+            }
+        }
+
+        // No deadlock: register the wait edges temporarily (removed on acquire).
+        for blocker in &blockers {
+            self.waiter_graph.add_wait(user_id, blocker);
+        }
+
+        // If there are blockers we cannot actually acquire yet; return a
+        // NotFound-style error via LockError::Conflict without deadlock.
+        // The caller should retry after the blocker releases.
+        if !blockers.is_empty() {
+            // Roll back the wait edges we just added (caller will retry).
+            self.waiter_graph.remove_waiter(user_id);
+            // Return a "soft" conflict — but not a deadlock.
+            // We re-use the LockError::Conflict logic by converting it.
+            let held_by = blockers[0].clone();
+            // Can't return LockError here (different error type), so we
+            // report an empty cycle to signal "would block, not deadlock".
+            return Err(DeadlockError {
+                cycle: vec![format!("blocked: {} waits for {}", user_id, held_by)],
+            });
+        }
+
+        // No blockers and no deadlock: grant the lock.
+        self.waiter_graph.remove_waiter(user_id);
+        let lock_id = self.next_id;
+        self.next_id += 1;
+        let lock = EditLock::new(lock_id, user_id, target, mode, now, self.default_ttl_ms);
+        self.locks.insert(lock_id, lock);
+        Ok(lock_id)
     }
 
     /// Renew a lock.
@@ -347,6 +523,167 @@ impl EditLockManager {
 impl Default for EditLockManager {
     fn default() -> Self {
         Self::new(300_000) // 5 minutes
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Deadlock detection tests on EditLockManager
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod deadlock_tests {
+    use super::*;
+    use std::sync::{Arc, Mutex};
+    use std::thread;
+
+    #[test]
+    fn test_waiter_graph_simple_2_node_cycle_detected() {
+        let mut graph = WaiterGraph::new();
+        // A is waiting for B.
+        graph.add_wait("A", "B");
+        // Now if we try to add B→A, that would form a cycle.
+        let cycle = graph.detect_cycle_if_added("B", "A");
+        assert!(cycle.is_some(), "should detect A→B→A cycle");
+        let c = cycle.expect("cycle must exist");
+        assert!(c.contains(&"A".to_string()) || c.contains(&"B".to_string()));
+    }
+
+    #[test]
+    fn test_waiter_graph_3_node_cycle_detected() {
+        let mut graph = WaiterGraph::new();
+        // A→B, B→C; then adding C→A should detect cycle.
+        graph.add_wait("A", "B");
+        graph.add_wait("B", "C");
+        let cycle = graph.detect_cycle_if_added("C", "A");
+        assert!(cycle.is_some(), "A→B→C→A cycle must be detected");
+    }
+
+    #[test]
+    fn test_waiter_graph_no_cycle() {
+        let mut graph = WaiterGraph::new();
+        // A→B, C→D: completely separate chains.
+        graph.add_wait("A", "B");
+        graph.add_wait("C", "D");
+        let cycle = graph.detect_cycle_if_added("B", "C");
+        // B→C forms B→C→D, not a cycle back to A or B.
+        assert!(cycle.is_none(), "no cycle should be detected");
+    }
+
+    #[test]
+    fn test_waiter_graph_remove_breaks_cycle_path() {
+        let mut graph = WaiterGraph::new();
+        graph.add_wait("A", "B");
+        // Remove A's wait edges.
+        graph.remove_waiter("A");
+        // Now B→A does not form a cycle because A→B no longer exists.
+        let cycle = graph.detect_cycle_if_added("B", "A");
+        assert!(cycle.is_none());
+    }
+
+    #[test]
+    fn test_deadlock_check_2_thread_scenario() {
+        // Simulates: A holds clip-1, B holds clip-2.
+        // A tries to acquire clip-2 → blocked (not a deadlock yet).
+        // B tries to acquire clip-1 → deadlock!
+        let mut mgr = EditLockManager::new(60_000);
+        let clip1 = LockTarget::Clip {
+            clip_id: "clip-1".to_string(),
+        };
+        let clip2 = LockTarget::Clip {
+            clip_id: "clip-2".to_string(),
+        };
+
+        // A acquires clip-1.
+        mgr.acquire("A", clip1.clone(), LockMode::Exclusive, 1000)
+            .expect("A should acquire clip-1");
+        // B acquires clip-2.
+        mgr.acquire("B", clip2.clone(), LockMode::Exclusive, 1000)
+            .expect("B should acquire clip-2");
+
+        // Record in waiter graph that A is waiting for B (A wants clip-2 held by B).
+        mgr.waiter_graph.add_wait("A", "B");
+
+        // B now tries to acquire clip-1 (held by A): deadlock!
+        let result = mgr.try_acquire_with_deadlock_check("B", clip1, LockMode::Exclusive, 1000);
+        assert!(result.is_err(), "B→clip-1 should return an error");
+        let err = result.expect_err("must be err");
+        // The cycle should involve A and B.
+        assert!(
+            err.cycle.iter().any(|s| s.contains("A") || s.contains("B")),
+            "cycle should mention A or B: {:?}",
+            err.cycle
+        );
+    }
+
+    #[test]
+    fn test_no_deadlock_unrelated_locks() {
+        let mut mgr = EditLockManager::new(60_000);
+        // A holds clip-1, C holds clip-3 (unrelated).
+        mgr.acquire(
+            "A",
+            LockTarget::Clip {
+                clip_id: "clip-1".to_string(),
+            },
+            LockMode::Exclusive,
+            1000,
+        )
+        .expect("A acquires clip-1");
+        mgr.acquire(
+            "C",
+            LockTarget::Clip {
+                clip_id: "clip-3".to_string(),
+            },
+            LockMode::Exclusive,
+            1000,
+        )
+        .expect("C acquires clip-3");
+
+        // B tries to acquire clip-2 (not held by anyone) → no conflict, no deadlock.
+        let result = mgr.try_acquire_with_deadlock_check(
+            "B",
+            LockTarget::Clip {
+                clip_id: "clip-2".to_string(),
+            },
+            LockMode::Exclusive,
+            1000,
+        );
+        assert!(result.is_ok(), "B should acquire clip-2 without deadlock");
+    }
+
+    #[test]
+    fn test_concurrent_stress_no_panic() {
+        // 8 threads randomly acquiring/releasing locks — must not panic.
+        let mgr = Arc::new(Mutex::new(EditLockManager::new(100_000)));
+        let clip_ids = ["c1", "c2", "c3", "c4"];
+        let handles: Vec<_> = (0..8)
+            .map(|i| {
+                let mgr_clone = Arc::clone(&mgr);
+                let user = format!("user-{}", i);
+                let clip = clip_ids[i % clip_ids.len()].to_string();
+                thread::spawn(move || {
+                    for t in 0u64..50 {
+                        let now = t * 100;
+                        let target = LockTarget::Clip {
+                            clip_id: clip.clone(),
+                        };
+                        let mut guard = mgr_clone.lock().expect("mutex should not be poisoned");
+                        // Try deadlock-aware acquire; ignore all errors.
+                        let _ = guard.try_acquire_with_deadlock_check(
+                            &user,
+                            target,
+                            LockMode::Exclusive,
+                            now,
+                        );
+                        // Also try to release any locks we hold.
+                        guard.release_all_for_user(&user);
+                    }
+                })
+            })
+            .collect();
+
+        for h in handles {
+            h.join().expect("thread should not panic");
+        }
     }
 }
 

@@ -27,12 +27,12 @@
 - [ ] Enhance `webcam/chroma.rs` with edge refinement for better green screen keying
 
 ## New Features
-- [ ] Implement RTMP/SRT/WHIP output protocol support for actual streaming
+- [x] Implement RTMP/SRT/WHIP output protocol support for actual streaming
 - [ ] Add multi-platform simultaneous streaming (Twitch + YouTube + Facebook at once)
 - [ ] Implement custom stinger transition support in `scene/transition.rs`
-- [ ] Add stream deck / hotkey integration for scene switching and actions
+- [x] Add stream deck / hotkey integration for scene switching and actions
 - [ ] Implement AI-free game event detection using audio cues (kill sounds, announcements)
-- [ ] Add recording-only mode with higher quality settings than live streaming
+- [x] Add recording-only mode with higher quality settings than live streaming
 - [ ] Implement `clip_manager.rs` automatic clip creation from highlight markers
 - [ ] Add `spectator_mode.rs` multi-POV spectator stream with camera switching
 - [ ] Implement chat bot integration in `chat_integration.rs` with command handling

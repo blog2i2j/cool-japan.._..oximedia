@@ -13,11 +13,11 @@
 - [ ] Implement configurable quarantine policies in `quarantine` (max size, auto-cleanup after N days)
 - [ ] Add `catalog_export` CSV and JSON export for archive manifests
 - [x] Implement hierarchical catalog organization in `catalog` (collections, sub-collections)
-- [ ] Add file format identification (magic bytes) in `validate` beyond extension checking
+- [x] Add file format identification (magic bytes) in `validate` beyond extension checking
 - [ ] Implement `search_index` full-text search over metadata fields
 - [x] Add `retention_schedule` enforcement: automatic deletion/archival when retention period expires
-- [ ] Improve `migration` module with dry-run support and rollback capability
-- [ ] Add sidecar file generation with human-readable checksum manifests
+- [x] Improve `migration` module with dry-run support and rollback capability
+- [x] Add sidecar file generation with human-readable checksum manifests
 
 ## New Features
 - [ ] Add cloud storage backend support (S3-compatible) for `archive_verify` remote verification

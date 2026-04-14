@@ -458,6 +458,225 @@ impl OpDag {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// AncestorCache
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Memoised common-ancestor lookup for an [`OpDag`].
+///
+/// Computing the lowest-common-ancestor (LCA) of two nodes in a DAG can be
+/// O(n²) without memoisation.  The cache stores previously computed LCA
+/// results so that each unique pair is only computed once, giving amortised
+/// O(1) per repeated query.
+#[derive(Debug, Default)]
+pub struct AncestorCache {
+    /// `(a, b)` where `a <= b` → LCA op id.
+    cache: HashMap<(u64, u64), u64>,
+}
+
+impl AncestorCache {
+    /// Create an empty cache.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Compute (or retrieve from cache) the lowest common ancestor of `a` and
+    /// `b` in `dag`.
+    ///
+    /// The LCA is defined as the deepest node that is an ancestor of both `a`
+    /// and `b`.  If no common ancestor exists (disconnected graph), returns
+    /// `None`.
+    pub fn lca(&mut self, dag: &OpDag, a: u64, b: u64) -> Option<u64> {
+        // Normalise so `a <= b` for a canonical cache key.
+        let key = if a <= b { (a, b) } else { (b, a) };
+        if let Some(&cached) = self.cache.get(&key) {
+            return Some(cached);
+        }
+
+        // BFS from both nodes to collect their ancestor sets.
+        let ancestors_a = Self::ancestors(dag, a);
+        let ancestors_b = Self::ancestors(dag, b);
+
+        // Find the common ancestor with the highest id (deepest = most recent).
+        let lca = ancestors_a.intersection(&ancestors_b).copied().max();
+
+        if let Some(result) = lca {
+            self.cache.insert(key, result);
+        }
+        lca
+    }
+
+    /// Return all ancestors of `node` (inclusive) using BFS via parent links.
+    fn ancestors(dag: &OpDag, node: u64) -> HashSet<u64> {
+        // Build a child→parent reverse map on the fly.
+        let mut parent_of: HashMap<u64, Vec<u64>> = HashMap::new();
+        for (&parent, children) in &dag.edges {
+            for &child in children {
+                parent_of.entry(child).or_default().push(parent);
+            }
+        }
+
+        let mut visited = HashSet::new();
+        let mut queue = VecDeque::new();
+        queue.push_back(node);
+        visited.insert(node);
+
+        while let Some(cur) = queue.pop_front() {
+            if let Some(parents) = parent_of.get(&cur) {
+                for &p in parents {
+                    if visited.insert(p) {
+                        queue.push_back(p);
+                    }
+                }
+            }
+        }
+        visited
+    }
+
+    /// Invalidate all cached entries (useful when the DAG is mutated).
+    pub fn invalidate(&mut self) {
+        self.cache.clear();
+    }
+
+    /// Number of cached LCA results.
+    pub fn cached_count(&self) -> usize {
+        self.cache.len()
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DagStats
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Aggregate diagnostic metrics for an [`OpDag`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct DagStats {
+    /// Number of nodes in the DAG.
+    pub node_count: usize,
+    /// Number of directed edges (parent → child) in the DAG.
+    pub edge_count: usize,
+    /// Maximum depth (longest path from any root to any leaf).
+    pub max_depth: usize,
+    /// Average number of children per node (branching factor).
+    pub avg_branching: f64,
+}
+
+impl OpDag {
+    /// Prune all operations that occurred before `checkpoint` and are not
+    /// reachable from the current tip.
+    ///
+    /// "Reachable from the current tip" means the node appears on some path
+    /// from the `checkpoint` forward.  This is a garbage-collection primitive:
+    /// after pruning the DAG is valid for future operations that descend from
+    /// `checkpoint`, but the full history before `checkpoint` is lost.
+    ///
+    /// Returns the number of nodes removed.
+    pub fn prune_before(&mut self, checkpoint: u64) -> usize {
+        // 1. Walk forward from `checkpoint` to find all reachable nodes.
+        let mut reachable: HashSet<u64> = HashSet::new();
+        let mut queue: VecDeque<u64> = VecDeque::new();
+
+        if !self.nodes.contains(&checkpoint) {
+            return 0;
+        }
+
+        queue.push_back(checkpoint);
+        reachable.insert(checkpoint);
+
+        while let Some(node) = queue.pop_front() {
+            if let Some(children) = self.edges.get(&node) {
+                for &child in children {
+                    if reachable.insert(child) {
+                        queue.push_back(child);
+                    }
+                }
+            }
+        }
+
+        // 2. Remove unreachable nodes and their outgoing edges.
+        let unreachable: Vec<u64> = self
+            .nodes
+            .iter()
+            .filter(|&&n| !reachable.contains(&n))
+            .copied()
+            .collect();
+
+        let removed = unreachable.len();
+        for n in &unreachable {
+            self.nodes.remove(n);
+            self.edges.remove(n);
+        }
+        // Clean up any edges that point to removed nodes.
+        for children in self.edges.values_mut() {
+            children.retain(|c| reachable.contains(c));
+        }
+
+        removed
+    }
+
+    /// Compute aggregate diagnostic statistics for this DAG.
+    ///
+    /// The `max_depth` is computed with BFS from all roots (nodes with
+    /// in-degree 0) so it runs in O(V + E).
+    pub fn stats(&self) -> DagStats {
+        let node_count = self.nodes.len();
+        let edge_count: usize = self.edges.values().map(|v| v.len()).sum();
+
+        if node_count == 0 {
+            return DagStats {
+                node_count: 0,
+                edge_count: 0,
+                max_depth: 0,
+                avg_branching: 0.0,
+            };
+        }
+
+        // Build in-degree map for Kahn-like depth BFS.
+        let mut in_degree: HashMap<u64, usize> = self.nodes.iter().map(|&n| (n, 0)).collect();
+        for children in self.edges.values() {
+            for &child in children {
+                *in_degree.entry(child).or_insert(0) += 1;
+            }
+        }
+
+        // BFS from roots tracking depth.
+        let mut depth: HashMap<u64, usize> = HashMap::new();
+        let mut queue: VecDeque<u64> = VecDeque::new();
+
+        for (&n, &deg) in &in_degree {
+            if deg == 0 {
+                depth.insert(n, 0);
+                queue.push_back(n);
+            }
+        }
+
+        while let Some(node) = queue.pop_front() {
+            let node_depth = depth.get(&node).copied().unwrap_or(0);
+            if let Some(children) = self.edges.get(&node) {
+                for &child in children {
+                    let child_depth = depth.entry(child).or_insert(0);
+                    if node_depth + 1 > *child_depth {
+                        *child_depth = node_depth + 1;
+                    }
+                    queue.push_back(child);
+                }
+            }
+        }
+
+        let max_depth = depth.values().copied().max().unwrap_or(0);
+
+        // avg_branching: total edges / node_count.
+        let avg_branching = edge_count as f64 / node_count as f64;
+
+        DagStats {
+            node_count,
+            edge_count,
+            max_depth,
+            avg_branching,
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -824,5 +1043,198 @@ mod tests {
         let dag = OpDag::from_log(&log);
         let ancestors = dag.causal_order(1);
         assert_eq!(ancestors, vec![1]);
+    }
+
+    // ── AncestorCache ─────────────────────────────────────────────────────────
+
+    fn linear_dag(n: u64) -> OpDag {
+        let mut log = OperationLog::new();
+        log.push(ins(1, 0, 1.0));
+        for i in 2..=n {
+            log.push(Operation::with_parent(
+                i,
+                1,
+                0,
+                "t",
+                OpType::Insert {
+                    index: 0,
+                    value: 0.0,
+                },
+                i - 1,
+            ));
+        }
+        OpDag::from_log(&log)
+    }
+
+    fn diamond_dag() -> OpDag {
+        // 1 → 2, 1 → 3, 2 → 4, 3 → 4
+        let mut dag = OpDag::new();
+        let root = Operation::new(
+            1,
+            1,
+            0,
+            "t",
+            OpType::Insert {
+                index: 0,
+                value: 0.0,
+            },
+        );
+        dag.insert(&root);
+        let b = Operation::with_parent(
+            2,
+            1,
+            0,
+            "t",
+            OpType::Insert {
+                index: 0,
+                value: 0.0,
+            },
+            1,
+        );
+        dag.insert(&b);
+        let c = Operation::with_parent(
+            3,
+            1,
+            0,
+            "t",
+            OpType::Insert {
+                index: 0,
+                value: 0.0,
+            },
+            1,
+        );
+        dag.insert(&c);
+        let d = Operation::with_parent(
+            4,
+            1,
+            0,
+            "t",
+            OpType::Insert {
+                index: 0,
+                value: 0.0,
+            },
+            2,
+        );
+        dag.insert(&d);
+        // Also wire 3 → 4.
+        dag.edges.entry(3).or_default().push(4);
+        dag
+    }
+
+    #[test]
+    fn test_ancestor_cache_linear_lca() {
+        let dag = linear_dag(5);
+        let mut cache = AncestorCache::new();
+        // LCA(4, 5) in a linear chain 1→2→3→4→5 = 4 (ancestor of 5 = {1,2,3,4,5}; ancestor of 4 = {1,2,3,4})
+        // Common = {1,2,3,4}, max = 4.
+        let lca = cache.lca(&dag, 4, 5);
+        assert_eq!(lca, Some(4));
+    }
+
+    #[test]
+    fn test_ancestor_cache_same_node_lca() {
+        let dag = linear_dag(3);
+        let mut cache = AncestorCache::new();
+        // LCA(2, 2) = 2.
+        let lca = cache.lca(&dag, 2, 2);
+        assert_eq!(lca, Some(2));
+    }
+
+    #[test]
+    fn test_ancestor_cache_result_cached() {
+        let dag = linear_dag(5);
+        let mut cache = AncestorCache::new();
+        let _ = cache.lca(&dag, 3, 5);
+        assert_eq!(
+            cache.cached_count(),
+            1,
+            "Result should be cached after first call"
+        );
+        // Second call hits cache.
+        let _ = cache.lca(&dag, 3, 5);
+        assert_eq!(
+            cache.cached_count(),
+            1,
+            "Cache should not grow on repeated call"
+        );
+    }
+
+    #[test]
+    fn test_ancestor_cache_invalidate() {
+        let dag = linear_dag(5);
+        let mut cache = AncestorCache::new();
+        let _ = cache.lca(&dag, 2, 5);
+        assert_eq!(cache.cached_count(), 1);
+        cache.invalidate();
+        assert_eq!(cache.cached_count(), 0, "Invalidate should clear cache");
+    }
+
+    // ── prune_before ─────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_prune_linear_removes_ancestors() {
+        // Chain 1→2→3→4→5.  Pruning before node 3 should remove 1 and 2.
+        let mut dag = linear_dag(5);
+        let removed = dag.prune_before(3);
+        assert_eq!(removed, 2, "Nodes 1 and 2 should be pruned");
+        assert!(!dag.nodes.contains(&1));
+        assert!(!dag.nodes.contains(&2));
+        // 3, 4, 5 remain.
+        assert!(dag.nodes.contains(&3));
+        assert!(dag.nodes.contains(&4));
+        assert!(dag.nodes.contains(&5));
+    }
+
+    #[test]
+    fn test_prune_before_root_removes_nothing() {
+        let mut dag = linear_dag(4);
+        let removed = dag.prune_before(1);
+        assert_eq!(removed, 0, "Pruning at root should remove nothing");
+    }
+
+    #[test]
+    fn test_prune_node_not_in_dag_removes_nothing() {
+        let mut dag = linear_dag(3);
+        let removed = dag.prune_before(99);
+        assert_eq!(removed, 0, "Non-existent checkpoint should remove nothing");
+    }
+
+    // ── DagStats ─────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_stats_empty_dag() {
+        let dag = OpDag::new();
+        let stats = dag.stats();
+        assert_eq!(stats.node_count, 0);
+        assert_eq!(stats.edge_count, 0);
+        assert_eq!(stats.max_depth, 0);
+    }
+
+    #[test]
+    fn test_stats_linear_dag() {
+        let dag = linear_dag(5);
+        let stats = dag.stats();
+        assert_eq!(stats.node_count, 5);
+        assert_eq!(stats.edge_count, 4);
+        assert_eq!(stats.max_depth, 4, "Linear chain of 5 nodes has depth 4");
+    }
+
+    #[test]
+    fn test_stats_diamond_dag() {
+        let dag = diamond_dag();
+        let stats = dag.stats();
+        assert_eq!(stats.node_count, 4);
+        // Edges: 1→2, 1→3, 2→4, 3→4 = 4
+        assert_eq!(stats.edge_count, 4);
+        // Longest path: 1→2→4 or 1→3→4, depth 2.
+        assert_eq!(stats.max_depth, 2);
+    }
+
+    #[test]
+    fn test_stats_avg_branching() {
+        let dag = linear_dag(5);
+        let stats = dag.stats();
+        // 4 edges / 5 nodes = 0.8
+        assert!((stats.avg_branching - 0.8).abs() < 1e-9);
     }
 }

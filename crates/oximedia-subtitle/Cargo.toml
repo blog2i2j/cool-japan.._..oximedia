@@ -25,7 +25,7 @@ rayon.workspace = true
 fontdue = "0.9"
 ab_glyph = "0.2"
 unicode-bidi = "0.3"
-unicode-segmentation = "1.12"
+unicode-segmentation = "1.13"
 
 # XML parsing for TTML
 quick-xml = "0.39"

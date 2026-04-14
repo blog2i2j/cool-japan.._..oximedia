@@ -1,12 +1,12 @@
 # oximedia-scaling
 
-![Status: Partial](https://img.shields.io/badge/status-partial-orange)
+![Status: Stable](https://img.shields.io/badge/status-stable-green)
 
 Professional video scaling operations for OxiMedia. Provides high-quality video scaling with bilinear, bicubic, and Lanczos filtering, aspect ratio preservation, super-resolution, thumbnail generation, and more.
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.1 — 2026-03-10
+Version: 0.1.3 — 2026-04-15
 
 ## Features
 
@@ -34,7 +34,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-scaling = "0.1.1"
+oximedia-scaling = "0.1.3"
 ```
 
 ```rust

@@ -12,24 +12,63 @@
 //!
 //! - [`alignment`] — Word timestamps, transcript segments, segment
 //!   merging/splitting, frame alignment, and caption block construction.
-//! - [`line_breaking`] — Greedy and optimal line-breaking, reading-speed
-//!   helpers (CPS), and line-balance optimisation.
-//! - [`wcag`] — WCAG 2.1 compliance checks (1.2.2, 1.2.4, 1.2.6), reading
-//!   speed validation, minimum display duration, gap detection, and compliance
-//!   scoring.
+//! - [`autopunct`] — Deterministic auto-punctuation and sentence capitalisation.
+//! - [`burn_in`] — Burned-in subtitle rendering onto raw RGBA video frames
+//!   using a built-in 8×12 bitmap font.
+//! - [`caption_diff`] — Compare two caption tracks and report differences.
+//! - [`caption_format_adapter`] — Serialize caption tracks to SRT/VTT/TTML.
+//! - [`caption_style_guide`] — Style guide rule enforcement over caption tracks.
+//! - [`caption_timing_adjuster`] — Shift, stretch, snap, and EDL-remap
+//!   caption timestamps.
 //! - [`diarization`] — Speaker metadata, turn merging, per-speaker statistics,
 //!   crosstalk detection, voice activity ratio, and speaker-to-caption
 //!   assignment.
+//! - [`forced_narrative`] — Forced narrative (FN) and SDH subtitle detection
+//!   and classification.
+//! - [`language_detect`] — Byte-trigram language detection for locale-aware
+//!   line-breaking.
+//! - [`line_breaking`] — Greedy and optimal line-breaking, reading-speed
+//!   helpers (CPS), and line-balance optimisation.
+//! - [`multi_language`] — Bilingual caption layout (primary + secondary
+//!   language).
+//! - [`multi_language_sync`] — Anchor-point synchronisation of multi-language
+//!   caption tracks.
 //! - [`multilang`] — Multi-language subtitle support with ISO 639-1 validated
 //!   language codes, SRT export, and cross-language timing merge.
-//! - [`burn_in`] — Burned-in subtitle rendering onto raw RGBA video frames
-//!   using a built-in 8×12 bitmap font.
+//! - [`phoneme_timing`] — Phoneme-level timing estimation from word timestamps.
+//! - [`profanity`] — Configurable profanity filter for caption text.
+//! - [`punctuation_restoration`] — Rule-based punctuation restoration for raw
+//!   ASR output.
+//! - [`reading_speed`] — Caption reading-speed validation (WPS-based).
+//! - [`style_generator`] — Font size, position, and colour suggestions based on
+//!   video frame analysis.
+//! - [`style_presets`] — Ready-made caption style configs (Netflix, BBC, WCAG).
+//! - [`translate`] — Stub subtitle translation pipeline.
+//! - [`wcag`] — WCAG 2.1 compliance checks (1.2.2, 1.2.4, 1.2.6), reading
+//!   speed validation, minimum display duration, gap detection, and compliance
+//!   scoring.
 
 pub mod alignment;
+pub mod autopunct;
 pub mod burn_in;
+pub mod caption_diff;
+pub mod caption_format_adapter;
+pub mod caption_style_guide;
+pub mod caption_timing_adjuster;
 pub mod diarization;
+pub mod forced_narrative;
+pub mod language_detect;
 pub mod line_breaking;
+pub mod multi_language;
+pub mod multi_language_sync;
 pub mod multilang;
+pub mod phoneme_timing;
+pub mod profanity;
+pub mod punctuation_restoration;
+pub mod reading_speed;
+pub mod style_generator;
+pub mod style_presets;
+pub mod translate;
 pub mod wcag;
 
 // ── Re-exports of key public types ──────────────────────────────────────────

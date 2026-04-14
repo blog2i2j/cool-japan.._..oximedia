@@ -125,13 +125,13 @@ impl ChecksumGenerator {
 
         // Finalize and store checksums
         if let Some(h) = md5 {
-            checksums.insert(ChecksumAlgorithm::Md5, format!("{:x}", h.finalize()));
+            checksums.insert(ChecksumAlgorithm::Md5, hex::encode(h.finalize()));
         }
         if let Some(h) = sha256 {
-            checksums.insert(ChecksumAlgorithm::Sha256, format!("{:x}", h.finalize()));
+            checksums.insert(ChecksumAlgorithm::Sha256, hex::encode(h.finalize()));
         }
         if let Some(h) = sha512 {
-            checksums.insert(ChecksumAlgorithm::Sha512, format!("{:x}", h.finalize()));
+            checksums.insert(ChecksumAlgorithm::Sha512, hex::encode(h.finalize()));
         }
         if let Some(h) = xxhash {
             checksums.insert(ChecksumAlgorithm::XxHash64, format!("{:x}", h.digest()));

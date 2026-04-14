@@ -602,7 +602,6 @@ mod tests {
     // Packager integration tests (writes to /tmp)
     // -----------------------------------------------------------------------
 
-    #[cfg(not(target_arch = "wasm32"))]
     #[tokio::test]
     async fn test_package_hls_writes_manifest() {
         let dir = std::path::PathBuf::from("/tmp/oximedia_test_hls_package");
@@ -611,20 +610,18 @@ mod tests {
         let result = packager
             .package(std::path::Path::new("/dev/null"))
             .await
-            .expect("streaming operation should succeed");
+            .unwrap();
 
         assert!(
             result.manifest_path.exists(),
             "HLS manifest must be written to disk"
         );
-        let content = std::fs::read_to_string(&result.manifest_path)
-            .expect("streaming operation should succeed");
+        let content = std::fs::read_to_string(&result.manifest_path).unwrap();
         assert!(content.contains("#EXTM3U"));
         // cleanup
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     #[tokio::test]
     async fn test_package_abr_hls_writes_master_playlist() {
         let dir = std::path::PathBuf::from("/tmp/oximedia_test_hls_abr");
@@ -634,21 +631,19 @@ mod tests {
         let result = packager
             .package_abr(std::path::Path::new("/dev/null"), &ladder)
             .await
-            .expect("streaming operation should succeed");
+            .unwrap();
 
         assert!(
             result.manifest_path.exists(),
             "Master playlist must be written to disk"
         );
-        let content = std::fs::read_to_string(&result.manifest_path)
-            .expect("streaming operation should succeed");
+        let content = std::fs::read_to_string(&result.manifest_path).unwrap();
         assert!(content.contains("#EXTM3U"));
         assert!(content.contains("#EXT-X-STREAM-INF"));
         // cleanup
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     #[tokio::test]
     async fn test_package_dash_writes_mpd() {
         let dir = std::path::PathBuf::from("/tmp/oximedia_test_dash_package");
@@ -657,20 +652,18 @@ mod tests {
         let result = packager
             .package(std::path::Path::new("/dev/null"))
             .await
-            .expect("streaming operation should succeed");
+            .unwrap();
 
         assert!(
             result.manifest_path.exists(),
             "DASH MPD must be written to disk"
         );
-        let content = std::fs::read_to_string(&result.manifest_path)
-            .expect("streaming operation should succeed");
+        let content = std::fs::read_to_string(&result.manifest_path).unwrap();
         assert!(content.contains("<MPD "));
         // cleanup
         let _ = std::fs::remove_dir_all(&dir);
     }
 
-    #[cfg(not(target_arch = "wasm32"))]
     #[tokio::test]
     async fn test_package_abr_dash_writes_mpd() {
         let dir = std::path::PathBuf::from("/tmp/oximedia_test_dash_abr");
@@ -680,14 +673,13 @@ mod tests {
         let result = packager
             .package_abr(std::path::Path::new("/dev/null"), &ladder)
             .await
-            .expect("streaming operation should succeed");
+            .unwrap();
 
         assert!(
             result.manifest_path.exists(),
             "DASH ABR MPD must be written to disk"
         );
-        let content = std::fs::read_to_string(&result.manifest_path)
-            .expect("streaming operation should succeed");
+        let content = std::fs::read_to_string(&result.manifest_path).unwrap();
         assert!(content.contains("<Representation "));
         // cleanup
         let _ = std::fs::remove_dir_all(&dir);

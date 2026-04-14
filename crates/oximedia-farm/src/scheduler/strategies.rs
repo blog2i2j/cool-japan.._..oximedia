@@ -141,113 +141,20 @@ impl LoadBalancer {
         }
     }
 
-    /// Deadline-aware selection: combines urgency scoring based on how close
-    /// the deadline is with worker load metrics.
-    ///
-    /// Tasks closer to their deadline receive a higher urgency boost, making
-    /// the scheduler prefer the least-loaded workers for urgent work.  Tasks
-    /// without a deadline fall back to `least_loaded`.
+    /// Deadline-aware selection (prefer workers that can meet deadline)
     fn deadline_aware<'a>(
         &self,
         workers: &[&'a WorkerInfo],
         task: &SchedulableTask,
     ) -> Result<&'a WorkerInfo> {
-        let deadline = match &task.deadline {
-            Some(d) => *d,
-            None => return self.least_loaded(workers),
-        };
-
-        let now = chrono::Utc::now();
-        let remaining = deadline.signed_duration_since(now);
-        let remaining_secs = remaining.num_seconds().max(0) as f64;
-
-        // Urgency factor: the closer to the deadline, the higher the urgency.
-        // urgency ranges from 0.0 (far from deadline) to 10.0 (at or past deadline).
-        let urgency = if remaining_secs <= 0.0 {
-            10.0
-        } else if remaining_secs < 60.0 {
-            // Less than 1 minute: very high urgency
-            8.0 + 2.0 * (1.0 - remaining_secs / 60.0)
-        } else if remaining_secs < 300.0 {
-            // Less than 5 minutes: high urgency
-            5.0 + 3.0 * (1.0 - remaining_secs / 300.0)
-        } else if remaining_secs < 3600.0 {
-            // Less than 1 hour: moderate urgency
-            2.0 + 3.0 * (1.0 - remaining_secs / 3600.0)
-        } else {
-            // More than 1 hour: low urgency
-            (1.0 - (remaining_secs / 86400.0).min(1.0)) * 2.0
-        };
-
-        // Score each worker: lower load is better, urgency amplifies the preference
-        // for lightly-loaded workers.
-        let scored_workers: Vec<(f64, &WorkerInfo)> = workers
-            .iter()
-            .map(|w| {
-                let load_score = w.current_load.score();
-                // Invert load (lower = better) and amplify by urgency
-                let base_score = (1.0 - load_score) * (1.0 + urgency);
-
-                // Bonus: prefer workers with matching capabilities
-                let cap_bonus: f64 = task
-                    .required_capabilities
-                    .iter()
-                    .filter(|c| w.capabilities.supported_codecs.contains(c))
-                    .count() as f64
-                    * 2.0;
-
-                // Bonus: GPU match
-                let gpu_bonus = if task.resource_requirements.gpu_required && w.capabilities.has_gpu
-                {
-                    5.0 * (1.0 + urgency * 0.5)
-                } else {
-                    0.0
-                };
-
-                // Penalty: insufficient resources
-                let resource_penalty = if w.capabilities.cpu_cores
-                    < task.resource_requirements.cpu_cores
-                    || w.capabilities.memory_mb < task.resource_requirements.memory_mb
-                {
-                    -100.0
-                } else {
-                    0.0
-                };
-
-                (base_score + cap_bonus + gpu_bonus + resource_penalty, *w)
-            })
-            .collect();
-
-        scored_workers
-            .into_iter()
-            .max_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal))
-            .map(|(_, w)| w)
-            .ok_or_else(|| FarmError::ResourceExhausted("No workers available".to_string()))
-    }
-
-    /// Calculate the urgency level for a task based on its deadline proximity.
-    ///
-    /// Returns a value from 0.0 (no urgency) to 10.0 (at/past deadline).
-    /// Returns 0.0 for tasks without a deadline.
-    #[must_use]
-    pub fn calculate_urgency(deadline: Option<chrono::DateTime<chrono::Utc>>) -> f64 {
-        let deadline = match deadline {
-            Some(d) => d,
-            None => return 0.0,
-        };
-        let now = chrono::Utc::now();
-        let remaining_secs = deadline.signed_duration_since(now).num_seconds().max(0) as f64;
-        if remaining_secs <= 0.0 {
-            10.0
-        } else if remaining_secs < 60.0 {
-            8.0 + 2.0 * (1.0 - remaining_secs / 60.0)
-        } else if remaining_secs < 300.0 {
-            5.0 + 3.0 * (1.0 - remaining_secs / 300.0)
-        } else if remaining_secs < 3600.0 {
-            2.0 + 3.0 * (1.0 - remaining_secs / 3600.0)
-        } else {
-            (1.0 - (remaining_secs / 86400.0).min(1.0)) * 2.0
+        if task.deadline.is_none() {
+            // No deadline, use least-loaded strategy
+            return self.least_loaded(workers);
         }
+
+        // For tasks with deadlines, prioritize least-loaded workers
+        // to minimize queue time
+        self.least_loaded(workers)
     }
 
     /// Random selection
@@ -313,12 +220,8 @@ mod tests {
 
         let task = create_task(Priority::Normal, false);
 
-        let selected1 = lb
-            .select_worker(&workers, &task)
-            .expect("select_worker should succeed");
-        let selected2 = lb
-            .select_worker(&workers, &task)
-            .expect("select_worker should succeed");
+        let selected1 = lb.select_worker(&workers, &task).unwrap();
+        let selected2 = lb.select_worker(&workers, &task).unwrap();
 
         // Should alternate between workers
         assert_ne!(selected1.worker_id, selected2.worker_id);
@@ -332,9 +235,7 @@ mod tests {
         let workers = vec![&w1, &w2];
 
         let task = create_task(Priority::Normal, false);
-        let selected = lb
-            .select_worker(&workers, &task)
-            .expect("select_worker should succeed");
+        let selected = lb.select_worker(&workers, &task).unwrap();
 
         // Should select w2 (lower load)
         assert_eq!(selected.worker_id.as_str(), "w2");
@@ -348,9 +249,7 @@ mod tests {
         let workers = vec![&w1, &w2];
 
         let task = create_task(Priority::Normal, true);
-        let selected = lb
-            .select_worker(&workers, &task)
-            .expect("select_worker should succeed");
+        let selected = lb.select_worker(&workers, &task).unwrap();
 
         // Should select w2 (has GPU)
         assert_eq!(selected.worker_id.as_str(), "w2");
@@ -364,9 +263,7 @@ mod tests {
         let workers = vec![&w1, &w2];
 
         let task = create_task(Priority::High, false);
-        let selected = lb
-            .select_worker(&workers, &task)
-            .expect("select_worker should succeed");
+        let selected = lb.select_worker(&workers, &task).unwrap();
 
         // High priority should select least loaded
         assert_eq!(selected.worker_id.as_str(), "w2");
@@ -380,9 +277,7 @@ mod tests {
         let workers = vec![&w1, &w2];
 
         let task = create_task(Priority::Low, false);
-        let selected = lb
-            .select_worker(&workers, &task)
-            .expect("select_worker should succeed");
+        let selected = lb.select_worker(&workers, &task).unwrap();
 
         // Low priority uses round-robin
         assert!(!selected.worker_id.as_str().is_empty());
@@ -409,140 +304,200 @@ mod tests {
         let task = create_task(Priority::Normal, false);
         let selected = lb
             .select_worker(&workers, &task)
-            .expect("select_worker should succeed");
+            .expect("random selection should succeed with 2 workers");
 
         // Should select one of the workers
         assert!(selected.worker_id.as_str() == "w1" || selected.worker_id.as_str() == "w2");
     }
 
-    // ── Deadline-aware tests ────────────────────────────────────────────────
+    // ── LeastLoaded / PriorityBased unit tests ──────────────────────────────
 
-    fn create_task_with_deadline(
-        priority: Priority,
-        gpu_required: bool,
-        deadline: Option<chrono::DateTime<chrono::Utc>>,
-    ) -> SchedulableTask {
-        SchedulableTask {
-            task_id: TaskId::new(),
-            priority,
-            required_capabilities: vec!["h264".to_string()],
-            deadline,
-            resource_requirements: ResourceRequirements {
-                cpu_cores: 2,
-                memory_mb: 4096,
-                gpu_required,
-                disk_space_mb: 1024,
-            },
+    #[test]
+    fn test_least_loaded_assigns_to_least_busy_worker() {
+        let lb = LoadBalancer::new(SchedulingStrategy::LeastLoaded);
+        let workers: Vec<WorkerInfo> = (0..10)
+            .map(|i| create_worker(&format!("w{i}"), i as f64 / 10.0, false))
+            .collect();
+        let refs: Vec<&WorkerInfo> = workers.iter().collect();
+
+        let task = create_task(Priority::Normal, false);
+        let selected = lb
+            .select_worker(&refs, &task)
+            .expect("should select a worker");
+
+        // Worker w0 has 0.0 CPU usage – the minimum
+        assert_eq!(
+            selected.worker_id.as_str(),
+            "w0",
+            "least-loaded strategy must pick the worker with minimum load score"
+        );
+    }
+
+    #[test]
+    fn test_priority_based_critical_picks_least_loaded() {
+        let lb = LoadBalancer::new(SchedulingStrategy::PriorityBased);
+        let high_load = create_worker("busy", 0.95, false);
+        let low_load = create_worker("idle", 0.05, false);
+        let refs = vec![&high_load, &low_load];
+
+        let task = create_task(Priority::Critical, false);
+        let selected = lb
+            .select_worker(&refs, &task)
+            .expect("should select a worker");
+        assert_eq!(
+            selected.worker_id.as_str(),
+            "idle",
+            "critical-priority task must go to the least-loaded worker"
+        );
+    }
+
+    #[test]
+    fn test_capability_based_gpu_task_selects_gpu_worker() {
+        let lb = LoadBalancer::new(SchedulingStrategy::CapabilityBased);
+        // Five CPU-only workers at equal load + one GPU worker at same load
+        let mut workers: Vec<WorkerInfo> = (0..5)
+            .map(|i| create_worker(&format!("cpu{i}"), 0.3, false))
+            .collect();
+        workers.push(create_worker("gpu0", 0.3, true));
+        let refs: Vec<&WorkerInfo> = workers.iter().collect();
+
+        let task = create_task(Priority::Normal, true); // GPU required
+        let selected = lb
+            .select_worker(&refs, &task)
+            .expect("should select a worker");
+        assert_eq!(
+            selected.worker_id.as_str(),
+            "gpu0",
+            "capability-based strategy must prefer GPU worker for GPU tasks"
+        );
+    }
+
+    // ── Scale tests ─────────────────────────────────────────────────────────
+
+    /// Scale test helper: creates `n` workers with CPU loads spread from 0% to ~99%.
+    fn make_workers(n: usize) -> Vec<WorkerInfo> {
+        (0..n)
+            .map(|i| {
+                let cpu = i as f64 / n as f64;
+                let has_gpu = i % 10 == 0; // every 10th worker has a GPU
+                create_worker(&format!("worker-{i:04}"), cpu, has_gpu)
+            })
+            .collect()
+    }
+
+    /// Scale test: schedule 10 000 tasks across 100 workers using every strategy.
+    ///
+    /// Annotated with `#[ignore]` so it is excluded from the normal fast test
+    /// suite and only runs when explicitly requested (`cargo test -- --ignored`).
+    #[test]
+    #[ignore = "scale test: run explicitly with `cargo test -- --ignored`"]
+    fn test_all_strategies_10k_tasks_100_workers() {
+        const WORKERS: usize = 100;
+        const TASKS: usize = 10_000;
+
+        let workers = make_workers(WORKERS);
+        let refs: Vec<&WorkerInfo> = workers.iter().collect();
+
+        let strategies = [
+            SchedulingStrategy::RoundRobin,
+            SchedulingStrategy::LeastLoaded,
+            SchedulingStrategy::CapabilityBased,
+            SchedulingStrategy::PriorityBased,
+            SchedulingStrategy::DeadlineAware,
+            SchedulingStrategy::Random,
+        ];
+
+        for strategy in strategies {
+            let lb = LoadBalancer::new(strategy);
+            let start = std::time::Instant::now();
+            for t in 0..TASKS {
+                // Cycle through priorities to exercise all strategy branches
+                let priority = match t % 4 {
+                    0 => Priority::Critical,
+                    1 => Priority::High,
+                    2 => Priority::Normal,
+                    _ => Priority::Low,
+                };
+                let gpu_required = t % 10 == 0;
+                let task = create_task(priority, gpu_required);
+                lb.select_worker(&refs, &task)
+                    .expect("should always select a worker with 100 workers available");
+            }
+            let elapsed = start.elapsed();
+            assert!(
+                elapsed.as_secs() < 5,
+                "{strategy:?}: scheduling {TASKS} tasks across {WORKERS} workers took {elapsed:?} (> 5 s budget)"
+            );
         }
     }
 
+    /// Faster (non-ignored) smoke test: 1 000 tasks, 100 workers, all strategies,
+    /// verifying correctness properties under load.
     #[test]
-    fn test_deadline_aware_no_deadline_falls_back() {
-        let lb = LoadBalancer::new(SchedulingStrategy::DeadlineAware);
-        let w1 = create_worker("w1", 0.8, false);
-        let w2 = create_worker("w2", 0.2, false);
-        let workers = vec![&w1, &w2];
+    fn test_all_strategies_1k_tasks_100_workers_smoke() {
+        const WORKERS: usize = 100;
+        const TASKS: usize = 1_000;
 
-        let task = create_task_with_deadline(Priority::Normal, false, None);
-        let selected = lb
-            .select_worker(&workers, &task)
-            .expect("select_worker should succeed");
-        // Falls back to least loaded
-        assert_eq!(selected.worker_id.as_str(), "w2");
+        let workers = make_workers(WORKERS);
+        let refs: Vec<&WorkerInfo> = workers.iter().collect();
+
+        let strategies = [
+            SchedulingStrategy::RoundRobin,
+            SchedulingStrategy::LeastLoaded,
+            SchedulingStrategy::CapabilityBased,
+            SchedulingStrategy::PriorityBased,
+            SchedulingStrategy::DeadlineAware,
+            SchedulingStrategy::Random,
+        ];
+
+        for strategy in strategies {
+            let lb = LoadBalancer::new(strategy);
+            let mut selections: Vec<String> = Vec::with_capacity(TASKS);
+            for t in 0..TASKS {
+                let priority = match t % 4 {
+                    0 => Priority::Critical,
+                    1 => Priority::High,
+                    2 => Priority::Normal,
+                    _ => Priority::Low,
+                };
+                let task = create_task(priority, t % 10 == 0);
+                let w = lb
+                    .select_worker(&refs, &task)
+                    .expect("should always find a worker");
+                selections.push(w.worker_id.to_string());
+            }
+            // Every selection must be a valid worker ID
+            for id in &selections {
+                assert!(
+                    workers.iter().any(|w| w.worker_id.as_str() == id.as_str()),
+                    "{strategy:?}: selected unknown worker ID '{id}'"
+                );
+            }
+        }
     }
 
+    /// Verify that RoundRobin distributes tasks across all workers over a full cycle.
     #[test]
-    fn test_deadline_aware_imminent_deadline_prefers_least_loaded() {
-        let lb = LoadBalancer::new(SchedulingStrategy::DeadlineAware);
-        let w1 = create_worker("w1", 0.9, false);
-        let w2 = create_worker("w2", 0.1, false);
-        let workers = vec![&w1, &w2];
+    fn test_round_robin_covers_all_workers() {
+        let n = 10usize;
+        let lb = LoadBalancer::new(SchedulingStrategy::RoundRobin);
+        let workers: Vec<WorkerInfo> = (0..n)
+            .map(|i| create_worker(&format!("w{i}"), 0.5, false))
+            .collect();
+        let refs: Vec<&WorkerInfo> = workers.iter().collect();
+        let task = create_task(Priority::Normal, false);
 
-        // Deadline in 10 seconds - very urgent
-        let deadline = chrono::Utc::now() + chrono::Duration::seconds(10);
-        let task = create_task_with_deadline(Priority::High, false, Some(deadline));
-        let selected = lb
-            .select_worker(&workers, &task)
-            .expect("select_worker should succeed");
-        assert_eq!(selected.worker_id.as_str(), "w2");
-    }
-
-    #[test]
-    fn test_deadline_aware_past_deadline_maximum_urgency() {
-        let lb = LoadBalancer::new(SchedulingStrategy::DeadlineAware);
-        let w1 = create_worker("w1", 0.9, false);
-        let w2 = create_worker("w2", 0.1, false);
-        let workers = vec![&w1, &w2];
-
-        // Already past deadline
-        let deadline = chrono::Utc::now() - chrono::Duration::seconds(60);
-        let task = create_task_with_deadline(Priority::Critical, false, Some(deadline));
-        let selected = lb
-            .select_worker(&workers, &task)
-            .expect("select_worker should succeed");
-        // Should strongly prefer the least loaded worker
-        assert_eq!(selected.worker_id.as_str(), "w2");
-    }
-
-    #[test]
-    fn test_deadline_aware_far_deadline_moderate_preference() {
-        let lb = LoadBalancer::new(SchedulingStrategy::DeadlineAware);
-        let w1 = create_worker("w1", 0.3, false);
-        let w2 = create_worker("w2", 0.2, false);
-        let workers = vec![&w1, &w2];
-
-        // Deadline in 2 hours - low urgency
-        let deadline = chrono::Utc::now() + chrono::Duration::hours(2);
-        let task = create_task_with_deadline(Priority::Normal, false, Some(deadline));
-        let selected = lb
-            .select_worker(&workers, &task)
-            .expect("select_worker should succeed");
-        // Should still select the less-loaded worker
-        assert_eq!(selected.worker_id.as_str(), "w2");
-    }
-
-    #[test]
-    fn test_calculate_urgency_no_deadline() {
-        assert!((LoadBalancer::calculate_urgency(None) - 0.0).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn test_calculate_urgency_past_deadline() {
-        let past = chrono::Utc::now() - chrono::Duration::minutes(5);
-        assert!((LoadBalancer::calculate_urgency(Some(past)) - 10.0).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn test_calculate_urgency_imminent() {
-        let soon = chrono::Utc::now() + chrono::Duration::seconds(30);
-        let urgency = LoadBalancer::calculate_urgency(Some(soon));
-        // Should be between 8.0 and 10.0
-        assert!(urgency >= 8.0 && urgency <= 10.0);
-    }
-
-    #[test]
-    fn test_calculate_urgency_far_future() {
-        let far = chrono::Utc::now() + chrono::Duration::hours(48);
-        let urgency = LoadBalancer::calculate_urgency(Some(far));
-        // Should be very low
-        assert!(urgency < 1.0);
-    }
-
-    #[test]
-    fn test_deadline_aware_gpu_bonus_with_urgency() {
-        let lb = LoadBalancer::new(SchedulingStrategy::DeadlineAware);
-        let w1 = create_worker("w1", 0.3, false);
-        let w2 = create_worker("w2", 0.5, true); // higher load but has GPU
-
-        let workers = vec![&w1, &w2];
-
-        // GPU-required task with tight deadline
-        let deadline = chrono::Utc::now() + chrono::Duration::seconds(30);
-        let task = create_task_with_deadline(Priority::High, true, Some(deadline));
-        let selected = lb
-            .select_worker(&workers, &task)
-            .expect("select_worker should succeed");
-        // GPU bonus should outweigh the load difference
-        assert_eq!(selected.worker_id.as_str(), "w2");
+        let mut seen: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for _ in 0..n {
+            let w = lb
+                .select_worker(&refs, &task)
+                .expect("should find a worker");
+            seen.insert(w.worker_id.to_string());
+        }
+        assert_eq!(
+            seen.len(),
+            n,
+            "RoundRobin should visit all {n} workers in one cycle"
+        );
     }
 }

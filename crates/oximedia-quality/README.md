@@ -1,6 +1,6 @@
 # oximedia-quality
 
-**Status: [Stable]** | Version: 0.1.1 | Updated: 2026-03-10
+**Status: [Stable]** | Version: 0.1.3 | Updated: 2026-04-15
 
 Video quality assessment and objective metrics for OxiMedia. Provides comprehensive video quality assessment including full-reference metrics (PSNR, SSIM, VMAF) and no-reference metrics (NIQE, BRISQUE, blur, noise).
 
@@ -49,7 +49,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-quality = "0.1.1"
+oximedia-quality = "0.1.3"
 ```
 
 ```rust

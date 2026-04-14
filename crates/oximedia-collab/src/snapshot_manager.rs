@@ -626,4 +626,158 @@ mod tests {
             assert_eq!(snap.description, format!("c{}", idx));
         }
     }
+
+    // ── Branch creation and fast-forward/non-fast-forward tests ─────────────
+
+    /// Creating a branch from a non-main branch preserves the fork-point head.
+    #[test]
+    fn test_branch_creation_from_feature_branch() {
+        let mut repo = SnapshotRepository::new();
+        let c1 = commit(&mut repo, "c1".into(), 1, 0xAA);
+
+        // Create "feature" from "main".
+        branch_from(&mut repo, "feature", "main").expect("feature branch");
+
+        // Add a commit on feature.
+        repo.current_branch = "feature".to_string();
+        let f1 = commit(&mut repo, "f1".into(), 2, 0xBB);
+
+        // Create "hotfix" from "feature".
+        branch_from(&mut repo, "hotfix", "feature").expect("hotfix branch");
+
+        assert_eq!(
+            repo.branches["hotfix"].head_id, f1,
+            "hotfix should start at feature head (f1)"
+        );
+
+        // hotfix commit history should include root, c1, and f1.
+        let h = history(&repo, "hotfix");
+        let ids: Vec<u64> = h.iter().map(|s| s.id).collect();
+        assert!(ids.contains(&c1), "hotfix history should contain c1");
+        assert!(ids.contains(&f1), "hotfix history should contain f1");
+    }
+
+    /// Fast-forward merge: target is a strict ancestor of source → head advances.
+    #[test]
+    fn test_fast_forward_detection_advances_head_without_new_commit() {
+        let mut repo = SnapshotRepository::new();
+        let before_count = repo.snapshots.len();
+
+        // Branch "dev" from main.
+        branch_from(&mut repo, "dev", "main").expect("dev branch");
+        repo.current_branch = "dev".to_string();
+        let d1 = commit(&mut repo, "d1".into(), 1, 0x11);
+
+        // Fast-forward main to dev (main ≡ root < d1).
+        repo.current_branch = "main".to_string();
+        let result = merge_branch(&mut repo, "dev", "main");
+
+        assert!(result.is_clean(), "must be a clean fast-forward");
+        assert_eq!(
+            result.clean_value().copied(),
+            Some(d1),
+            "fast-forward result must equal dev head"
+        );
+        assert_eq!(
+            repo.branches["main"].head_id, d1,
+            "main head should advance to d1"
+        );
+        // No new snapshot should have been created (snapshot count unchanged
+        // by the merge — d1 was already in the repo).
+        assert_eq!(
+            repo.snapshots.len(),
+            before_count + 1, // only d1 was added by commit()
+            "fast-forward must not create an extra merge commit"
+        );
+    }
+
+    /// Non-fast-forward (diverged branches): a new merge commit is created.
+    #[test]
+    fn test_non_fast_forward_detection_creates_merge_commit() {
+        let mut repo = SnapshotRepository::new();
+
+        // main: root → m1
+        let _m1 = commit(&mut repo, "m1".into(), 1, 0x10);
+
+        // Branch "side" from main.
+        branch_from(&mut repo, "side", "main").expect("side branch");
+
+        // Add m2 on main so histories diverge.
+        let _m2 = commit(&mut repo, "m2".into(), 1, 0x20);
+        let main_head_before = repo.branches["main"].head_id;
+
+        // Add s1 on side.
+        repo.current_branch = "side".to_string();
+        let _s1 = commit(&mut repo, "s1".into(), 2, 0x30);
+
+        // Merge side into main — should produce a real merge commit.
+        repo.current_branch = "main".to_string();
+        let snap_count_before = repo.snapshots.len();
+        let result = merge_branch(&mut repo, "side", "main");
+
+        assert!(result.is_clean(), "merge must succeed cleanly");
+        let merge_id = result.clean_value().copied().expect("merge commit id");
+
+        // A new snapshot should have been created.
+        assert_eq!(
+            repo.snapshots.len(),
+            snap_count_before + 1,
+            "non-fast-forward must create a merge commit snapshot"
+        );
+
+        // The merge commit's parent must be the old main head.
+        let merge_snap = &repo.snapshots[&merge_id];
+        assert_eq!(
+            merge_snap.parent_id,
+            Some(main_head_before),
+            "merge commit parent must be the old main head"
+        );
+
+        // The merge commit description must reference "side".
+        assert!(
+            merge_snap.description.contains("side"),
+            "merge description should mention source branch 'side'"
+        );
+    }
+
+    /// Diverged branches: verify common ancestor is correct.
+    #[test]
+    fn test_diverged_branches_common_ancestor_is_fork_point() {
+        let mut repo = SnapshotRepository::new();
+        let fork = commit(&mut repo, "fork".into(), 1, 0xFF);
+
+        branch_from(&mut repo, "left", "main").expect("left");
+        branch_from(&mut repo, "right", "main").expect("right");
+
+        repo.current_branch = "left".to_string();
+        let l1 = commit(&mut repo, "l1".into(), 1, 0x01);
+
+        repo.current_branch = "right".to_string();
+        let r1 = commit(&mut repo, "r1".into(), 2, 0x02);
+
+        let ancestor = find_common_ancestor(&repo, l1, r1);
+        assert_eq!(
+            ancestor,
+            Some(fork),
+            "common ancestor of l1 and r1 must be the fork point"
+        );
+    }
+
+    /// After fast-forward, the merged branch shares all commits of the source.
+    #[test]
+    fn test_fast_forward_target_commits_include_source_commits() {
+        let mut repo = SnapshotRepository::new();
+        branch_from(&mut repo, "feat", "main").expect("feat branch");
+        repo.current_branch = "feat".to_string();
+        let f1 = commit(&mut repo, "f1".into(), 1, 1);
+        let f2 = commit(&mut repo, "f2".into(), 1, 2);
+
+        repo.current_branch = "main".to_string();
+        let result = merge_branch(&mut repo, "feat", "main");
+        assert!(result.is_clean());
+
+        let main_commits: Vec<u64> = repo.branches["main"].commits.iter().copied().collect();
+        assert!(main_commits.contains(&f1), "main must include f1 after ff");
+        assert!(main_commits.contains(&f2), "main must include f2 after ff");
+    }
 }

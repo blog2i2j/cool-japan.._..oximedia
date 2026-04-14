@@ -360,6 +360,94 @@ pub fn cube_to_equirect(
     Ok(out)
 }
 
+// ─── Round-trip validation utilities ─────────────────────────────────────────
+
+/// Compute the maximum round-trip UV error for `sphere_to_equirect` followed by
+/// `equirect_to_sphere` over a regular `grid_size × grid_size` sample grid.
+///
+/// Each sample in the grid is converted sphere → equirect → sphere, and the
+/// maximum angular distance between the original and recovered spherical
+/// coordinate (in radians) is returned.
+///
+/// This is useful as a regression test: for the standard equirectangular mapping
+/// the round-trip error should be near machine epsilon for most positions.
+///
+/// # Errors
+/// Returns [`VrError::InvalidDimensions`] if `grid_size` is zero.
+pub fn sphere_equirect_max_roundtrip_error_rad(grid_size: u32) -> Result<f32, VrError> {
+    if grid_size == 0 {
+        return Err(VrError::InvalidDimensions("grid_size must be > 0".into()));
+    }
+    let n = grid_size as f32;
+    let mut max_err = 0.0f32;
+
+    for row in 0..grid_size {
+        for col in 0..grid_size {
+            let u = (col as f32 + 0.5) / n;
+            let v = (row as f32 + 0.5) / n;
+            let uv_in = UvCoord { u, v };
+            let sphere = equirect_to_sphere(&uv_in);
+            let uv_out = sphere_to_equirect(&sphere);
+
+            // Measure the angular error as the great-circle distance between the
+            // two spherical directions derived from the input and output UVs.
+            let s_in = equirect_to_sphere(&uv_in);
+            let s_out = equirect_to_sphere(&uv_out);
+
+            let err = angular_distance_rad(&s_in, &s_out);
+            if err > max_err {
+                max_err = err;
+            }
+        }
+    }
+    Ok(max_err)
+}
+
+/// Compute the Peak Signal-to-Noise Ratio (PSNR) in dB between two 8-bit
+/// image buffers of the same size.
+///
+/// PSNR = 10 · log10(255² / MSE)
+///
+/// Returns `f64::INFINITY` when the two images are identical (MSE == 0).
+///
+/// # Errors
+/// Returns [`VrError::BufferTooSmall`] if `a` and `b` have different lengths
+/// or are empty.
+pub fn compute_psnr(a: &[u8], b: &[u8]) -> Result<f64, VrError> {
+    if a.is_empty() || a.len() != b.len() {
+        return Err(VrError::BufferTooSmall {
+            expected: a.len(),
+            got: b.len(),
+        });
+    }
+    let mse: f64 = a
+        .iter()
+        .zip(b.iter())
+        .map(|(&av, &bv)| {
+            let diff = av as f64 - bv as f64;
+            diff * diff
+        })
+        .sum::<f64>()
+        / a.len() as f64;
+    if mse < 1e-12 {
+        return Ok(f64::INFINITY);
+    }
+    Ok(10.0 * (255.0_f64 * 255.0 / mse).log10())
+}
+
+/// Compute the great-circle angular distance (in radians) between two
+/// [`SphericalCoord`] values using the haversine formula.
+///
+/// Numerically stable for both small and large angles.
+#[inline]
+pub fn angular_distance_rad(a: &SphericalCoord, b: &SphericalCoord) -> f32 {
+    let dlat = b.elevation_rad - a.elevation_rad;
+    let dlon = b.azimuth_rad - a.azimuth_rad;
+    let h = (dlat * 0.5).sin().powi(2)
+        + a.elevation_rad.cos() * b.elevation_rad.cos() * (dlon * 0.5).sin().powi(2);
+    2.0 * h.sqrt().clamp(0.0, 1.0).asin()
+}
+
 // ─── Internal helpers ─────────────────────────────────────────────────────────
 
 fn validate_image_buffer(data: &[u8], w: u32, h: u32, channels: u32) -> Result<(), VrError> {
@@ -682,5 +770,140 @@ mod tests {
         assert!(err_r <= 5, "R error too large: {err_r}");
         assert!(err_g <= 5, "G error too large: {err_g}");
         assert!(err_b <= 5, "B error too large: {err_b}");
+    }
+
+    // ── Polar singularity edge cases ─────────────────────────────────────────
+
+    #[test]
+    fn north_pole_elevation_clamped_at_half_pi() {
+        // v=0 → elevation = π/2 (north pole)
+        let s = equirect_to_sphere(&uv(0.5, 0.0));
+        assert!(
+            (s.elevation_rad - PI / 2.0).abs() < 0.01,
+            "el={}",
+            s.elevation_rad
+        );
+    }
+
+    #[test]
+    fn south_pole_elevation_clamped_at_neg_half_pi() {
+        // v=1 → elevation = −π/2 (south pole)
+        let s = equirect_to_sphere(&uv(0.5, 1.0));
+        assert!(
+            (s.elevation_rad + PI / 2.0).abs() < 0.01,
+            "el={}",
+            s.elevation_rad
+        );
+    }
+
+    #[test]
+    fn pole_roundtrip_does_not_panic() {
+        // Both poles: equirect → sphere → equirect should be stable
+        for &v_val in &[0.0f32, 1.0f32] {
+            for &u_val in &[0.0f32, 0.25, 0.5, 0.75, 1.0] {
+                let uv_in = uv(u_val, v_val);
+                let s = equirect_to_sphere(&uv_in);
+                let _ = sphere_to_equirect(&s);
+            }
+        }
+    }
+
+    #[test]
+    fn antimeridian_roundtrip_stable() {
+        // Pixels at u ≈ 0 and u ≈ 1 should produce the same sphere direction
+        // (the antimeridian wrap)
+        let s0 = equirect_to_sphere(&uv(0.0, 0.5));
+        let s1 = equirect_to_sphere(&uv(1.0, 0.5));
+        // Both give az ≈ ±π which differ by 2π → same physical direction
+        let az_diff = (s0.azimuth_rad.abs() - PI).abs();
+        let az_diff1 = (s1.azimuth_rad.abs() - PI).abs();
+        assert!(az_diff < 0.01, "az0={}", s0.azimuth_rad);
+        assert!(az_diff1 < 0.01, "az1={}", s1.azimuth_rad);
+    }
+
+    #[test]
+    fn cubemap_roundtrip_at_poles_does_not_panic() {
+        // Ensure equirect_to_cube handles polar pixels without panicking
+        let src = solid_equirect(64, 32, 100, 150, 200);
+        let faces = equirect_to_cube(&src, 64, 32, 8).expect("to cube");
+        for face in CubeFace::all() {
+            let face_data = &faces[&face];
+            assert_eq!(face_data.len(), 8 * 8 * 3, "face {face:?} wrong size");
+        }
+    }
+
+    // ── Round-trip PSNR test ─────────────────────────────────────────────────
+
+    #[test]
+    fn equirect_cube_equirect_psnr_above_threshold() {
+        // A uniform-colour panorama through equirect→cube→equirect should
+        // achieve PSNR ≥ 30 dB at the sampled pixels (ignoring poles).
+        let src = solid_equirect(128, 64, 200, 100, 50);
+        let faces = equirect_to_cube(&src, 128, 64, 32).expect("to cube");
+        let out = cube_to_equirect(&faces, 32, 128, 64).expect("to equirect");
+        let psnr = compute_psnr(&src, &out).expect("psnr");
+        assert!(psnr >= 30.0, "PSNR too low: {psnr:.1} dB");
+    }
+
+    #[test]
+    fn psnr_identical_images_is_infinite() {
+        let img = solid_equirect(32, 16, 128, 64, 32);
+        let psnr = compute_psnr(&img, &img).expect("psnr");
+        assert!(psnr.is_infinite() && psnr > 0.0);
+    }
+
+    #[test]
+    fn psnr_different_lengths_error() {
+        let a = vec![0u8; 10];
+        let b = vec![0u8; 20];
+        assert!(compute_psnr(&a, &b).is_err());
+    }
+
+    #[test]
+    fn psnr_empty_error() {
+        assert!(compute_psnr(&[], &[]).is_err());
+    }
+
+    #[test]
+    fn psnr_max_difference_below_9_db() {
+        // All-zeros vs all-255: PSNR = 10*log10(255²/255²) = 0 dB? No:
+        // MSE = 255², PSNR = 10*log10(1.0) = 0 dB — worst case.
+        let a = vec![0u8; 8 * 8 * 3];
+        let b = vec![255u8; 8 * 8 * 3];
+        let psnr = compute_psnr(&a, &b).expect("psnr");
+        // PSNR = 10 * log10(255^2 / 255^2) = 10 * log10(1) = 0 dB
+        assert!((psnr - 0.0).abs() < 0.01, "psnr={psnr}");
+    }
+
+    // ── Round-trip validation utility ────────────────────────────────────────
+
+    #[test]
+    fn sphere_equirect_roundtrip_error_near_zero() {
+        let max_err = sphere_equirect_max_roundtrip_error_rad(16).expect("ok");
+        // Standard equirectangular mapping is lossless to floating-point precision
+        // (error should be sub-milliradian)
+        assert!(max_err < 0.001, "max_err={max_err} rad");
+    }
+
+    #[test]
+    fn sphere_equirect_roundtrip_error_zero_grid_size_error() {
+        assert!(sphere_equirect_max_roundtrip_error_rad(0).is_err());
+    }
+
+    // ── angular_distance_rad ─────────────────────────────────────────────────
+
+    #[test]
+    fn angular_distance_same_point_is_zero() {
+        let s = sphere(PI / 4.0, PI / 6.0);
+        let d = angular_distance_rad(&s, &s);
+        assert!(d < 1e-6, "d={d}");
+    }
+
+    #[test]
+    fn angular_distance_antipodal_is_pi() {
+        let a = sphere(0.0, 0.0);
+        let b = sphere(PI, 0.0);
+        let d = angular_distance_rad(&a, &b);
+        assert!((d - PI).abs() < 0.05, "d={d}");
     }
 }

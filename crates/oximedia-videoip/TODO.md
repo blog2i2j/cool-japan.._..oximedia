@@ -8,12 +8,12 @@
 
 ## Enhancements
 - [ ] Implement actual QUIC transport in `quic_transport` using quinn or equivalent pure-Rust QUIC library
-- [ ] Add adaptive FEC rate in `fec` module that adjusts parity packet ratio based on measured `packet_loss` rate
-- [ ] Extend `congestion` control with BBR-style algorithm instead of basic AIMD for better bandwidth utilization
+- [x] Add adaptive FEC rate in `fec` module that adjusts parity packet ratio based on measured `packet_loss` rate
+- [x] Extend `congestion` control with BBR-style algorithm instead of basic AIMD for better bandwidth utilization
 - [ ] Implement actual PTP (IEEE 1588) clock synchronization in `ptp_boundary` with sub-microsecond accuracy
 - [ ] Add NMOS IS-04/IS-05 full registration and connection management in `nmos` module
 - [ ] Extend `encryption` module with DTLS-SRTP for standard-compliant media encryption
-- [ ] Improve `jitter` buffer with adaptive depth based on network conditions (expand during congestion, shrink during stability)
+- [x] Improve `jitter` buffer with adaptive depth based on network conditions (expand during congestion, shrink during stability)
 - [ ] Add actual SDP offer/answer negotiation in `sdp` module for standard SIP/WebRTC interop
 
 ## New Features

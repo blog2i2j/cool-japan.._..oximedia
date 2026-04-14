@@ -107,20 +107,35 @@ impl BarrierDesc {
 
     /// Check whether this barrier is a read-after-write hazard.
     pub fn is_raw_hazard(&self) -> bool {
-        matches!(self.src_access, AccessType::ShaderWrite | AccessType::TransferDst | AccessType::HostWrite)
-            && matches!(self.dst_access, AccessType::ShaderRead | AccessType::TransferSrc | AccessType::HostRead)
+        matches!(
+            self.src_access,
+            AccessType::ShaderWrite | AccessType::TransferDst | AccessType::HostWrite
+        ) && matches!(
+            self.dst_access,
+            AccessType::ShaderRead | AccessType::TransferSrc | AccessType::HostRead
+        )
     }
 
     /// Check whether this barrier is a write-after-write hazard.
     pub fn is_waw_hazard(&self) -> bool {
-        matches!(self.src_access, AccessType::ShaderWrite | AccessType::TransferDst | AccessType::HostWrite)
-            && matches!(self.dst_access, AccessType::ShaderWrite | AccessType::TransferDst | AccessType::HostWrite)
+        matches!(
+            self.src_access,
+            AccessType::ShaderWrite | AccessType::TransferDst | AccessType::HostWrite
+        ) && matches!(
+            self.dst_access,
+            AccessType::ShaderWrite | AccessType::TransferDst | AccessType::HostWrite
+        )
     }
 
     /// Check whether this barrier is a write-after-read hazard.
     pub fn is_war_hazard(&self) -> bool {
-        matches!(self.src_access, AccessType::ShaderRead | AccessType::TransferSrc | AccessType::HostRead)
-            && matches!(self.dst_access, AccessType::ShaderWrite | AccessType::TransferDst | AccessType::HostWrite)
+        matches!(
+            self.src_access,
+            AccessType::ShaderRead | AccessType::TransferSrc | AccessType::HostRead
+        ) && matches!(
+            self.dst_access,
+            AccessType::ShaderWrite | AccessType::TransferDst | AccessType::HostWrite
+        )
     }
 }
 
@@ -161,18 +176,31 @@ impl BarrierManager {
     }
 
     /// Register a new resource with an initial access type.
-    pub fn register_resource(&mut self, id: ResourceId, initial_access: AccessType, stage: PipelineStage) {
-        self.states.insert(id, ResourceState {
-            access: initial_access,
-            stage,
-        });
+    pub fn register_resource(
+        &mut self,
+        id: ResourceId,
+        initial_access: AccessType,
+        stage: PipelineStage,
+    ) {
+        self.states.insert(
+            id,
+            ResourceState {
+                access: initial_access,
+                stage,
+            },
+        );
     }
 
     /// Transition a resource to a new access type, emitting a barrier if needed.
     ///
     /// Returns `true` if a barrier was emitted, `false` if the transition
     /// was redundant (same access/stage).
-    pub fn transition(&mut self, id: ResourceId, new_access: AccessType, new_stage: PipelineStage) -> bool {
+    pub fn transition(
+        &mut self,
+        id: ResourceId,
+        new_access: AccessType,
+        new_stage: PipelineStage,
+    ) -> bool {
         let current = self.states.get(&id).cloned().unwrap_or(ResourceState {
             access: AccessType::None,
             stage: PipelineStage::TopOfPipe,
@@ -188,10 +216,13 @@ impl BarrierManager {
         if is_read_only(current.access) && is_read_only(new_access) && current.stage == new_stage {
             self.optimized_away += 1;
             // Still update state
-            self.states.insert(id, ResourceState {
-                access: new_access,
-                stage: new_stage,
-            });
+            self.states.insert(
+                id,
+                ResourceState {
+                    access: new_access,
+                    stage: new_stage,
+                },
+            );
             return false;
         }
 
@@ -199,10 +230,13 @@ impl BarrierManager {
         self.pending.push(barrier);
         self.total_barriers += 1;
 
-        self.states.insert(id, ResourceState {
-            access: new_access,
-            stage: new_stage,
-        });
+        self.states.insert(
+            id,
+            ResourceState {
+                access: new_access,
+                stage: new_stage,
+            },
+        );
 
         true
     }
@@ -254,7 +288,10 @@ impl BarrierManager {
     }
 
     /// Batch-transition multiple resources at once.
-    pub fn batch_transition(&mut self, transitions: &[(ResourceId, AccessType, PipelineStage)]) -> usize {
+    pub fn batch_transition(
+        &mut self,
+        transitions: &[(ResourceId, AccessType, PipelineStage)],
+    ) -> usize {
         let mut count = 0;
         for &(id, access, stage) in transitions {
             if self.transition(id, access, stage) {
@@ -273,7 +310,10 @@ impl Default for BarrierManager {
 
 /// Check if an access type is read-only.
 fn is_read_only(access: AccessType) -> bool {
-    matches!(access, AccessType::ShaderRead | AccessType::TransferSrc | AccessType::HostRead | AccessType::None)
+    matches!(
+        access,
+        AccessType::ShaderRead | AccessType::TransferSrc | AccessType::HostRead | AccessType::None
+    )
 }
 
 #[cfg(test)]
@@ -299,8 +339,16 @@ mod tests {
     #[test]
     fn test_transition_emits_barrier() {
         let mut mgr = BarrierManager::new();
-        mgr.register_resource(ResourceId(1), AccessType::ShaderWrite, PipelineStage::Compute);
-        let emitted = mgr.transition(ResourceId(1), AccessType::ShaderRead, PipelineStage::Compute);
+        mgr.register_resource(
+            ResourceId(1),
+            AccessType::ShaderWrite,
+            PipelineStage::Compute,
+        );
+        let emitted = mgr.transition(
+            ResourceId(1),
+            AccessType::ShaderRead,
+            PipelineStage::Compute,
+        );
         assert!(emitted);
         assert_eq!(mgr.pending_count(), 1);
     }
@@ -308,8 +356,16 @@ mod tests {
     #[test]
     fn test_same_state_no_barrier() {
         let mut mgr = BarrierManager::new();
-        mgr.register_resource(ResourceId(1), AccessType::ShaderRead, PipelineStage::Compute);
-        let emitted = mgr.transition(ResourceId(1), AccessType::ShaderRead, PipelineStage::Compute);
+        mgr.register_resource(
+            ResourceId(1),
+            AccessType::ShaderRead,
+            PipelineStage::Compute,
+        );
+        let emitted = mgr.transition(
+            ResourceId(1),
+            AccessType::ShaderRead,
+            PipelineStage::Compute,
+        );
         assert!(!emitted);
         assert_eq!(mgr.pending_count(), 0);
         assert_eq!(mgr.optimized_away(), 1);
@@ -318,8 +374,16 @@ mod tests {
     #[test]
     fn test_read_to_read_same_stage_no_barrier() {
         let mut mgr = BarrierManager::new();
-        mgr.register_resource(ResourceId(1), AccessType::ShaderRead, PipelineStage::Compute);
-        let emitted = mgr.transition(ResourceId(1), AccessType::TransferSrc, PipelineStage::Compute);
+        mgr.register_resource(
+            ResourceId(1),
+            AccessType::ShaderRead,
+            PipelineStage::Compute,
+        );
+        let emitted = mgr.transition(
+            ResourceId(1),
+            AccessType::TransferSrc,
+            PipelineStage::Compute,
+        );
         assert!(!emitted);
     }
 
@@ -327,7 +391,11 @@ mod tests {
     fn test_flush_clears_pending() {
         let mut mgr = BarrierManager::new();
         mgr.register_resource(ResourceId(1), AccessType::None, PipelineStage::TopOfPipe);
-        mgr.transition(ResourceId(1), AccessType::ShaderWrite, PipelineStage::Compute);
+        mgr.transition(
+            ResourceId(1),
+            AccessType::ShaderWrite,
+            PipelineStage::Compute,
+        );
         let barriers = mgr.flush();
         assert_eq!(barriers.len(), 1);
         assert_eq!(mgr.pending_count(), 0);
@@ -386,8 +454,16 @@ mod tests {
         mgr.register_resource(ResourceId(1), AccessType::None, PipelineStage::TopOfPipe);
         mgr.register_resource(ResourceId(2), AccessType::None, PipelineStage::TopOfPipe);
         let count = mgr.batch_transition(&[
-            (ResourceId(1), AccessType::ShaderWrite, PipelineStage::Compute),
-            (ResourceId(2), AccessType::TransferDst, PipelineStage::Transfer),
+            (
+                ResourceId(1),
+                AccessType::ShaderWrite,
+                PipelineStage::Compute,
+            ),
+            (
+                ResourceId(2),
+                AccessType::TransferDst,
+                PipelineStage::Transfer,
+            ),
         ]);
         assert_eq!(count, 2);
         assert_eq!(mgr.pending_count(), 2);
@@ -397,7 +473,11 @@ mod tests {
     fn test_reset() {
         let mut mgr = BarrierManager::new();
         mgr.register_resource(ResourceId(1), AccessType::None, PipelineStage::TopOfPipe);
-        mgr.transition(ResourceId(1), AccessType::ShaderWrite, PipelineStage::Compute);
+        mgr.transition(
+            ResourceId(1),
+            AccessType::ShaderWrite,
+            PipelineStage::Compute,
+        );
         mgr.reset();
         assert_eq!(mgr.resource_count(), 0);
         assert_eq!(mgr.pending_count(), 0);
@@ -406,7 +486,11 @@ mod tests {
     #[test]
     fn test_transition_unregistered_resource() {
         let mut mgr = BarrierManager::new();
-        let emitted = mgr.transition(ResourceId(99), AccessType::ShaderRead, PipelineStage::Compute);
+        let emitted = mgr.transition(
+            ResourceId(99),
+            AccessType::ShaderRead,
+            PipelineStage::Compute,
+        );
         assert!(emitted);
         assert_eq!(mgr.resource_count(), 1);
     }

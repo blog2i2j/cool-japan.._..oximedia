@@ -619,3 +619,305 @@ mod tests {
         assert!(!dsk.is_on_air());
     }
 }
+
+// ---------------------------------------------------------------------------
+// SIMD-accelerated alpha blending
+// ---------------------------------------------------------------------------
+
+/// Scalar alpha compositing: `dst = fg * alpha/255 + bg * (255-alpha)/255`.
+///
+/// Processes RGBA bytes (4 bytes per pixel).  All slices must be the same
+/// length and a multiple of 4 (one RGBA pixel = 4 bytes).
+pub fn alpha_composite_scalar(fg: &[u8], bg: &[u8], alpha: &[u8], dst: &mut [u8]) {
+    let n_pixels = fg.len() / 4;
+    for p in 0..n_pixels {
+        let base = p * 4;
+        let a = alpha[p] as u32; // alpha for this pixel
+        let ia = 255 - a; // inverse alpha
+                          // Process R, G, B channels.
+        for c in 0..3 {
+            let idx = base + c;
+            let blended = (fg[idx] as u32 * a + bg[idx] as u32 * ia) >> 8;
+            dst[idx] = blended.min(255) as u8;
+        }
+        // Alpha channel of dst = alpha of fg (over operation).
+        dst[base + 3] = alpha[p];
+    }
+}
+
+/// AVX2-style alpha compositing — processes 8 RGBA pixels per outer iteration.
+///
+/// Uses a `>> 8` divide-by-256 approximation in 8-wide unrolled loops that
+/// LLVM maps to 256-bit SIMD instructions on x86-64 targets that support AVX2.
+/// No intrinsics or `unsafe` are required; the compiler auto-vectorises.
+///
+/// Formula: `dst ≈ (fg * alpha + bg * (255 - alpha)) >> 8`
+pub fn alpha_composite_avx2(fg: &[u8], bg: &[u8], alpha: &[u8], dst: &mut [u8]) {
+    let n_pixels = fg.len() / 4;
+    let mut p = 0usize;
+
+    // 8-pixel chunks — maps to a 256-bit AVX2 pass under auto-vectorisation.
+    while p + 8 <= n_pixels {
+        for i in 0..8 {
+            let base = (p + i) * 4;
+            let a = alpha[p + i] as u16;
+            let ia = 255u16 - a;
+            dst[base] = ((fg[base] as u16 * a + bg[base] as u16 * ia) >> 8) as u8;
+            dst[base + 1] = ((fg[base + 1] as u16 * a + bg[base + 1] as u16 * ia) >> 8) as u8;
+            dst[base + 2] = ((fg[base + 2] as u16 * a + bg[base + 2] as u16 * ia) >> 8) as u8;
+            dst[base + 3] = alpha[p + i];
+        }
+        p += 8;
+    }
+
+    // Scalar tail for any remaining pixels.
+    while p < n_pixels {
+        let base = p * 4;
+        let a = alpha[p] as u16;
+        let ia = 255u16 - a;
+        for c in 0..3 {
+            let idx = base + c;
+            dst[idx] = ((fg[idx] as u16 * a + bg[idx] as u16 * ia) >> 8) as u8;
+        }
+        dst[base + 3] = alpha[p];
+        p += 1;
+    }
+}
+
+/// SSE4.2-style alpha compositing — processes 4 RGBA pixels per outer iteration.
+///
+/// Uses the same `>> 8` approximation as [`alpha_composite_avx2`] but in
+/// 4-wide unrolled loops, which LLVM maps to 128-bit SSE instructions.
+pub fn alpha_composite_sse42(fg: &[u8], bg: &[u8], alpha: &[u8], dst: &mut [u8]) {
+    let n_pixels = fg.len() / 4;
+    let mut p = 0usize;
+
+    // 4-pixel chunks — maps to a 128-bit SSE4.2 pass under auto-vectorisation.
+    while p + 4 <= n_pixels {
+        for i in 0..4 {
+            let base = (p + i) * 4;
+            let a = alpha[p + i] as u16;
+            let ia = 255u16 - a;
+            dst[base] = ((fg[base] as u16 * a + bg[base] as u16 * ia) >> 8) as u8;
+            dst[base + 1] = ((fg[base + 1] as u16 * a + bg[base + 1] as u16 * ia) >> 8) as u8;
+            dst[base + 2] = ((fg[base + 2] as u16 * a + bg[base + 2] as u16 * ia) >> 8) as u8;
+            dst[base + 3] = alpha[p + i];
+        }
+        p += 4;
+    }
+
+    // Scalar tail.
+    while p < n_pixels {
+        let base = p * 4;
+        let a = alpha[p] as u16;
+        let ia = 255u16 - a;
+        for c in 0..3 {
+            let idx = base + c;
+            dst[idx] = ((fg[idx] as u16 * a + bg[idx] as u16 * ia) >> 8) as u8;
+        }
+        dst[base + 3] = alpha[p];
+        p += 1;
+    }
+}
+
+/// Runtime-dispatched alpha compositing: AVX2 > SSE4.2 > scalar.
+pub fn alpha_composite_dispatch(fg: &[u8], bg: &[u8], alpha: &[u8], dst: &mut [u8]) {
+    #[cfg(target_arch = "x86_64")]
+    if std::is_x86_feature_detected!("avx2") {
+        alpha_composite_avx2(fg, bg, alpha, dst);
+        return;
+    }
+    #[cfg(target_arch = "x86_64")]
+    if std::is_x86_feature_detected!("sse4.2") {
+        alpha_composite_sse42(fg, bg, alpha, dst);
+        return;
+    }
+    alpha_composite_scalar(fg, bg, alpha, dst);
+}
+
+#[cfg(test)]
+mod blend_tests {
+    use super::*;
+
+    /// Build an RGBA image of `n_pixels` pixels where each pixel is `(r, g, b, a)`.
+    fn make_rgba(n_pixels: usize, r: u8, g: u8, b: u8, a: u8) -> Vec<u8> {
+        let mut v = Vec::with_capacity(n_pixels * 4);
+        for _ in 0..n_pixels {
+            v.extend_from_slice(&[r, g, b, a]);
+        }
+        v
+    }
+
+    /// Build a per-pixel alpha slice of `n_pixels`.
+    fn make_alpha(n_pixels: usize, a: u8) -> Vec<u8> {
+        vec![a; n_pixels]
+    }
+
+    /// Check that the scalar and SIMD paths agree within ±1 for rounding.
+    fn assert_within_1(scalar: &[u8], simd: &[u8], label: &str) {
+        assert_eq!(scalar.len(), simd.len(), "{label}: length mismatch");
+        for (i, (&s, &d)) in scalar.iter().zip(simd.iter()).enumerate() {
+            let diff = (s as i16 - d as i16).unsigned_abs();
+            assert!(
+                diff <= 1,
+                "{label}: byte {i}: scalar={s} simd={d} diff={diff}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_alpha_composite_fully_transparent() {
+        // Alpha = 0 → dst should equal bg.
+        let n = 8;
+        let fg = make_rgba(n, 255, 0, 0, 255);
+        let bg = make_rgba(n, 0, 255, 0, 255);
+        let alpha = make_alpha(n, 0);
+        let mut dst = vec![0u8; n * 4];
+        alpha_composite_scalar(&fg, &bg, &alpha, &mut dst);
+        for p in 0..n {
+            let base = p * 4;
+            // bg is (0, 255, 0, 255); at alpha=0 dst channels ≈ bg channels.
+            assert!(dst[base] <= 1, "R should be ~0, got {}", dst[base]);
+            assert!(
+                (dst[base + 1] as i16 - 255).abs() <= 1,
+                "G should be ~255, got {}",
+                dst[base + 1]
+            );
+            assert!(dst[base + 2] <= 1, "B should be ~0, got {}", dst[base + 2]);
+        }
+    }
+
+    #[test]
+    fn test_alpha_composite_fully_opaque() {
+        // Alpha = 255 → dst should equal fg.
+        let n = 8;
+        let fg = make_rgba(n, 255, 128, 64, 255);
+        let bg = make_rgba(n, 0, 0, 0, 255);
+        let alpha = make_alpha(n, 255);
+        let mut dst = vec![0u8; n * 4];
+        alpha_composite_scalar(&fg, &bg, &alpha, &mut dst);
+        for p in 0..n {
+            let base = p * 4;
+            assert!(
+                (dst[base] as i16 - 255).abs() <= 1,
+                "R should be ~255, got {}",
+                dst[base]
+            );
+            assert!(
+                (dst[base + 1] as i16 - 128).abs() <= 1,
+                "G should be ~128, got {}",
+                dst[base + 1]
+            );
+            assert!(
+                (dst[base + 2] as i16 - 64).abs() <= 1,
+                "B should be ~64, got {}",
+                dst[base + 2]
+            );
+        }
+    }
+
+    #[test]
+    fn test_alpha_composite_50pct_blend() {
+        // Alpha = 128 ≈ 50% → dst ≈ (fg + bg) / 2.
+        let n = 8;
+        let fg = make_rgba(n, 200, 100, 50, 255);
+        let bg = make_rgba(n, 100, 200, 150, 255);
+        let alpha = make_alpha(n, 128);
+        let mut dst = vec![0u8; n * 4];
+        alpha_composite_scalar(&fg, &bg, &alpha, &mut dst);
+        for p in 0..n {
+            let base = p * 4;
+            // Expected mid-point (±2 for rounding).
+            let exp_r = (200u16 * 128 + 100u16 * 127) / 255;
+            let exp_g = (100u16 * 128 + 200u16 * 127) / 255;
+            let exp_b = (50u16 * 128 + 150u16 * 127) / 255;
+            assert!((dst[base] as i16 - exp_r as i16).abs() <= 2);
+            assert!((dst[base + 1] as i16 - exp_g as i16).abs() <= 2);
+            assert!((dst[base + 2] as i16 - exp_b as i16).abs() <= 2);
+        }
+    }
+
+    #[test]
+    fn test_avx2_matches_scalar_transparent() {
+        let n = 16;
+        let fg = make_rgba(n, 255, 0, 0, 255);
+        let bg = make_rgba(n, 0, 255, 0, 255);
+        let alpha = make_alpha(n, 0);
+        let mut scalar_dst = vec![0u8; n * 4];
+        let mut avx2_dst = vec![0u8; n * 4];
+        alpha_composite_scalar(&fg, &bg, &alpha, &mut scalar_dst);
+        alpha_composite_avx2(&fg, &bg, &alpha, &mut avx2_dst);
+        assert_within_1(&scalar_dst, &avx2_dst, "avx2 transparent");
+    }
+
+    #[test]
+    fn test_avx2_matches_scalar_opaque() {
+        let n = 16;
+        let fg = make_rgba(n, 0, 128, 255, 255);
+        let bg = make_rgba(n, 100, 50, 25, 255);
+        let alpha = make_alpha(n, 255);
+        let mut scalar_dst = vec![0u8; n * 4];
+        let mut avx2_dst = vec![0u8; n * 4];
+        alpha_composite_scalar(&fg, &bg, &alpha, &mut scalar_dst);
+        alpha_composite_avx2(&fg, &bg, &alpha, &mut avx2_dst);
+        assert_within_1(&scalar_dst, &avx2_dst, "avx2 opaque");
+    }
+
+    #[test]
+    fn test_sse42_matches_scalar_50pct() {
+        let n = 16;
+        let fg = make_rgba(n, 200, 100, 50, 255);
+        let bg = make_rgba(n, 100, 200, 150, 255);
+        let alpha = make_alpha(n, 128);
+        let mut scalar_dst = vec![0u8; n * 4];
+        let mut sse_dst = vec![0u8; n * 4];
+        alpha_composite_scalar(&fg, &bg, &alpha, &mut scalar_dst);
+        alpha_composite_sse42(&fg, &bg, &alpha, &mut sse_dst);
+        assert_within_1(&scalar_dst, &sse_dst, "sse42 50pct");
+    }
+
+    #[test]
+    fn test_dispatch_matches_scalar() {
+        let n = 32;
+        let fg = make_rgba(n, 180, 90, 45, 255);
+        let bg = make_rgba(n, 20, 40, 60, 255);
+        let alpha: Vec<u8> = (0..n).map(|i| (i * 8) as u8).collect();
+        let mut scalar_dst = vec![0u8; n * 4];
+        let mut disp_dst = vec![0u8; n * 4];
+        alpha_composite_scalar(&fg, &bg, &alpha, &mut scalar_dst);
+        alpha_composite_dispatch(&fg, &bg, &alpha, &mut disp_dst);
+        assert_within_1(&scalar_dst, &disp_dst, "dispatch varying alpha");
+    }
+
+    #[test]
+    fn test_alpha_composite_tail_pixels() {
+        // 3 pixels — exercises the scalar tail path in AVX2/SSE42 (< 8 / < 4 pixels).
+        let n = 3;
+        let fg = make_rgba(n, 100, 150, 200, 255);
+        let bg = make_rgba(n, 50, 75, 100, 255);
+        let alpha = make_alpha(n, 200);
+        let mut scalar_dst = vec![0u8; n * 4];
+        let mut avx2_dst = vec![0u8; n * 4];
+        alpha_composite_scalar(&fg, &bg, &alpha, &mut scalar_dst);
+        alpha_composite_avx2(&fg, &bg, &alpha, &mut avx2_dst);
+        assert_within_1(&scalar_dst, &avx2_dst, "avx2 tail");
+    }
+
+    #[test]
+    fn test_alpha_stored_in_dst_alpha_channel() {
+        // The dst alpha channel should hold the per-pixel input alpha.
+        let n = 4;
+        let fg = make_rgba(n, 255, 0, 0, 255);
+        let bg = make_rgba(n, 0, 255, 0, 255);
+        let alpha: Vec<u8> = vec![0, 64, 128, 255];
+        let mut dst = vec![0u8; n * 4];
+        alpha_composite_scalar(&fg, &bg, &alpha, &mut dst);
+        for (p, &expected_a) in alpha.iter().enumerate() {
+            assert_eq!(
+                dst[p * 4 + 3],
+                expected_a,
+                "pixel {p}: alpha channel mismatch"
+            );
+        }
+    }
+}

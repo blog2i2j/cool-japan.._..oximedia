@@ -26,7 +26,7 @@ Enable specific codecs via Cargo features (all enabled by default):
 
 ```toml
 [dependencies]
-oximedia-audio = { version = "0.1.1", features = ["opus", "vorbis", "flac", "mp3"] }
+oximedia-audio = { version = "0.1.3", features = ["opus", "vorbis", "flac", "mp3"] }
 ```
 
 ### DSP

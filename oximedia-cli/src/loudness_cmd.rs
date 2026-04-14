@@ -19,9 +19,18 @@ use std::path::PathBuf;
 pub enum LoudnessCommand {
     /// Analyze loudness of a media file and report LUFS/LRA/true peak
     Analyze {
+        /// Input media file (positional)
+        #[arg(value_name = "FILE")]
+        file: Option<PathBuf>,
+
         /// Input media file to analyze
-        #[arg(short, long)]
-        input: PathBuf,
+        #[arg(
+            short = 'i',
+            long = "input",
+            value_name = "FILE",
+            conflicts_with = "file"
+        )]
+        input: Option<PathBuf>,
 
         /// Broadcast/streaming target standard
         ///
@@ -49,9 +58,18 @@ pub enum LoudnessCommand {
 
     /// Check compliance of a media file against a loudness standard
     Check {
+        /// Input media file (positional)
+        #[arg(value_name = "FILE")]
+        file: Option<PathBuf>,
+
         /// Input media file
-        #[arg(short, long)]
-        input: PathBuf,
+        #[arg(
+            short = 'i',
+            long = "input",
+            value_name = "FILE",
+            conflicts_with = "file"
+        )]
+        input: Option<PathBuf>,
 
         /// Standard to check against
         #[arg(long, default_value = "ebu-r128")]
@@ -81,6 +99,7 @@ pub enum LoudnessCommand {
 pub async fn run_loudness(command: LoudnessCommand, json_output: bool) -> Result<()> {
     match command {
         LoudnessCommand::Analyze {
+            file,
             input,
             target,
             sample_rate,
@@ -88,15 +107,24 @@ pub async fn run_loudness(command: LoudnessCommand, json_output: bool) -> Result
             per_channel,
             output_format,
         } => {
+            let resolved = input.or(file).ok_or_else(|| {
+                anyhow::anyhow!("input file required: use -i <FILE> or pass as positional argument")
+            })?;
             let fmt = if json_output { "json" } else { &output_format };
-            cmd_analyze(&input, &target, sample_rate, channels, per_channel, fmt).await
+            cmd_analyze(&resolved, &target, sample_rate, channels, per_channel, fmt).await
         }
 
         LoudnessCommand::Check {
+            file,
             input,
             standard,
             strict,
-        } => cmd_check(&input, &standard, strict, json_output).await,
+        } => {
+            let resolved = input.or(file).ok_or_else(|| {
+                anyhow::anyhow!("input file required: use -i <FILE> or pass as positional argument")
+            })?;
+            cmd_check(&resolved, &standard, strict, json_output).await
+        }
 
         LoudnessCommand::Standards => cmd_standards(json_output),
 

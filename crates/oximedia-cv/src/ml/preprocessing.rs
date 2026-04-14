@@ -239,8 +239,11 @@ fn resize_tensor(tensor: &Tensor, width: usize, height: usize) -> CvResult<Tenso
 /// ```
 /// use oximedia_cv::ml::{Tensor, preprocessing::normalize};
 ///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let mut tensor = Tensor::zeros(&[1, 3, 224, 224]);
 /// normalize(&mut tensor, &[0.5, 0.5, 0.5], &[0.5, 0.5, 0.5])?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn normalize(tensor: &mut Tensor, mean: &[f32], std: &[f32]) -> CvResult<()> {
     tensor.normalize(mean, std)
@@ -263,8 +266,11 @@ pub fn normalize(tensor: &mut Tensor, mean: &[f32], std: &[f32]) -> CvResult<()>
 /// ```
 /// use oximedia_cv::ml::{Tensor, preprocessing::normalize_imagenet};
 ///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let mut tensor = Tensor::zeros(&[1, 3, 224, 224]);
 /// normalize_imagenet(&mut tensor)?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn normalize_imagenet(tensor: &mut Tensor) -> CvResult<()> {
     tensor.normalize(&IMAGENET_MEAN, &IMAGENET_STD)
@@ -402,8 +408,11 @@ pub fn pad_to_size(
 /// ```
 /// use oximedia_cv::ml::{Tensor, preprocessing::scale_to_unit};
 ///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let mut tensor = Tensor::zeros(&[1, 3, 224, 224]);
 /// scale_to_unit(&mut tensor)?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn scale_to_unit(tensor: &mut Tensor) -> CvResult<()> {
     let mut data_f32 = tensor.data().to_f32()?;

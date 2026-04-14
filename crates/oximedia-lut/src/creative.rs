@@ -642,9 +642,21 @@ mod tests {
             for g in 0..17 {
                 for b in 0..17 {
                     let val = lut.get(r, g, b);
-                    assert!(val[0] >= 0.0 && val[0] <= 1.0, "R out of range at ({r},{g},{b}): {}", val[0]);
-                    assert!(val[1] >= 0.0 && val[1] <= 1.0, "G out of range at ({r},{g},{b}): {}", val[1]);
-                    assert!(val[2] >= 0.0 && val[2] <= 1.0, "B out of range at ({r},{g},{b}): {}", val[2]);
+                    assert!(
+                        val[0] >= 0.0 && val[0] <= 1.0,
+                        "R out of range at ({r},{g},{b}): {}",
+                        val[0]
+                    );
+                    assert!(
+                        val[1] >= 0.0 && val[1] <= 1.0,
+                        "G out of range at ({r},{g},{b}): {}",
+                        val[1]
+                    );
+                    assert!(
+                        val[2] >= 0.0 && val[2] <= 1.0,
+                        "B out of range at ({r},{g},{b}): {}",
+                        val[2]
+                    );
                 }
             }
         }
@@ -658,8 +670,16 @@ mod tests {
         let mid = [0.4, 0.4, 0.4];
         let out = lut.apply(&mid, LutInterpolation::Tetrahedral);
         // The output should be somewhere in the mid-range [0.3, 0.7]
-        assert!(out[0] >= 0.0 && out[0] <= 1.0, "Output should be in [0,1]: {}", out[0]);
-        assert!(out[0] > 0.3 && out[0] < 0.7, "Mid-gray log should map to visible mid-gray display: {}", out[0]);
+        assert!(
+            out[0] >= 0.0 && out[0] <= 1.0,
+            "Output should be in [0,1]: {}",
+            out[0]
+        );
+        assert!(
+            out[0] > 0.3 && out[0] < 0.7,
+            "Mid-gray log should map to visible mid-gray display: {}",
+            out[0]
+        );
     }
 
     #[test]
@@ -753,7 +773,10 @@ mod tests {
         let out = lut.apply(&colorful, LutInterpolation::Tetrahedral);
         let in_sat = saturation_rgb(&colorful);
         let out_sat = saturation_rgb(&out);
-        assert!(out_sat <= in_sat + 0.05, "in_sat={in_sat} out_sat={out_sat}");
+        assert!(
+            out_sat <= in_sat + 0.05,
+            "in_sat={in_sat} out_sat={out_sat}"
+        );
     }
 
     #[test]
@@ -778,7 +801,10 @@ mod tests {
         let night = lut.apply(&daylight, LutInterpolation::Tetrahedral);
         let in_lum: f64 = daylight.iter().sum::<f64>() / 3.0;
         let out_lum: f64 = night.iter().sum::<f64>() / 3.0;
-        assert!(out_lum < in_lum, "Expected darkening: in={in_lum} out={out_lum}");
+        assert!(
+            out_lum < in_lum,
+            "Expected darkening: in={in_lum} out={out_lum}"
+        );
     }
 
     #[test]
@@ -850,7 +876,10 @@ mod tests {
         assert_eq!(log_c_decode(0.0), 0.0);
         // Log 1.0 maps to approximately 1.0 linear
         let white = log_c_decode(1.0);
-        assert!((white - 1.0).abs() < 0.01, "log_c_decode(1.0) = {white}, expected ~1.0");
+        assert!(
+            (white - 1.0).abs() < 0.01,
+            "log_c_decode(1.0) = {white}, expected ~1.0"
+        );
     }
 
     #[test]

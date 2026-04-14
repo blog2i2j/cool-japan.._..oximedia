@@ -17,8 +17,8 @@ pub enum RepairCommand {
         input: PathBuf,
 
         /// Show detailed findings
-        #[arg(short, long)]
-        verbose: bool,
+        #[arg(long)]
+        detail: bool,
     },
 
     /// Repair a media file, writing fixed output
@@ -71,7 +71,7 @@ pub enum RepairCommand {
 /// Entry point called from `main.rs`.
 pub async fn run_repair(command: RepairCommand, json_output: bool) -> Result<()> {
     match command {
-        RepairCommand::Analyze { input, verbose } => cmd_analyze(input, verbose, json_output),
+        RepairCommand::Analyze { input, detail } => cmd_analyze(input, detail, json_output),
         RepairCommand::Fix {
             input,
             output,
@@ -101,7 +101,7 @@ pub async fn run_repair(command: RepairCommand, json_output: bool) -> Result<()>
 // Subcommand implementations
 // ---------------------------------------------------------------------------
 
-fn cmd_analyze(input: PathBuf, verbose: bool, json_output: bool) -> Result<()> {
+fn cmd_analyze(input: PathBuf, detail: bool, json_output: bool) -> Result<()> {
     use oximedia_repair::RepairEngine;
 
     if !input.exists() {
@@ -184,7 +184,7 @@ fn cmd_analyze(input: PathBuf, verbose: bool, json_output: bool) -> Result<()> {
             severity_color(&issue.severity)
         );
         println!("       {}", issue.description);
-        if verbose {
+        if detail {
             if let Some(loc) = issue.location {
                 println!("       Location: byte offset {}", loc);
             }

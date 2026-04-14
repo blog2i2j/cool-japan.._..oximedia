@@ -8,11 +8,11 @@
 
 ## Enhancements
 - [ ] Add multi-scale detection in `detect::face::FaceDetector` for improved accuracy across face sizes
-- [ ] Extend `classify::scene::SceneClassifier` with temporal smoothing to avoid flickering classifications
+- [x] Extend `classify::scene::SceneClassifier` with temporal smoothing to avoid flickering classifications
 - [ ] Add `composition::rules::CompositionAnalyzer` support for golden ratio and phi grid in addition to rule of thirds
-- [ ] Implement non-maximum suppression (NMS) in `detect` for overlapping detections across all detector types
+- [x] Implement non-maximum suppression (NMS) in `detect` for overlapping detections across all detector types
 - [ ] Extend `saliency` with temporal saliency for video (motion-weighted attention maps)
-- [ ] Add `scene_boundary` configurable threshold sensitivity with automatic threshold estimation
+- [x] Add `scene_boundary` configurable threshold sensitivity with automatic threshold estimation
 - [ ] Improve `camera_motion` estimation with robust RANSAC-based homography fitting
 - [ ] Extend `aesthetic` scoring with content-type-specific models (landscape, portrait, action, still life)
 

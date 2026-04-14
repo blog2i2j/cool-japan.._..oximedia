@@ -455,4 +455,152 @@ mod tests {
             assert!((a - b).abs() < 1e-6, "S32 roundtrip mismatch: {a} vs {b}");
         }
     }
+
+    // ── Additional tests for AudioFrame format conversion (interleaved<->planar, depth) ──
+
+    #[test]
+    fn test_to_planar_mono() {
+        let samples = [0.5_f32, -0.5, 0.25, -0.25];
+        let frame = make_interleaved_f32_frame(&samples, 1);
+        let planar = to_planar(&frame).expect("mono to planar");
+        if let AudioBuffer::Planar(planes) = &planar.samples {
+            assert_eq!(planes.len(), 1, "mono should have 1 plane");
+            let decoded = f32le_to_f32(&planes[0]);
+            assert_eq!(decoded.len(), samples.len());
+            for (a, b) in samples.iter().zip(decoded.iter()) {
+                assert!((a - b).abs() < 1e-6, "mono planar mismatch: {a} vs {b}");
+            }
+        } else {
+            panic!("expected planar output");
+        }
+    }
+
+    #[test]
+    fn test_to_interleaved_preserves_metadata() {
+        let samples = [0.1_f32, 0.2, 0.3, 0.4];
+        let frame = make_interleaved_f32_frame(&samples, 2);
+        let planar = to_planar(&frame).expect("to planar");
+        let back = to_interleaved(&planar).expect("to interleaved");
+        assert_eq!(back.sample_rate, frame.sample_rate);
+        assert_eq!(back.format, frame.format);
+    }
+
+    #[test]
+    fn test_extract_as_f32_from_interleaved_f32() {
+        let samples = [0.5_f32, -0.5, 0.25];
+        let frame = make_interleaved_f32_frame(&samples, 1);
+        let extracted = extract_as_f32(&frame).expect("extract_as_f32");
+        assert_eq!(extracted.len(), samples.len());
+        for (a, b) in samples.iter().zip(extracted.iter()) {
+            assert!((a - b).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn test_extract_as_f32_from_planar() {
+        let samples = [0.1_f32, 0.9, -0.1, -0.9];
+        let frame = make_interleaved_f32_frame(&samples, 2);
+        let planar_frame = to_planar(&frame).expect("to planar");
+        let extracted = extract_as_f32(&planar_frame).expect("extract planar");
+        let orig = extract_as_f32(&frame).expect("orig");
+        assert_eq!(extracted.len(), orig.len());
+        for (a, b) in orig.iter().zip(extracted.iter()) {
+            assert!((a - b).abs() < 1e-6, "planar extract mismatch: {a} vs {b}");
+        }
+    }
+
+    #[test]
+    fn test_convert_depth_f32_to_s16_stereo() {
+        let samples = [0.5_f32, -0.5, 0.25, -0.25];
+        let frame = make_interleaved_f32_frame(&samples, 2);
+        let s16 = convert_depth(&frame, SampleFormat::S16).expect("convert stereo");
+        let back = extract_as_f32(&s16).expect("extract stereo");
+        assert_eq!(back.len(), samples.len());
+        for (a, b) in samples.iter().zip(back.iter()) {
+            assert!((a - b).abs() < 0.001, "stereo S16 mismatch: {a} vs {b}");
+        }
+    }
+
+    #[test]
+    fn test_f32_to_f64le_roundtrip() {
+        let orig: Vec<f32> = vec![0.0, 0.123, -0.456, 1.0, -1.0];
+        let bytes = f32_to_f64le(&orig);
+        assert_eq!(bytes.len(), orig.len() * 8);
+        let decoded = f64le_to_f32(&bytes);
+        for (a, b) in orig.iter().zip(decoded.iter()) {
+            assert!((a - b).abs() < 1e-7, "F64 roundtrip mismatch: {a} vs {b}");
+        }
+    }
+
+    #[test]
+    fn test_convert_depth_s16_to_f32() {
+        let samples_i16: Vec<i16> = vec![16384, -16384, 0, 32767];
+        let mut bytes = Vec::with_capacity(samples_i16.len() * 2);
+        for &s in &samples_i16 {
+            bytes.extend_from_slice(&s.to_le_bytes());
+        }
+        let mut frame = AudioFrame::new(SampleFormat::S16, 48_000, ChannelLayout::from_count(1));
+        frame.samples = AudioBuffer::Interleaved(Bytes::from(bytes));
+        let f32_frame = convert_depth(&frame, SampleFormat::F32).expect("S16 to F32");
+        let extracted = extract_as_f32(&f32_frame).expect("extract");
+        assert_eq!(extracted.len(), samples_i16.len());
+        assert!(
+            (extracted[0] - 0.5).abs() < 0.001,
+            "S16->F32 [0]: {}",
+            extracted[0]
+        );
+        assert!(
+            (extracted[1] + 0.5).abs() < 0.001,
+            "S16->F32 [1]: {}",
+            extracted[1]
+        );
+        assert!(
+            extracted[2].abs() < 0.001,
+            "zero maps to zero: {}",
+            extracted[2]
+        );
+    }
+
+    #[test]
+    fn test_to_interleaved_from_empty_planar() {
+        let mut frame = AudioFrame::new(SampleFormat::F32, 48_000, ChannelLayout::from_count(1));
+        frame.samples = AudioBuffer::Planar(vec![Bytes::new()]);
+        let out = to_interleaved(&frame);
+        assert!(out.is_some(), "empty planar should convert without error");
+    }
+
+    #[test]
+    fn test_interleaved_planar_roundtrip_3ch() {
+        let n_frames = 8;
+        let n_ch = 3;
+        let mut samples = Vec::with_capacity(n_frames * n_ch);
+        for f in 0..n_frames {
+            for c in 0..n_ch {
+                samples.push((f * n_ch + c) as f32 * 0.01);
+            }
+        }
+        let frame = make_interleaved_f32_frame(&samples, n_ch);
+        let planar = to_planar(&frame).expect("to_planar");
+        let back = to_interleaved(&planar).expect("to_interleaved");
+        let orig = extract_as_f32(&frame).expect("orig");
+        let rt = extract_as_f32(&back).expect("rt");
+        assert_eq!(orig.len(), rt.len());
+        for (a, b) in orig.iter().zip(rt.iter()) {
+            assert!((a - b).abs() < 1e-6, "3ch roundtrip: {a} vs {b}");
+        }
+    }
+
+    #[test]
+    fn test_convert_depth_f32_identity() {
+        let samples = [0.3_f32, -0.7, 0.0, 1.0, -1.0];
+        let frame = make_interleaved_f32_frame(&samples, 1);
+        let out = convert_depth(&frame, SampleFormat::F32).expect("F32 identity");
+        let extracted = extract_as_f32(&out).expect("extract");
+        for (a, b) in samples.iter().zip(extracted.iter()) {
+            assert!(
+                (a - b).abs() < 1e-6,
+                "identity conversion mismatch: {a} vs {b}"
+            );
+        }
+    }
 }

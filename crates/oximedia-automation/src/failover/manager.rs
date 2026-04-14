@@ -459,4 +459,168 @@ mod tests {
             "standby should return to pool after restore"
         );
     }
+
+    // ── Timing-based failover tests ───────────────────────────────────────────
+
+    /// Simulates a primary signal loss and verifies the backup activates within
+    /// the configured switchover timeout using deterministic time control.
+    #[tokio::test(start_paused = true)]
+    async fn test_failover_activates_within_timeout_after_primary_loss() {
+        // Zero delay so the switch is effectively instant in wall-clock terms
+        // even when tokio::time is paused.
+        let config = FailoverConfig {
+            auto_failover: false, // manual control for determinism
+            switch_delay_ms: 0,
+            ..FailoverConfig::default()
+        };
+        let mut manager = FailoverManager::new(config)
+            .await
+            .expect("new should succeed");
+
+        // Channel 0 starts as Primary.
+        assert_eq!(manager.get_state(0).await, FailoverState::Primary);
+
+        // Simulate signal loss after ~100 ms by advancing tokio time and
+        // then calling trigger_failover.
+        tokio::time::advance(tokio::time::Duration::from_millis(100)).await;
+
+        // The switchover must complete within 500 ms.
+        let result = tokio::time::timeout(
+            tokio::time::Duration::from_millis(500),
+            manager.trigger_failover(0),
+        )
+        .await;
+
+        assert!(
+            result.is_ok(),
+            "failover must complete within 500 ms timeout"
+        );
+        result
+            .expect("timeout should not fire")
+            .expect("trigger_failover should succeed");
+
+        assert_eq!(
+            manager.get_state(0).await,
+            FailoverState::Secondary,
+            "backup channel should be active after failover"
+        );
+    }
+
+    /// N+1 redundancy: 3 channels active, primary fails → secondary takes over,
+    /// tertiary remains on standby.
+    #[tokio::test(start_paused = true)]
+    async fn test_nplusone_three_channels_primary_fails_secondary_activates() {
+        let config = FailoverConfig {
+            redundancy_mode: RedundancyMode::NplusOne,
+            // Channels 0 and 1 are primaries; channel 2 is a standby.
+            standby_pool: vec![2],
+            switch_delay_ms: 0,
+            auto_failover: false,
+            ..FailoverConfig::default()
+        };
+        let mut manager = FailoverManager::new(config)
+            .await
+            .expect("new should succeed");
+
+        // Initial state: all channels are "Primary" by default.
+        assert_eq!(manager.get_state(0).await, FailoverState::Primary);
+        assert_eq!(manager.get_state(1).await, FailoverState::Primary);
+        assert_eq!(manager.get_state(2).await, FailoverState::Primary);
+        assert_eq!(manager.available_standby_count().await, 1);
+
+        // Primary channel 0 fails — should trigger failover and assign standby 2.
+        manager
+            .trigger_failover(0)
+            .await
+            .expect("trigger should succeed");
+
+        assert_eq!(manager.get_state(0).await, FailoverState::Secondary);
+
+        let assignment = manager.get_nplusone_assignment(0).await;
+        assert!(
+            assignment.is_some(),
+            "a standby must be assigned for failed primary 0"
+        );
+        assert_eq!(
+            assignment.expect("assignment").standby_channel_id,
+            2,
+            "standby channel 2 should be assigned"
+        );
+
+        // Channel 1 (another primary) and channel 2 (assigned standby) are
+        // still in their expected states — verify pool is now empty.
+        assert_eq!(
+            manager.available_standby_count().await,
+            0,
+            "standby pool should be exhausted after one assignment"
+        );
+
+        // Channel 1 is unaffected (still Primary).
+        assert_eq!(manager.get_state(1).await, FailoverState::Primary);
+    }
+
+    /// Verify that restoring a primary in N+1 mode returns the standby to the
+    /// pool, making it available for future failures.
+    #[tokio::test(start_paused = true)]
+    async fn test_nplusone_restore_returns_standby_to_pool() {
+        let config = FailoverConfig {
+            redundancy_mode: RedundancyMode::NplusOne,
+            standby_pool: vec![5],
+            switch_delay_ms: 0,
+            auto_failover: false,
+            ..FailoverConfig::default()
+        };
+        let mut manager = FailoverManager::new(config)
+            .await
+            .expect("new should succeed");
+
+        // Fail primary 0 — standby 5 assigned.
+        manager
+            .trigger_failover(0)
+            .await
+            .expect("trigger should succeed");
+        assert_eq!(manager.available_standby_count().await, 0);
+
+        // Advance time to simulate repair window then restore.
+        tokio::time::advance(tokio::time::Duration::from_secs(5)).await;
+
+        manager
+            .restore_primary(0)
+            .await
+            .expect("restore should succeed");
+
+        assert_eq!(manager.get_state(0).await, FailoverState::Primary);
+        assert_eq!(
+            manager.available_standby_count().await,
+            1,
+            "standby 5 must be returned to pool after primary restore"
+        );
+    }
+
+    /// Verify a second failover can be handled once the first primary is restored.
+    #[tokio::test(start_paused = true)]
+    async fn test_hot_standby_successive_failover_restore_cycles() {
+        let config = FailoverConfig {
+            auto_failover: false,
+            switch_delay_ms: 0,
+            ..FailoverConfig::default()
+        };
+        let mut manager = FailoverManager::new(config)
+            .await
+            .expect("new should succeed");
+
+        for cycle in 0..3usize {
+            manager
+                .trigger_failover(0)
+                .await
+                .unwrap_or_else(|e| panic!("trigger cycle {cycle}: {e}"));
+            assert_eq!(manager.get_state(0).await, FailoverState::Secondary);
+
+            manager
+                .restore_primary(0)
+                .await
+                .unwrap_or_else(|e| panic!("restore cycle {cycle}: {e}"));
+            assert_eq!(manager.get_state(0).await, FailoverState::Primary);
+        }
+    }
 }

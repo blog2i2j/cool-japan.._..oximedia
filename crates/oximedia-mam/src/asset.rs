@@ -864,7 +864,7 @@ impl AssetManager {
         }
 
         let result = hasher.finalize();
-        Ok(format!("{result:x}"))
+        Ok(result.iter().map(|b| format!("{b:02x}")).collect())
     }
 
     /// Get MIME type from file extension

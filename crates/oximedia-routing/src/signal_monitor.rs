@@ -972,4 +972,212 @@ mod tests {
         let ev = m.process_crosspoint(99, 99, -20.0, 1000);
         assert!(ev.is_none());
     }
+
+    // -----------------------------------------------------------------------
+    // ThresholdAlertEngine tests
+    // -----------------------------------------------------------------------
+
+    fn make_engine() -> ThresholdAlertEngine {
+        let mut engine = ThresholdAlertEngine::new();
+        engine.register(
+            "ch1",
+            ThresholdConfig {
+                overmodulation_db: -1.0,
+                signal_lost_db: -60.0,
+                signal_present_db: -50.0,
+                hold_off_count: 3,
+            },
+        );
+        engine
+    }
+
+    #[test]
+    fn test_engine_new_empty() {
+        let engine = ThresholdAlertEngine::new();
+        assert_eq!(engine.port_count(), 0);
+    }
+
+    #[test]
+    fn test_engine_register_port() {
+        let engine = make_engine();
+        assert_eq!(engine.port_count(), 1);
+    }
+
+    #[test]
+    fn test_engine_evaluate_unregistered_returns_empty() {
+        let mut engine = ThresholdAlertEngine::new();
+        let alerts = engine.evaluate("ghost", -20.0);
+        assert!(alerts.is_empty());
+    }
+
+    #[test]
+    fn test_engine_no_alert_before_holdoff() {
+        let mut engine = make_engine();
+        // Feed 2 above-threshold samples (hold_off_count = 3) → no alert yet
+        let a1 = engine.evaluate("ch1", -45.0);
+        let a2 = engine.evaluate("ch1", -45.0);
+        assert!(a1.is_empty());
+        assert!(a2.is_empty());
+        assert!(!engine.is_signal_present("ch1"));
+    }
+
+    #[test]
+    fn test_engine_signal_present_after_holdoff() {
+        let mut engine = make_engine();
+        // hold_off_count = 3 → need 3 consecutive samples >= signal_present_db (-50)
+        engine.evaluate("ch1", -45.0);
+        engine.evaluate("ch1", -45.0);
+        let alerts = engine.evaluate("ch1", -45.0);
+        assert_eq!(alerts.len(), 1);
+        assert_eq!(alerts[0].kind, AlertKind::SignalPresent);
+        assert_eq!(alerts[0].severity, AlertSeverity::Info);
+        assert!(engine.is_signal_present("ch1"));
+    }
+
+    #[test]
+    fn test_engine_signal_lost_after_holdoff() {
+        let mut engine = make_engine();
+        // First go present (3 samples)
+        engine.evaluate("ch1", -45.0);
+        engine.evaluate("ch1", -45.0);
+        engine.evaluate("ch1", -45.0);
+        assert!(engine.is_signal_present("ch1"));
+        // Now go lost: 3 consecutive samples below -60 dBFS
+        engine.evaluate("ch1", -70.0);
+        engine.evaluate("ch1", -70.0);
+        let alerts = engine.evaluate("ch1", -70.0);
+        assert_eq!(alerts.len(), 1);
+        assert_eq!(alerts[0].kind, AlertKind::SignalLost);
+        assert_eq!(alerts[0].severity, AlertSeverity::Critical);
+        assert!(!engine.is_signal_present("ch1"));
+    }
+
+    #[test]
+    fn test_engine_overmodulation_alert() {
+        let mut engine = make_engine();
+        // Feed 3 overmodulated samples (>= -1 dBFS)
+        engine.evaluate("ch1", -0.5);
+        engine.evaluate("ch1", -0.5);
+        let alerts = engine.evaluate("ch1", -0.5);
+        assert!(!alerts.is_empty());
+        let overmod = alerts.iter().find(|a| a.kind == AlertKind::Overmodulation);
+        assert!(overmod.is_some());
+        assert_eq!(
+            overmod.expect("overmod alert").severity,
+            AlertSeverity::Critical
+        );
+    }
+
+    #[test]
+    fn test_engine_overmod_resets_after_normal_level() {
+        let mut engine = make_engine();
+        // 2 overmod samples (less than hold_off_count=3)
+        engine.evaluate("ch1", -0.5);
+        engine.evaluate("ch1", -0.5);
+        // Back to normal → streak resets
+        engine.evaluate("ch1", -20.0);
+        // Only 1 overmod sample after reset — should not fire
+        let alerts = engine.evaluate("ch1", -0.5);
+        assert!(alerts.iter().all(|a| a.kind != AlertKind::Overmodulation));
+    }
+
+    #[test]
+    fn test_engine_alert_count_increments() {
+        let mut engine = make_engine();
+        engine.evaluate("ch1", -45.0);
+        engine.evaluate("ch1", -45.0);
+        engine.evaluate("ch1", -45.0);
+        assert!(engine.alert_count("ch1") >= 1);
+    }
+
+    #[test]
+    fn test_engine_alert_count_zero_for_unregistered() {
+        let engine = ThresholdAlertEngine::new();
+        assert_eq!(engine.alert_count("nobody"), 0);
+    }
+
+    #[test]
+    fn test_engine_reset_clears_state() {
+        let mut engine = make_engine();
+        // Go present
+        engine.evaluate("ch1", -45.0);
+        engine.evaluate("ch1", -45.0);
+        engine.evaluate("ch1", -45.0);
+        assert!(engine.is_signal_present("ch1"));
+        engine.reset("ch1");
+        assert!(!engine.is_signal_present("ch1"));
+        assert_eq!(engine.alert_count("ch1"), 0);
+    }
+
+    #[test]
+    fn test_engine_hysteresis_zone_no_state_change() {
+        let mut engine = make_engine();
+        // signal_lost_db = -60, signal_present_db = -50
+        // Hysteresis zone: (-60, -50) — no state change expected
+        for _ in 0..10 {
+            let alerts = engine.evaluate("ch1", -55.0);
+            assert!(alerts.is_empty());
+        }
+        assert!(!engine.is_signal_present("ch1"));
+    }
+
+    #[test]
+    fn test_engine_alert_severity_ordering() {
+        assert!(AlertSeverity::Info < AlertSeverity::Warning);
+        assert!(AlertSeverity::Warning < AlertSeverity::Critical);
+    }
+
+    #[test]
+    fn test_alert_kind_labels() {
+        assert_eq!(AlertKind::SignalPresent.label(), "signal_present");
+        assert_eq!(AlertKind::SignalLost.label(), "signal_lost");
+        assert_eq!(AlertKind::Overmodulation.label(), "overmodulation");
+        assert_eq!(AlertKind::BelowNoiseFloor.label(), "below_noise_floor");
+        assert_eq!(AlertKind::PhaseInversion.label(), "phase_inversion");
+    }
+
+    #[test]
+    fn test_alert_severity_labels() {
+        assert_eq!(AlertSeverity::Info.label(), "info");
+        assert_eq!(AlertSeverity::Warning.label(), "warning");
+        assert_eq!(AlertSeverity::Critical.label(), "critical");
+    }
+
+    #[test]
+    fn test_threshold_config_default() {
+        let cfg = ThresholdConfig::default();
+        assert!((cfg.overmodulation_db - (-1.0)).abs() < f32::EPSILON);
+        assert!((cfg.signal_lost_db - (-60.0)).abs() < f32::EPSILON);
+        assert!((cfg.signal_present_db - (-50.0)).abs() < f32::EPSILON);
+        assert_eq!(cfg.hold_off_count, 3);
+    }
+
+    #[test]
+    fn test_engine_two_ports_independent() {
+        let mut engine = ThresholdAlertEngine::new();
+        let cfg = ThresholdConfig {
+            hold_off_count: 1,
+            ..ThresholdConfig::default()
+        };
+        engine.register("a", cfg.clone());
+        engine.register("b", cfg);
+        // Port a goes present
+        let alerts_a = engine.evaluate("a", -45.0);
+        // Port b stays below signal_lost → no state to transition from
+        let alerts_b = engine.evaluate("b", -80.0);
+        assert_eq!(alerts_a.len(), 1);
+        assert_eq!(alerts_a[0].kind, AlertKind::SignalPresent);
+        assert!(alerts_b.iter().all(|a| a.kind != AlertKind::SignalLost));
+    }
+
+    #[test]
+    fn test_engine_signal_present_port_name_in_alert() {
+        let mut engine = make_engine();
+        engine.evaluate("ch1", -45.0);
+        engine.evaluate("ch1", -45.0);
+        let alerts = engine.evaluate("ch1", -45.0);
+        assert!(!alerts.is_empty());
+        assert!(alerts[0].port_name.contains("ch1"));
+        assert!(!alerts[0].message.is_empty());
+    }
 }

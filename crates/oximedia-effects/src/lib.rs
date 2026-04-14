@@ -78,6 +78,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
+pub mod analog_delay;
 pub mod auto_pan;
 pub mod barrel_lens;
 pub mod bass_enhancer;
@@ -101,10 +102,15 @@ pub mod filter;
 pub mod filter_bank;
 pub mod flanger;
 pub mod glitch;
+pub mod harmonic_exciter;
 pub mod keying;
+pub mod lookahead_limiter;
+pub mod lufs_meter;
 pub mod luma_key;
+pub mod mix;
 pub mod modulation;
 pub mod multiband_compressor;
+pub mod parametric_eq;
 pub mod pitch;
 pub mod reverb;
 pub mod reverb_hall;
@@ -112,8 +118,11 @@ pub mod ring_mod;
 pub mod room_reverb;
 pub mod saturation;
 pub mod spatial_audio;
+pub mod stereo_upmix;
 pub mod stereo_widener;
+pub mod stereo_wider;
 pub mod tape_echo;
+pub mod tape_sat;
 pub mod time_stretch;
 pub mod transient_shaper;
 pub mod tremolo;
@@ -123,6 +132,7 @@ pub mod video;
 pub mod vocoder;
 pub mod warp;
 pub mod waveshaper;
+pub mod wet_dry;
 
 use thiserror::Error;
 

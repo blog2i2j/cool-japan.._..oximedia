@@ -379,6 +379,15 @@ impl SeekIndex {
         }
     }
 
+    /// Finalizes the index after all entries have been added.
+    ///
+    /// Equivalent to [`SeekIndex::sort`]: sorts all entries by DTS and
+    /// rebuilds the keyframe lookup table.  Call this once after all calls
+    /// to [`SeekIndex::add_entry`] are complete.
+    pub fn finalize(&mut self) {
+        self.sort();
+    }
+
     /// Converts a time in seconds to ticks in this index's timescale.
     #[must_use]
     #[allow(clippy::cast_possible_truncation, clippy::cast_precision_loss)]
@@ -638,6 +647,13 @@ impl SeekIndex {
     }
 }
 
+/// Type alias for [`SeekIndex`] used in pre-roll seeking contexts.
+///
+/// `SampleIndex` is the same type as `SeekIndex`; the alias provides a
+/// more descriptive name when building per-stream sample tables for
+/// pre-roll seek planning.
+pub type SampleIndex = SeekIndex;
+
 // ─── TrackIndex ─────────────────────────────────────────────────────────────
 
 /// A lightweight index of keyframe positions within a single track.
@@ -713,22 +729,173 @@ pub struct SeekResult {
 /// let mut index = SeekIndex::new(90000);
 /// // … populate index …
 /// let track = TrackIndex::new(index);
-/// let seeker = SampleAccurateSeeker::new(track);
+/// let seeker = SampleAccurateSeeker::with_track(track);
 ///
 /// let result = seeker.seek_to_sample(45000, &seeker.track).expect("seek should succeed");
 /// println!("Seek to file offset {}", result.sample_offset);
 /// println!("Discard {} samples after decoding", result.preroll_samples);
 /// ```
 pub struct SampleAccurateSeeker {
-    /// The track index used for all seek operations.
+    /// The primary track index used for single-track seek operations.
+    ///
+    /// This field is set when constructed with [`SampleAccurateSeeker::with_track`].
+    /// It holds a default empty `TrackIndex` when constructed with
+    /// [`SampleAccurateSeeker::new`] (multi-stream mode).
     pub track: TrackIndex,
+    /// Per-stream sample indices for multi-stream pre-roll seeking.
+    ///
+    /// Keys are stream IDs (typically matching `StreamInfo.index`).
+    streams: HashMap<u32, SampleIndex>,
 }
 
 impl SampleAccurateSeeker {
-    /// Creates a new `SampleAccurateSeeker` for the given `track`.
+    /// Creates a new multi-stream `SampleAccurateSeeker` with no pre-loaded
+    /// streams.
+    ///
+    /// Use [`SampleAccurateSeeker::add_stream`] to register stream indices,
+    /// then call [`SampleAccurateSeeker::plan_preroll_seek`] to plan seeks.
     #[must_use]
-    pub fn new(track: TrackIndex) -> Self {
-        Self { track }
+    pub fn new() -> Self {
+        let empty_index = SeekIndex::new(90_000);
+        let empty_track = TrackIndex::new(empty_index);
+        Self {
+            track: empty_track,
+            streams: HashMap::new(),
+        }
+    }
+
+    /// Creates a `SampleAccurateSeeker` from a single pre-built [`TrackIndex`].
+    ///
+    /// This is the single-track constructor.  Use `new()` instead for
+    /// multi-stream workflows.
+    #[must_use]
+    pub fn with_track(track: TrackIndex) -> Self {
+        Self {
+            track,
+            streams: HashMap::new(),
+        }
+    }
+
+    /// Registers a per-stream `SampleIndex` for multi-stream pre-roll seeking.
+    ///
+    /// The `stream_id` must match the stream identifier used when calling
+    /// [`SampleAccurateSeeker::plan_preroll_seek`].
+    pub fn add_stream(&mut self, stream_id: u32, index: SampleIndex) {
+        self.streams.insert(stream_id, index);
+    }
+
+    /// Plans a pre-roll seek for `stream_id` to `target_pts`.
+    ///
+    /// Returns a [`crate::preroll::PreRollSeekPlan`] describing the keyframe to
+    /// start decoding from and the chain of samples to decode (some discarded,
+    /// some presented) in order to reach `target_pts` sample-accurately.
+    ///
+    /// `max_preroll` optionally limits the maximum number of decode-and-discard
+    /// samples.  When the distance from keyframe to target exceeds this limit the
+    /// chain is truncated.
+    ///
+    /// Returns `None` if `stream_id` has not been registered or the index has
+    /// no keyframe at or before `target_pts`.
+    #[must_use]
+    pub fn plan_preroll_seek(
+        &self,
+        stream_id: u32,
+        target_pts: i64,
+        max_preroll: Option<u32>,
+    ) -> Option<crate::preroll::PreRollSeekPlan> {
+        use crate::preroll::{PreRollAction, PreRollSample, PreRollSeekPlan};
+
+        let index = self.streams.get(&stream_id)?;
+        let keyframe = index.find_keyframe_before(target_pts)?;
+
+        // Collect samples from the keyframe onwards.
+        // - Before target_pts: decode-and-discard (up to max_preroll).
+        // - At target_pts or after: present (stop after the first present sample
+        //   since the caller only needs to reach the target, not process all
+        //   future samples).
+        let all_from_kf: Vec<&SeekIndexEntry> = index
+            .entries()
+            .iter()
+            .filter(|e| e.pts >= keyframe.pts)
+            .collect();
+
+        // Separate discard candidates (before target) from present candidates.
+        let discard_candidates: Vec<&&SeekIndexEntry> =
+            all_from_kf.iter().filter(|e| e.pts < target_pts).collect();
+        let present_candidate: Option<&SeekIndexEntry> =
+            all_from_kf.iter().find(|e| e.pts >= target_pts).copied();
+
+        // Apply max_preroll cap: if capped, take the LAST N discard candidates
+        // (closest to target) so the decoder has the fewest samples to skip.
+        let capped_discards: Vec<&SeekIndexEntry> = if let Some(max) = max_preroll {
+            let max = max as usize;
+            if discard_candidates.len() > max {
+                discard_candidates[discard_candidates.len() - max..]
+                    .iter()
+                    .copied()
+                    .copied()
+                    .collect()
+            } else {
+                discard_candidates.iter().copied().copied().collect()
+            }
+        } else {
+            discard_candidates.iter().copied().copied().collect()
+        };
+
+        let mut samples: Vec<PreRollSample> = capped_discards
+            .iter()
+            .map(|e| PreRollSample {
+                entry: **e,
+                action: PreRollAction::Decode,
+            })
+            .collect();
+
+        let discard_count = samples.len() as u32;
+        let mut present_count: u32 = 0;
+
+        if let Some(entry) = present_candidate {
+            samples.push(PreRollSample {
+                entry: *entry,
+                action: PreRollAction::Present,
+            });
+            present_count = 1;
+        } else if discard_count == 0 {
+            // Nothing found — no useful plan.
+            return None;
+        } else {
+            // No explicit present sample found (target is beyond the index).
+            // Promote the last discard to present.
+            if let Some(last) = samples.last_mut() {
+                last.action = PreRollAction::Present;
+                present_count = 1;
+            }
+        }
+
+        let final_discard_count = samples
+            .iter()
+            .filter(|s| matches!(s.action, PreRollAction::Decode))
+            .count() as u32;
+
+        Some(PreRollSeekPlan {
+            keyframe: *keyframe,
+            target_pts,
+            samples,
+            discard_count: final_discard_count,
+            present_count,
+            file_offset: keyframe.file_offset,
+        })
+    }
+
+    /// Returns the number of samples that must be decoded and discarded
+    /// (pre-roll count) to achieve sample-accurate positioning at `target_pts`
+    /// in `stream_id`.
+    ///
+    /// Returns `None` if the stream is not registered or has no suitable
+    /// keyframe.
+    #[must_use]
+    pub fn preroll_count(&self, stream_id: u32, target_pts: i64) -> Option<u32> {
+        let plan = self.plan_preroll_seek(stream_id, target_pts, None)?;
+        Some(plan.discard_count)
     }
 
     /// Seeks to the sample-accurate position for `target_pts` within `track`.
@@ -766,6 +933,12 @@ impl SampleAccurateSeeker {
             sample_offset,
             preroll_samples,
         })
+    }
+}
+
+impl Default for SampleAccurateSeeker {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -1427,7 +1600,7 @@ mod tests {
     #[test]
     fn test_sample_accurate_seeker_on_keyframe() {
         let track = TrackIndex::new(build_seeker_index());
-        let seeker = SampleAccurateSeeker::new(TrackIndex::new(build_seeker_index()));
+        let seeker = SampleAccurateSeeker::with_track(TrackIndex::new(build_seeker_index()));
         let result = seeker.seek_to_sample(15000, &track).expect("should find");
         assert_eq!(result.keyframe_pts, 15000);
         assert_eq!(result.preroll_samples, 0);
@@ -1437,7 +1610,7 @@ mod tests {
     #[test]
     fn test_sample_accurate_seeker_between_keyframes() {
         let track = TrackIndex::new(build_seeker_index());
-        let seeker = SampleAccurateSeeker::new(TrackIndex::new(build_seeker_index()));
+        let seeker = SampleAccurateSeeker::with_track(TrackIndex::new(build_seeker_index()));
         // Target pts=21000 (frame 7) — keyframe is at pts=15000 (frame 5)
         // Frames 6 (pts=18000) must be discarded → preroll = 1
         let result = seeker.seek_to_sample(21000, &track).expect("should find");
@@ -1448,7 +1621,7 @@ mod tests {
     #[test]
     fn test_sample_accurate_seeker_codec_delay_added() {
         let track = TrackIndex::with_codec_delay(build_seeker_index(), 512);
-        let seeker = SampleAccurateSeeker::new(TrackIndex::new(build_seeker_index()));
+        let seeker = SampleAccurateSeeker::with_track(TrackIndex::new(build_seeker_index()));
         // On a keyframe: preroll = 0 inter-frame + 512 codec_delay = 512
         let result = seeker.seek_to_sample(0, &track).expect("should find");
         assert_eq!(result.keyframe_pts, 0);
@@ -1458,7 +1631,7 @@ mod tests {
     #[test]
     fn test_sample_accurate_seeker_empty_index() {
         let track = TrackIndex::new(SeekIndex::new(90000));
-        let seeker = SampleAccurateSeeker::new(TrackIndex::new(SeekIndex::new(90000)));
+        let seeker = SampleAccurateSeeker::with_track(TrackIndex::new(SeekIndex::new(90000)));
         let result = seeker.seek_to_sample(0, &track);
         assert!(result.is_none());
     }
@@ -1473,7 +1646,7 @@ mod tests {
     #[test]
     fn test_seek_result_fields() {
         let track = TrackIndex::new(build_seeker_index());
-        let seeker = SampleAccurateSeeker::new(TrackIndex::new(build_seeker_index()));
+        let seeker = SampleAccurateSeeker::with_track(TrackIndex::new(build_seeker_index()));
         let result = seeker.seek_to_sample(0, &track).expect("should find");
         // frame 0 is a keyframe at file offset 1000
         assert_eq!(result.keyframe_pts, 0);

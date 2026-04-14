@@ -28,8 +28,11 @@ use crate::ml::tensor::Tensor;
 /// ```
 /// use oximedia_cv::ml::{Tensor, postprocessing::softmax};
 ///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let mut tensor = Tensor::zeros(&[1, 1000]);
 /// softmax(&mut tensor, 1)?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn softmax(tensor: &mut Tensor, axis: usize) -> CvResult<()> {
     let mut data = tensor.data().to_f32()?;
@@ -94,8 +97,11 @@ pub fn softmax(tensor: &mut Tensor, axis: usize) -> CvResult<()> {
 /// ```
 /// use oximedia_cv::ml::{Tensor, postprocessing::sigmoid};
 ///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let mut tensor = Tensor::zeros(&[1, 100]);
 /// sigmoid(&mut tensor)?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn sigmoid(tensor: &mut Tensor) -> CvResult<()> {
     let mut data = tensor.data().to_f32()?;
@@ -263,8 +269,11 @@ pub fn soft_nms(
 /// ```
 /// use oximedia_cv::ml::{Tensor, postprocessing::decode_yolo_boxes};
 ///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let predictions = Tensor::zeros(&[1, 100, 85]); // 80 classes + 5
 /// let detections = decode_yolo_boxes(&predictions, 640, 480, 0.5)?;
+/// # Ok(())
+/// # }
 /// ```
 pub fn decode_yolo_boxes(
     predictions: &Tensor,

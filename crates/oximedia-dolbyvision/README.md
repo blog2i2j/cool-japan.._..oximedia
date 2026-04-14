@@ -1,7 +1,7 @@
 # oximedia-dolbyvision
 
 ![Status: Stable](https://img.shields.io/badge/status-stable-green)
-![Version: 0.1.1](https://img.shields.io/badge/version-0.1.1-blue)
+![Version: 0.1.3](https://img.shields.io/badge/version-0.1.3-blue)
 
 Dolby Vision RPU (Reference Processing Unit) metadata parser and writer for OxiMedia. Provides metadata-only support, respecting Dolby's intellectual property.
 
@@ -32,9 +32,9 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-dolbyvision = "0.1.1"
+oximedia-dolbyvision = "0.1.3"
 # With serde support:
-oximedia-dolbyvision = { version = "0.1.1", features = ["serde"] }
+oximedia-dolbyvision = { version = "0.1.3", features = ["serde"] }
 ```
 
 ```rust

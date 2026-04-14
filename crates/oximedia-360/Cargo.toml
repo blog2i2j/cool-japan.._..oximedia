@@ -22,3 +22,8 @@ thiserror.workspace = true
 rayon.workspace = true
 
 [dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "cubemap_bench"
+harness = false

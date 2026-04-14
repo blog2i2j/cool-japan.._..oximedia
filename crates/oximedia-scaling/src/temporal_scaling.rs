@@ -41,12 +41,18 @@ pub struct FrameRate {
 impl FrameRate {
     /// Create a new frame rate. Denominator is clamped to at least 1.
     pub fn new(num: u32, den: u32) -> Self {
-        Self { num, den: den.max(1) }
+        Self {
+            num,
+            den: den.max(1),
+        }
     }
 
     /// 23.976 fps (24000/1001).
     pub fn ntsc_film() -> Self {
-        Self { num: 24_000, den: 1_001 }
+        Self {
+            num: 24_000,
+            den: 1_001,
+        }
     }
 
     /// 24 fps (film).
@@ -61,7 +67,10 @@ impl FrameRate {
 
     /// 29.97 fps (NTSC).
     pub fn ntsc() -> Self {
-        Self { num: 30_000, den: 1_001 }
+        Self {
+            num: 30_000,
+            den: 1_001,
+        }
     }
 
     /// 30 fps.
@@ -76,7 +85,10 @@ impl FrameRate {
 
     /// 59.94 fps.
     pub fn fps59_94() -> Self {
-        Self { num: 60_000, den: 1_001 }
+        Self {
+            num: 60_000,
+            den: 1_001,
+        }
     }
 
     /// 60 fps.
@@ -198,7 +210,12 @@ impl VideoFrame {
         if pixels.len() < (width as usize) * (height as usize) * 3 {
             return None;
         }
-        Some(Self { pixels, width, height, pts_secs })
+        Some(Self {
+            pixels,
+            width,
+            height,
+            pts_secs,
+        })
     }
 
     /// Sample the pixel at `(x, y)` — returns `[R, G, B]`.
@@ -209,7 +226,11 @@ impl VideoFrame {
         let cx = x.clamp(0, self.width as i32 - 1) as usize;
         let cy = y.clamp(0, self.height as i32 - 1) as usize;
         let base = (cy * self.width as usize + cx) * 3;
-        [self.pixels[base], self.pixels[base + 1], self.pixels[base + 2]]
+        [
+            self.pixels[base],
+            self.pixels[base + 1],
+            self.pixels[base + 2],
+        ]
     }
 }
 
@@ -268,12 +289,17 @@ pub fn estimate_motion(
             let oy = by * bs;
             (0..blocks_x).map(move |bx| {
                 let ox = bx * bs;
-                let mut best_sad = u64::MAX;
+                // Initialise with zero displacement so that when all candidates
+                // have the same SAD (e.g. identical frames) we prefer no motion.
                 let mut best_dx = 0i32;
                 let mut best_dy = 0i32;
+                let mut best_sad = block_sad(reference, target, ox, oy, bs, 0, 0);
 
                 for dy in -sr..=sr {
                     for dx in -sr..=sr {
+                        if dx == 0 && dy == 0 {
+                            continue; // already initialised with (0,0)
+                        }
                         let sad = block_sad(reference, target, ox, oy, bs, dx, dy);
                         if sad < best_sad {
                             best_sad = sad;
@@ -393,7 +419,11 @@ pub fn motion_compensated_interpolate(
     let mv = estimate_motion(frame_a, frame_b, block_size, search_radius);
 
     // Warp frame_a forward by t * mv
-    let warped_a = warp_frame(frame_a, (mv.dx as f64 * t) as i32, (mv.dy as f64 * t) as i32);
+    let warped_a = warp_frame(
+        frame_a,
+        (mv.dx as f64 * t) as i32,
+        (mv.dy as f64 * t) as i32,
+    );
     // Warp frame_b backward by -(1-t) * mv
     let warped_b = warp_frame(
         frame_b,
@@ -484,9 +514,12 @@ impl TemporalScaler {
         for out_idx in 0..num_output_frames {
             let t_out = out_idx as f64 * dst_frame_dur;
             let src_float = t_out * src_fps;
-            let frame_a = (src_float.floor() as usize).min(num_input_frames - 2);
+            let src_floor = src_float.floor() as usize;
+            let frame_a = src_floor.min(num_input_frames - 2);
             let frame_b = (frame_a + 1).min(num_input_frames - 1);
-            let blend_t = (src_float - frame_a as f64).clamp(0.0, 1.0);
+            // blend_t is the fractional part relative to the true floor, not the
+            // clamped frame_a, so that identity conversions always produce t = 0.
+            let blend_t = (src_float - src_floor as f64).clamp(0.0, 1.0);
             schedule.push((frame_a, frame_b, blend_t));
         }
 
@@ -870,8 +903,8 @@ mod tests {
 
     #[test]
     fn test_config_block_size_minimum() {
-        let cfg = TemporalScalingConfig::new(FrameRate::film(), FrameRate::fps30())
-            .with_block_size(1); // below minimum
+        let cfg =
+            TemporalScalingConfig::new(FrameRate::film(), FrameRate::fps30()).with_block_size(1); // below minimum
         assert_eq!(cfg.block_size, 4);
     }
 }

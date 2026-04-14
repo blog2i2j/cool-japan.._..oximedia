@@ -450,7 +450,7 @@ mod tests {
         let mut params = HashMap::new();
         params.insert("bitrate".to_string(), "8000k".to_string());
         params.insert("resolution".to_string(), "3840x2160".to_string());
-        let resolved = t.instantiate(&params).expect("instantiate should succeed");
+        let resolved = t.instantiate(&params).unwrap();
         assert_eq!(resolved.codec, "h264");
         assert_eq!(resolved.bitrate, "8000k");
         assert_eq!(resolved.resolution, "3840x2160");
@@ -461,21 +461,15 @@ mod tests {
         let t = h264_template();
         let mut params = HashMap::new();
         params.insert("bitrate".to_string(), "5000k".to_string());
-        let resolved = t.instantiate(&params).expect("instantiate should succeed");
+        let resolved = t.instantiate(&params).unwrap();
         assert_eq!(resolved.resolution, "1920x1080"); // default
-        assert_eq!(
-            resolved
-                .settings
-                .get("preset")
-                .expect("failed to get value"),
-            "medium"
-        ); // default
+        assert_eq!(resolved.settings.get("preset").unwrap(), "medium"); // default
     }
 
     #[test]
     fn test_registry_register_and_get() {
         let mut reg = TemplateRegistry::new();
-        reg.register(h264_template()).expect("failed to register");
+        reg.register(h264_template()).unwrap();
         assert_eq!(reg.len(), 1);
         assert!(reg.get("h264-web").is_some());
     }
@@ -483,7 +477,7 @@ mod tests {
     #[test]
     fn test_registry_duplicate() {
         let mut reg = TemplateRegistry::new();
-        reg.register(h264_template()).expect("failed to register");
+        reg.register(h264_template()).unwrap();
         let err = reg.register(h264_template()).unwrap_err();
         assert_eq!(
             err,
@@ -494,7 +488,7 @@ mod tests {
     #[test]
     fn test_registry_remove() {
         let mut reg = TemplateRegistry::new();
-        reg.register(h264_template()).expect("failed to register");
+        reg.register(h264_template()).unwrap();
         let removed = reg.remove("h264-web");
         assert!(removed.is_some());
         assert!(reg.is_empty());
@@ -503,7 +497,7 @@ mod tests {
     #[test]
     fn test_registry_list_names() {
         let mut reg = TemplateRegistry::new();
-        reg.register(h264_template()).expect("failed to register");
+        reg.register(h264_template()).unwrap();
         let names = reg.list_names();
         assert_eq!(names.len(), 1);
         assert!(names.contains(&"h264-web"));
@@ -520,7 +514,7 @@ mod tests {
         let t = h264_template();
         let mut params = HashMap::new();
         params.insert("bitrate".to_string(), "2000k".to_string());
-        let resolved = t.instantiate(&params).expect("instantiate should succeed");
+        let resolved = t.instantiate(&params).unwrap();
         assert_eq!(resolved.template_name, "h264-web");
         assert_eq!(resolved.template_version, "1.0");
     }

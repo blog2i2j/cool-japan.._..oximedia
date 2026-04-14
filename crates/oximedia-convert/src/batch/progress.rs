@@ -270,7 +270,7 @@ mod tests {
     #[test]
     fn test_progress_tracker_creation() {
         let tracker = ProgressTracker::new(10);
-        let snapshot = tracker.snapshot().expect("snapshot should be available");
+        let snapshot = tracker.snapshot().unwrap();
 
         assert_eq!(snapshot.total_jobs, 10);
         assert_eq!(snapshot.completed_jobs, 0);
@@ -284,12 +284,12 @@ mod tests {
         tracker.set_current_job("job1".to_string());
         tracker.update_progress(0.5);
 
-        let snapshot = tracker.snapshot().expect("snapshot should be available");
+        let snapshot = tracker.snapshot().unwrap();
         assert_eq!(snapshot.current_job, Some("job1".to_string()));
         assert_eq!(snapshot.current_progress, 0.5);
 
         tracker.complete_job();
-        let snapshot = tracker.snapshot().expect("snapshot should be available");
+        let snapshot = tracker.snapshot().unwrap();
         assert_eq!(snapshot.completed_jobs, 1);
         assert_eq!(snapshot.current_job, None);
     }
@@ -315,7 +315,7 @@ mod tests {
         tracker.fail_job();
         tracker.complete_job();
 
-        let snapshot = tracker.snapshot().expect("snapshot should be available");
+        let snapshot = tracker.snapshot().unwrap();
         assert_eq!(snapshot.completed_jobs, 2);
         assert_eq!(snapshot.failed_jobs, 1);
         assert!((snapshot.success_rate() - 200.0 / 3.0).abs() < 1e-10);
@@ -329,7 +329,7 @@ mod tests {
         tracker.set_current_job("job2".to_string());
         tracker.update_progress(0.5);
 
-        let snapshot = tracker.snapshot().expect("snapshot should be available");
+        let snapshot = tracker.snapshot().unwrap();
         assert_eq!(snapshot.overall_progress, 1.5 / 4.0);
     }
 
@@ -341,7 +341,7 @@ mod tests {
 
         tracker.reset(10);
 
-        let snapshot = tracker.snapshot().expect("snapshot should be available");
+        let snapshot = tracker.snapshot().unwrap();
         assert_eq!(snapshot.total_jobs, 10);
         assert_eq!(snapshot.completed_jobs, 0);
     }
@@ -351,7 +351,7 @@ mod tests {
         let tracker = ProgressTracker::new(1);
         tracker.update_bytes(5000, 10000);
 
-        let snapshot = tracker.snapshot().expect("snapshot should be available");
+        let snapshot = tracker.snapshot().unwrap();
         assert_eq!(snapshot.bytes_processed, 5000);
         assert_eq!(snapshot.total_bytes, 10000);
     }
@@ -362,7 +362,7 @@ mod tests {
         tracker.complete_job();
         tracker.complete_job();
 
-        let snapshot = tracker.snapshot().expect("snapshot should be available");
+        let snapshot = tracker.snapshot().unwrap();
         assert_eq!(snapshot.remaining_jobs(), 8);
         assert!(snapshot.jobs_per_second() >= 0.0);
     }

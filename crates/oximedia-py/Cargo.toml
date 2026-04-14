@@ -73,9 +73,9 @@ oximedia-dedup.workspace = true
 oximedia-archive-pro.workspace = true
 oximedia-dolbyvision.workspace = true
 oximedia-auto.workspace = true
-chrono = "0.4"
+chrono.workspace = true
 bytes.workspace = true
-flate2.workspace = true
+oxiarc-deflate.workspace = true
 tokio = { workspace = true, features = ["rt", "rt-multi-thread", "sync"] }
 serde.workspace = true
 serde_json.workspace = true

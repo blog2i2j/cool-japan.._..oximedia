@@ -112,6 +112,27 @@ pub mod multi_gpu;
 pub mod compute_shader;
 pub mod histogram_equalization;
 
+// Previously undeclared modules (discovered in src/ inventory)
+pub mod async_compute;
+pub mod barrier_manager;
+pub mod blend_kernel;
+pub mod color_convert_kernel;
+pub mod compute_graph;
+pub mod double_buffer;
+pub mod film_grain;
+pub mod gpu_cpu_verify;
+pub mod indirect_dispatch;
+pub mod kernel_scheduler;
+pub mod mipmap_gen;
+pub mod optical_flow;
+pub mod perspective_transform;
+pub mod pipeline_cache;
+pub mod readback;
+pub mod scale_kernel;
+pub mod texture_atlas;
+pub mod texture_cache;
+pub mod tone_curve;
+
 use std::sync::Arc;
 use thiserror::Error;
 
@@ -170,9 +191,14 @@ pub use workgroup::{DeviceLimits, WorkgroupAutoTuner};
 pub use memory_pool::{CompactionPlan, DefragResult, MigrationEntry};
 
 // Video processing exports
+pub use buffer_pool::SubAllocator;
+pub use compute_pass::{BatchedComputePass, DispatchCommand};
 pub use histogram::{ChannelHistogram, ImageHistogram};
 pub use motion_detect::{MotionAnalysis, MotionDetector, MotionRegion, Sensitivity};
-pub use pipeline::{GpuPipeline, PipelineMetrics, PipelineNode, PipelineStage};
+pub use pipeline::{
+    BarrierBatcher, BarrierKind, BarrierStrategy, BufferBarrier, FlushRecord, GpuPipeline,
+    PipelineMetrics, PipelineNode, PipelineStage,
+};
 pub use texture::{TextureDescriptor, TextureFormat, TexturePool};
 pub use video_process::{FrameProcessConfig, FrameProcessResult, VideoFrameProcessor};
 

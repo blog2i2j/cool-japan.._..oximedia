@@ -136,12 +136,7 @@ impl TextDetector {
     /// # Errors
     ///
     /// Returns an error if image dimensions are inconsistent.
-    pub fn detect(
-        &self,
-        image: &[u8],
-        width: u32,
-        height: u32,
-    ) -> CvResult<Vec<TextRegion>> {
+    pub fn detect(&self, image: &[u8], width: u32, height: u32) -> CvResult<Vec<TextRegion>> {
         let n = (width * height) as usize;
         if image.len() < n {
             return Err(CvError::insufficient_data(n, image.len()));
@@ -215,11 +210,7 @@ impl TextDetector {
         }
 
         // Sort top-to-bottom, then left-to-right
-        regions.sort_by(|a, b| {
-            a.bbox.1
-                .cmp(&b.bbox.1)
-                .then(a.bbox.0.cmp(&b.bbox.0))
-        });
+        regions.sort_by(|a, b| a.bbox.1.cmp(&b.bbox.1).then(a.bbox.0.cmp(&b.bbox.0)));
 
         Ok(regions)
     }
@@ -252,9 +243,13 @@ impl TextDetector {
                 };
 
                 let gx = -get(-1, -1) - 2 * get(-1, 0) - get(-1, 1)
-                    + get(1, -1) + 2 * get(1, 0) + get(1, 1);
+                    + get(1, -1)
+                    + 2 * get(1, 0)
+                    + get(1, 1);
                 let gy = -get(-1, -1) - 2 * get(0, -1) - get(1, -1)
-                    + get(-1, 1) + 2 * get(0, 1) + get(1, 1);
+                    + get(-1, 1)
+                    + 2 * get(0, 1)
+                    + get(1, 1);
 
                 let m = ((gx * gx + gy * gy) as f32).sqrt() / (4.0 * 255.0 * 2.0_f32.sqrt());
                 mag[y * w + x] = m.clamp(0.0, 1.0);
@@ -348,7 +343,12 @@ impl RecognisedLine {
         } else {
             chars.iter().map(|c| c.confidence).sum::<f32>() / chars.len() as f32
         };
-        Self { text, chars, bbox, confidence }
+        Self {
+            text,
+            chars,
+            bbox,
+            confidence,
+        }
     }
 
     /// Whether the line is likely a subtitle (high confidence + subtitle position).
@@ -399,8 +399,7 @@ impl SubtitleOcr {
         let mut lines = Vec::new();
         for region in &regions {
             // Extract and binarise the region
-            let (region_img, rw, rh) =
-                self.extract_region(image, width, height, region.bbox);
+            let (region_img, rw, rh) = self.extract_region(image, width, height, region.bbox);
 
             // Segment and recognise characters within the region
             let chars = self.segment_and_recognise(&region_img, rw, rh, region.bbox);
@@ -582,11 +581,16 @@ fn otsu_threshold(image: &[u8]) -> u8 {
 
     let mut w0 = 0.0f64;
     let mut sum0 = 0.0f64;
-    let total_sum: f64 = hist.iter().enumerate().map(|(v, &c)| v as f64 * c as f64).sum();
+    let total_sum: f64 = hist
+        .iter()
+        .enumerate()
+        .map(|(v, &c)| v as f64 * c as f64)
+        .sum();
 
-    for t in 0..255usize {
-        w0 += hist[t] as f64 / n;
-        sum0 += t as f64 * hist[t] as f64 / n;
+    // Iterate threshold t from 1 to 254: class 0 = [0..t], class 1 = (t..255]
+    for t in 1..255usize {
+        w0 += hist[t - 1] as f64 / n;
+        sum0 += (t - 1) as f64 * hist[t - 1] as f64 / n;
 
         let w1 = 1.0 - w0;
         if w0 < 1e-9 || w1 < 1e-9 {
@@ -701,13 +705,20 @@ mod tests {
             img[i] = 200;
         }
         let t = otsu_threshold(&img);
-        assert!(t > 50 && t < 200, "bimodal threshold {t} out of expected range");
+        // For a bimodal image with classes at 0 and 200, Otsu picks any threshold
+        // strictly between the two class means. Accept 1..=199.
+        assert!(
+            t >= 1 && t < 200,
+            "bimodal threshold {t} out of expected range [1, 200)"
+        );
     }
 
     #[test]
     fn test_subtitle_ocr_empty() {
         let ocr = SubtitleOcr::new();
-        let result = ocr.extract_subtitles(&[], 0, 0).expect("empty should succeed");
+        let result = ocr
+            .extract_subtitles(&[], 0, 0)
+            .expect("empty should succeed");
         assert!(result.is_empty());
     }
 
@@ -716,7 +727,9 @@ mod tests {
         // All-white image has no text
         let ocr = SubtitleOcr::new();
         let img = vec![255u8; 100 * 50];
-        let result = ocr.extract_subtitles(&img, 100, 50).expect("should succeed");
+        let result = ocr
+            .extract_subtitles(&img, 100, 50)
+            .expect("should succeed");
         // White image should find no subtitles
         assert!(result.is_empty());
     }
@@ -724,8 +737,16 @@ mod tests {
     #[test]
     fn test_recognised_line_new() {
         let chars = vec![
-            RecognisedChar { ch: 'H', confidence: 0.9, bbox: (0, 0, 5, 10) },
-            RecognisedChar { ch: 'i', confidence: 0.8, bbox: (6, 0, 8, 10) },
+            RecognisedChar {
+                ch: 'H',
+                confidence: 0.9,
+                bbox: (0, 0, 5, 10),
+            },
+            RecognisedChar {
+                ch: 'i',
+                confidence: 0.8,
+                bbox: (6, 0, 8, 10),
+            },
         ];
         let line = RecognisedLine::new(chars, (0, 0, 8, 10));
         assert_eq!(line.text, "Hi");
@@ -734,7 +755,11 @@ mod tests {
 
     #[test]
     fn test_recognised_line_is_likely_subtitle() {
-        let chars = vec![RecognisedChar { ch: 'X', confidence: 0.9, bbox: (0, 80, 50, 90) }];
+        let chars = vec![RecognisedChar {
+            ch: 'X',
+            confidence: 0.9,
+            bbox: (0, 80, 50, 90),
+        }];
         let line = RecognisedLine::new(chars, (0, 80, 50, 90));
         assert!(line.is_likely_subtitle(100));
         assert!(!line.is_likely_subtitle(200)); // 90/200 = 0.45 < 0.6

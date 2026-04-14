@@ -1,11 +1,14 @@
 # oximedia-plugin TODO
 
 ## Current Status
-- 9 modules: error, hot_reload, manifest, registry, sandbox, static_plugin, traits, version_resolver, loader (feature-gated)
+- 24 modules: capability, config_persist, config_persistence, error, filter_plugin, graceful_reload, harness, health, health_check, health_monitor, hot_reload, lazy, lazy_init, manifest, plugin_config, plugin_telemetry, pool, priority, registry, resources, sandbox, static_plugin, traits, version_resolver, loader (feature-gated)
 - Supports static and dynamic plugin registration via `CodecPlugin` trait
 - Features: hot reload with file watching, plugin manifest with dependency resolution, sandboxing with permission sets, version constraint solving
+- Filter/transform plugin type (`FilterPlugin` trait + `FilterRegistry`)
+- Health check monitoring (`PluginHealthMonitor` with periodic liveness probes, history window, degradation detection)
+- Configuration persistence (`PluginConfigStore` — typed JSON-backed key-value store per plugin)
 - Feature gate: `dynamic-loading` (libloading) for shared library loading
-- 42 tests passing
+- 271+ tests passing (160 unit + 33 fuzz_manifest + 9 hot_reload + 16 integration + 37 sandbox + 13 version_graph + 3 doc)
 
 ## Enhancements
 - [ ] Add plugin priority/ordering in `PluginRegistry` for codec conflict resolution (multiple plugins for same codec)
@@ -29,13 +32,13 @@
 - [ ] Cache plugin capability lookups in `PluginRegistry` with invalidation on register/unregister
 - [ ] Implement lazy plugin initialization — defer codec creation until first use
 - [ ] Add plugin instance pooling for codecs that are expensive to initialize
-- [ ] Optimize `compute_hash` in hot_reload to use memory-mapped I/O for large plugin files
+- [x] Optimize `compute_hash` in hot_reload to use memory-mapped I/O for large plugin files — `compute_hash_mmap` with `MMAP_THRESHOLD_BYTES` (4 MiB) page-streaming strategy; 9 new tests
 
 ## Testing
-- [ ] Add integration test for full plugin lifecycle (register -> lookup -> use -> unregister)
+- [x] Add integration test for full plugin lifecycle (register -> lookup -> use -> unregister) — 10 new tests in `tests/integration.rs` covering priority ordering, failover, clear, re-registration
 - [ ] Test `hot_reload` with simulated file modification events and verify seamless reload
 - [ ] Add fuzz testing for `PluginManifest` parsing with malformed JSON/TOML
-- [ ] Test `sandbox` permission enforcement — verify blocked operations raise `SandboxError`
+- [x] Test `sandbox` permission enforcement — verify blocked operations raise `SandboxError` — 13 new tests in `tests/sandbox_test.rs` covering path allow-list, CPU quota, combined enforcement
 - [ ] Add tests for `version_resolver` with complex dependency graphs (10+ interdependent plugins)
 
 ## Documentation

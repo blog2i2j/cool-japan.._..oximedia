@@ -523,4 +523,171 @@ mod tests {
         assert_eq!(changed.len(), 1);
         assert_eq!(changed[0], "a");
     }
+
+    // ── compute_hash_mmap tests ────────────────────────────────────────────────
+
+    use std::io::Write;
+
+    fn write_temp_file(content: &[u8]) -> (tempfile::NamedTempFile, std::path::PathBuf) {
+        let mut f = tempfile::NamedTempFile::new().expect("tempfile");
+        f.write_all(content).expect("write");
+        f.flush().expect("flush");
+        let path = f.path().to_path_buf();
+        (f, path)
+    }
+
+    // 21. compute_hash_mmap: small file matches compute_hash_file
+    #[test]
+    fn test_mmap_small_file_matches_file_hash() {
+        let content = b"small plugin binary data for testing";
+        let (_f, path) = write_temp_file(content);
+        let mmap_hash = super::compute_hash_mmap(&path).expect("mmap hash");
+        let file_hash = super::compute_hash_file(&path).expect("file hash");
+        assert_eq!(mmap_hash, file_hash);
+    }
+
+    // 22. compute_hash_mmap: result matches compute_hash on same bytes
+    #[test]
+    fn test_mmap_hash_matches_in_memory_hash() {
+        let content = b"reference content for hash comparison";
+        let (_f, path) = write_temp_file(content);
+        let mmap_hash = super::compute_hash_mmap(&path).expect("mmap hash");
+        let direct_hash = super::compute_hash(content);
+        assert_eq!(mmap_hash, direct_hash);
+    }
+
+    // 23. compute_hash_mmap: empty file returns FNV offset basis
+    #[test]
+    fn test_mmap_empty_file_returns_offset_basis() {
+        let (_f, path) = write_temp_file(b"");
+        let hash = super::compute_hash_mmap(&path).expect("empty mmap hash");
+        assert_eq!(hash, super::compute_hash(&[]));
+    }
+
+    // 24. compute_hash_mmap: different content produces different hashes
+    #[test]
+    fn test_mmap_distinct_content_produces_distinct_hashes() {
+        let (_f1, path1) = write_temp_file(b"content version one");
+        let (_f2, path2) = write_temp_file(b"content version two");
+        let h1 = super::compute_hash_mmap(&path1).expect("h1");
+        let h2 = super::compute_hash_mmap(&path2).expect("h2");
+        assert_ne!(h1, h2);
+    }
+
+    // 25. compute_hash_mmap: deterministic (same file twice produces same hash)
+    #[test]
+    fn test_mmap_deterministic() {
+        let content = b"deterministic test content";
+        let (_f, path) = write_temp_file(content);
+        let h1 = super::compute_hash_mmap(&path).expect("first");
+        let h2 = super::compute_hash_mmap(&path).expect("second");
+        assert_eq!(h1, h2);
+    }
+
+    // 26. compute_hash_mmap: nonexistent file returns error
+    #[test]
+    fn test_mmap_nonexistent_file_returns_error() {
+        let result = super::compute_hash_mmap(std::path::Path::new("/nonexistent/path/plugin.so"));
+        assert!(result.is_err());
+    }
+
+    // 27. compute_hash_mmap: single-byte file
+    #[test]
+    fn test_mmap_single_byte_file() {
+        let (_f, path) = write_temp_file(b"\xFF");
+        let hash = super::compute_hash_mmap(&path).expect("single byte");
+        assert_eq!(hash, super::compute_hash(b"\xFF"));
+    }
+
+    // 28. MMAP_THRESHOLD_BYTES is at least 1 MiB (meaningful threshold)
+    #[test]
+    fn test_mmap_threshold_is_reasonable() {
+        assert!(super::MMAP_THRESHOLD_BYTES >= 1024 * 1024);
+    }
+
+    // 29. compute_hash_mmap: file below threshold matches direct hash
+    #[test]
+    fn test_mmap_below_threshold_matches_direct_hash() {
+        let content: Vec<u8> = (0..1024).map(|i| (i % 251) as u8).collect();
+        let (_f, path) = write_temp_file(&content);
+        let mmap_hash = super::compute_hash_mmap(&path).expect("below threshold");
+        let direct_hash = super::compute_hash(&content);
+        assert_eq!(mmap_hash, direct_hash);
+    }
+}
+
+// ── Streaming large-file hash (mmap-equivalent) ──────────────────────────────
+
+/// Minimum file size (in bytes) at which [`compute_hash_mmap`] switches from
+/// a full heap allocation to a streaming, page-sized I/O strategy.
+///
+/// Files smaller than this threshold are hashed via a single `fs::read`
+/// (same as [`compute_hash_file`]).  Files at or above this threshold are
+/// read in fixed-size chunks equal to the OS page size, so only one page
+/// of data resides in heap memory at a time — analogous to what a memory
+/// map would provide, but without requiring an `unsafe` block.
+pub const MMAP_THRESHOLD_BYTES: u64 = 4 * 1024 * 1024; // 4 MiB
+
+/// Size of each I/O chunk used by [`compute_hash_mmap`] for large files.
+///
+/// Matches a typical OS page size (4 KiB) so that each read corresponds
+/// to one demand-paged physical page — the same granularity a true
+/// memory-mapped implementation would process.
+pub const MMAP_CHUNK_SIZE: usize = 4096; // 4 KiB (one OS page)
+
+/// Compute a 64-bit FNV-1a hash of `path` using page-sized streaming I/O
+/// for large files.
+///
+/// # Strategy
+///
+/// - If the file size is **below** [`MMAP_THRESHOLD_BYTES`], the entire
+///   content is read into a heap buffer (same as [`compute_hash_file`]).
+/// - If the file size is **at or above** the threshold, the file is read
+///   in [`MMAP_CHUNK_SIZE`]-byte chunks.  Only one chunk is in memory at a
+///   time, achieving the same low-memory-footprint goal as memory-mapped I/O
+///   without requiring an `unsafe` block.  This is equivalent to
+///   demand-paging one OS page at a time.
+///
+/// # Errors
+///
+/// Returns `std::io::Error` if the file cannot be opened, stat'd, or read.
+pub fn compute_hash_mmap(path: &std::path::Path) -> std::io::Result<u64> {
+    use std::io::Read;
+
+    let metadata = std::fs::metadata(path)?;
+    let file_size = metadata.len();
+
+    if file_size == 0 {
+        // Empty file — FNV offset basis (same as compute_hash(&[]))
+        return Ok(14_695_981_039_346_656_037);
+    }
+
+    if file_size < MMAP_THRESHOLD_BYTES {
+        // Small file: read into heap, no chunking overhead needed.
+        let data = std::fs::read(path)?;
+        return Ok(compute_hash(&data));
+    }
+
+    // Large file: stream in page-sized chunks, accumulating FNV-1a hash.
+    // This mirrors memory-mapped page-fault semantics: only one page of data
+    // occupies physical RAM at any given moment.
+    const FNV_OFFSET_BASIS: u64 = 14_695_981_039_346_656_037;
+    const FNV_PRIME: u64 = 1_099_511_628_211;
+
+    let mut file = std::fs::File::open(path)?;
+    let mut buf = vec![0u8; MMAP_CHUNK_SIZE];
+    let mut hash = FNV_OFFSET_BASIS;
+
+    loop {
+        let n = file.read(&mut buf)?;
+        if n == 0 {
+            break;
+        }
+        for &byte in &buf[..n] {
+            hash ^= u64::from(byte);
+            hash = hash.wrapping_mul(FNV_PRIME);
+        }
+    }
+
+    Ok(hash)
 }

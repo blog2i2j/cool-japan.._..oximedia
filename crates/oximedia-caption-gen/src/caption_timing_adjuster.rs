@@ -425,7 +425,8 @@ mod tests {
     fn stretch_around_anchor_at_start() {
         let blocks = vec![make_block(1, 0, 2000)];
         // Factor 2.0 around anchor 0: timestamps double.
-        let result = CaptionTimingAdjuster::stretch_around(&blocks, 2.0, 0).expect("stretch around should succeed");
+        let result = CaptionTimingAdjuster::stretch_around(&blocks, 2.0, 0)
+            .expect("stretch around should succeed");
         assert_eq!(result[0].start_ms, 0);
         assert_eq!(result[0].end_ms, 4000);
     }
@@ -436,7 +437,8 @@ mod tests {
         // Anchor = 2000, factor = 2.0:
         // start: 2000 + (1000 - 2000) * 2 = 0
         // end:   2000 + (3000 - 2000) * 2 = 4000
-        let result = CaptionTimingAdjuster::stretch_around(&blocks, 2.0, 2000).expect("stretch around should succeed");
+        let result = CaptionTimingAdjuster::stretch_around(&blocks, 2.0, 2000)
+            .expect("stretch around should succeed");
         assert_eq!(result[0].start_ms, 0);
         assert_eq!(result[0].end_ms, 4000);
     }
@@ -449,7 +451,8 @@ mod tests {
         // At 25fps, ms_per_frame = 40ms.
         // 10ms → nearest multiple of 40 = 0.
         // 2010ms → nearest = 2000.
-        let result = CaptionTimingAdjuster::snap_to_frame(&blocks, 25.0).expect("snap to frame should succeed");
+        let result = CaptionTimingAdjuster::snap_to_frame(&blocks, 25.0)
+            .expect("snap to frame should succeed");
         assert_eq!(result[0].start_ms, 0);
         assert_eq!(result[0].end_ms, 2000);
     }
@@ -464,7 +467,8 @@ mod tests {
     fn snap_to_frame_already_on_frame() {
         let blocks = vec![make_block(1, 0, 1000)];
         // At 25fps: ms_per_frame = 40. 0 and 1000 are both multiples of 40.
-        let result = CaptionTimingAdjuster::snap_to_frame(&blocks, 25.0).expect("snap to frame should succeed");
+        let result = CaptionTimingAdjuster::snap_to_frame(&blocks, 25.0)
+            .expect("snap to frame should succeed");
         assert_eq!(result[0].start_ms, 0);
         assert_eq!(result[0].end_ms, 1000);
     }
@@ -479,7 +483,8 @@ mod tests {
             src_end_ms: 5000,
             dst_start_ms: 0,
         }];
-        let result = CaptionTimingAdjuster::remap_edl(&blocks, &edl).expect("remap edl should succeed");
+        let result =
+            CaptionTimingAdjuster::remap_edl(&blocks, &edl).expect("remap edl should succeed");
         assert_eq!(result.len(), 1);
         assert_eq!(result[0].start_ms, 1000);
         assert_eq!(result[0].end_ms, 3000);
@@ -493,7 +498,8 @@ mod tests {
             src_end_ms: 5000,
             dst_start_ms: 500, // destination 500ms earlier
         }];
-        let result = CaptionTimingAdjuster::remap_edl(&blocks, &edl).expect("remap edl should succeed");
+        let result =
+            CaptionTimingAdjuster::remap_edl(&blocks, &edl).expect("remap edl should succeed");
         assert_eq!(result[0].start_ms, 500);
         assert_eq!(result[0].end_ms, 2500);
     }
@@ -506,7 +512,8 @@ mod tests {
             src_end_ms: 5000,
             dst_start_ms: 0,
         }];
-        let result = CaptionTimingAdjuster::remap_edl(&blocks, &edl).expect("remap edl should succeed");
+        let result =
+            CaptionTimingAdjuster::remap_edl(&blocks, &edl).expect("remap edl should succeed");
         assert!(result.is_empty());
     }
 
@@ -537,7 +544,8 @@ mod tests {
                 dst_start_ms: 5000, // jump in destination
             },
         ];
-        let result = CaptionTimingAdjuster::remap_edl(&blocks, &edl).expect("remap edl should succeed");
+        let result =
+            CaptionTimingAdjuster::remap_edl(&blocks, &edl).expect("remap edl should succeed");
         // One block maps to [0, 3000) and another to [5000, 8000).
         assert_eq!(result.len(), 2);
         assert_eq!(result[0].start_ms, 0);
@@ -593,5 +601,127 @@ mod tests {
     fn error_display_invalid_fps() {
         let e = TimingAdjusterError::InvalidFrameRate { fps: 0.0 };
         assert!(e.to_string().contains("positive"));
+    }
+
+    // ─── Additional tests ─────────────────────────────────────────────────────
+
+    #[test]
+    fn shift_preserves_block_text_and_id() {
+        let blocks = vec![make_block(5, 1000, 3000)];
+        let result = CaptionTimingAdjuster::shift(&blocks, 200);
+        assert_eq!(result[0].id, 5);
+        assert_eq!(result[0].lines[0], "block 5");
+    }
+
+    #[test]
+    fn shift_multiple_blocks_all_shifted() {
+        let blocks = vec![
+            make_block(1, 0, 1000),
+            make_block(2, 2000, 3000),
+            make_block(3, 4000, 5000),
+        ];
+        let result = CaptionTimingAdjuster::shift(&blocks, 500);
+        assert_eq!(result.len(), 3);
+        assert_eq!(result[0].start_ms, 500);
+        assert_eq!(result[1].start_ms, 2500);
+        assert_eq!(result[2].start_ms, 4500);
+    }
+
+    #[test]
+    fn stretch_factor_quarter_compresses_timestamps() {
+        let blocks = vec![make_block(1, 4000, 8000)];
+        let result = CaptionTimingAdjuster::stretch(&blocks, 0.25).expect("stretch");
+        assert_eq!(result[0].start_ms, 1000);
+        assert_eq!(result[0].end_ms, 2000);
+    }
+
+    #[test]
+    fn stretch_preserves_number_of_blocks() {
+        let blocks: Vec<CaptionBlock> = (1..=5)
+            .map(|i| make_block(i, i as u64 * 1000, i as u64 * 1000 + 500))
+            .collect();
+        let result = CaptionTimingAdjuster::stretch(&blocks, 1.5).expect("stretch");
+        assert_eq!(result.len(), 5);
+    }
+
+    #[test]
+    fn snap_to_frame_30fps() {
+        // At 30fps, ms_per_frame ≈ 33.33ms.
+        // 50ms → nearest frame = frame 2 (50/33.33 ≈ 1.5 → round to 2 → 66ms)
+        let blocks = vec![make_block(1, 50, 1050)];
+        let result = CaptionTimingAdjuster::snap_to_frame(&blocks, 30.0).expect("snap");
+        // Verify snapped values are multiples of ~33.33ms (within rounding).
+        let ms_per_frame = 1000.0 / 30.0_f64;
+        let start_frame = (result[0].start_ms as f64 / ms_per_frame).round();
+        assert!((result[0].start_ms as f64 - start_frame * ms_per_frame).abs() < 1.0);
+    }
+
+    #[test]
+    fn edl_remap_multiple_blocks_multiple_edl_entries() {
+        let blocks = vec![make_block(1, 500, 1500), make_block(2, 2000, 3000)];
+        let edl = vec![
+            EdlEntry {
+                src_start_ms: 0,
+                src_end_ms: 2000,
+                dst_start_ms: 0,
+            },
+            EdlEntry {
+                src_start_ms: 2000,
+                src_end_ms: 4000,
+                dst_start_ms: 10000,
+            },
+        ];
+        let result = CaptionTimingAdjuster::remap_edl(&blocks, &edl).expect("remap");
+        assert_eq!(result.len(), 2);
+        // Block 1 maps via entry 1, block 2 maps via entry 2.
+        assert_eq!(result[0].start_ms, 500);
+        assert_eq!(result[1].start_ms, 10000);
+    }
+
+    #[test]
+    fn clamp_block_exactly_at_range_start_included() {
+        let blocks = vec![make_block(1, 1000, 2000)];
+        let result = CaptionTimingAdjuster::clamp_to_range(&blocks, 1000, 3000);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].start_ms, 1000);
+    }
+
+    #[test]
+    fn clamp_block_exactly_at_range_end_excluded() {
+        let blocks = vec![make_block(1, 3000, 4000)];
+        // Block starts at range end → entirely outside → dropped.
+        let result = CaptionTimingAdjuster::clamp_to_range(&blocks, 1000, 3000);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn stretch_around_factor_one_is_noop() {
+        let blocks = vec![make_block(1, 1000, 3000)];
+        let result = CaptionTimingAdjuster::stretch_around(&blocks, 1.0, 500).expect("stretch");
+        assert_eq!(result[0].start_ms, 1000);
+        assert_eq!(result[0].end_ms, 3000);
+    }
+
+    #[test]
+    fn edl_remap_reassigns_sequential_ids() {
+        let blocks = vec![make_block(10, 0, 1000), make_block(20, 1000, 2000)];
+        let edl = vec![EdlEntry {
+            src_start_ms: 0,
+            src_end_ms: 5000,
+            dst_start_ms: 0,
+        }];
+        let result = CaptionTimingAdjuster::remap_edl(&blocks, &edl).expect("remap");
+        assert_eq!(result[0].id, 1);
+        assert_eq!(result[1].id, 2);
+    }
+
+    #[test]
+    fn error_display_invalid_edl_range() {
+        let e = TimingAdjusterError::InvalidEdlRange {
+            src_start_ms: 5000,
+            src_end_ms: 1000,
+        };
+        assert!(e.to_string().contains("5000"));
+        assert!(e.to_string().contains("1000"));
     }
 }

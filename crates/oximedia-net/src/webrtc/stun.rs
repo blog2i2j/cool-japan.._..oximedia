@@ -8,7 +8,7 @@
 
 use crate::error::{NetError, NetResult};
 use bytes::{Buf, BufMut, Bytes, BytesMut};
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use sha1::Sha1;
 use std::net::SocketAddr;
 

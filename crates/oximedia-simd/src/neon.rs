@@ -35,6 +35,7 @@ pub fn has_neon() -> bool {
 // ══════════════════════════════════════════════════════════════════════════════
 #[cfg(target_arch = "aarch64")]
 #[allow(clippy::cast_ptr_alignment)]
+#[allow(clippy::module_inception)]
 pub mod neon {
     //! NEON-accelerated kernels (aarch64 only).
     //!
@@ -671,6 +672,7 @@ pub mod neon {
 // non-aarch64 — scalar fallbacks with identical public API
 // ══════════════════════════════════════════════════════════════════════════════
 #[cfg(not(target_arch = "aarch64"))]
+#[allow(clippy::module_inception)]
 pub mod neon {
     //! Scalar fallback implementations that mirror the NEON API.
     //!

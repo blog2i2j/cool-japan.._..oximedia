@@ -777,8 +777,8 @@ unsafe fn rgba_to_yuv420_avx512_inner(rgba: &[u8], width: u32, height: u32) -> V
         vy = _mm512_min_ps(vy, max235);
         vy = _mm512_max_ps(vy, offset16);
 
-        // Convert f32 → u8 via i32.
-        let yi32 = _mm512_cvtps_epi32(vy);
+        // Convert f32 → u8 via i32, truncating (floor) to match the scalar >>8 path.
+        let yi32 = _mm512_cvttps_epi32(vy);
         let mut y_arr = [0i32; 16];
         _mm512_storeu_si512(y_arr.as_mut_ptr() as *mut __m512i, yi32);
         for k in 0..16usize {
@@ -1028,5 +1028,518 @@ mod avx512_extended_tests {
         let y_size = (width * height) as usize;
         let uv_size = (width / 2 * height / 2) as usize;
         assert_eq!(yuv.len(), y_size + 2 * uv_size);
+    }
+}
+
+// ── AVX-512 VNNI — 8-bit SAD acceleration ────────────────────────────────────
+//
+// `_mm512_dpbusd_epi32` (AVX-512VNNI) computes:
+//   dst[i] += u8 src_a[4i] * i8 src_b[4i]
+//             + u8 src_a[4i+1] * i8 src_b[4i+1]
+//             + u8 src_a[4i+2] * i8 src_b[4i+2]
+//             + u8 src_a[4i+3] * i8 src_b[4i+3]
+//
+// For SAD we compute |a - b| first (as u8 abs-diff via max/min/sub), then
+// use DPBUSD with an all-ones i8 multiplier to horizontally accumulate groups
+// of 4 absolute differences into 32-bit lanes.
+
+/// Inner VNNI 4×4 SAD kernel.
+///
+/// Computes the sum of absolute differences between 4 rows of 4 pixels each.
+/// Both slices must be at least 4*stride1 and 4*stride2 bytes, respectively.
+///
+/// # Safety
+///
+/// Caller must guarantee `avx512f` and `avx512vnni` CPU features are present.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx512f,avx512vnni")]
+unsafe fn sad_vnni_4x4_inner(src1: &[u8], src2: &[u8], stride1: usize, stride2: usize) -> u32 {
+    use std::arch::x86_64::*;
+
+    // All-ones i8 vector — multiplying by 1 collapses the dot product into a
+    // horizontal sum of the absolute difference values.
+    let ones_i8: __m512i = _mm512_set1_epi8(1_i8);
+    // 32-bit accumulator, zeroed.
+    let mut acc: __m512i = _mm512_setzero_si512();
+
+    for row in 0..4usize {
+        // Load 4 bytes from each source (scalar loop — 4 bytes is far below
+        // the 64-byte ZMM width, so we load into 64-bit integers and broadcast).
+        let row1 = src1.get(row * stride1..).unwrap_or(&[]);
+        let row2 = src2.get(row * stride2..).unwrap_or(&[]);
+
+        // Broadcast the 4 pixels into a 512-bit register so we can use a single
+        // VNNI instruction for all 16 elements (though only the first 4 matter).
+        let a4 = u32::from_le_bytes([
+            *row1.first().unwrap_or(&0),
+            *row1.get(1).unwrap_or(&0),
+            *row1.get(2).unwrap_or(&0),
+            *row1.get(3).unwrap_or(&0),
+        ]);
+        let b4 = u32::from_le_bytes([
+            *row2.first().unwrap_or(&0),
+            *row2.get(1).unwrap_or(&0),
+            *row2.get(2).unwrap_or(&0),
+            *row2.get(3).unwrap_or(&0),
+        ]);
+
+        // Load 4 bytes into the lowest dword of a 128-bit register; bytes 4-15 are
+        // zero.  _mm_set1_epi32 would broadcast to all four dwords, causing each
+        // row's contribution to be counted 4×.
+        let va: __m128i = _mm_cvtsi32_si128(a4 as i32);
+        let vb: __m128i = _mm_cvtsi32_si128(b4 as i32);
+        let vmax: __m128i = _mm_max_epu8(va, vb);
+        let vmin: __m128i = _mm_min_epu8(va, vb);
+        let abs_diff: __m128i = _mm_sub_epi8(vmax, vmin);
+
+        // Zero-extend to 512 bits: bytes 0-3 have abs_diff data, bytes 4-63 are
+        // explicitly zeroed (unlike _mm512_castsi128_si512 which leaves upper bits
+        // undefined and may cause DPBUSD to accumulate garbage).
+        let abs_diff_512: __m512i = _mm512_zextsi128_si512(abs_diff);
+
+        // DPBUSD group 0: abs_diff[0]+[1]+[2]+[3] = row SAD.
+        // Groups 1-15 contribute zero because the upper bytes are zero.
+        acc = _mm512_dpbusd_epi32(acc, abs_diff_512, ones_i8);
+    }
+
+    // Horizontal reduction: lane 0 holds the accumulated SAD; lanes 1-15 are 0.
+    _mm512_reduce_add_epi32(acc) as u32
+}
+
+/// Inner VNNI 8×8 SAD kernel.
+///
+/// Processes 8 rows × 8 columns = 64 bytes per block.
+///
+/// # Safety
+///
+/// Caller must guarantee `avx512f` and `avx512vnni` CPU features are present.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx512f,avx512vnni")]
+unsafe fn sad_vnni_8x8_inner(src1: &[u8], src2: &[u8], stride1: usize, stride2: usize) -> u32 {
+    use std::arch::x86_64::*;
+
+    let ones_i8: __m512i = _mm512_set1_epi8(1_i8);
+    let mut acc: __m512i = _mm512_setzero_si512();
+
+    for row in 0..8usize {
+        let base1 = row * stride1;
+        let base2 = row * stride2;
+
+        // Fetch 8 bytes, pad to 16 bytes with zeros for 128-bit load.
+        let mut buf1 = [0u8; 16];
+        let mut buf2 = [0u8; 16];
+        let src1_row = src1.get(base1..).unwrap_or(&[]);
+        let src2_row = src2.get(base2..).unwrap_or(&[]);
+        let copy_len = 8usize.min(src1_row.len()).min(src2_row.len());
+        buf1[..copy_len].copy_from_slice(&src1_row[..copy_len]);
+        buf2[..copy_len].copy_from_slice(&src2_row[..copy_len]);
+
+        let va: __m128i = _mm_loadu_si128(buf1.as_ptr().cast::<__m128i>());
+        let vb: __m128i = _mm_loadu_si128(buf2.as_ptr().cast::<__m128i>());
+
+        // abs_diff = max(a,b) - min(a,b)
+        let vmax: __m128i = _mm_max_epu8(va, vb);
+        let vmin: __m128i = _mm_min_epu8(va, vb);
+        let abs_diff: __m128i = _mm_sub_epi8(vmax, vmin);
+
+        // Zero-extend to 512 bits and accumulate via VNNI.
+        let abs_diff_512: __m512i = _mm512_castsi128_si512(abs_diff);
+        acc = _mm512_dpbusd_epi32(acc, abs_diff_512, ones_i8);
+    }
+
+    _mm512_reduce_add_epi32(acc) as u32
+}
+
+/// Safe public dispatcher: SAD for an 8×8 block using AVX-512 VNNI.
+///
+/// Falls back to scalar computation when AVX-512VNNI is unavailable.
+/// Returns the sum of absolute differences between the two 8×8 blocks.
+///
+/// # Errors
+///
+/// Returns [`crate::SimdError::InvalidBufferSize`] when either source slice is
+/// too short to cover one row of `stride` bytes for 8 rows.
+pub fn sad_8x8_vnni(
+    src1: &[u8],
+    src2: &[u8],
+    stride1: usize,
+    stride2: usize,
+) -> crate::Result<u32> {
+    if src1.len() < 8 * stride1 || src2.len() < 8 * stride2 {
+        return Err(crate::SimdError::InvalidBufferSize);
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_x86_feature_detected!("avx512f") && is_x86_feature_detected!("avx512vnni") {
+            // SAFETY: we just verified the CPU features and the buffer sizes.
+            return Ok(unsafe { sad_vnni_8x8_inner(src1, src2, stride1, stride2) });
+        }
+    }
+
+    // Scalar fallback: plain absolute-difference accumulation.
+    let mut total = 0u32;
+    for row in 0..8usize {
+        let base1 = row * stride1;
+        let base2 = row * stride2;
+        for col in 0..8usize {
+            let a = u32::from(*src1.get(base1 + col).unwrap_or(&0));
+            let b = u32::from(*src2.get(base2 + col).unwrap_or(&0));
+            total += a.abs_diff(b);
+        }
+    }
+    Ok(total)
+}
+
+/// Safe public dispatcher: SAD for a 4×4 block using AVX-512 VNNI.
+///
+/// Falls back to scalar computation when AVX-512VNNI is unavailable.
+///
+/// # Errors
+///
+/// Returns [`crate::SimdError::InvalidBufferSize`] when either source slice is
+/// too short to cover one row of `stride` bytes for 4 rows.
+pub fn sad_4x4_vnni(
+    src1: &[u8],
+    src2: &[u8],
+    stride1: usize,
+    stride2: usize,
+) -> crate::Result<u32> {
+    if src1.len() < 4 * stride1 || src2.len() < 4 * stride2 {
+        return Err(crate::SimdError::InvalidBufferSize);
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_x86_feature_detected!("avx512f") && is_x86_feature_detected!("avx512vnni") {
+            // SAFETY: we just verified the CPU features and the buffer sizes.
+            return Ok(unsafe { sad_vnni_4x4_inner(src1, src2, stride1, stride2) });
+        }
+    }
+
+    // Scalar fallback.
+    let mut total = 0u32;
+    for row in 0..4usize {
+        let base1 = row * stride1;
+        let base2 = row * stride2;
+        for col in 0..4usize {
+            let a = u32::from(*src1.get(base1 + col).unwrap_or(&0));
+            let b = u32::from(*src2.get(base2 + col).unwrap_or(&0));
+            total += a.abs_diff(b);
+        }
+    }
+    Ok(total)
+}
+
+// ── 4-way parallel SAD in AVX-512 ───────────────────────────────────────────
+//
+// Motion estimation typically needs to evaluate many candidate motion vectors
+// against a single source block.  By processing four candidates simultaneously
+// in ZMM (512-bit) registers we amortise the load overhead.
+//
+// Strategy (when AVX-512BW is available):
+//   • Load the source block rows into the lower 128 bits of a ZMM.
+//   • Load each of the four candidate rows into the respective 128-bit lanes of
+//     a second ZMM (lane 0 → cand[0], lane 1 → cand[1], …).
+//   • Compute 512-bit unsigned-max / min / subtract to get 64 × u8 abs-diffs.
+//   • Accumulate with `_mm512_sad_epu8` — this gives eight 64-bit horizontal
+//     SAD values (two per 128-bit lane).  Sum those to get one 32-bit total
+//     per candidate block.
+
+/// Scalar helper: SAD between a source block and one candidate block.
+fn sad_block_scalar(src: &[u8], candidate: &[u8], stride: usize, block_size: usize) -> u32 {
+    let mut total = 0u32;
+    for row in 0..block_size {
+        let base_s = row * stride;
+        let base_c = row * stride;
+        for col in 0..block_size {
+            let a = u32::from(*src.get(base_s + col).unwrap_or(&0));
+            let b = u32::from(*candidate.get(base_c + col).unwrap_or(&0));
+            total += a.abs_diff(b);
+        }
+    }
+    total
+}
+
+/// Compute SAD between `src` and each of the four `candidates` simultaneously.
+///
+/// Both `src` and every `candidates[i]` must span `block_size` rows with the
+/// shared `stride`.  `block_size` must be ≤ 16 (each row fits in 128 bits).
+///
+/// # Safety
+///
+/// Caller must guarantee `avx512f` and `avx512bw` CPU features are present.
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx512f,avx512bw")]
+unsafe fn sad_parallel_4way_inner(
+    src: &[u8],
+    candidates: &[&[u8]; 4],
+    stride: usize,
+    block_size: usize,
+) -> [u32; 4] {
+    use std::arch::x86_64::*;
+
+    // We accumulate four 64-bit SAD totals, one per candidate.
+    let mut totals = [0u64; 4];
+
+    // Process row-by-row.  Each row has `block_size` valid pixels (≤ 16).
+    for row in 0..block_size {
+        let base_s = row * stride;
+
+        // Load source row into a 128-bit register.
+        let mut buf_s = [0u8; 16];
+        let src_row = src.get(base_s..).unwrap_or(&[]);
+        let copy_s = block_size.min(src_row.len()).min(16);
+        buf_s[..copy_s].copy_from_slice(&src_row[..copy_s]);
+        let vs: __m128i = _mm_loadu_si128(buf_s.as_ptr().cast::<__m128i>());
+
+        for (ci, cand) in candidates.iter().enumerate() {
+            let base_c = row * stride;
+            let mut buf_c = [0u8; 16];
+            let cand_row = cand.get(base_c..).unwrap_or(&[]);
+            let copy_c = block_size.min(cand_row.len()).min(16);
+            buf_c[..copy_c].copy_from_slice(&cand_row[..copy_c]);
+            let vc: __m128i = _mm_loadu_si128(buf_c.as_ptr().cast::<__m128i>());
+
+            // _mm_sad_epu8: two horizontal sums of 8 abs-diffs → two u64.
+            let sad128: __m128i = _mm_sad_epu8(vs, vc);
+            // Extract the two 64-bit values and add them.
+            let lo = _mm_extract_epi64(sad128, 0) as u64;
+            let hi = _mm_extract_epi64(sad128, 1) as u64;
+            totals[ci] += lo + hi;
+        }
+    }
+
+    [
+        totals[0] as u32,
+        totals[1] as u32,
+        totals[2] as u32,
+        totals[3] as u32,
+    ]
+}
+
+/// Compute SAD between `src` and all four `candidates` in parallel.
+///
+/// Returns `[sad0, sad1, sad2, sad3]` where `sad_i` is the SAD between `src`
+/// and `candidates[i]`.  When AVX-512 is unavailable the function falls back to
+/// four sequential scalar SAD computations so the result is always correct.
+///
+/// `block_size` is the width **and** height of the square block (e.g., 8 for
+/// an 8×8 block).  `stride` is the common row stride for both `src` and every
+/// candidate slice.
+///
+/// # Errors
+///
+/// Returns [`crate::SimdError::InvalidBufferSize`] when `src` or any candidate
+/// is shorter than `block_size * stride` bytes.
+pub fn sad_parallel_4way_avx512(
+    src: &[u8],
+    candidates: &[&[u8]; 4],
+    stride: usize,
+    block_size: usize,
+) -> crate::Result<[u32; 4]> {
+    let min_len = block_size * stride;
+    if src.len() < min_len {
+        return Err(crate::SimdError::InvalidBufferSize);
+    }
+    for (i, cand) in candidates.iter().enumerate() {
+        if cand.len() < min_len {
+            return Err(crate::SimdError::InvalidBufferSize);
+        }
+        let _ = i; // suppress unused warning on non-x86_64
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_x86_feature_detected!("avx512f") && is_x86_feature_detected!("avx512bw") {
+            // SAFETY: features confirmed; buffers validated above.
+            return Ok(unsafe { sad_parallel_4way_inner(src, candidates, stride, block_size) });
+        }
+    }
+
+    // Scalar fallback: compute all four SADs sequentially.
+    Ok([
+        sad_block_scalar(src, candidates[0], stride, block_size),
+        sad_block_scalar(src, candidates[1], stride, block_size),
+        sad_block_scalar(src, candidates[2], stride, block_size),
+        sad_block_scalar(src, candidates[3], stride, block_size),
+    ])
+}
+
+// ── Tests for VNNI SAD and 4-way parallel SAD ────────────────────────────────
+
+#[cfg(test)]
+mod vnni_tests {
+    use super::*;
+
+    #[test]
+    fn sad_8x8_vnni_identical_blocks_returns_zero() {
+        let block = vec![128u8; 8 * 8];
+        let result = sad_8x8_vnni(&block, &block, 8, 8).expect("VNNI SAD 8x8 should succeed");
+        assert_eq!(result, 0, "SAD of identical blocks must be 0");
+    }
+
+    #[test]
+    fn sad_8x8_vnni_known_difference() {
+        // 8x8 block: src=100, ref=120 → difference=20 per pixel, 64 pixels total
+        let src = vec![100u8; 8 * 8];
+        let ref_ = vec![120u8; 8 * 8];
+        let result = sad_8x8_vnni(&src, &ref_, 8, 8).expect("VNNI SAD 8x8 should succeed");
+        assert_eq!(result, 64 * 20, "SAD should be 20 * 64 = 1280");
+    }
+
+    #[test]
+    fn sad_8x8_vnni_matches_scalar() {
+        // Compare VNNI dispatcher against plain scalar computation.
+        let src: Vec<u8> = (0..64).map(|i| (i * 3 % 200) as u8).collect();
+        let ref_: Vec<u8> = (0..64).map(|i| (i * 7 % 200) as u8).collect();
+
+        let vnni_result = sad_8x8_vnni(&src, &ref_, 8, 8).expect("VNNI SAD should succeed");
+
+        let mut scalar_total = 0u32;
+        for row in 0..8usize {
+            for col in 0..8usize {
+                let a = u32::from(src[row * 8 + col]);
+                let b = u32::from(ref_[row * 8 + col]);
+                scalar_total += a.abs_diff(b);
+            }
+        }
+
+        assert_eq!(
+            vnni_result, scalar_total,
+            "VNNI and scalar SAD must agree: vnni={vnni_result} scalar={scalar_total}"
+        );
+    }
+
+    #[test]
+    fn sad_4x4_vnni_identical_blocks_returns_zero() {
+        let block = vec![50u8; 4 * 4];
+        let result = sad_4x4_vnni(&block, &block, 4, 4).expect("VNNI SAD 4x4 should succeed");
+        assert_eq!(result, 0, "SAD of identical blocks must be 0");
+    }
+
+    #[test]
+    fn sad_4x4_vnni_matches_scalar() {
+        let src: Vec<u8> = (0..16).map(|i| (i * 11 % 200) as u8).collect();
+        let ref_: Vec<u8> = (0..16).map(|i| (i * 5 % 200) as u8).collect();
+
+        let vnni_result = sad_4x4_vnni(&src, &ref_, 4, 4).expect("VNNI SAD 4x4 should succeed");
+
+        let mut scalar_total = 0u32;
+        for row in 0..4usize {
+            for col in 0..4usize {
+                let a = u32::from(src[row * 4 + col]);
+                let b = u32::from(ref_[row * 4 + col]);
+                scalar_total += a.abs_diff(b);
+            }
+        }
+
+        assert_eq!(
+            vnni_result, scalar_total,
+            "VNNI and scalar SAD 4x4 must agree: vnni={vnni_result} scalar={scalar_total}"
+        );
+    }
+
+    #[test]
+    fn sad_vnni_buffer_too_small_returns_error() {
+        let small = vec![0u8; 4];
+        let full = vec![0u8; 64];
+        assert!(
+            sad_8x8_vnni(&small, &full, 8, 8).is_err(),
+            "too-small src should return error"
+        );
+        assert!(
+            sad_8x8_vnni(&full, &small, 8, 8).is_err(),
+            "too-small ref should return error"
+        );
+    }
+
+    #[test]
+    fn sad_parallel_4way_identical_blocks_all_zero() {
+        let block = vec![128u8; 8 * 8];
+        let candidates = [
+            block.as_slice(),
+            block.as_slice(),
+            block.as_slice(),
+            block.as_slice(),
+        ];
+        let result =
+            sad_parallel_4way_avx512(&block, &candidates, 8, 8).expect("4-way SAD should succeed");
+        assert_eq!(
+            result, [0u32; 4],
+            "all SADs against identical block must be 0"
+        );
+    }
+
+    #[test]
+    fn sad_parallel_4way_known_values() {
+        // Source block: all 100.  Candidates: 110, 120, 130, 140.
+        // SAD for each = 64 * offset.
+        let src = vec![100u8; 64];
+        let c0 = vec![110u8; 64];
+        let c1 = vec![120u8; 64];
+        let c2 = vec![130u8; 64];
+        let c3 = vec![140u8; 64];
+        let candidates = [c0.as_slice(), c1.as_slice(), c2.as_slice(), c3.as_slice()];
+        let result =
+            sad_parallel_4way_avx512(&src, &candidates, 8, 8).expect("4-way SAD should succeed");
+        assert_eq!(result[0], 64 * 10, "cand0 SAD");
+        assert_eq!(result[1], 64 * 20, "cand1 SAD");
+        assert_eq!(result[2], 64 * 30, "cand2 SAD");
+        assert_eq!(result[3], 64 * 40, "cand3 SAD");
+    }
+
+    #[test]
+    fn sad_parallel_4way_matches_scalar() {
+        let src: Vec<u8> = (0..64).map(|i| (i * 3 % 255) as u8).collect();
+        let c0: Vec<u8> = (0..64).map(|i| (i * 5 % 255) as u8).collect();
+        let c1: Vec<u8> = (0..64).map(|i| (i * 7 % 255) as u8).collect();
+        let c2: Vec<u8> = (0..64).map(|i| (i * 11 % 255) as u8).collect();
+        let c3: Vec<u8> = (0..64).map(|i| (i * 13 % 255) as u8).collect();
+
+        let candidates = [c0.as_slice(), c1.as_slice(), c2.as_slice(), c3.as_slice()];
+        let result =
+            sad_parallel_4way_avx512(&src, &candidates, 8, 8).expect("4-way SAD should succeed");
+
+        // Verify each against scalar.
+        for (i, cand) in candidates.iter().enumerate() {
+            let scalar_sad: u32 = src
+                .iter()
+                .zip(cand.iter())
+                .map(|(&a, &b)| u32::from(a).abs_diff(u32::from(b)))
+                .sum();
+            assert_eq!(
+                result[i], scalar_sad,
+                "4-way parallel SAD[{i}] = {} but scalar = {scalar_sad}",
+                result[i]
+            );
+        }
+    }
+
+    #[test]
+    fn sad_parallel_4way_buffer_too_small_returns_error() {
+        let small = vec![0u8; 8];
+        let full = vec![0u8; 64];
+        let ok_cands = [
+            full.as_slice(),
+            full.as_slice(),
+            full.as_slice(),
+            full.as_slice(),
+        ];
+        let bad_cands = [
+            small.as_slice(),
+            full.as_slice(),
+            full.as_slice(),
+            full.as_slice(),
+        ];
+
+        assert!(
+            sad_parallel_4way_avx512(&small, &ok_cands, 8, 8).is_err(),
+            "small src should error"
+        );
+        assert!(
+            sad_parallel_4way_avx512(&full, &bad_cands, 8, 8).is_err(),
+            "small candidate should error"
+        );
     }
 }

@@ -10,7 +10,7 @@
 //! - **Bit Depths**: 1, 2, 4, 8, 16 bits per sample
 //! - **Interlacing**: Adam7 interlacing support
 //! - **Filtering**: All five PNG filter types (None, Sub, Up, Average, Paeth)
-//! - **Compression**: DEFLATE compression via flate2 (patent-free)
+//! - **Compression**: DEFLATE compression via oxiarc-deflate (patent-free, pure Rust)
 //! - **Validation**: CRC32 chunk validation
 //! - **Metadata**: Gamma, transparency, and other ancillary chunks
 //!

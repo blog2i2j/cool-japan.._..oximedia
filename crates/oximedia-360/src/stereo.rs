@@ -298,6 +298,145 @@ pub fn stereo_from_depth(
     (left, right)
 }
 
+// ─── RGBA stereo split / merge ────────────────────────────────────────────────
+
+/// Split a packed RGBA stereo frame into separate left and right eye buffers.
+///
+/// Works identically to [`split_stereo_frame`] but with 4-byte pixels (RGBA).
+///
+/// * `data`   — packed RGBA frame (4 bytes per pixel, row-major)
+/// * `width`  — full frame width in pixels
+/// * `height` — full frame height in pixels
+/// * `layout` — stereo packing layout
+///
+/// # Errors
+/// Returns [`VrError::InvalidDimensions`] if dimensions are incompatible.
+/// Returns [`VrError::UnsupportedLayout`] for `Mono` and `Alternating`.
+pub fn split_stereo_frame_rgba(
+    data: &[u8],
+    width: u32,
+    height: u32,
+    layout: StereoLayout,
+) -> Result<(Vec<u8>, Vec<u8>), VrError> {
+    const CH: usize = 4;
+    let expected = width as usize * height as usize * CH;
+    if data.len() < expected {
+        return Err(VrError::BufferTooSmall {
+            expected,
+            got: data.len(),
+        });
+    }
+    if width == 0 || height == 0 {
+        return Err(VrError::InvalidDimensions(
+            "width/height must be > 0".into(),
+        ));
+    }
+
+    match layout {
+        StereoLayout::TopBottom => {
+            if height % 2 != 0 {
+                return Err(VrError::InvalidDimensions(
+                    "TopBottom layout requires even height".into(),
+                ));
+            }
+            let half_h = height / 2;
+            let stride = width as usize * CH;
+            let half_bytes = half_h as usize * stride;
+            let left = data[..half_bytes].to_vec();
+            let right = data[half_bytes..half_bytes * 2].to_vec();
+            Ok((left, right))
+        }
+
+        StereoLayout::LeftRight => {
+            if width % 2 != 0 {
+                return Err(VrError::InvalidDimensions(
+                    "LeftRight layout requires even width".into(),
+                ));
+            }
+            let half_w = (width / 2) as usize;
+            let full_w = width as usize;
+            let row_bytes = full_w * CH;
+            let eye_row_bytes = half_w * CH;
+            let mut left = vec![0u8; height as usize * eye_row_bytes];
+            let mut right = vec![0u8; height as usize * eye_row_bytes];
+
+            for row in 0..height as usize {
+                let src_row = &data[row * row_bytes..(row + 1) * row_bytes];
+                left[row * eye_row_bytes..(row + 1) * eye_row_bytes]
+                    .copy_from_slice(&src_row[..eye_row_bytes]);
+                right[row * eye_row_bytes..(row + 1) * eye_row_bytes]
+                    .copy_from_slice(&src_row[eye_row_bytes..]);
+            }
+            Ok((left, right))
+        }
+
+        StereoLayout::Mono | StereoLayout::Alternating => Err(VrError::UnsupportedLayout(format!(
+            "{layout:?} cannot be split into two eye views from a single frame"
+        ))),
+    }
+}
+
+/// Merge separate RGBA left and right eye buffers into a single packed frame.
+///
+/// Works identically to [`merge_stereo_frames`] but with 4-byte pixels (RGBA).
+///
+/// * `left`, `right` — per-eye pixel data (RGBA, 4 bpp, row-major)
+/// * `width`         — per-eye image width
+/// * `height`        — per-eye image height
+/// * `layout`        — stereo packing layout
+///
+/// # Errors
+/// Returns [`VrError::UnsupportedLayout`] for `Mono` and `Alternating`.
+pub fn merge_stereo_frames_rgba(
+    left: &[u8],
+    right: &[u8],
+    width: u32,
+    height: u32,
+    layout: StereoLayout,
+) -> Result<Vec<u8>, VrError> {
+    const CH: usize = 4;
+
+    match layout {
+        StereoLayout::TopBottom => {
+            let expected = width as usize * height as usize * CH;
+            if left.len() < expected || right.len() < expected {
+                return Err(VrError::BufferTooSmall {
+                    expected,
+                    got: left.len().min(right.len()),
+                });
+            }
+            let mut out = Vec::with_capacity(expected * 2);
+            out.extend_from_slice(&left[..expected]);
+            out.extend_from_slice(&right[..expected]);
+            Ok(out)
+        }
+
+        StereoLayout::LeftRight => {
+            let eye_row = width as usize * CH;
+            let expected = height as usize * eye_row;
+            if left.len() < expected || right.len() < expected {
+                return Err(VrError::BufferTooSmall {
+                    expected,
+                    got: left.len().min(right.len()),
+                });
+            }
+            let full_row = eye_row * 2;
+            let mut out = vec![0u8; height as usize * full_row];
+            for row in 0..height as usize {
+                out[row * full_row..row * full_row + eye_row]
+                    .copy_from_slice(&left[row * eye_row..(row + 1) * eye_row]);
+                out[row * full_row + eye_row..(row + 1) * full_row]
+                    .copy_from_slice(&right[row * eye_row..(row + 1) * eye_row]);
+            }
+            Ok(out)
+        }
+
+        StereoLayout::Mono | StereoLayout::Alternating => Err(VrError::UnsupportedLayout(format!(
+            "{layout:?} cannot be composed from two separate eye views"
+        ))),
+    }
+}
+
 // ─── Quality metric ───────────────────────────────────────────────────────────
 
 /// Stereo quality metrics.
@@ -617,5 +756,136 @@ mod tests {
         let right = vec![255u8; 8 * 4 * 3];
         let err = StereoQuality::compute_parallax_error(&left, &right, 8, 4).expect("compute");
         assert!((err - 255.0).abs() < 1.0);
+    }
+
+    // ── RGBA split / merge ───────────────────────────────────────────────────
+
+    fn solid_frame_rgba(w: u32, h: u32, r: u8, g: u8, b: u8, a: u8) -> Vec<u8> {
+        let mut v = Vec::with_capacity(w as usize * h as usize * 4);
+        for _ in 0..(w * h) {
+            v.push(r);
+            v.push(g);
+            v.push(b);
+            v.push(a);
+        }
+        v
+    }
+
+    #[test]
+    fn rgba_topbottom_split_sizes() {
+        let frame = solid_frame_rgba(64, 32, 10, 20, 30, 255);
+        let (left, right) =
+            split_stereo_frame_rgba(&frame, 64, 32, StereoLayout::TopBottom).expect("split");
+        // Each eye is half the height
+        assert_eq!(left.len(), 64 * 16 * 4);
+        assert_eq!(right.len(), 64 * 16 * 4);
+    }
+
+    #[test]
+    fn rgba_topbottom_merge_roundtrip() {
+        let left = solid_frame_rgba(16, 8, 100, 0, 0, 255);
+        let right = solid_frame_rgba(16, 8, 0, 200, 0, 128);
+        let merged =
+            merge_stereo_frames_rgba(&left, &right, 16, 8, StereoLayout::TopBottom).expect("merge");
+        assert_eq!(merged.len(), 16 * 16 * 4);
+        assert_eq!(merged[0], 100); // left eye red
+        assert_eq!(merged[3], 255); // left eye alpha
+        let half = 16 * 8 * 4;
+        assert_eq!(merged[half + 1], 200); // right eye green
+        assert_eq!(merged[half + 3], 128); // right eye alpha
+    }
+
+    #[test]
+    fn rgba_topbottom_split_then_merge_identity() {
+        let left_half = solid_frame_rgba(16, 8, 42, 84, 126, 200);
+        let right_half = solid_frame_rgba(16, 8, 10, 20, 30, 100);
+        let mut frame = Vec::with_capacity(16 * 16 * 4);
+        frame.extend_from_slice(&left_half);
+        frame.extend_from_slice(&right_half);
+
+        let (l, r) =
+            split_stereo_frame_rgba(&frame, 16, 16, StereoLayout::TopBottom).expect("split");
+        let merged =
+            merge_stereo_frames_rgba(&l, &r, 16, 8, StereoLayout::TopBottom).expect("merge");
+        assert_eq!(merged, frame);
+    }
+
+    #[test]
+    fn rgba_leftright_split_sizes() {
+        let frame = solid_frame_rgba(64, 32, 50, 100, 150, 200);
+        let (left, right) =
+            split_stereo_frame_rgba(&frame, 64, 32, StereoLayout::LeftRight).expect("split");
+        assert_eq!(left.len(), 32 * 32 * 4);
+        assert_eq!(right.len(), 32 * 32 * 4);
+    }
+
+    #[test]
+    fn rgba_leftright_merge_roundtrip() {
+        let left = solid_frame_rgba(8, 4, 200, 0, 0, 255);
+        let right = solid_frame_rgba(8, 4, 0, 0, 200, 128);
+        let merged =
+            merge_stereo_frames_rgba(&left, &right, 8, 4, StereoLayout::LeftRight).expect("merge");
+        assert_eq!(merged.len(), 16 * 4 * 4);
+        assert_eq!(merged[0], 200); // left eye red
+        assert_eq!(merged[3], 255); // left eye alpha
+        assert_eq!(merged[8 * 4 + 2], 200); // right eye blue
+        assert_eq!(merged[8 * 4 + 3], 128); // right eye alpha
+    }
+
+    #[test]
+    fn rgba_leftright_split_then_merge_identity() {
+        let w = 16u32;
+        let h = 4u32;
+        // Build RGBA frame where left half is all red+opaque, right half is all blue+transparent
+        let mut frame = vec![0u8; w as usize * h as usize * 4];
+        for row in 0..h as usize {
+            for col in 0..w as usize {
+                let base = row * w as usize * 4 + col * 4;
+                if col < (w / 2) as usize {
+                    frame[base] = 255; // R
+                    frame[base + 3] = 255; // A
+                } else {
+                    frame[base + 2] = 255; // B
+                    frame[base + 3] = 128; // A
+                }
+            }
+        }
+        let (left, right) =
+            split_stereo_frame_rgba(&frame, w, h, StereoLayout::LeftRight).expect("split");
+        let merged = merge_stereo_frames_rgba(&left, &right, w / 2, h, StereoLayout::LeftRight)
+            .expect("merge");
+        assert_eq!(merged, frame);
+    }
+
+    #[test]
+    fn rgba_odd_height_topbottom_error() {
+        let frame = solid_frame_rgba(8, 7, 0, 0, 0, 255);
+        assert!(split_stereo_frame_rgba(&frame, 8, 7, StereoLayout::TopBottom).is_err());
+    }
+
+    #[test]
+    fn rgba_odd_width_leftright_error() {
+        let frame = solid_frame_rgba(7, 4, 0, 0, 0, 255);
+        assert!(split_stereo_frame_rgba(&frame, 7, 4, StereoLayout::LeftRight).is_err());
+    }
+
+    #[test]
+    fn rgba_mono_unsupported() {
+        let frame = solid_frame_rgba(8, 8, 0, 0, 0, 255);
+        assert!(split_stereo_frame_rgba(&frame, 8, 8, StereoLayout::Mono).is_err());
+        let l = solid_frame_rgba(8, 8, 0, 0, 0, 255);
+        let r = solid_frame_rgba(8, 8, 0, 0, 0, 255);
+        assert!(merge_stereo_frames_rgba(&l, &r, 8, 8, StereoLayout::Mono).is_err());
+    }
+
+    #[test]
+    fn rgba_alternating_unsupported() {
+        let frame = solid_frame_rgba(8, 8, 0, 0, 0, 255);
+        assert!(split_stereo_frame_rgba(&frame, 8, 8, StereoLayout::Alternating).is_err());
+    }
+
+    #[test]
+    fn rgba_buffer_too_small_error() {
+        assert!(split_stereo_frame_rgba(&[0u8; 5], 64, 32, StereoLayout::TopBottom).is_err());
     }
 }

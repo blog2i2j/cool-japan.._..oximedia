@@ -60,6 +60,7 @@ pub mod accel_stats;
 pub mod buffer;
 pub mod cache;
 pub mod cpu_fallback;
+pub mod cpu_simd;
 pub mod device;
 pub mod device_caps;
 pub mod dispatch;
@@ -73,10 +74,13 @@ pub mod pipeline_accel;
 pub mod pool;
 pub mod prefetch;
 pub mod shaders;
+mod stress_tests;
+pub mod subgroup;
 pub mod task_graph;
 pub mod task_scheduler;
 pub mod traits;
 pub mod vulkan;
+pub mod webgpu_backend;
 pub mod workgroup;
 
 // Re-export commonly used items
@@ -94,6 +98,16 @@ pub use ops::color::{
     hlg_to_sdr_tonemap, pq_to_sdr_tonemap, rgb_to_yuv420, yuv420_to_rgb, YuvRange, YuvStandard,
 };
 pub use ops::{alpha_blend, alpha_blend_rgba};
+
+// Re-export GPU compute operations
+pub use ops::affine_gpu::{apply_affine, AffineTransform};
+pub use ops::dct_gpu::{
+    forward_dct_8x8, forward_dct_batch, inverse_dct_8x8, inverse_dct_batch, DctBlock,
+};
+pub use ops::histogram_gpu::{compute_histogram, GpuHistogram, HISTOGRAM_BINS};
+
+// Re-export WebGPU backend
+pub use webgpu_backend::{WebGpuAccelBackend, WebGpuAdapterInfo, WebGpuBackendState};
 
 // Re-export workgroup auto-tuning
 pub use workgroup::{compute_optimal_workgroup, OpType};

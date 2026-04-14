@@ -48,7 +48,7 @@
 #![allow(clippy::cast_possible_truncation)]
 
 use crate::error::{CodecError, CodecResult};
-use flate2::{write::ZlibEncoder, Compression};
+use oxiarc_deflate::ZlibStreamEncoder;
 use std::io::Write;
 
 // =============================================================================
@@ -242,7 +242,7 @@ impl ApngEncoder {
             }
         }
 
-        let mut enc = ZlibEncoder::new(Vec::new(), Compression::default());
+        let mut enc = ZlibStreamEncoder::new(Vec::new(), 6);
         enc.write_all(&filtered).map_err(|e| CodecError::Io(e))?;
         enc.finish().map_err(|e| CodecError::Io(e))
     }

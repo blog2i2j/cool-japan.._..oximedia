@@ -124,7 +124,7 @@ impl AudioEventPattern {
                 bandwidth_hz,
                 energy_threshold,
             },
-            cooldown: Duration::from_millis(1000),
+            cooldown: Duration::from_secs(1),
             enabled: true,
         }
     }
@@ -528,7 +528,7 @@ mod tests {
 
     #[test]
     fn test_sustained_pattern() {
-        let p = AudioEventPattern::sustained("battle", 0.6, Duration::from_millis(2000));
+        let p = AudioEventPattern::sustained("battle", 0.6, Duration::from_secs(2));
         assert_eq!(p.name, "battle");
         assert!(matches!(
             p.detection,

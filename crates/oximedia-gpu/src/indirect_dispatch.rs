@@ -108,7 +108,11 @@ pub enum DispatchStrategy {
 
 /// Compute dispatch arguments from an element count and strategy.
 #[allow(clippy::cast_precision_loss)]
-pub fn compute_dispatch(element_count: u32, workgroup_size: u32, strategy: DispatchStrategy) -> IndirectDispatchArgs {
+pub fn compute_dispatch(
+    element_count: u32,
+    workgroup_size: u32,
+    strategy: DispatchStrategy,
+) -> IndirectDispatchArgs {
     match strategy {
         DispatchStrategy::Linear => {
             let groups = (element_count + workgroup_size - 1) / workgroup_size;
@@ -119,7 +123,11 @@ pub fn compute_dispatch(element_count: u32, workgroup_size: u32, strategy: Dispa
             let gy = (tile_h + workgroup_size - 1) / workgroup_size;
             IndirectDispatchArgs::two_d(gx, gy)
         }
-        DispatchStrategy::Volumetric { vol_w, vol_h, vol_d } => {
+        DispatchStrategy::Volumetric {
+            vol_w,
+            vol_h,
+            vol_d,
+        } => {
             let gx = (vol_w + workgroup_size - 1) / workgroup_size;
             let gy = (vol_h + workgroup_size - 1) / workgroup_size;
             let gz = (vol_d + workgroup_size - 1) / workgroup_size;
@@ -194,15 +202,27 @@ impl IndirectBuffer {
 }
 
 /// Validates that dispatch arguments do not exceed device limits.
-pub fn validate_dispatch_limits(args: &IndirectDispatchArgs, max_per_dimension: u32) -> Result<(), String> {
+pub fn validate_dispatch_limits(
+    args: &IndirectDispatchArgs,
+    max_per_dimension: u32,
+) -> Result<(), String> {
     if args.x > max_per_dimension {
-        return Err(format!("X workgroup count {} exceeds limit {}", args.x, max_per_dimension));
+        return Err(format!(
+            "X workgroup count {} exceeds limit {}",
+            args.x, max_per_dimension
+        ));
     }
     if args.y > max_per_dimension {
-        return Err(format!("Y workgroup count {} exceeds limit {}", args.y, max_per_dimension));
+        return Err(format!(
+            "Y workgroup count {} exceeds limit {}",
+            args.y, max_per_dimension
+        ));
     }
     if args.z > max_per_dimension {
-        return Err(format!("Z workgroup count {} exceeds limit {}", args.z, max_per_dimension));
+        return Err(format!(
+            "Z workgroup count {} exceeds limit {}",
+            args.z, max_per_dimension
+        ));
     }
     Ok(())
 }
@@ -237,7 +257,8 @@ mod tests {
     fn test_to_from_bytes_roundtrip() {
         let original = IndirectDispatchArgs::new(123, 456, 789);
         let bytes = original.to_bytes();
-        let restored = IndirectDispatchArgs::from_bytes(&bytes).expect("deserialization from bytes should succeed");
+        let restored = IndirectDispatchArgs::from_bytes(&bytes)
+            .expect("deserialization from bytes should succeed");
         assert_eq!(original, restored);
     }
 
@@ -271,15 +292,30 @@ mod tests {
 
     #[test]
     fn test_compute_dispatch_tiled() {
-        let args = compute_dispatch(0, 16, DispatchStrategy::Tiled2D { tile_w: 1920, tile_h: 1080 });
+        let args = compute_dispatch(
+            0,
+            16,
+            DispatchStrategy::Tiled2D {
+                tile_w: 1920,
+                tile_h: 1080,
+            },
+        );
         assert_eq!(args.x, 120); // ceil(1920/16)
-        assert_eq!(args.y, 68);  // ceil(1080/16)
+        assert_eq!(args.y, 68); // ceil(1080/16)
         assert_eq!(args.z, 1);
     }
 
     #[test]
     fn test_compute_dispatch_volumetric() {
-        let args = compute_dispatch(0, 8, DispatchStrategy::Volumetric { vol_w: 64, vol_h: 64, vol_d: 32 });
+        let args = compute_dispatch(
+            0,
+            8,
+            DispatchStrategy::Volumetric {
+                vol_w: 64,
+                vol_h: 64,
+                vol_d: 32,
+            },
+        );
         assert_eq!(args.x, 8);
         assert_eq!(args.y, 8);
         assert_eq!(args.z, 4);

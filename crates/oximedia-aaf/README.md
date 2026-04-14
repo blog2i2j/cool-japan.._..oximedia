@@ -26,7 +26,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-aaf = "0.1.1"
+oximedia-aaf = "0.1.3"
 ```
 
 ```rust

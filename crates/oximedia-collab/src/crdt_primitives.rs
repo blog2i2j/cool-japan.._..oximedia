@@ -829,3 +829,127 @@ mod tests {
         assert_eq!(items, vec![1, 3]);
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Proptest: CRDT convergence, idempotency, and commutativity
+// ─────────────────────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod proptest_crdt {
+    use super::*;
+    use proptest::prelude::*;
+
+    // ── GCounter property tests ───────────────────────────────────────────────
+
+    proptest! {
+        /// Any two GCounters that receive the same set of increments converge
+        /// to the same value regardless of the order in which they are merged.
+        #[test]
+        fn prop_gcounter_convergence(
+            node_a in "[a-z]{1,4}",
+            node_b in "[a-z]{1,4}",
+            a_amount in 1u64..=1000u64,
+            b_amount in 1u64..=1000u64,
+        ) {
+            // Replica 1: apply a-ops then b-ops.
+            let mut replica1 = GCounter::new();
+            replica1.increment(&node_a, a_amount);
+            replica1.increment(&node_b, b_amount);
+
+            // Replica 2: apply b-ops then a-ops.
+            let mut replica2 = GCounter::new();
+            replica2.increment(&node_b, b_amount);
+            replica2.increment(&node_a, a_amount);
+
+            // After cross-merge both replicas must report the same value.
+            replica1.merge(&replica2);
+            replica2.merge(&replica1);
+
+            prop_assert_eq!(replica1.value(), replica2.value(),
+                "GCounter convergence violated: r1={} r2={}", replica1.value(), replica2.value());
+        }
+
+        /// Merging a GCounter into itself must be a no-op (idempotency).
+        #[test]
+        fn prop_gcounter_idempotent_merge(
+            node in "[a-z]{1,4}",
+            amount in 1u64..=500u64,
+        ) {
+            let mut counter = GCounter::new();
+            counter.increment(&node, amount);
+            let before = counter.value();
+
+            // Merge with self — value must not change.
+            let copy = counter.clone();
+            counter.merge(&copy);
+
+            prop_assert_eq!(counter.value(), before,
+                "Idempotency violated: before={} after={}", before, counter.value());
+        }
+
+        /// merge(A, B) == merge(B, A) — commutativity of GCounter merge.
+        #[test]
+        fn prop_gcounter_merge_commutative(
+            node_x in "[a-z]{1,4}",
+            node_y in "[a-z]{1,4}",
+            x_amount in 1u64..=1000u64,
+            y_amount in 1u64..=1000u64,
+        ) {
+            let mut a = GCounter::new();
+            a.increment(&node_x, x_amount);
+
+            let mut b = GCounter::new();
+            b.increment(&node_y, y_amount);
+
+            let mut ab = a.clone();
+            ab.merge(&b);
+
+            let mut ba = b.clone();
+            ba.merge(&a);
+
+            prop_assert_eq!(ab.value(), ba.value(),
+                "Commutativity violated: A∪B={} B∪A={}", ab.value(), ba.value());
+        }
+    }
+
+    // ── GSet property tests ───────────────────────────────────────────────────
+
+    proptest! {
+        /// Any two GSets that hold the same elements converge after mutual merge.
+        #[test]
+        fn prop_gset_convergence(
+            elems_a in prop::collection::vec(0u32..=100, 0..=10),
+            elems_b in prop::collection::vec(0u32..=100, 0..=10),
+        ) {
+            let mut replica1: GSet<u32> = GSet::new();
+            let mut replica2: GSet<u32> = GSet::new();
+
+            for &e in &elems_a { replica1.insert(e); }
+            for &e in &elems_b { replica2.insert(e); }
+
+            // Cross-merge.
+            replica1.merge(&replica2);
+            replica2.merge(&replica1);
+
+            let mut s1: Vec<u32> = replica1.iter().copied().collect();
+            let mut s2: Vec<u32> = replica2.iter().copied().collect();
+            s1.sort_unstable();
+            s2.sort_unstable();
+
+            prop_assert_eq!(s1, s2, "GSet convergence violated");
+        }
+
+        /// Merging a GSet with itself is idempotent.
+        #[test]
+        fn prop_gset_idempotent(elems in prop::collection::vec(0u32..=50, 0..=8)) {
+            let mut s: GSet<u32> = GSet::new();
+            for &e in &elems { s.insert(e); }
+            let before_count = s.len();
+
+            let copy = s.clone();
+            s.merge(&copy);
+
+            prop_assert_eq!(s.len(), before_count, "GSet idempotency violated");
+        }
+    }
+}

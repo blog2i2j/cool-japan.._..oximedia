@@ -161,7 +161,10 @@ pub fn validate_media_structure(data: &[u8]) -> ArchiveResult<MediaValidationRes
 pub fn validate_mkv(data: &[u8]) -> MediaValidationResult {
     // 1. EBML magic
     if !data.starts_with(&[0x1A, 0x45, 0xDF, 0xA3]) {
-        return MediaValidationResult::invalid("matroska", "missing EBML magic bytes [1A 45 DF A3]");
+        return MediaValidationResult::invalid(
+            "matroska",
+            "missing EBML magic bytes [1A 45 DF A3]",
+        );
     }
 
     // 2. DocType element — ID 0x4282 (stored as 2 bytes: 42 82)
@@ -250,8 +253,7 @@ pub fn validate_flac(data: &[u8]) -> MediaValidationResult {
         );
     }
 
-    let block_len =
-        ((data[5] as usize) << 16) | ((data[6] as usize) << 8) | (data[7] as usize);
+    let block_len = ((data[5] as usize) << 16) | ((data[6] as usize) << 8) | (data[7] as usize);
     // STREAMINFO must be exactly 34 bytes
     if block_len != 34 {
         return MediaValidationResult::invalid(
@@ -379,16 +381,10 @@ pub fn validate_png(data: &[u8]) -> MediaValidationResult {
     let interlace = ihdr[12];
 
     if width == 0 || width > 0x7FFF_FFFF {
-        return MediaValidationResult::invalid(
-            "png",
-            format!("invalid IHDR width: {width}"),
-        );
+        return MediaValidationResult::invalid("png", format!("invalid IHDR width: {width}"));
     }
     if height == 0 || height > 0x7FFF_FFFF {
-        return MediaValidationResult::invalid(
-            "png",
-            format!("invalid IHDR height: {height}"),
-        );
+        return MediaValidationResult::invalid("png", format!("invalid IHDR height: {height}"));
     }
     // Valid (bit_depth, color_type) combinations per PNG spec
     let valid_combo = matches!(
@@ -505,7 +501,10 @@ pub fn validate_wav(data: &[u8]) -> MediaValidationResult {
                 audio_format = Some(u16::from_le_bytes([fmt_data[0], fmt_data[1]]));
                 channels = Some(u16::from_le_bytes([fmt_data[2], fmt_data[3]]));
                 sample_rate = Some(u32::from_le_bytes([
-                    fmt_data[4], fmt_data[5], fmt_data[6], fmt_data[7],
+                    fmt_data[4],
+                    fmt_data[5],
+                    fmt_data[6],
+                    fmt_data[7],
                 ]));
             }
             break;
@@ -642,7 +641,7 @@ pub fn validate_jpeg(data: &[u8]) -> MediaValidationResult {
     }
 
     // 1. SOI
-    if &data[..2] != &[0xFF, 0xD8] {
+    if data[..2] != [0xFF, 0xD8] {
         return MediaValidationResult::invalid("jpeg", "missing SOI marker (FF D8)");
     }
 
@@ -681,9 +680,8 @@ pub fn validate_jpeg(data: &[u8]) -> MediaValidationResult {
         warnings.push("EOI marker (FF D9) not found at end — file may be truncated".to_string());
     }
     if !found_sof {
-        warnings.push(
-            "no SOF marker found — progressive/baseline frame marker missing".to_string(),
-        );
+        warnings
+            .push("no SOF marker found — progressive/baseline frame marker missing".to_string());
     }
 
     if warnings.is_empty() {
@@ -720,9 +718,7 @@ fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {
     if needle.is_empty() || haystack.len() < needle.len() {
         return None;
     }
-    haystack
-        .windows(needle.len())
-        .position(|w| w == needle)
+    haystack.windows(needle.len()).position(|w| w == needle)
 }
 
 // ---------------------------------------------------------------------------
@@ -851,9 +847,7 @@ mod tests {
             (((sample_rate & 0x0F) << 4) | ((ch_m1 & 0x07) << 1) | ((bps_m1 >> 4) & 0x01)) as u8,
         );
         // Byte 13: bps[3:0] | ts[35:32]
-        data.push(
-            ((bps_m1 & 0x0F) << 4) as u8 | (((total_samples >> 32) & 0x0F) as u8),
-        );
+        data.push(((bps_m1 & 0x0F) << 4) as u8 | (((total_samples >> 32) & 0x0F) as u8));
         // Bytes 14..17: ts[31:0]
         data.extend_from_slice(&(total_samples as u32).to_be_bytes());
 
@@ -900,15 +894,15 @@ mod tests {
         // so passing 0 would underflow. We manually craft a zero.
         let mut data = make_flac_streaminfo(44100, 2, 16);
         // Zero out byte 12 (contains channel bits) channel bits are bits [3:1]
-        data[8 + 4] = data[8 + 4] & !0x0E; // zero out channel field
-        // This sets channels = 0+1 = 1 actually. Let's craft proper zero.
-        // The channel field is (si[12] & 0x0E) >> 1, so set bits [3:1] = 0b111 first
-        // actually channels = ((si[12] & 0x0E) >> 1) + 1, so minimum is 1. Cannot be 0.
-        // Instead, set it to 8 (maximum valid = 8) and then 9 (invalid).
-        // Force channels to be 9 by setting ch_m1 = 8 (3 bits = 0b1000 overflows → use raw)
-        // We'll just modify byte 12 to set ch[2:0] = 0b111 → ch_m1=7 → ch=8 (valid)
-        // Actually the max valid is 8, so let's test sample rate instead (already covered).
-        // Just verify the valid case works.
+        data[8 + 4] &= !0x0E; // zero out channel field
+                              // This sets channels = 0+1 = 1 actually. Let's craft proper zero.
+                              // The channel field is (si[12] & 0x0E) >> 1, so set bits [3:1] = 0b111 first
+                              // actually channels = ((si[12] & 0x0E) >> 1) + 1, so minimum is 1. Cannot be 0.
+                              // Instead, set it to 8 (maximum valid = 8) and then 9 (invalid).
+                              // Force channels to be 9 by setting ch_m1 = 8 (3 bits = 0b1000 overflows → use raw)
+                              // We'll just modify byte 12 to set ch[2:0] = 0b111 → ch_m1=7 → ch=8 (valid)
+                              // Actually the max valid is 8, so let's test sample rate instead (already covered).
+                              // Just verify the valid case works.
         let result = validate_flac(&data);
         assert!(result.outcome.is_ok());
     }
@@ -1107,7 +1101,7 @@ mod tests {
         data.extend_from_slice(&[0x03, 0x00]); // version
         data.push(0x00); // flags
         data.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]); // size = 0
-        // Then MPEG frame
+                                                           // Then MPEG frame
         data.extend_from_slice(&[0xFF, 0xFB, 0x90, 0x00]);
         let result = validate_mp3(&data);
         assert!(result.outcome.is_ok(), "outcome: {}", result.outcome);
@@ -1131,7 +1125,7 @@ mod tests {
     fn make_jpeg() -> Vec<u8> {
         let mut data = Vec::new();
         data.extend_from_slice(&[0xFF, 0xD8]); // SOI
-        // SOF0 marker
+                                               // SOF0 marker
         data.extend_from_slice(&[0xFF, 0xC0]);
         let sof_len: u16 = 11; // 2-byte len field + 9 bytes
         data.extend_from_slice(&sof_len.to_be_bytes());
@@ -1220,5 +1214,127 @@ mod tests {
     #[test]
     fn test_find_bytes_empty_needle() {
         assert_eq!(find_bytes(b"data", b""), None);
+    }
+
+    // --- New tests for magic-byte format identification (implementation items) ---
+
+    #[test]
+    fn test_dispatch_unknown_format_returns_invalid() {
+        // Random data with no known magic bytes
+        let data = b"\x00\x01\x02\x03unknown format data here";
+        let result = validate_media_structure(data).expect("dispatch should not error");
+        assert!(
+            result.outcome.is_err(),
+            "unknown format should be Invalid, got: {}",
+            result.outcome
+        );
+    }
+
+    #[test]
+    fn test_dispatch_empty_data_returns_error() {
+        let result = validate_media_structure(b"");
+        assert!(result.is_err(), "empty data should be an error");
+    }
+
+    #[test]
+    fn test_dispatch_flac_returns_flac_format() {
+        // Minimal valid FLAC: fLaC marker + STREAMINFO block header + 34-byte STREAMINFO
+        let mut data = b"fLaC".to_vec();
+        // Block header: last-block (1) | type 0 (STREAMINFO) = 0x80, length = 34 = [0, 0, 22h]
+        data.push(0x80); // last block | type 0
+        data.push(0x00);
+        data.push(0x00);
+        data.push(0x22); // 34 bytes
+                         // STREAMINFO 34 bytes: min_block(2) max_block(2) min_frame(3) max_frame(3)
+                         // sample_rate(20bit)|channels(3bit)|bps(5bit)|total_samples(36bit) = 8 bytes
+                         // md5(16 bytes)
+                         // Let's set sample_rate=44100=0xAC44, channels=2, bps=16
+                         // Packing: sr=44100, ch=2, bps=16
+                         // bytes 0-1: min_block = 256
+        data.extend_from_slice(&256u16.to_be_bytes());
+        // bytes 2-3: max_block = 4096
+        data.extend_from_slice(&4096u16.to_be_bytes());
+        // bytes 4-9: min/max frame sizes (3 bytes each) = 0
+        data.extend_from_slice(&[0u8; 6]);
+        // bytes 10-17: sample_rate(20)|channels(3)|bps(5)|total_samples(36)
+        // sr=44100=0x00AC44 → bits [0..19], ch=2→bits[20..22], bps=16→bits[23..27]
+        // sample_rate(20b) = 44100 = 0xAC44
+        // Pack into 5 bytes starting at offset 10:
+        //   byte10 = sr[19:12] = (44100 >> 12) & 0xFF = 0x0A
+        //   byte11 = sr[11:4] = (44100 >> 4) & 0xFF = 0xC4
+        //   byte12 = sr[3:0]<<4 | ch[2:0]<<1 | bps[4]
+        //     sr low nibble = 44100 & 0x0F = 0x04 → 0x40
+        //     channels = 2, encoded as (ch-1) = 1 → bits [2:0] = 0b010 = 0x02 << 1 = 0x04
+        //     bps = 16, encoded as (bps-1) = 15 = 0b01111 → top bit = 0
+        //     byte12 = 0x40 | 0x04 | 0 = 0x44
+        //   byte13 = bps[3:0]<<4 | total_samples[35:32]
+        //     bps low 4 bits = 0xF → 0xF0
+        //     byte13 = 0xF0
+        //   byte14..17 = total_samples[31:0] = 0
+        data.extend_from_slice(&[0x0A, 0xC4, 0x44, 0xF0, 0x00, 0x00, 0x00, 0x00]);
+        // MD5 (16 bytes)
+        data.extend_from_slice(&[0u8; 16]);
+        assert_eq!(data.len() - 4, 4 + 34); // fLaC(4) + header(4) + STREAMINFO(34)
+
+        let result = validate_media_structure(&data).expect("dispatch");
+        assert_eq!(result.format, "flac");
+        assert!(result.outcome.is_ok(), "outcome: {}", result.outcome);
+    }
+
+    #[test]
+    fn test_dispatch_id3_mp3() {
+        // ID3v2 tagged MP3 starts with ID3
+        let mut data = b"ID3".to_vec();
+        data.extend_from_slice(&[0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x10]); // ID3v2 header
+        data.extend_from_slice(&[0xFF, 0xFB, 0x90, 0x00]); // MPEG frame sync
+        data.extend_from_slice(&[0u8; 200]);
+        let result = validate_media_structure(&data).expect("dispatch");
+        assert_eq!(result.format, "mp3");
+    }
+
+    #[test]
+    fn test_dispatch_jpeg_magic() {
+        let data = make_jpeg();
+        let result = validate_media_structure(&data).expect("dispatch");
+        assert_eq!(result.format, "jpeg");
+        assert!(result.outcome.is_ok());
+    }
+
+    #[test]
+    fn test_validation_outcome_display_invalid() {
+        let o = ValidationOutcome::Invalid("bad structure".into());
+        assert!(o.to_string().contains("bad structure"));
+    }
+
+    #[test]
+    fn test_validation_outcome_display_unreadable() {
+        let o = ValidationOutcome::UnreadableOrTruncated("truncated".into());
+        assert!(o.to_string().contains("truncated"));
+    }
+
+    #[test]
+    fn test_validation_outcome_display_warnings() {
+        let o = ValidationOutcome::ValidWithWarnings(vec!["no IEND".into(), "large file".into()]);
+        let s = o.to_string();
+        assert!(s.contains("no IEND"));
+        assert!(s.contains("large file"));
+    }
+
+    #[test]
+    fn test_media_validation_result_notes_propagated() {
+        // Validate a PNG with missing IEND - should have notes
+        let mut data = make_png(10, 10, 8, 2);
+        data.truncate(data.len() - 12); // remove IEND
+        let result = validate_png(&data);
+        // Notes should be populated for warnings
+        match &result.outcome {
+            ValidationOutcome::ValidWithWarnings(_) => {
+                assert!(!result.notes.is_empty(), "should have notes for warnings");
+            }
+            ValidationOutcome::Valid => {
+                // acceptable if no IEND is just silently ignored in this impl
+            }
+            other => panic!("unexpected outcome: {other}"),
+        }
     }
 }

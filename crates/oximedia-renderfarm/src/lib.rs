@@ -120,6 +120,26 @@ pub mod node_affinity_rule;
 pub mod render_checkpoint;
 pub mod telemetry;
 
+// Wired modules (previously undeclared)
+pub mod alert_rule;
+pub mod autoscale;
+pub mod dashboard_api;
+pub mod farm_config;
+pub mod gpu_monitor;
+pub mod job_output_validation;
+pub mod job_template;
+pub mod job_tracker;
+pub mod progress_eta;
+pub mod render_artifact;
+pub mod render_cache;
+pub mod render_template;
+pub mod renderfarm_extensions;
+pub mod resource_reservation;
+pub mod spot_pricing;
+pub mod worker_benchmark;
+pub mod worker_health;
+pub mod worker_pool_autoscale;
+
 // Re-exports
 pub use api::{ApiConfig, RenderFarmApi};
 pub use coordinator::{Coordinator, CoordinatorConfig};

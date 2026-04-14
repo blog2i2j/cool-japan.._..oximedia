@@ -34,6 +34,7 @@
 //!
 //! ```
 //! use oximedia_effects::saturation::tape::{TapeSaturator, TapeSatConfig};
+//! use oximedia_effects::AudioEffect;
 //!
 //! let config = TapeSatConfig::default();
 //! let mut tape = TapeSaturator::new(config, 48_000.0);

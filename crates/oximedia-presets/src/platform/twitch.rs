@@ -185,7 +185,7 @@ pub fn twitch_480p30() -> Preset {
         video_codec: Some("h264".to_string()),
         audio_codec: Some("aac".to_string()),
         video_bitrate: Some(1_500_000), // 1.5 Mbps
-        audio_bitrate: Some(96_000),    // 96 kbps AAC
+        audio_bitrate: Some(128_000),   // 128 kbps AAC (Twitch minimum)
         width: Some(854),
         height: Some(480),
         frame_rate: Some((30, 1)),

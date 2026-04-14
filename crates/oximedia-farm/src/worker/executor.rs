@@ -260,10 +260,7 @@ mod tests {
         let executor = TaskExecutor::new();
         let task_id = TaskId::new();
 
-        let result = executor
-            .execute(task_id, vec![])
-            .await
-            .expect("failed to execute");
+        let result = executor.execute(task_id, vec![]).await.unwrap();
         assert!(result.success);
         assert_eq!(result.task_id, task_id);
     }
@@ -330,9 +327,7 @@ mod tests {
         }
 
         executor.update_progress(task_id, 0.5);
-        let progress = executor
-            .get_progress(task_id)
-            .expect("get_progress should succeed");
+        let progress = executor.get_progress(task_id).unwrap();
         assert!((progress - 0.5).abs() < 0.01);
     }
 
@@ -354,10 +349,7 @@ mod tests {
             );
         }
 
-        executor
-            .cancel_task(task_id)
-            .await
-            .expect("await should be valid");
+        executor.cancel_task(task_id).await.unwrap();
         assert_eq!(executor.active_task_count(), 0);
     }
 }

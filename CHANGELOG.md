@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-04-15
+
+### Added
+- `JobProgress` tracking in `oximedia-farm` job queue
+- `bit_depth()` method on `SampleFormat` in `oximedia-core`
+- `output_validator`, `worker_health`, `auto_scaler`, `cloud_storage` modules now public in `oximedia-farm`
+
+### Fixed
+- VU meter ballistics -Inf poisoning when processing zero-amplitude samples (`oximedia-audio`)
+- Subtitle chain comma replacement corrupting subtitle text (`oximedia-convert`)
+- ABR rate control overflow in lookahead multiplier calculation (`oximedia-codec`)
+- Scene cut detection depth limit missing spikes beyond index 4 (`oximedia-codec`)
+- EWA resampling weight table returning non-empty on zero source dimensions (`oximedia-scaling`)
+- Audio codec validation rejecting patent-free codecs only (`oximedia-cli`)
+- Module conflict between `processor.rs` and `processor/mod.rs` (`oximedia-image-transform`)
+- Broken intra-doc links in `oximedia-routing`, `oximedia-server`, `oximedia-container`, `oximedia-neural`, `oximedia-review`, `oximedia-effects`
+- Multiple clippy warnings across workspace
+
+### Changed
+- Replaced banned `lz4` dependency with `lz4_flex` in `oximedia-collab` and `oximedia-renderfarm`
+- Replaced `zstd` with `lz4_flex` compression in `oximedia-renderfarm` storage
+- Updated workspace metadata: authors, homepage fields standardized across all crates
+
+### Improved
+- 80,393 tests passing (up from 70,800+ in v0.1.2)
+- Zero clippy warnings with `-D warnings`
+- Clean rustdoc build with strict flags
+- 2.65M SLOC across 106 crates
+
 ## [0.1.2] - 2026-03-16
 
 ### Added

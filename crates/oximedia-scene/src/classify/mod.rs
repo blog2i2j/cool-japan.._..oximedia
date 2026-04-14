@@ -9,19 +9,23 @@
 //! - **Shot type**: Close-up, medium, wide, establishing
 //! - **Color palette**: Dominant colors via k-means
 
+pub mod batch;
 pub mod color_palette;
 pub mod content;
 pub mod mood;
 pub mod quality;
 pub mod scene;
 pub mod shot_type;
+pub mod temporal_smooth;
 
+pub use batch::{BatchClassifier, BatchConfig, BatchFrameResult, FrameRef};
 pub use color_palette::{ColorPalette, ColorPaletteExtractor, PaletteColor, PaletteConfig};
 pub use content::{ContentClassifier, ContentType};
 pub use mood::{MoodAnalysis, MoodAnalyzer, MoodCategory, MoodFeatures};
 pub use quality::{QualityClassifier, QualityMetrics};
-pub use scene::{SceneClassifier, SceneType};
+pub use scene::{SceneClassifier, SceneType, SmoothedSceneClassifier};
 pub use shot_type::{ShotClassification, ShotFeatures, ShotType, ShotTypeClassifier};
+pub use temporal_smooth::TemporalSmoother;
 
 use crate::error::{SceneError, SceneResult};
 

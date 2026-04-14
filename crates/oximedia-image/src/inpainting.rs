@@ -1032,6 +1032,228 @@ pub fn inpaint_image(
 }
 
 // ---------------------------------------------------------------------------
+// Guided filter
+// ---------------------------------------------------------------------------
+
+/// Parameters for the guided image filter.
+///
+/// The guided filter (He et al., 2013) is a structure-aware edge-preserving
+/// filter with O(N) complexity. A *guide image* `I` controls which edges are
+/// preserved. When `I == p` (self-guided mode), it behaves like a bilateral
+/// filter but is strictly O(N) per pass.
+///
+/// The filter fits a locally linear model between the guide and the output:
+///
+/// `q_i = a_k · I_i + b_k` for all `i ∈ ω_k`
+///
+/// where `ω_k` is a window of radius `r` and `(a_k, b_k)` are solved by
+/// ridge regression with regularisation `ε²`.
+#[derive(Debug, Clone, Copy)]
+pub struct GuidedFilterParams {
+    /// Half-size of the local averaging window (pixels). Diameter = 2r + 1.
+    pub radius: usize,
+    /// Regularisation parameter (typical 0.001–0.1 for images normalised to `[0, 1]`).
+    pub epsilon: f32,
+}
+
+impl GuidedFilterParams {
+    /// Creates new guided filter parameters.
+    #[must_use]
+    pub fn new(radius: usize, epsilon: f32) -> Self {
+        Self { radius, epsilon }
+    }
+}
+
+impl Default for GuidedFilterParams {
+    fn default() -> Self {
+        Self {
+            radius: 4,
+            epsilon: 0.01,
+        }
+    }
+}
+
+/// Compute the sliding-window mean of a 1-D slice (clamp-to-edge border).
+#[allow(clippy::cast_precision_loss)]
+fn box_mean_1d(src: &[f32], radius: usize) -> Vec<f32> {
+    let n = src.len();
+    if n == 0 {
+        return Vec::new();
+    }
+    let mut out = vec![0.0_f32; n];
+    for i in 0..n {
+        let lo = i.saturating_sub(radius);
+        let hi = (i + radius + 1).min(n);
+        let count = (hi - lo) as f32;
+        let sum: f32 = src[lo..hi].iter().sum();
+        out[i] = sum / count;
+    }
+    out
+}
+
+/// 2-D separable box-mean filter on a row-major single-channel image.
+#[allow(clippy::cast_precision_loss)]
+fn box_mean_2d(src: &[f32], width: usize, height: usize, radius: usize) -> Vec<f32> {
+    if width == 0 || height == 0 {
+        return vec![0.0; src.len()];
+    }
+    // Horizontal pass — filter each row independently
+    let mut h_pass = vec![0.0_f32; width * height];
+    for y in 0..height {
+        let row = &src[y * width..(y + 1) * width];
+        let filtered = box_mean_1d(row, radius);
+        h_pass[y * width..(y + 1) * width].copy_from_slice(&filtered);
+    }
+    // Vertical pass — filter each column independently
+    let mut v_pass = vec![0.0_f32; width * height];
+    for x in 0..width {
+        let col: Vec<f32> = (0..height).map(|y| h_pass[y * width + x]).collect();
+        let filtered = box_mean_1d(&col, radius);
+        for (y, &val) in filtered.iter().enumerate() {
+            v_pass[y * width + x] = val;
+        }
+    }
+    v_pass
+}
+
+/// Apply the guided filter to `src` using `guide` for structure preservation.
+///
+/// Both `src` and `guide` are single-channel `f32` images in `[0, 1]` with
+/// length `width × height` (row-major).
+///
+/// When `guide == src` this reduces to a self-guided (edge-preserving) filter.
+///
+/// # Returns
+///
+/// A `Vec<f32>` of length `width * height`.
+///
+/// # Panics
+///
+/// Panics if `src.len() != width * height` or `guide.len() != width * height`.
+#[allow(clippy::cast_precision_loss)]
+pub fn guided_filter(
+    src: &[f32],
+    guide: &[f32],
+    width: usize,
+    height: usize,
+    params: &GuidedFilterParams,
+) -> Vec<f32> {
+    let n = width * height;
+    assert_eq!(src.len(), n, "src length must equal width*height");
+    assert_eq!(guide.len(), n, "guide length must equal width*height");
+
+    if n == 0 {
+        return Vec::new();
+    }
+
+    let r = params.radius;
+    let eps = params.epsilon;
+
+    // Step 1 — compute means of I (guide), p (src), I², I·p
+    let mean_i = box_mean_2d(guide, width, height, r);
+    let mean_p = box_mean_2d(src, width, height, r);
+
+    let ii: Vec<f32> = guide.iter().map(|&v| v * v).collect();
+    let ip: Vec<f32> = guide.iter().zip(src.iter()).map(|(&i, &p)| i * p).collect();
+    let mean_ii = box_mean_2d(&ii, width, height, r);
+    let mean_ip = box_mean_2d(&ip, width, height, r);
+
+    // Step 2 — solve ridge-regression coefficients per window
+    let mut a_coeffs = vec![0.0_f32; n];
+    let mut b_coeffs = vec![0.0_f32; n];
+    for i in 0..n {
+        let var_i = mean_ii[i] - mean_i[i] * mean_i[i];
+        let cov_ip = mean_ip[i] - mean_i[i] * mean_p[i];
+        let a = cov_ip / (var_i + eps);
+        let b = mean_p[i] - a * mean_i[i];
+        a_coeffs[i] = a;
+        b_coeffs[i] = b;
+    }
+
+    // Step 3 — average coefficients over windows
+    let mean_a = box_mean_2d(&a_coeffs, width, height, r);
+    let mean_b = box_mean_2d(&b_coeffs, width, height, r);
+
+    // Step 4 — reconstruct output q = mean_a · I + mean_b
+    guide
+        .iter()
+        .zip(mean_a.iter().zip(mean_b.iter()))
+        .map(|(&i_val, (&ma, &mb))| ma * i_val + mb)
+        .collect()
+}
+
+/// Apply the guided filter in self-guided mode (`guide == src`).
+///
+/// Equivalent to `guided_filter(src, src, width, height, params)`.
+///
+/// # Panics
+///
+/// Panics if `src.len() != width * height`.
+pub fn guided_filter_self(
+    src: &[f32],
+    width: usize,
+    height: usize,
+    params: &GuidedFilterParams,
+) -> Vec<f32> {
+    guided_filter(src, src, width, height, params)
+}
+
+/// Fill masked pixels in a `u8` image using the guided filter.
+///
+/// The guided filter uses `guide` to constrain which edges are preserved when
+/// estimating the values for masked pixels. Unmasked pixels are left unchanged.
+///
+/// # Arguments
+///
+/// * `src`    — grayscale u8 image with holes (values at masked positions are
+///   ignored).
+/// * `guide`  — grayscale u8 guide image (same size as `src`; often a
+///   lower-frequency or reference image).
+/// * `mask`   — per-pixel mask (u8); values `>= 128` denote pixels to fill.
+/// * `width`, `height` — image dimensions.
+/// * `params` — guided filter parameters.
+///
+/// # Returns
+///
+/// A `Vec<u8>` with masked pixels filled by the guided-filter estimate.
+///
+/// # Panics
+///
+/// Panics if `src`, `guide`, and `mask` do not all have length
+/// `width * height`.
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+pub fn guided_inpaint(
+    src: &[u8],
+    guide: &[u8],
+    mask: &[u8],
+    width: usize,
+    height: usize,
+    params: &GuidedFilterParams,
+) -> Vec<u8> {
+    let n = width * height;
+    assert_eq!(src.len(), n, "src length mismatch");
+    assert_eq!(guide.len(), n, "guide length mismatch");
+    assert_eq!(mask.len(), n, "mask length mismatch");
+
+    let src_f32: Vec<f32> = src.iter().map(|&v| v as f32 / 255.0).collect();
+    let guide_f32: Vec<f32> = guide.iter().map(|&v| v as f32 / 255.0).collect();
+
+    let filtered = guided_filter(&src_f32, &guide_f32, width, height, params);
+
+    src.iter()
+        .zip(filtered.iter())
+        .zip(mask.iter())
+        .map(|((&orig, &filt), &m)| {
+            if m >= 128 {
+                (filt * 255.0).clamp(0.0, 255.0).round() as u8
+            } else {
+                orig
+            }
+        })
+        .collect()
+}
+
+// ---------------------------------------------------------------------------
 // New inpainting API tests
 // ---------------------------------------------------------------------------
 
@@ -1166,5 +1388,120 @@ mod new_inpaint_tests {
         let mask = zero_mask(16);
         let out = inpaint_image(&img, &mask, 4, 4, &InpaintConfig::default());
         assert_eq!(out.len(), 16);
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Guided filter tests
+// ---------------------------------------------------------------------------
+
+#[cfg(test)]
+mod guided_filter_tests {
+    use super::*;
+
+    #[test]
+    fn test_guided_filter_params_default() {
+        let p = GuidedFilterParams::default();
+        assert_eq!(p.radius, 4);
+        assert!(p.epsilon > 0.0);
+    }
+
+    #[test]
+    fn test_guided_filter_params_new() {
+        let p = GuidedFilterParams::new(6, 0.05);
+        assert_eq!(p.radius, 6);
+        assert!((p.epsilon - 0.05).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_guided_filter_uniform_image_unchanged() {
+        let src = vec![0.5_f32; 8 * 8];
+        let p = GuidedFilterParams::new(2, 0.01);
+        let out = guided_filter(&src, &src, 8, 8, &p);
+        for &v in &out {
+            assert!((v - 0.5).abs() < 1e-4, "expected 0.5, got {v}");
+        }
+    }
+
+    #[test]
+    fn test_guided_filter_output_length() {
+        let src = vec![0.3_f32; 6 * 6];
+        let p = GuidedFilterParams::default();
+        let out = guided_filter(&src, &src, 6, 6, &p);
+        assert_eq!(out.len(), 36);
+    }
+
+    #[test]
+    fn test_guided_filter_self_matches_guided_with_self() {
+        let src: Vec<f32> = (0..25).map(|i| i as f32 / 25.0).collect();
+        let p = GuidedFilterParams::new(2, 0.01);
+        let out1 = guided_filter(&src, &src, 5, 5, &p);
+        let out2 = guided_filter_self(&src, 5, 5, &p);
+        for (a, b) in out1.iter().zip(out2.iter()) {
+            assert!((a - b).abs() < 1e-6, "mismatch: {a} vs {b}");
+        }
+    }
+
+    #[test]
+    fn test_guided_filter_smooths_noise() {
+        let mut src: Vec<f32> = (0..100).map(|i| i as f32 / 100.0).collect();
+        src[50] = 0.99;
+        let p = GuidedFilterParams::new(3, 0.1);
+        let out = guided_filter_self(&src, 100, 1, &p);
+        // Spike should be attenuated towards the smooth gradient value
+        let spike_orig = 0.99_f32;
+        let spike_out = out[50];
+        // With high epsilon, the filter smooths heavily; output closer to ~0.5
+        assert!(
+            (spike_out - spike_orig).abs() > 0.01,
+            "spike should be attenuated: orig={spike_orig}, out={spike_out}"
+        );
+    }
+
+    #[test]
+    fn test_guided_inpaint_no_mask_unchanged() {
+        let src = vec![128u8; 5 * 5];
+        let guide = vec![100u8; 5 * 5];
+        let mask = vec![0u8; 5 * 5];
+        let p = GuidedFilterParams::default();
+        let out = guided_inpaint(&src, &guide, &mask, 5, 5, &p);
+        assert_eq!(out, src);
+    }
+
+    #[test]
+    fn test_guided_inpaint_output_length() {
+        let src = vec![100u8; 4 * 4];
+        let guide = vec![100u8; 4 * 4];
+        let mask = vec![0u8; 4 * 4];
+        let p = GuidedFilterParams::new(1, 0.01);
+        let out = guided_inpaint(&src, &guide, &mask, 4, 4, &p);
+        assert_eq!(out.len(), 16);
+    }
+
+    #[test]
+    fn test_guided_inpaint_masked_pixel_filled() {
+        // 5x5 image of all 200 with one masked pixel
+        let mut src = vec![200u8; 5 * 5];
+        src[12] = 0;
+        let guide = vec![200u8; 5 * 5];
+        let mut mask = vec![0u8; 5 * 5];
+        mask[12] = 255;
+        let p = GuidedFilterParams::new(2, 0.01);
+        let out = guided_inpaint(&src, &guide, &mask, 5, 5, &p);
+        assert!(
+            out[12] > 100,
+            "masked pixel should be filled near 200, got {}",
+            out[12]
+        );
+    }
+
+    #[test]
+    fn test_guided_inpaint_known_pixels_unchanged() {
+        let src: Vec<u8> = (0..16_u8).collect();
+        let guide = src.clone();
+        let mask = vec![0u8; 16];
+        let p = GuidedFilterParams::new(1, 0.001);
+        let out = guided_inpaint(&src, &guide, &mask, 4, 4, &p);
+        assert_eq!(out, src);
     }
 }

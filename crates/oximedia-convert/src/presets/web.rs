@@ -363,10 +363,10 @@ mod tests {
 
     #[test]
     fn test_youtube_1080p() {
-        let preset = youtube_1080p().expect("web preset should be valid");
+        let preset = youtube_1080p().unwrap();
         assert_eq!(preset.container, ContainerFormat::Mp4);
         assert!(preset.video.is_some());
-        let video = preset.video.expect("web preset should be valid");
+        let video = preset.video.unwrap();
         assert_eq!(video.width, Some(1920));
         assert_eq!(video.height, Some(1080));
         assert_eq!(video.codec, VideoCodec::Vp9);
@@ -374,16 +374,16 @@ mod tests {
 
     #[test]
     fn test_youtube_4k() {
-        let preset = youtube_4k().expect("web preset should be valid");
-        let video = preset.video.expect("web preset should be valid");
+        let preset = youtube_4k().unwrap();
+        let video = preset.video.unwrap();
         assert_eq!(video.width, Some(3840));
         assert_eq!(video.height, Some(2160));
     }
 
     #[test]
     fn test_instagram_story() {
-        let preset = instagram_story().expect("web preset should be valid");
-        let video = preset.video.expect("web preset should be valid");
+        let preset = instagram_story().unwrap();
+        let video = preset.video.unwrap();
         assert_eq!(video.width, Some(1080));
         assert_eq!(video.height, Some(1920)); // 9:16 aspect ratio
     }

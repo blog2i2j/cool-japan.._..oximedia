@@ -245,4 +245,140 @@ mod tests {
         assert_eq!(cb2.failure_count(), 1);
         assert_eq!(cb2.state(), cb.state());
     }
+
+    // ── Additional state-transition tests ────────────────────────────────────
+
+    #[test]
+    fn test_initial_state_is_closed() {
+        let cb = CircuitBreaker::new(5, Duration::from_secs(60), Duration::from_secs(10));
+        assert_eq!(cb.state(), CircuitBreakerState::Closed);
+        assert!(!cb.is_open());
+    }
+
+    #[test]
+    fn test_is_open_false_in_half_open() {
+        // `is_open()` should return `false` when the circuit is HalfOpen,
+        // allowing a probe request through.
+        let cb = CircuitBreaker::new(1, Duration::from_secs(60), Duration::from_millis(50));
+        cb.record_failure(); // → Open
+        assert!(cb.is_open());
+        std::thread::sleep(Duration::from_millis(80));
+        // After recovery window the state should be HalfOpen.
+        assert_eq!(cb.state(), CircuitBreakerState::HalfOpen);
+        assert!(
+            !cb.is_open(),
+            "is_open() must return false in HalfOpen state"
+        );
+    }
+
+    #[test]
+    fn test_failure_in_half_open_reopens() {
+        let cb = CircuitBreaker::new(1, Duration::from_secs(60), Duration::from_millis(50));
+        // Open
+        cb.record_failure();
+        assert_eq!(cb.state(), CircuitBreakerState::Open);
+        // Wait → HalfOpen
+        std::thread::sleep(Duration::from_millis(80));
+        assert_eq!(cb.state(), CircuitBreakerState::HalfOpen);
+        // Failure in HalfOpen → back to Open
+        cb.record_failure();
+        // reset last_failure_time so update_state doesn't immediately re-open
+        assert_eq!(
+            cb.state(),
+            CircuitBreakerState::Open,
+            "failure in HalfOpen should re-open the circuit"
+        );
+    }
+
+    #[test]
+    fn test_success_in_closed_does_not_change_state() {
+        let cb = CircuitBreaker::new(5, Duration::from_secs(60), Duration::from_secs(10));
+        cb.record_success();
+        cb.record_success();
+        assert_eq!(cb.state(), CircuitBreakerState::Closed);
+        assert_eq!(cb.success_count(), 2);
+    }
+
+    #[test]
+    fn test_full_cycle_closed_open_halfopen_closed() {
+        let cb = CircuitBreaker::new(2, Duration::from_secs(60), Duration::from_millis(60));
+        // Closed → Open
+        cb.record_failure();
+        cb.record_failure();
+        assert_eq!(cb.state(), CircuitBreakerState::Open);
+        // Open → HalfOpen (after recovery window)
+        std::thread::sleep(Duration::from_millis(90));
+        assert_eq!(cb.state(), CircuitBreakerState::HalfOpen);
+        // HalfOpen → Closed (success)
+        cb.record_success();
+        assert_eq!(cb.state(), CircuitBreakerState::Closed);
+        assert_eq!(cb.failure_count(), 0, "failure count must reset on Closed");
+    }
+
+    #[test]
+    fn test_second_cycle_after_reset() {
+        let cb = CircuitBreaker::new(3, Duration::from_secs(60), Duration::from_millis(60));
+        // First cycle
+        cb.record_failure();
+        cb.record_failure();
+        cb.record_failure();
+        cb.reset();
+        // Second cycle starts fresh
+        cb.record_failure();
+        cb.record_failure();
+        assert_eq!(cb.state(), CircuitBreakerState::Closed);
+        cb.record_failure();
+        assert_eq!(cb.state(), CircuitBreakerState::Open);
+    }
+
+    #[test]
+    fn test_failure_count_not_reset_on_open() {
+        let cb = CircuitBreaker::new(3, Duration::from_secs(60), Duration::from_secs(10));
+        cb.record_failure();
+        cb.record_failure();
+        cb.record_failure();
+        assert_eq!(cb.failure_count(), 3);
+        // Additional failures while Open should still increment the counter.
+        cb.record_failure();
+        assert_eq!(cb.failure_count(), 4);
+    }
+
+    #[test]
+    fn test_concurrent_record_failure() {
+        use std::sync::Arc;
+        // Concurrent recording must not deadlock and the final failure count
+        // must equal the number of calls made.
+        let cb = Arc::new(CircuitBreaker::new(
+            1000,
+            Duration::from_secs(60),
+            Duration::from_secs(10),
+        ));
+        let mut handles = Vec::new();
+        for _ in 0..10 {
+            let cb_c = cb.clone();
+            let h = std::thread::spawn(move || {
+                for _ in 0..10 {
+                    cb_c.record_failure();
+                }
+            });
+            handles.push(h);
+        }
+        for h in handles {
+            h.join().expect("thread should not panic");
+        }
+        assert_eq!(cb.failure_count(), 100);
+    }
+
+    #[test]
+    fn test_state_getter_consistent_with_is_open() {
+        let cb = CircuitBreaker::new(2, Duration::from_secs(60), Duration::from_secs(10));
+        cb.record_failure();
+        cb.record_failure();
+        // Both APIs should agree
+        assert_eq!(cb.state(), CircuitBreakerState::Open);
+        assert!(cb.is_open());
+        cb.reset();
+        assert_eq!(cb.state(), CircuitBreakerState::Closed);
+        assert!(!cb.is_open());
+    }
 }

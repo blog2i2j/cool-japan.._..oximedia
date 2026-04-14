@@ -77,8 +77,8 @@ pub(crate) enum Commands {
         input: PathBuf,
 
         /// Show detailed information
-        #[arg(short = 'V', long)]
-        verbose: bool,
+        #[arg(long)]
+        detail: bool,
 
         /// Show stream information
         #[arg(short, long)]
@@ -130,7 +130,7 @@ pub(crate) enum Commands {
         #[arg(long = "codec", alias = "c:v")]
         video_codec: Option<String>,
 
-        /// Audio codec: opus, vorbis, flac (FFmpeg-compatible: -c:a)
+        /// Audio codec: opus, vorbis, flac, pcm, aac, mp3 (FFmpeg-compatible: -c:a)
         #[arg(long, alias = "c:a")]
         audio_codec: Option<String>,
 
@@ -1378,8 +1378,8 @@ pub(crate) enum PresetCommand {
         category: Option<String>,
 
         /// Show detailed information
-        #[arg(short, long)]
-        verbose: bool,
+        #[arg(long)]
+        detail: bool,
     },
 
     /// Show detailed information about a preset

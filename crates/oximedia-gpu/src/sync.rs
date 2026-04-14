@@ -33,7 +33,7 @@ impl Fence {
     ///
     /// This should be called after submitting GPU commands that you want to wait for.
     pub fn signal(&self) {
-        self.device.poll(wgpu::Maintain::Wait);
+        let _ = self.device.poll(wgpu::PollType::wait_indefinitely());
         self.signaled.store(true, Ordering::Release);
         self.timestamp.store(
             Instant::now().elapsed().as_nanos() as u64,

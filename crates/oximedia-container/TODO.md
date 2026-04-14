@@ -18,12 +18,12 @@
 - [ ] Add `container_probe.rs` detailed stream analysis (bitrate distribution, keyframe interval)
 
 ## New Features
-- [ ] Implement CAF (Core Audio Format) demuxer/muxer for Apple ecosystem compatibility
+- [x] Implement CAF (Core Audio Format) demuxer/muxer for Apple ecosystem compatibility
 - [ ] Add MPEG-DASH segment template generation in `streaming/`
 - [ ] Implement sample grouping and random access point indexing in `sample_table.rs`
-- [ ] Add subtitle stream muxing support for Matroska (WebVTT/ASS embedded subtitles)
+- [x] Add subtitle stream muxing support for Matroska (WebVTT/ASS embedded subtitles)
 - [ ] Implement `timecode/track.rs` SMPTE timecode track reading for professional workflows
-- [ ] Add multi-angle support in Matroska via `tracks/selector.rs`
+- [x] Add multi-angle support in Matroska via `tracks/selector.rs`
 - [ ] Implement fragmented MP4 (fMP4) live ingest support in `fragment/`
 - [ ] Add MKV attachment extraction and insertion CLI in `attach/matroska.rs`
 

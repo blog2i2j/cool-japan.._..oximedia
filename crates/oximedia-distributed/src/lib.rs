@@ -7,18 +7,26 @@
 //! - Load balancing and fault tolerance
 //! - gRPC-based communication
 
+pub mod audit_log;
 pub mod backpressure;
 pub mod checkpointing;
 pub mod circuit_breaker;
 pub mod cluster;
+pub mod compaction;
+pub mod connection_pool;
 pub mod consensus;
 pub mod coordinator;
 pub mod discovery;
+pub mod distributed_enhancements;
 pub mod fault_tolerance;
 pub mod heartbeat;
+pub mod job_dag;
+pub mod job_preemption;
 pub mod job_tracker;
 pub mod leader_election;
+pub mod lease;
 pub mod load_balancer;
+pub mod membership;
 pub mod message_bus;
 pub mod message_queue;
 pub mod metrics_aggregator;
@@ -32,6 +40,7 @@ pub mod replication;
 pub mod resource_quota;
 pub mod scheduler;
 pub mod segment;
+pub mod segment_merge;
 pub mod shard;
 pub mod shard_map;
 pub mod snapshot_store;
@@ -39,8 +48,11 @@ pub mod task_distribution;
 pub mod task_priority_queue;
 pub mod task_queue;
 pub mod task_retry;
+pub mod twopc;
+pub mod weighted_round_robin;
 pub mod work_stealing;
 pub mod worker;
+pub mod worker_draining;
 
 use std::collections::HashMap;
 use std::sync::Arc;

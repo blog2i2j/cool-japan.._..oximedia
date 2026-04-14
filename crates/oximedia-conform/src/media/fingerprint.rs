@@ -52,7 +52,7 @@ pub fn generate_fingerprint<P: AsRef<Path>>(path: P) -> ConformResult<Fingerprin
     }
 
     Ok(Fingerprint {
-        md5: format!("{:x}", md5_context.finalize()),
+        md5: hex::encode(*md5_context.finalize()),
         xxhash: format!("{:x}", xxh_hasher.digest()),
     })
 }

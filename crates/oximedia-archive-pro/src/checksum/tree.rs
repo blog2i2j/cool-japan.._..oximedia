@@ -143,7 +143,7 @@ impl MerkleTree {
             ChecksumAlgorithm::Sha256 => {
                 let mut hasher = Sha256::new();
                 hasher.update(combined.as_bytes());
-                format!("{:x}", hasher.finalize())
+                hex::encode(hasher.finalize())
             }
             ChecksumAlgorithm::Blake3 => {
                 let mut hasher = Blake3Hasher::new();
@@ -154,7 +154,7 @@ impl MerkleTree {
                 // Default to SHA-256 for other algorithms
                 let mut hasher = Sha256::new();
                 hasher.update(combined.as_bytes());
-                format!("{:x}", hasher.finalize())
+                hex::encode(hasher.finalize())
             }
         }
     }

@@ -17,7 +17,7 @@
 //! ```no_run
 //! use oximedia_cv::enhance::{NeuralDenoiser, NoiseLevel};
 //!
-//! let denoiser = NeuralDenoiser::new("denoiser.onnx")?;
+//! let mut denoiser = NeuralDenoiser::new("denoiser.onnx")?;
 //! let noisy_image = vec![0u8; 512 * 512 * 3];
 //! let denoised = denoiser.denoise(&noisy_image, 512, 512)?;
 //! # Ok::<(), oximedia_cv::error::CvError>(())
@@ -29,9 +29,8 @@
 
 use crate::error::{CvError, CvResult};
 use ndarray::Array4;
-use ort::session::builder::GraphOptimizationLevel;
-use ort::session::Session;
-use ort::value::Value;
+use oxionnx::Session;
+use std::collections::HashMap;
 use std::path::Path;
 
 /// Noise level for denoising.
@@ -223,10 +222,8 @@ impl NeuralDenoiser {
     /// ```
     pub fn new(model_path: impl AsRef<Path>) -> CvResult<Self> {
         let session = Session::builder()
-            .map_err(|e| CvError::onnx_runtime(format!("Failed to create session builder: {e}")))?
-            .with_optimization_level(GraphOptimizationLevel::Level3)
-            .map_err(|e| CvError::onnx_runtime(format!("Failed to set optimization level: {e}")))?
-            .commit_from_file(model_path.as_ref())
+            .with_optimization_level(oxionnx::OptLevel::All)
+            .load(model_path.as_ref())
             .map_err(|e| CvError::model_load(format!("Failed to load model: {e}")))?;
 
         Ok(Self {
@@ -277,7 +274,7 @@ impl NeuralDenoiser {
     /// ```no_run
     /// use oximedia_cv::enhance::NeuralDenoiser;
     ///
-    /// let denoiser = NeuralDenoiser::new("denoiser.onnx")?;
+    /// let mut denoiser = NeuralDenoiser::new("denoiser.onnx")?;
     /// let noisy = vec![0u8; 512 * 512 * 3];
     /// let clean = denoiser.denoise(&noisy, 512, 512)?;
     /// # Ok::<(), oximedia_cv::error::CvError>(())
@@ -307,23 +304,38 @@ impl NeuralDenoiser {
         // Preprocess: RGB u8 -> normalized float32 [1, 3, H, W]
         let input_tensor = self.preprocess_image(image, width, height)?;
 
-        // Convert to ONNX Value
-        let input_value = Value::from_array(input_tensor)
-            .map_err(|e| CvError::onnx_runtime(format!("Failed to create input tensor: {e}")))?;
+        // Convert ndarray → oxionnx Tensor
+        let flat: Vec<f32> = input_tensor.iter().copied().collect();
+        let shape: Vec<usize> = input_tensor.shape().to_vec();
+        let tensor = oxionnx::Tensor::new(flat, shape);
 
-        // Run inference and extract owned data to release the session borrow
-        let (shape_owned, data_owned) = {
-            let outputs = self
-                .session
-                .run(ort::inputs![input_value])
-                .map_err(|e| CvError::onnx_runtime(format!("Inference failed: {e}")))?;
-            let (shape, data) = outputs[0].try_extract_tensor::<f32>().map_err(|e| {
-                CvError::tensor_error(format!("Failed to extract output tensor: {e}"))
-            })?;
-            let shape_owned: Vec<i64> = shape.iter().copied().collect();
-            let data_owned: Vec<f32> = data.to_vec();
-            (shape_owned, data_owned)
-        };
+        let input_name = self
+            .session
+            .input_names()
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "input".to_string());
+
+        let mut inputs = HashMap::new();
+        inputs.insert(input_name.as_str(), tensor);
+
+        let outputs = self
+            .session
+            .run(&inputs)
+            .map_err(|e| CvError::onnx_runtime(format!("Inference failed: {e}")))?;
+
+        let output_name = self
+            .session
+            .output_names()
+            .first()
+            .cloned()
+            .unwrap_or_default();
+        let out_tensor = outputs
+            .get(&output_name)
+            .ok_or_else(|| CvError::onnx_runtime("No output tensor found".to_owned()))?;
+
+        let shape_owned: Vec<i64> = out_tensor.shape.iter().map(|&x| x as i64).collect();
+        let data_owned: Vec<f32> = out_tensor.data.clone();
 
         // Postprocess: float32 -> RGB u8
         let denoised = self.postprocess_tensor(&shape_owned, &data_owned, width, height)?;

@@ -128,7 +128,7 @@ impl QcCheckResult {
 }
 
 /// Aggregated QC report collecting results from multiple checks.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct QcReport {
     /// All individual check results.
     results: Vec<QcCheckResult>,
@@ -196,6 +196,11 @@ impl QcReport {
     /// Returns `true` if any result contains a fatal finding.
     pub fn has_fatal_findings(&self) -> bool {
         self.results.iter().any(QcCheckResult::has_fatal)
+    }
+
+    /// Returns all check results in this report.
+    pub fn all_results(&self) -> &[QcCheckResult] {
+        &self.results
     }
 
     /// Returns a summary string.

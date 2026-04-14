@@ -466,6 +466,7 @@ mod tests {
             start_ms,
             end_ms,
             confidence: 1.0,
+            word_confidence: 1.0,
         }
     }
 

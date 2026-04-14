@@ -203,11 +203,11 @@ pub fn is_initialized() -> bool {
 ///
 /// Example
 /// -------
-/// .. code-block:: python
-///
-///     logger = oximedia.logging.PyOxiMediaLogger("my.component")
-///     logger.info("Starting encode")
-///     logger.debug("Frame {:?}", extra={"pts": 100})
+/// ```python
+/// logger = oximedia.logging.PyOxiMediaLogger("my.component")
+/// logger.info("Starting encode")
+/// logger.debug("Frame {:?}", extra={"pts": 100})
+/// ```
 #[pyclass]
 pub struct PyOxiMediaLogger {
     /// Logger name.

@@ -261,6 +261,234 @@ impl PresetRanker {
     }
 }
 
+// ── ScoringWeights ─────────────────────────────────────────────────────────
+
+/// Normalised weight vector for the five primary scoring dimensions.
+///
+/// All five weights should sum to 1.0.  The constructor normalises
+/// automatically so callers can pass raw positive ratios.
+#[derive(Debug, Clone)]
+pub struct ScoringWeights {
+    /// Weight for visual quality (higher CRF / lossless = higher score).
+    pub quality: f32,
+    /// Weight for encoding latency (lower latency = higher score).
+    pub latency: f32,
+    /// Weight for output file size (smaller = higher score).
+    pub file_size: f32,
+    /// Weight for platform / device compatibility breadth.
+    pub compatibility: f32,
+    /// Weight for encoding speed (faster = higher score).
+    pub speed: f32,
+}
+
+impl ScoringWeights {
+    /// Create weights, normalising the provided values so they sum to 1.0.
+    ///
+    /// If all weights are zero an equal-weight distribution is used.
+    #[must_use]
+    pub fn new(quality: f32, latency: f32, file_size: f32, compatibility: f32, speed: f32) -> Self {
+        let sum = quality + latency + file_size + compatibility + speed;
+        if sum <= 0.0 {
+            // Fallback: equal weights.
+            return Self {
+                quality: 0.2,
+                latency: 0.2,
+                file_size: 0.2,
+                compatibility: 0.2,
+                speed: 0.2,
+            };
+        }
+        Self {
+            quality: quality / sum,
+            latency: latency / sum,
+            file_size: file_size / sum,
+            compatibility: compatibility / sum,
+            speed: speed / sum,
+        }
+    }
+
+    /// Return weights appropriate for the given use case.
+    ///
+    /// | Use case    | Quality | Latency | File size | Compat | Speed |
+    /// |-------------|---------|---------|-----------|--------|-------|
+    /// | Streaming   | 0.30    | 0.30    | 0.15      | 0.20   | 0.05  |
+    /// | Archive     | 0.50    | 0.05    | 0.25      | 0.10   | 0.10  |
+    /// | Social      | 0.25    | 0.10    | 0.30      | 0.30   | 0.05  |
+    /// | Broadcast   | 0.40    | 0.25    | 0.10      | 0.20   | 0.05  |
+    /// | Mobile      | 0.20    | 0.15    | 0.35      | 0.25   | 0.05  |
+    #[must_use]
+    pub fn for_use_case(use_case: crate::UseCase) -> Self {
+        match use_case {
+            crate::UseCase::Streaming => Self::new(0.30, 0.30, 0.15, 0.20, 0.05),
+            crate::UseCase::Archive => Self::new(0.50, 0.05, 0.25, 0.10, 0.10),
+            crate::UseCase::Social => Self::new(0.25, 0.10, 0.30, 0.30, 0.05),
+            crate::UseCase::Broadcast => Self::new(0.40, 0.25, 0.10, 0.20, 0.05),
+            crate::UseCase::Mobile => Self::new(0.20, 0.15, 0.35, 0.25, 0.05),
+        }
+    }
+
+    /// Verify that the weights sum to approximately 1.0 (within 0.001).
+    #[must_use]
+    pub fn is_normalised(&self) -> bool {
+        let sum = self.quality + self.latency + self.file_size + self.compatibility + self.speed;
+        (sum - 1.0).abs() < 1e-3
+    }
+}
+
+// ── PresetScorer ────────────────────────────────────────────────────────────
+
+/// Scores a [`crate::Preset`] against [`crate::SelectionCriteria`] using
+/// customisable [`ScoringWeights`].
+///
+/// # Design
+///
+/// The scorer derives five raw component scores (0–100 each) from observable
+/// preset attributes (tags, bitrate, metadata keywords) and applies the weight
+/// vector to produce a single 0–100 composite score.
+#[derive(Debug, Clone)]
+pub struct PresetScorer {
+    weights: ScoringWeights,
+}
+
+impl PresetScorer {
+    /// Create a scorer with explicit weights.
+    #[must_use]
+    pub fn new(weights: ScoringWeights) -> Self {
+        Self { weights }
+    }
+
+    /// Builder-style constructor.
+    #[must_use]
+    pub fn with_weights(weights: ScoringWeights) -> Self {
+        Self { weights }
+    }
+
+    /// Create a scorer calibrated for a specific use case.
+    #[must_use]
+    pub fn for_use_case(use_case: crate::UseCase) -> Self {
+        Self::new(ScoringWeights::for_use_case(use_case))
+    }
+
+    /// Compute a weighted composite score for `preset` against `criteria`.
+    ///
+    /// Returns a value in 0.0–100.0 (higher = better match).
+    #[must_use]
+    pub fn score_preset(&self, preset: &crate::Preset, criteria: &crate::SelectionCriteria) -> f32 {
+        let quality_score = self.quality_score(preset);
+        let latency_score = self.latency_score(preset);
+        let file_size_score = self.file_size_score(preset, criteria);
+        let compat_score = self.compatibility_score(preset);
+        let speed_score = self.speed_score(preset);
+
+        (quality_score * self.weights.quality
+            + latency_score * self.weights.latency
+            + file_size_score * self.weights.file_size
+            + compat_score * self.weights.compatibility
+            + speed_score * self.weights.speed)
+            .clamp(0.0, 100.0)
+    }
+
+    // ── Component scorers (0–100 each) ──────────────────────────────────────
+
+    fn quality_score(&self, preset: &crate::Preset) -> f32 {
+        let name = preset.metadata.name.to_lowercase();
+        let desc = preset.metadata.description.to_lowercase();
+        if preset.has_tag("lossless") || name.contains("lossless") || desc.contains("lossless") {
+            100.0
+        } else if preset.has_tag("high")
+            || name.contains("high")
+            || preset.has_tag("4k")
+            || name.contains("4k")
+        {
+            80.0
+        } else if preset.has_tag("medium") || name.contains("medium") {
+            55.0
+        } else if preset.has_tag("low") || name.contains("low") {
+            25.0
+        } else {
+            50.0 // neutral
+        }
+    }
+
+    fn latency_score(&self, preset: &crate::Preset) -> f32 {
+        let name = preset.metadata.name.to_lowercase();
+        if preset.has_tag("low-latency")
+            || preset.has_tag("ll-hls")
+            || name.contains("low-latency")
+            || name.contains("realtime")
+        {
+            100.0
+        } else if preset.has_tag("rtmp")
+            || preset.has_tag("srt")
+            || name.contains("rtmp")
+            || name.contains("srt")
+        {
+            75.0
+        } else if preset.has_tag("lossless") || preset.has_tag("archive") {
+            10.0
+        } else {
+            40.0 // neutral
+        }
+    }
+
+    fn file_size_score(&self, preset: &crate::Preset, criteria: &crate::SelectionCriteria) -> f32 {
+        if criteria.target_bitrate_kbps == 0 {
+            return 50.0;
+        }
+        if let Some(br_bps) = preset.config.video_bitrate {
+            let target_bps = criteria.target_bitrate_kbps * 1000;
+            // Lower bitrate than target → higher file-size score.
+            if br_bps <= target_bps {
+                let ratio = br_bps as f32 / target_bps as f32;
+                100.0 - ratio * 50.0 // 100 at 0 bps, 50 at target
+            } else {
+                // Over budget: score drops steeply.
+                let over = (br_bps - target_bps) as f32 / target_bps as f32;
+                (50.0 - over * 50.0).max(0.0)
+            }
+        } else {
+            50.0
+        }
+    }
+
+    fn compatibility_score(&self, preset: &crate::Preset) -> f32 {
+        // Broadly compatible formats: H.264, VP9, Opus, AAC.
+        let name = preset.metadata.name.to_lowercase();
+        if name.contains("h264") || name.contains("h.264") || preset.has_tag("h264") {
+            90.0
+        } else if name.contains("vp9") || preset.has_tag("vp9") {
+            70.0
+        } else if name.contains("av1") || preset.has_tag("av1") {
+            55.0
+        } else if name.contains("hevc") || name.contains("h265") || preset.has_tag("hevc") {
+            60.0
+        } else if preset.has_tag("lossless") || name.contains("lossless") {
+            30.0 // lossless codecs have limited decoder support
+        } else {
+            50.0
+        }
+    }
+
+    fn speed_score(&self, preset: &crate::Preset) -> f32 {
+        let name = preset.metadata.name.to_lowercase();
+        if name.contains("fast") || preset.has_tag("fast") || name.contains("realtime") {
+            90.0
+        } else if preset.has_tag("lossless") || name.contains("lossless") {
+            20.0
+        } else if name.contains("slow") || preset.has_tag("slow") {
+            15.0
+        } else {
+            50.0
+        }
+    }
+
+    /// Return the current weight configuration.
+    #[must_use]
+    pub fn weights(&self) -> &ScoringWeights {
+        &self.weights
+    }
+}
+
 // ── Tests ──────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -400,5 +628,135 @@ mod tests {
     fn test_ranker_empty_best_is_none() {
         let ranker = PresetRanker::new(quality_profile());
         assert!(ranker.best().is_none());
+    }
+
+    // ── ScoringWeights ──────────────────────────────────────────────────────
+
+    #[test]
+    fn test_weights_normalised_after_construction() {
+        let w = ScoringWeights::new(3.0, 2.0, 1.0, 1.0, 1.0);
+        assert!(w.is_normalised(), "Weights must normalise to 1.0");
+    }
+
+    #[test]
+    fn test_weights_all_zero_falls_back_to_equal() {
+        let w = ScoringWeights::new(0.0, 0.0, 0.0, 0.0, 0.0);
+        assert!(w.is_normalised());
+        // Each dimension should be ~0.2.
+        let delta = (w.quality - 0.2).abs();
+        assert!(delta < 1e-4, "Expected ~0.2, got {}", w.quality);
+    }
+
+    #[test]
+    fn test_weights_streaming_latency_high() {
+        let w = ScoringWeights::for_use_case(crate::UseCase::Streaming);
+        assert!(w.latency >= 0.25, "Streaming needs high latency weight");
+    }
+
+    #[test]
+    fn test_weights_archive_quality_dominant() {
+        let w = ScoringWeights::for_use_case(crate::UseCase::Archive);
+        assert!(
+            w.quality > w.latency,
+            "Archive prioritises quality over latency"
+        );
+        assert!(
+            w.quality > w.speed,
+            "Archive prioritises quality over speed"
+        );
+    }
+
+    #[test]
+    fn test_weights_mobile_file_size_high() {
+        let w = ScoringWeights::for_use_case(crate::UseCase::Mobile);
+        assert!(w.file_size >= 0.30, "Mobile needs high file-size weight");
+    }
+
+    // ── PresetScorer ────────────────────────────────────────────────────────
+
+    fn make_preset(id: &str, tags: &[&str]) -> crate::Preset {
+        use crate::{Preset, PresetCategory, PresetMetadata};
+        use oximedia_transcode::PresetConfig;
+        let mut meta = PresetMetadata::new(id, id, PresetCategory::Custom);
+        for &t in tags {
+            meta = meta.with_tag(t);
+        }
+        Preset::new(meta, PresetConfig::default())
+    }
+
+    fn make_low_latency_preset() -> crate::Preset {
+        use crate::{Preset, PresetCategory, PresetMetadata};
+        use oximedia_transcode::PresetConfig;
+        let meta = PresetMetadata::new("low-lat", "Low Latency Streaming", PresetCategory::Custom)
+            .with_tag("low-latency")
+            .with_tag("rtmp");
+        Preset::new(meta, PresetConfig::default())
+    }
+
+    fn make_lossless_preset() -> crate::Preset {
+        use crate::{Preset, PresetCategory, PresetMetadata};
+        use oximedia_transcode::PresetConfig;
+        let meta = PresetMetadata::new("lossless", "Lossless Archive", PresetCategory::Custom)
+            .with_tag("lossless")
+            .with_tag("archive");
+        Preset::new(meta, PresetConfig::default())
+    }
+
+    fn default_criteria() -> crate::SelectionCriteria {
+        crate::SelectionCriteria {
+            target_bitrate_kbps: 5_000,
+            width: 1920,
+            height: 1080,
+            frame_rate: 30.0,
+            use_case: crate::UseCase::Streaming,
+        }
+    }
+
+    #[test]
+    fn test_scorer_score_in_range() {
+        let scorer = PresetScorer::for_use_case(crate::UseCase::Streaming);
+        let preset = make_preset("test", &["streaming"]);
+        let score = scorer.score_preset(&preset, &default_criteria());
+        assert!(
+            score >= 0.0 && score <= 100.0,
+            "Score out of range: {score}"
+        );
+    }
+
+    #[test]
+    fn test_scorer_latency_weights_rank_low_latency_first() {
+        // Create a scorer that cares almost exclusively about latency.
+        let weights = ScoringWeights::new(0.0, 1.0, 0.0, 0.0, 0.0);
+        let scorer = PresetScorer::with_weights(weights);
+        let criteria = default_criteria();
+
+        let ll = make_low_latency_preset();
+        let lossless = make_lossless_preset();
+
+        let ll_score = scorer.score_preset(&ll, &criteria);
+        let lossless_score = scorer.score_preset(&lossless, &criteria);
+
+        assert!(
+            ll_score > lossless_score,
+            "Low-latency preset ({ll_score}) should score higher than lossless ({lossless_score}) under latency weights"
+        );
+    }
+
+    #[test]
+    fn test_scorer_quality_weights_rank_lossless_first() {
+        let weights = ScoringWeights::new(1.0, 0.0, 0.0, 0.0, 0.0);
+        let scorer = PresetScorer::with_weights(weights);
+        let criteria = default_criteria();
+
+        let ll = make_low_latency_preset();
+        let lossless = make_lossless_preset();
+
+        let ll_score = scorer.score_preset(&ll, &criteria);
+        let lossless_score = scorer.score_preset(&lossless, &criteria);
+
+        assert!(
+            lossless_score > ll_score,
+            "Lossless preset ({lossless_score}) should score higher under quality weights (ll={ll_score})"
+        );
     }
 }

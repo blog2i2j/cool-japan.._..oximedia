@@ -27,7 +27,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-clips = "0.1.1"
+oximedia-clips = "0.1.3"
 ```
 
 ```rust

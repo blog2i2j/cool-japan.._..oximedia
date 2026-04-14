@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 license.workspace = true
+homepage.workspace = true
 repository.workspace = true
 description = "HDR video processing: tone mapping, transfer functions, and dynamic metadata for OxiMedia"
 keywords = ["hdr", "tone-mapping", "hlg", "pq", "rec2020"]

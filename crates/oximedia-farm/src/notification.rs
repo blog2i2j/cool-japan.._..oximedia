@@ -169,7 +169,9 @@ impl LogChannel {
     /// Create a log channel with a custom label.
     #[must_use]
     pub fn new(label: impl Into<String>) -> Self {
-        Self { label: label.into() }
+        Self {
+            label: label.into(),
+        }
     }
 }
 
@@ -292,10 +294,14 @@ impl NotificationChannel for WebhookChannel {
             .map_err(|e| NotificationError::Http(format!("connect to {addr}: {e}")))?;
 
         stream
-            .set_write_timeout(Some(std::time::Duration::from_secs(self.config.timeout_secs)))
+            .set_write_timeout(Some(std::time::Duration::from_secs(
+                self.config.timeout_secs,
+            )))
             .map_err(|e| NotificationError::Http(e.to_string()))?;
         stream
-            .set_read_timeout(Some(std::time::Duration::from_secs(self.config.timeout_secs)))
+            .set_read_timeout(Some(std::time::Duration::from_secs(
+                self.config.timeout_secs,
+            )))
             .map_err(|e| NotificationError::Http(e.to_string()))?;
 
         // Build HTTP/1.1 request headers.
@@ -325,7 +331,10 @@ impl NotificationChannel for WebhookChannel {
             .map_err(|e| NotificationError::Http(e.to_string()))?;
 
         // HTTP/1.1 200 OK
-        if !status_line.contains("200") && !status_line.contains("201") && !status_line.contains("204") {
+        if !status_line.contains("200")
+            && !status_line.contains("201")
+            && !status_line.contains("204")
+        {
             return Err(NotificationError::Http(format!(
                 "webhook returned non-2xx: {status_line}"
             )));
@@ -337,6 +346,273 @@ impl NotificationChannel for WebhookChannel {
 
     fn name(&self) -> &str {
         &self.config.url
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Email channel (non-WASM only, pure Rust minimal SMTP over TcpStream)
+// ---------------------------------------------------------------------------
+
+/// Configuration for an SMTP email notification channel.
+#[derive(Debug, Clone)]
+pub struct EmailConfig {
+    /// SMTP server hostname or IP address.
+    pub smtp_host: String,
+    /// SMTP port (typically 25, 465 for SSL, 587 for STARTTLS).
+    pub smtp_port: u16,
+    /// SMTP username for authentication.
+    pub username: String,
+    /// SMTP password for authentication.
+    pub password: String,
+    /// From address (e.g. "farm@example.com").
+    pub from_address: String,
+    /// Recipient addresses.
+    pub to_addresses: Vec<String>,
+    /// Whether to attempt STARTTLS (best-effort, degrades to plain on failure).
+    pub use_tls: bool,
+    /// Connection timeout in seconds.
+    pub timeout_secs: u64,
+}
+
+impl EmailConfig {
+    /// Create a configuration for an SMTP relay.
+    #[must_use]
+    pub fn new(
+        smtp_host: impl Into<String>,
+        smtp_port: u16,
+        username: impl Into<String>,
+        password: impl Into<String>,
+        from_address: impl Into<String>,
+        to_addresses: Vec<String>,
+    ) -> Self {
+        Self {
+            smtp_host: smtp_host.into(),
+            smtp_port,
+            username: username.into(),
+            password: password.into(),
+            from_address: from_address.into(),
+            to_addresses,
+            use_tls: false,
+            timeout_secs: 15,
+        }
+    }
+}
+
+/// Minimal SMTP client that sends a plain-text email over a raw `TcpStream`.
+///
+/// Protocol sequence implemented:
+/// 1. TCP connect
+/// 2. Read server greeting (220)
+/// 3. Send `EHLO`
+/// 4. Send `AUTH PLAIN` with base64-encoded `\0user\0pass`
+/// 5. `MAIL FROM:`, `RCPT TO:`, `DATA`, message body, `.`
+/// 6. `QUIT`
+///
+/// This implementation does **not** support TLS/STARTTLS in-line; the
+/// `use_tls` flag is accepted but silently ignored — production deployments
+/// should front the SMTP relay with a TLS-terminating proxy or use port 25
+/// with a local relay that handles TLS externally.
+#[cfg(not(target_arch = "wasm32"))]
+pub struct EmailChannel {
+    config: EmailConfig,
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl EmailChannel {
+    /// Create a new email channel.
+    #[must_use]
+    pub fn new(config: EmailConfig) -> Self {
+        Self { config }
+    }
+
+    /// Encode `\0username\0password` in base64 for AUTH PLAIN.
+    fn auth_plain_token(username: &str, password: &str) -> String {
+        use base64::Engine as _;
+        let raw = format!("\x00{username}\x00{password}");
+        base64::engine::general_purpose::STANDARD.encode(raw.as_bytes())
+    }
+
+    /// Build the SMTP DATA payload (minimal RFC 5322 message).
+    fn build_message(&self, subject: &str, body: &str) -> String {
+        let to_list = self.config.to_addresses.join(", ");
+        let now = chrono::Utc::now().to_rfc2822();
+        format!(
+            "From: {from}\r\nTo: {to}\r\nDate: {date}\r\nSubject: {subj}\r\nMIME-Version: 1.0\r\nContent-Type: text/plain; charset=UTF-8\r\n\r\n{body}\r\n",
+            from = self.config.from_address,
+            to = to_list,
+            date = now,
+            subj = subject,
+        )
+    }
+
+    /// Perform a single SMTP conversation over `stream`.
+    fn smtp_send(
+        &self,
+        stream: &mut std::net::TcpStream,
+        payload: &NotificationPayload,
+    ) -> Result<(), NotificationError> {
+        use std::io::{BufRead as _, Write as IoWrite};
+
+        let timeout = std::time::Duration::from_secs(self.config.timeout_secs);
+        stream
+            .set_read_timeout(Some(timeout))
+            .map_err(|e| NotificationError::Other(e.to_string()))?;
+        stream
+            .set_write_timeout(Some(timeout))
+            .map_err(|e| NotificationError::Other(e.to_string()))?;
+
+        let mut reader = std::io::BufReader::new(
+            stream
+                .try_clone()
+                .map_err(|e| NotificationError::Other(format!("stream clone: {e}")))?,
+        );
+
+        // Helper: read one SMTP response line and return its numeric code.
+        let read_code =
+            |r: &mut std::io::BufReader<std::net::TcpStream>| -> Result<u16, NotificationError> {
+                let mut line = String::new();
+                r.read_line(&mut line)
+                    .map_err(|e| NotificationError::Other(format!("read: {e}")))?;
+                line.trim()
+                    .get(..3)
+                    .and_then(|s| s.parse::<u16>().ok())
+                    .ok_or_else(|| {
+                        NotificationError::Other(format!("unexpected SMTP response: {line}"))
+                    })
+            };
+
+        // 220 greeting
+        let code = read_code(&mut reader)?;
+        if code != 220 {
+            return Err(NotificationError::Other(format!(
+                "SMTP: expected 220 greeting, got {code}"
+            )));
+        }
+
+        // EHLO
+        let ehlo = format!("EHLO oximedia-farm\r\n");
+        stream
+            .write_all(ehlo.as_bytes())
+            .map_err(|e| NotificationError::Other(e.to_string()))?;
+        // Drain multi-line EHLO response (lines starting with '250-')
+        loop {
+            let mut line = String::new();
+            reader
+                .read_line(&mut line)
+                .map_err(|e| NotificationError::Other(format!("read EHLO: {e}")))?;
+            // Last line of multi-line response uses space separator: "250 ..."
+            if line.len() >= 4 && line.as_bytes().get(3) == Some(&b' ') {
+                break;
+            }
+            if line.len() < 4 {
+                break;
+            }
+        }
+
+        // AUTH PLAIN
+        let token = Self::auth_plain_token(&self.config.username, &self.config.password);
+        let auth_cmd = format!("AUTH PLAIN {token}\r\n");
+        stream
+            .write_all(auth_cmd.as_bytes())
+            .map_err(|e| NotificationError::Other(e.to_string()))?;
+        let code = read_code(&mut reader)?;
+        if code != 235 {
+            return Err(NotificationError::Other(format!(
+                "SMTP AUTH failed with code {code}"
+            )));
+        }
+
+        // MAIL FROM
+        let mail_from = format!("MAIL FROM:<{}>\r\n", self.config.from_address);
+        stream
+            .write_all(mail_from.as_bytes())
+            .map_err(|e| NotificationError::Other(e.to_string()))?;
+        let code = read_code(&mut reader)?;
+        if code != 250 {
+            return Err(NotificationError::Other(format!(
+                "SMTP MAIL FROM rejected with code {code}"
+            )));
+        }
+
+        // RCPT TO (one per recipient)
+        for addr in &self.config.to_addresses {
+            let rcpt = format!("RCPT TO:<{addr}>\r\n");
+            stream
+                .write_all(rcpt.as_bytes())
+                .map_err(|e| NotificationError::Other(e.to_string()))?;
+            let code = read_code(&mut reader)?;
+            if code != 250 && code != 251 {
+                return Err(NotificationError::Other(format!(
+                    "SMTP RCPT TO <{addr}> rejected with code {code}"
+                )));
+            }
+        }
+
+        // DATA
+        stream
+            .write_all(b"DATA\r\n")
+            .map_err(|e| NotificationError::Other(e.to_string()))?;
+        let code = read_code(&mut reader)?;
+        if code != 354 {
+            return Err(NotificationError::Other(format!(
+                "SMTP DATA start rejected with code {code}"
+            )));
+        }
+
+        // Message body
+        let subject = format!("[OxiMedia Farm] {}", payload.event);
+        let body_text =
+            serde_json::to_string_pretty(&payload.data).unwrap_or_else(|_| payload.event.clone());
+        let message = self.build_message(&subject, &body_text);
+        stream
+            .write_all(message.as_bytes())
+            .map_err(|e| NotificationError::Other(e.to_string()))?;
+        // End of DATA
+        stream
+            .write_all(b".\r\n")
+            .map_err(|e| NotificationError::Other(e.to_string()))?;
+        let code = read_code(&mut reader)?;
+        if code != 250 {
+            return Err(NotificationError::Other(format!(
+                "SMTP message not accepted, code {code}"
+            )));
+        }
+
+        // QUIT
+        stream
+            .write_all(b"QUIT\r\n")
+            .map_err(|e| NotificationError::Other(e.to_string()))?;
+        // Best-effort read of 221 — ignore errors
+        let _ = read_code(&mut reader);
+
+        tracing::debug!(
+            host = %self.config.smtp_host,
+            port = self.config.smtp_port,
+            event = %payload.event,
+            "email notification sent"
+        );
+        Ok(())
+    }
+}
+
+#[cfg(not(target_arch = "wasm32"))]
+impl NotificationChannel for EmailChannel {
+    fn send(&self, payload: &NotificationPayload) -> Result<(), NotificationError> {
+        if self.config.to_addresses.is_empty() {
+            return Err(NotificationError::Other(
+                "EmailChannel: no recipient addresses configured".to_string(),
+            ));
+        }
+
+        let addr = format!("{}:{}", self.config.smtp_host, self.config.smtp_port);
+        let mut stream = std::net::TcpStream::connect(&addr)
+            .map_err(|e| NotificationError::Other(format!("SMTP connect to {addr}: {e}")))?;
+
+        self.smtp_send(&mut stream, payload)
+    }
+
+    fn name(&self) -> &str {
+        &self.config.smtp_host
     }
 }
 
@@ -564,7 +840,9 @@ mod tests {
                 self.captured.lock().push(payload.clone());
                 Ok(())
             }
-            fn name(&self) -> &str { "capturing" }
+            fn name(&self) -> &str {
+                "capturing"
+            }
         }
 
         let captured = std::sync::Arc::new(parking_lot::Mutex::new(Vec::new()));
@@ -577,7 +855,10 @@ mod tests {
 
         let payloads = captured.lock();
         assert_eq!(payloads.len(), 1);
-        assert_eq!(payloads[0].meta.get("farm_id").map(String::as_str), Some("prod-west-1"));
+        assert_eq!(
+            payloads[0].meta.get("farm_id").map(String::as_str),
+            Some("prod-west-1")
+        );
     }
 
     #[test]
@@ -589,11 +870,8 @@ mod tests {
     #[test]
     fn test_log_channel_does_not_panic() {
         let ch = LogChannel::default();
-        let payload = NotificationPayload::from_event(
-            &completed_event(),
-            HashMap::new(),
-        )
-        .expect("payload");
+        let payload =
+            NotificationPayload::from_event(&completed_event(), HashMap::new()).expect("payload");
         assert!(ch.send(&payload).is_ok());
     }
 
@@ -617,5 +895,130 @@ mod tests {
         assert_eq!(cfg.url, "http://example.com/hook");
         assert_eq!(cfg.bearer_token.as_deref(), Some("tok-abc"));
         assert_eq!(cfg.headers.get("X-Farm").map(String::as_str), Some("test"));
+    }
+
+    // ── EmailChannel tests (stub-only, no real SMTP server needed) ────────────
+
+    #[test]
+    fn test_email_config_new() {
+        let cfg = EmailConfig::new(
+            "smtp.example.com",
+            587,
+            "user@example.com",
+            "s3cr3t",
+            "farm@example.com",
+            vec!["ops@example.com".to_string()],
+        );
+        assert_eq!(cfg.smtp_host, "smtp.example.com");
+        assert_eq!(cfg.smtp_port, 587);
+        assert_eq!(cfg.from_address, "farm@example.com");
+        assert_eq!(cfg.to_addresses.len(), 1);
+        assert!(!cfg.use_tls); // default
+        assert_eq!(cfg.timeout_secs, 15);
+    }
+
+    #[test]
+    fn test_email_channel_no_recipients_returns_error() {
+        let cfg = EmailConfig::new(
+            "smtp.example.com",
+            25,
+            "user",
+            "pass",
+            "from@example.com",
+            vec![], // no recipients
+        );
+        let ch = EmailChannel::new(cfg);
+        let payload =
+            NotificationPayload::from_event(&completed_event(), HashMap::new()).expect("payload");
+        // Should fail immediately without attempting TCP connection
+        let result = ch.send(&payload);
+        assert!(result.is_err());
+        match result {
+            Err(NotificationError::Other(msg)) => assert!(msg.contains("no recipient")),
+            _ => panic!("expected Other error"),
+        }
+    }
+
+    #[test]
+    fn test_email_auth_plain_token() {
+        // AUTH PLAIN token is base64("\0user\0pass")
+        use base64::Engine as _;
+        let expected =
+            base64::engine::general_purpose::STANDARD.encode("\x00testuser\x00testpass".as_bytes());
+        let actual = EmailChannel::auth_plain_token("testuser", "testpass");
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_email_channel_fails_on_unreachable_host() {
+        // Port 19999 on localhost should not have an SMTP server; connect will fail.
+        let cfg = EmailConfig::new(
+            "127.0.0.1",
+            19999,
+            "user",
+            "pass",
+            "from@example.com",
+            vec!["to@example.com".to_string()],
+        );
+        let ch = EmailChannel::new(cfg);
+        let payload =
+            NotificationPayload::from_event(&completed_event(), HashMap::new()).expect("payload");
+        // Must fail with a connection error, not panic
+        let result = ch.send(&payload);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_email_channel_name_is_smtp_host() {
+        let cfg = EmailConfig::new(
+            "mail.corp.example.com",
+            25,
+            "u",
+            "p",
+            "f@e.com",
+            vec!["t@e.com".to_string()],
+        );
+        let ch = EmailChannel::new(cfg);
+        assert_eq!(ch.name(), "mail.corp.example.com");
+    }
+
+    #[test]
+    fn test_dispatcher_with_email_channel_no_recipients_does_not_panic() {
+        // Dispatcher should tolerate channel error and continue
+        let mut dispatcher = NotificationDispatcher::new();
+        let cfg = EmailConfig::new(
+            "smtp.example.com",
+            25,
+            "u",
+            "p",
+            "f@e.com",
+            vec![], // triggers error without network
+        );
+        dispatcher.add_channel(Box::new(EmailChannel::new(cfg)));
+        let (good, count) = CountingChannel::new("good");
+        dispatcher.add_channel(Box::new(good));
+
+        let delivered = dispatcher.dispatch(&completed_event());
+        assert_eq!(delivered, 1); // only the good channel
+        assert_eq!(count.load(std::sync::atomic::Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn test_email_build_message_contains_required_headers() {
+        let cfg = EmailConfig::new(
+            "smtp.example.com",
+            25,
+            "u",
+            "p",
+            "farm@example.com",
+            vec!["ops@example.com".to_string()],
+        );
+        let ch = EmailChannel::new(cfg);
+        let msg = ch.build_message("Test Subject", "Test body");
+        assert!(msg.contains("From: farm@example.com"));
+        assert!(msg.contains("To: ops@example.com"));
+        assert!(msg.contains("Subject: Test Subject"));
+        assert!(msg.contains("Content-Type: text/plain"));
+        assert!(msg.contains("Test body"));
     }
 }

@@ -645,9 +645,9 @@ fn decompress_rle(compressed: &[u8]) -> ImageResult<Vec<u8>> {
 }
 
 fn decompress_zip(compressed: &[u8]) -> ImageResult<Vec<u8>> {
-    use flate2::read::ZlibDecoder;
+    use oxiarc_deflate::ZlibStreamDecoder;
 
-    let mut decoder = ZlibDecoder::new(compressed);
+    let mut decoder = ZlibStreamDecoder::new(compressed);
     let mut output = Vec::new();
     decoder
         .read_to_end(&mut output)
@@ -949,10 +949,9 @@ fn count_run(data: &[u8]) -> usize {
 }
 
 fn compress_zip(data: &[u8]) -> ImageResult<Vec<u8>> {
-    use flate2::write::ZlibEncoder;
-    use flate2::Compression;
+    use oxiarc_deflate::ZlibStreamEncoder;
 
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    let mut encoder = ZlibStreamEncoder::new(Vec::new(), 6);
     encoder
         .write_all(data)
         .map_err(|e| ImageError::Compression(format!("ZIP compression failed: {e}")))?;

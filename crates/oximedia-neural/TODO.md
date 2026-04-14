@@ -26,9 +26,9 @@
 - [ ] Add attention mechanism (self-attention, cross-attention) for transformer-based architectures
 - [ ] Implement Tensor quantization (INT8) for faster inference on resource-constrained devices
 - [ ] Add model graph builder API for defining networks declaratively (Sequential, Functional)
-- [ ] Implement deformable convolution for object detection in video frames
-- [ ] Add face detection model using existing Conv2d + pooling layers (pre-defined architecture)
-- [ ] Implement optical flow estimation model for motion analysis in video
+- [x] Implement deformable convolution for object detection in video frames
+- [x] Add face detection model using existing Conv2d + pooling layers (pre-defined architecture)
+- [x] Implement optical flow estimation model for motion analysis in video
 
 ## Performance
 - [ ] Add SIMD-accelerated matmul using portable_simd for f32 dot products (currently scalar loops)

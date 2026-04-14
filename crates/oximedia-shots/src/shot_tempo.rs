@@ -369,8 +369,18 @@ mod tests {
     #[test]
     fn test_detect_changes_present() {
         let segments = vec![
-            TempoSegment { start_shot: 0, end_shot: 3, pace: PaceClass::Fast, mean_duration: 1.0 },
-            TempoSegment { start_shot: 3, end_shot: 6, pace: PaceClass::Slow, mean_duration: 8.0 },
+            TempoSegment {
+                start_shot: 0,
+                end_shot: 3,
+                pace: PaceClass::Fast,
+                mean_duration: 1.0,
+            },
+            TempoSegment {
+                start_shot: 3,
+                end_shot: 6,
+                pace: PaceClass::Slow,
+                mean_duration: 8.0,
+            },
         ];
         let a = TempoAnalyzer::default();
         let c = a.detect_changes(&segments);
@@ -398,11 +408,16 @@ mod tests {
     #[test]
     fn test_autocorrelation_periodic() {
         let a = TempoAnalyzer::new(3, 2.0, 6.0, 10);
-        let durations: Vec<f64> = (0..20).map(|i| if i % 2 == 0 { 1.0 } else { 5.0 }).collect();
+        let durations: Vec<f64> = (0..20)
+            .map(|i| if i % 2 == 0 { 1.0 } else { 5.0 })
+            .collect();
         let ac = a.autocorrelation(&durations);
         assert!(!ac.is_empty());
         // Lag 2 should have high positive correlation for alternating signal
-        let lag2 = ac.iter().find(|a| a.lag == 2).expect("should succeed in test");
+        let lag2 = ac
+            .iter()
+            .find(|a| a.lag == 2)
+            .expect("should succeed in test");
         assert!(lag2.coefficient > 0.5);
     }
 

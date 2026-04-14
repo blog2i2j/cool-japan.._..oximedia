@@ -137,7 +137,7 @@ mod tests {
 
         let result = ft.execute(|| async { Ok::<i32, FarmError>(42) }).await;
 
-        assert_eq!(result.expect("result should be valid"), 42);
+        assert_eq!(result.unwrap(), 42);
     }
 
     #[tokio::test]

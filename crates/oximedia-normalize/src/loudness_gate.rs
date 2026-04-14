@@ -292,7 +292,11 @@ impl LoudnessGate {
         }
 
         // Update envelope
-        let target = if self.state == GateState::Open { 1.0 } else { 0.0 };
+        let target = if self.state == GateState::Open {
+            1.0
+        } else {
+            0.0
+        };
         let coeff = if target > self.envelope {
             self.attack_coeff
         } else {
@@ -446,7 +450,9 @@ mod tests {
         let mut gate = LoudnessGate::new(config);
         // Generate a loud signal (sine wave at -6 dBFS)
         let samples: Vec<f32> = (0..48000)
-            .map(|i| (0.5 * (2.0 * std::f64::consts::PI * 1000.0 * i as f64 / 48000.0).sin()) as f32)
+            .map(|i| {
+                (0.5 * (2.0 * std::f64::consts::PI * 1000.0 * i as f64 / 48000.0).sin()) as f32
+            })
             .collect();
         gate.process(&samples);
         // After processing loud signal, gate should have opened at some point

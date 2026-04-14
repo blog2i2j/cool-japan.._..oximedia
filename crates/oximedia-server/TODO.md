@@ -17,9 +17,9 @@
 - [x] Implement `health_monitor` deep health checks (database connectivity, storage availability, transcode worker status)
 
 ## New Features
-- [ ] Add `graphql` module with GraphQL API alongside REST for flexible media queries
+- [x] Add `graphql` module with GraphQL API alongside REST for flexible media queries
 - [ ] Implement `media_processing_pipeline` for chaining operations (upload -> analyze -> transcode -> notify)
-- [ ] Add `live_ingest` module supporting SRT protocol alongside existing RTMP
+- [x] Add `live_ingest` module supporting SRT protocol alongside existing RTMP
 - [ ] Implement `thumbnail_strip` module generating filmstrip-style thumbnail sprites for video scrubbing
 - [ ] Add `media_proxy` module for proxying media requests to external storage with caching
 - [ ] Implement `quota_management` per-user storage and bandwidth quotas with enforcement
@@ -29,7 +29,7 @@
 - [ ] Implement `api_gateway` rate limiting, throttling, and request routing for microservice architecture
 
 ## Performance
-- [ ] Add database connection pool size tuning in `Config` with sensible defaults based on CPU count
+- [x] Add database connection pool size tuning in `Config` with sensible defaults based on CPU count
 - [ ] Implement response streaming for large media file downloads instead of loading into memory
 - [ ] Add HTTP/2 server push for related resources (thumbnail with metadata response)
 - [ ] Implement lazy deserialization in `handlers` for large JSON request bodies

@@ -12,7 +12,7 @@ use tokio::sync::broadcast;
 use tonic::transport::Server;
 use tracing::{error, info};
 
-pub use job_queue::{Job, JobQueue, Task};
+pub use job_queue::{Job, JobProgress, JobQueue, Task};
 pub use worker_registry::{GpuInfo, WorkerCapabilities, WorkerRegistration, WorkerRegistry};
 
 /// Main coordinator that manages the encoding farm
@@ -329,7 +329,7 @@ mod tests {
             database_path: ":memory:".to_string(),
             ..Default::default()
         };
-        Arc::new(Coordinator::new(config).await.expect("failed to create"))
+        Arc::new(Coordinator::new(config).await.unwrap())
     }
 
     #[tokio::test]
@@ -355,11 +355,8 @@ mod tests {
             deadline: None,
         };
 
-        let job_id = coord.submit_job(job).await.expect("failed to submit job");
-        let retrieved = coord
-            .get_job_status(job_id)
-            .await
-            .expect("await should be valid");
+        let job_id = coord.submit_job(job).await.unwrap();
+        let retrieved = coord.get_job_status(job_id).await.unwrap();
         assert_eq!(retrieved.id, job_id);
     }
 
@@ -380,16 +377,10 @@ mod tests {
             deadline: None,
         };
 
-        let job_id = coord.submit_job(job).await.expect("failed to submit job");
-        coord
-            .cancel_job(job_id)
-            .await
-            .expect("await should be valid");
+        let job_id = coord.submit_job(job).await.unwrap();
+        coord.cancel_job(job_id).await.unwrap();
 
-        let retrieved = coord
-            .get_job_status(job_id)
-            .await
-            .expect("await should be valid");
+        let retrieved = coord.get_job_status(job_id).await.unwrap();
         assert_eq!(retrieved.state, crate::JobState::Cancelled);
     }
 }

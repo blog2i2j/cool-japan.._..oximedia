@@ -30,7 +30,7 @@
 //! use oximedia_cv::enhance::{SuperResolutionModel, UpscaleFactor, QualityMode};
 //!
 //! // Create a model with quality mode
-//! let model = SuperResolutionModel::from_quality_mode(
+//! let mut model = SuperResolutionModel::from_quality_mode(
 //!     QualityMode::HighQuality,
 //!     UpscaleFactor::X4,
 //! )?;

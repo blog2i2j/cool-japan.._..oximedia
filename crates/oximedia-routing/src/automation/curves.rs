@@ -1,8 +1,8 @@
 //! Curve-based gain automation (linear, S-curve, exponential fades).
 //!
-//! Provides [`GainCurve`] types and [`GainAutomation`] for scheduling
+//! Provides [`GainCurveSegment`] types and [`GainAutomation`] for scheduling
 //! smooth gain transitions over time alongside the discrete automation
-//! events in [`AutomationTimeline`].
+//! events in [`AutomationTimeline`](super::AutomationTimeline).
 
 use serde::{Deserialize, Serialize};
 

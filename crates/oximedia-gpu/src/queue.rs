@@ -94,7 +94,7 @@ impl CommandQueue {
 
     /// Wait for all pending operations on this queue to complete
     pub fn wait(&self) {
-        self.device.poll(wgpu::Maintain::Wait);
+        let _ = self.device.poll(wgpu::PollType::wait_indefinitely());
     }
 
     /// Get the queue type
@@ -231,7 +231,7 @@ impl AsyncSubmission {
 
     /// Wait for this submission to complete
     pub fn wait(&self) {
-        self.device.poll(wgpu::Maintain::Wait);
+        let _ = self.device.poll(wgpu::PollType::wait_indefinitely());
     }
 
     /// Get the submission index

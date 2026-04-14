@@ -35,6 +35,7 @@ pub fn job_state_to_pb(state: JobState) -> i32 {
         JobState::Failed => 4,
         JobState::Cancelled => 5,
         JobState::Paused => 6,
+        JobState::CompletedWithWarnings => 7,
     }
 }
 

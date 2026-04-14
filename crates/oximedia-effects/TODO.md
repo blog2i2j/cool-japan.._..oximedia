@@ -21,15 +21,15 @@
 - [ ] Implement `eq/mod.rs` with parametric EQ bands (low shelf, high shelf, peaking, notch)
 - [ ] Add feedback saturation modeling to `delay/delay.rs` for analog delay emulation
 - [ ] Enhance `vocoder/channel.rs` with more analysis/synthesis filter bands (32+ bands)
-- [ ] Add oversampling option to `distortion/` effects to reduce aliasing artifacts
+- [x] Add oversampling option to `distortion/` effects to reduce aliasing artifacts
 
 ## New Features
 - [ ] Implement convolution-based cabinet simulator for guitar/bass processing
 - [ ] Add multi-band compressor splitting signal into low/mid/high bands
-- [ ] Implement lookahead limiter for broadcast loudness compliance
+- [x] Implement lookahead limiter for broadcast loudness compliance
 - [ ] Add spring reverb simulation using waveguide physical modeling
 - [ ] Implement stereo-to-surround upmixer (5.1/7.1 channel support)
-- [ ] Add LUFS loudness metering effect (EBU R128 / ITU-R BS.1770)
+- [x] Add LUFS loudness metering effect (EBU R128 / ITU-R BS.1770)
 - [ ] Implement granular synthesis time-stretcher as alternative to rubato
 - [ ] Add video effect: motion vector-based optical flow slow motion
 - [ ] Implement video effect: AI-free super resolution using edge-directed interpolation

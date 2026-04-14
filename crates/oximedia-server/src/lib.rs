@@ -227,6 +227,25 @@ pub mod thumbnail_strip;
 /// Circuit breaker integration with the transcoding backend.
 pub mod transcode_circuit_breaker;
 
+/// API gateway: rate limiting, throttling, and request routing for microservice architecture.
+pub mod api_gateway;
+/// Content delivery module with edge caching configuration for multi-region deployment.
+pub mod content_delivery;
+/// Database connection pool size tuning with CPU-aware sensible defaults.
+pub mod db_pool_tuning;
+/// GraphQL API module for flexible media queries alongside REST.
+pub mod graphql;
+/// HTTP/2 server push support for related resources.
+pub mod http2_push;
+/// Live SRT ingest module supporting SRT protocol alongside existing RTMP.
+pub mod live_ingest;
+/// Memory-mapped file I/O for efficient HLS/DASH segment serving.
+pub mod mmap_segments;
+/// Compact ring-buffer HTTP request log (alias for request_log).
+pub mod req_log;
+/// Graceful shutdown coordination for the media server.
+pub mod shutdown;
+
 pub use streaming_server::{StreamingServer, StreamingServerConfig};
 
 use axum::{

@@ -21,7 +21,7 @@ use std::fmt;
 
 use rayon::prelude::*;
 
-use crate::lanczos::{LanczosKernel, LanczosResampler, LanczosWindowSize};
+use crate::lanczos::{LanczosResampler, LanczosWindowSize};
 
 // ── PQ (SMPTE ST 2084) constants ─────────────────────────────────────────────
 
@@ -37,6 +37,7 @@ const PQ_C2: f64 = 18.851_562_5; // 2413 / 128
 const PQ_C3: f64 = 18.687_5; // 2392 / 128
 
 /// Peak luminance of PQ system (cd/m²) — the normalisation reference.
+#[allow(dead_code)]
 const PQ_PEAK_NITS: f64 = 10_000.0;
 
 // ── HLG (ARIB STD-B67) constants ─────────────────────────────────────────────
@@ -187,7 +188,7 @@ pub fn hlg_oetf_inverse(e: f64) -> f64 {
     if e <= 0.5 {
         (e * e) / 3.0
     } else {
-        ((e - HLG_C).exp() / HLG_A + HLG_B) / 12.0
+        (((e - HLG_C) / HLG_A).exp() + HLG_B) / 12.0
     }
 }
 
@@ -313,7 +314,8 @@ impl HdrScaler {
             .map(|&v| (v.clamp(0.0, 1.0) * 255.0) as u8)
             .collect();
 
-        let resized_u8 = lanczos_resize_parallel(&resampler, &linear_u8, src_w, src_h, dst_w, dst_h);
+        let resized_u8 =
+            lanczos_resize_parallel(&resampler, &linear_u8, src_w, src_h, dst_w, dst_h);
 
         // 3. Forward EOTF → encoded output
         let output: Vec<f32> = resized_u8
@@ -362,9 +364,14 @@ impl HdrScaler {
         }
 
         // 2. Lanczos resize with parallel rows per channel
-        let resized_u8 =
-            lanczos_resize_rgb_parallel(&LanczosResampler::from_window_size(self.config.lanczos_window),
-                &linear_u8, src_w, src_h, dst_w, dst_h);
+        let resized_u8 = lanczos_resize_rgb_parallel(
+            &LanczosResampler::from_window_size(self.config.lanczos_window),
+            &linear_u8,
+            src_w,
+            src_h,
+            dst_w,
+            dst_h,
+        );
 
         // 3. Forward EOTF → re-encode
         let out_count = dst_w * dst_h;
@@ -704,9 +711,7 @@ mod tests {
         let pixels: Vec<f32> = (0..192).map(|i| (i % 64) as f32 / 63.0).collect();
         let cfg = HdrScalingConfig::new(4, 4);
         let scaler = HdrScaler::new(cfg);
-        let (out, _, _) = scaler
-            .scale_f32_rgb(&pixels, 8, 8)
-            .expect("should succeed");
+        let (out, _, _) = scaler.scale_f32_rgb(&pixels, 8, 8).expect("should succeed");
         for &v in &out {
             assert!(v >= 0.0 && v <= 1.0, "output {v} out of [0, 1]");
         }

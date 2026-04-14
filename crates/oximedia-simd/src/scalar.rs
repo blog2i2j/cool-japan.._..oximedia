@@ -284,6 +284,9 @@ pub fn interpolate_scalar(
         InterpolationFilter::EightTap => {
             interpolate_8tap_scalar(src, dst, src_stride, dst_stride, width, height, dx, dy)
         }
+        InterpolationFilter::Lanczos => {
+            interpolate_lanczos_scalar(src, dst, src_stride, dst_stride, width, height, dx, dy)
+        }
     }
 }
 
@@ -303,6 +306,21 @@ fn interpolate_bilinear_scalar(
     let fy = dy & 15;
 
     for y in 0..height {
+        // Prefetch the next row's data into L1 cache (non-faulting — safe on any
+        // pointer; the CPU simply ignores prefetches that would fault).
+        #[cfg(target_arch = "x86_64")]
+        {
+            let next_row_start = (y + 2) * src_stride;
+            if next_row_start < src.len() {
+                // SAFETY: `_mm_prefetch` is a hint instruction and never faults.
+                // We check bounds to avoid hinting past the buffer.
+                unsafe {
+                    use std::arch::x86_64::{_mm_prefetch, _MM_HINT_T0};
+                    _mm_prefetch(src.as_ptr().add(next_row_start).cast::<i8>(), _MM_HINT_T0);
+                }
+            }
+        }
+
         for x in 0..width {
             let src_idx = y * src_stride + x;
             let p00 = i32::from(src[src_idx]);
@@ -453,6 +471,23 @@ fn interpolate_8tap_scalar(
     let mut intermediate = vec![0i32; rows_needed * width];
 
     for iy in 0..rows_needed {
+        // Prefetch the row two ahead so it is warm when we process this row.
+        #[cfg(target_arch = "x86_64")]
+        {
+            let next_src_y = (iy as i32 + 2) - v_start;
+            let next_src_y_clamped = next_src_y.clamp(0, src_height as i32 - 1) as usize;
+            let next_row_ptr_offset = next_src_y_clamped * src_stride;
+            if next_row_ptr_offset < src.len() {
+                // SAFETY: prefetch is a non-faulting hint; bounds checked above.
+                unsafe {
+                    use std::arch::x86_64::{_mm_prefetch, _MM_HINT_T0};
+                    _mm_prefetch(
+                        src.as_ptr().add(next_row_ptr_offset).cast::<i8>(),
+                        _MM_HINT_T0,
+                    );
+                }
+            }
+        }
         let src_y = (iy as i32) - v_start;
         for x in 0..width {
             let mut sum = 0i32;
@@ -486,6 +521,110 @@ fn interpolate_8tap_scalar(
             #[allow(clippy::cast_sign_loss)]
             {
                 dst[y * dst_stride + x] = rounded as u8;
+            }
+        }
+    }
+
+    Ok(())
+}
+
+// ── Lanczos interpolation ──────────────────────────────────────────────────
+
+/// Compute the Lanczos kernel value `L(x)` for `a = 3` lobes.
+///
+/// L(x) = sinc(x) * sinc(x / a)  for |x| < a
+/// L(x) = 0                       for |x| >= a
+fn lanczos_kernel(x: f64, a: f64) -> f64 {
+    if x.abs() < f64::EPSILON {
+        return 1.0;
+    }
+    if x.abs() >= a {
+        return 0.0;
+    }
+    let pi = std::f64::consts::PI;
+    let sinc_x = (pi * x).sin() / (pi * x);
+    let sinc_xa = (pi * x / a).sin() / (pi * x / a);
+    sinc_x * sinc_xa
+}
+
+/// Lanczos resampling interpolation (a=3, 6×6 kernel).
+///
+/// Uses a windowed sinc filter with 3 lobes for each dimension.  The
+/// fractional position is encoded in `dx` and `dy` as 1/16th pixel units
+/// (0–15, consistent with the other filter phases).
+///
+/// The filter provides higher quality than Bicubic for downscaling at the
+/// cost of a larger kernel (6 taps vs 4 taps per dimension).
+#[allow(clippy::unnecessary_wraps)]
+fn interpolate_lanczos_scalar(
+    src: &[u8],
+    dst: &mut [u8],
+    src_stride: usize,
+    dst_stride: usize,
+    width: usize,
+    height: usize,
+    dx: i32,
+    dy: i32,
+) -> Result<()> {
+    const A: f64 = 3.0; // Lanczos-3: 3 lobes → 6-tap kernel
+
+    let frac_x = (dx & 15) as f64 / 16.0;
+    let frac_y = (dy & 15) as f64 / 16.0;
+
+    let src_height = src.len().checked_div(src_stride).unwrap_or(height + 8);
+    let max_x = (width as i32).saturating_sub(1).max(0);
+    let max_y = (src_height as i32).saturating_sub(1).max(0);
+
+    // Pre-compute the 6 Lanczos weights for x and y dimensions
+    let mut wx = [0.0f64; 6];
+    let mut wy = [0.0f64; 6];
+    for (tap, w) in wx.iter_mut().enumerate() {
+        // taps at offsets -2, -1, 0, +1, +2, +3 relative to integer position
+        *w = lanczos_kernel(frac_x - (tap as f64 - 2.0), A);
+    }
+    for (tap, w) in wy.iter_mut().enumerate() {
+        *w = lanczos_kernel(frac_y - (tap as f64 - 2.0), A);
+    }
+
+    // Normalize weights to prevent DC gain error from discrete sampling
+    let wx_sum: f64 = wx.iter().sum();
+    let wy_sum: f64 = wy.iter().sum();
+    let wx_norm: [f64; 6] = if wx_sum.abs() > f64::EPSILON {
+        wx.map(|w| w / wx_sum)
+    } else {
+        wx
+    };
+    let wy_norm: [f64; 6] = if wy_sum.abs() > f64::EPSILON {
+        wy.map(|w| w / wy_sum)
+    } else {
+        wy
+    };
+
+    for row in 0..height {
+        for col in 0..width {
+            let base_x = col as i32;
+            let base_y = row as i32;
+
+            let mut acc = 0.0f64;
+            for (ky, &wy_k) in wy_norm.iter().enumerate() {
+                let sy = (base_y + ky as i32 - 2).clamp(0, max_y) as usize;
+                let mut row_acc = 0.0f64;
+                for (kx, &wx_k) in wx_norm.iter().enumerate() {
+                    let sx = (base_x + kx as i32 - 2).clamp(0, max_x) as usize;
+                    let idx = sy * src_stride + sx;
+                    let sample = if idx < src.len() {
+                        f64::from(src[idx])
+                    } else {
+                        0.0
+                    };
+                    row_acc += wx_k * sample;
+                }
+                acc += wy_k * row_acc;
+            }
+
+            #[allow(clippy::cast_sign_loss)]
+            {
+                dst[row * dst_stride + col] = acc.round().clamp(0.0, 255.0) as u8;
             }
         }
     }

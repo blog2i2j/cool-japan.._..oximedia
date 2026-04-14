@@ -169,15 +169,11 @@ impl LtcBitEncoder {
 /// # Example
 /// ```
 /// use oximedia_timecode::ltc_encoder::{LtcAudioEncoder, LtcSignalParams, LtcBitEncoder};
-/// use oximedia_timecode::{Timecode, FrameRate, FrameRateInfo};
+/// use oximedia_timecode::{Timecode, FrameRate};
 ///
 /// let params = LtcSignalParams::default_25fps();
 /// let mut encoder = LtcAudioEncoder::new(params);
-/// let tc = Timecode {
-///     hours: 1, minutes: 0, seconds: 0, frames: 0,
-///     frame_rate: FrameRateInfo { fps: 25, drop_frame: false },
-///     user_bits: 0,
-/// };
+/// let tc = Timecode::from_raw_fields(1, 0, 0, 0, 25, false, 0);
 /// let bits = LtcBitEncoder::encode(&tc);
 /// let samples = encoder.encode_frame(&bits);
 /// assert!(!samples.is_empty());

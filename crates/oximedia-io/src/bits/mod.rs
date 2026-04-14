@@ -9,12 +9,15 @@
 //! ```
 //! use oximedia_io::bits::BitReader;
 //!
+//! # fn main() -> Result<(), Box<dyn std::error::Error>> {
 //! let data = [0b10110100, 0b11001010];
 //! let mut reader = BitReader::new(&data);
 //!
 //! // Read 4 bits at a time
 //! assert_eq!(reader.read_bits(4)?, 0b1011);
 //! assert_eq!(reader.read_bits(4)?, 0b0100);
+//! # Ok(())
+//! # }
 //! ```
 
 mod exp_golomb;

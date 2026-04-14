@@ -19,7 +19,7 @@
 /// assert!(!format.is_planar());
 /// assert_eq!(format.bytes_per_sample(), 4);
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 #[non_exhaustive]
 #[derive(Default)]
 pub enum SampleFormat {
@@ -206,6 +206,30 @@ impl SampleFormat {
 }
 
 impl SampleFormat {
+    /// Returns the bit depth of this sample format.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use oximedia_core::types::SampleFormat;
+    ///
+    /// assert_eq!(SampleFormat::U8.bit_depth(), 8);
+    /// assert_eq!(SampleFormat::S16.bit_depth(), 16);
+    /// assert_eq!(SampleFormat::S24.bit_depth(), 24);
+    /// assert_eq!(SampleFormat::F32.bit_depth(), 32);
+    /// assert_eq!(SampleFormat::F64.bit_depth(), 64);
+    /// ```
+    #[must_use]
+    pub const fn bit_depth(&self) -> u8 {
+        match self {
+            Self::U8 => 8,
+            Self::S16 | Self::S16p => 16,
+            Self::S24 | Self::S24p => 24,
+            Self::S32 | Self::S32p | Self::F32 | Self::F32p => 32,
+            Self::F64 | Self::F64p => 64,
+        }
+    }
+
     /// Returns the theoretical dynamic range in decibels for integer formats.
     ///
     /// For floating-point formats, returns an approximate practical range.

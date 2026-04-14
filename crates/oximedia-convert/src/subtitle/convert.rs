@@ -208,21 +208,15 @@ mod tests {
         let converter = SubtitleConverter::new();
 
         let path = Path::new("test.srt");
-        assert_eq!(
-            converter.detect_format(path).expect("should detect SRT"),
-            SubtitleFormat::Srt
-        );
+        assert_eq!(converter.detect_format(path).unwrap(), SubtitleFormat::Srt);
 
         let path = Path::new("test.vtt");
         assert_eq!(
-            converter.detect_format(path).expect("should detect WebVTT"),
+            converter.detect_format(path).unwrap(),
             SubtitleFormat::WebVtt
         );
 
         let path = Path::new("test.ass");
-        assert_eq!(
-            converter.detect_format(path).expect("should detect ASS"),
-            SubtitleFormat::Ass
-        );
+        assert_eq!(converter.detect_format(path).unwrap(), SubtitleFormat::Ass);
     }
 }

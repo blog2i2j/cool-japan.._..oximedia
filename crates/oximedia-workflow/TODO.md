@@ -14,7 +14,7 @@
 - [ ] Extend `triggers` with webhook triggers (HTTP POST starts workflow) beyond cron and file-watch
 - [ ] Implement workflow pause/resume in `executor` with checkpoint serialization for long-running workflows
 - [x] Add dynamic resource scaling in `resource_pool` based on queue depth (auto-allocate more workers under load)
-- [ ] Extend `notification_system` with Slack, email, and PagerDuty integration via webhook URLs
+- [x] Extend `notification_system` with Slack, email, and PagerDuty integration via webhook URLs
 - [ ] Improve `cost_tracking` with actual cloud cost API integration (estimate compute cost per task based on duration and resource type)
 
 ## New Features
@@ -22,9 +22,9 @@
 - [ ] Add `workflow_import_export` for importing/exporting workflows as portable YAML/JSON bundles
 - [x] Implement `workflow_diff` module for comparing two workflow versions and showing added/removed/changed tasks
 - [ ] Add `workflow_simulation` dry-run mode that traces execution path without actually running tasks
-- [ ] Implement `workflow_marketplace` module for sharing and discovering reusable workflow templates
+- [x] Implement `workflow_marketplace` module for sharing and discovering reusable workflow templates
 - [ ] Add `event_bus` module for publish/subscribe event-driven communication between workflow tasks
-- [ ] Implement `workflow_dashboard` data provider module that aggregates metrics for web UI consumption
+- [x] Implement `workflow_dashboard` data provider module that aggregates metrics for web UI consumption
 - [x] Add `workflow_health_check` module for periodic validation of workflow engine health (DB connectivity, queue depth, stuck tasks)
 
 ## Performance

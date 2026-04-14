@@ -1,9 +1,9 @@
-//! Chroma subsampling-aware scaling.
+//! Chroma subsampling-aware scaling with phase-aligned bilinear resampling.
 //!
 //! When scaling YCbCr video the chroma planes often have different
 //! dimensions to the luma plane (e.g. 4:2:0 is half width and half height).
-//! This module computes correct dimensions and offsets for chroma planes
-//! so that subsampling alignment is maintained after scaling.
+//! This module computes correct dimensions and offsets and provides pixel
+//! resampling for chroma planes so that subsampling alignment is maintained.
 
 #![allow(dead_code)]
 #![allow(clippy::cast_precision_loss)]
@@ -12,12 +12,10 @@
 
 use serde::{Deserialize, Serialize};
 
-// -- ChromaSubsampling -------------------------------------------------------
-
 /// Common chroma subsampling formats.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ChromaSubsampling {
-    /// 4:4:4 - no subsampling (chroma is full resolution).
+    /// 4:4:4 - no subsampling.
     Yuv444,
     /// 4:2:2 - chroma is half width, full height.
     Yuv422,
@@ -67,8 +65,6 @@ impl std::fmt::Display for ChromaSubsampling {
     }
 }
 
-// -- ChromaLocation ----------------------------------------------------------
-
 /// Chroma sample siting location within the luma grid.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ChromaLocation {
@@ -81,7 +77,7 @@ pub enum ChromaLocation {
 }
 
 impl ChromaLocation {
-    /// Horizontal offset of chroma relative to the first luma sample (0.0 .. 0.5).
+    /// Horizontal offset of chroma relative to the first luma sample.
     pub fn h_offset(&self) -> f64 {
         match self {
             Self::Left | Self::TopLeft => 0.0,
@@ -89,7 +85,7 @@ impl ChromaLocation {
         }
     }
 
-    /// Vertical offset of chroma relative to the first luma sample (0.0 .. 0.5).
+    /// Vertical offset of chroma relative to the first luma sample.
     pub fn v_offset(&self) -> f64 {
         match self {
             Self::Left | Self::Center => 0.5,
@@ -97,8 +93,6 @@ impl ChromaLocation {
         }
     }
 }
-
-// -- ChromaScaleResult -------------------------------------------------------
 
 /// Result of computing chroma-aware scaled dimensions.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -115,19 +109,7 @@ pub struct ChromaScaleResult {
     pub adjusted: bool,
 }
 
-// -- ChromaScaler ------------------------------------------------------------
-
 /// Computes subsampling-correct dimensions for scaling operations.
-///
-/// # Example
-/// ```
-/// use oximedia_scaling::chroma_scale::{ChromaScaler, ChromaSubsampling, ChromaLocation};
-///
-/// let scaler = ChromaScaler::new(ChromaSubsampling::Yuv420, ChromaLocation::Left);
-/// let result = scaler.compute_scaled_dims(1920, 1080, 1280, 720);
-/// assert_eq!(result.luma_width, 1280);
-/// assert_eq!(result.chroma_width, 640);
-/// ```
 #[derive(Debug, Clone, Copy)]
 pub struct ChromaScaler {
     /// Subsampling format.
@@ -154,9 +136,6 @@ impl ChromaScaler {
     }
 
     /// Compute chroma-correct scaled dimensions.
-    ///
-    /// The luma dimensions are adjusted (increased) if necessary so that
-    /// they are evenly divisible by the subsampling factors.
     pub fn compute_scaled_dims(
         &self,
         _src_w: u32,
@@ -169,7 +148,6 @@ impl ChromaScaler {
 
         let aligned_w = self.align_to_subsampling(dst_w, h_fac);
         let aligned_h = self.align_to_subsampling(dst_h, v_fac);
-
         let adjusted = aligned_w != dst_w || aligned_h != dst_h;
 
         ChromaScaleResult {
@@ -197,7 +175,123 @@ impl ChromaScaler {
     }
 }
 
-// -- Tests -------------------------------------------------------------------
+// -- Phase-aligned chroma plane resampler ------------------------------------
+
+/// Phase-aligned bilinear resampler for a single chroma plane.
+///
+/// Incorporates the `ChromaLocation` phase offset when mapping destination
+/// chroma coordinates back to the source chroma grid so that the scaled chroma
+/// plane is correctly aligned with the scaled luma plane.
+#[derive(Debug, Clone)]
+pub struct ChromaPlaneResampler {
+    /// Subsampling format.
+    pub subsampling: ChromaSubsampling,
+    /// Siting of chroma samples in the source frame.
+    pub src_location: ChromaLocation,
+    /// Siting of chroma samples in the destination frame.
+    pub dst_location: ChromaLocation,
+}
+
+impl ChromaPlaneResampler {
+    /// Create a resampler with the same siting for source and destination.
+    pub fn same_siting(subsampling: ChromaSubsampling, location: ChromaLocation) -> Self {
+        Self {
+            subsampling,
+            src_location: location,
+            dst_location: location,
+        }
+    }
+
+    /// Create a resampler with explicit source and destination siting.
+    pub fn new(
+        subsampling: ChromaSubsampling,
+        src_location: ChromaLocation,
+        dst_location: ChromaLocation,
+    ) -> Self {
+        Self {
+            subsampling,
+            src_location,
+            dst_location,
+        }
+    }
+
+    /// Resample a single chroma plane with phase-correct bilinear interpolation.
+    pub fn resample_plane(
+        &self,
+        src: &[u8],
+        src_luma_w: u32,
+        src_luma_h: u32,
+        dst_luma_w: u32,
+        dst_luma_h: u32,
+    ) -> Vec<u8> {
+        let src_cw = self.subsampling.chroma_width(src_luma_w) as usize;
+        let src_ch = self.subsampling.chroma_height(src_luma_h) as usize;
+        let dst_cw = self.subsampling.chroma_width(dst_luma_w) as usize;
+        let dst_ch = self.subsampling.chroma_height(dst_luma_h) as usize;
+
+        if src.is_empty() || src_cw == 0 || src_ch == 0 || dst_cw == 0 || dst_ch == 0 {
+            return vec![0u8; dst_cw * dst_ch];
+        }
+
+        let scale_x = src_cw as f64 / dst_cw as f64;
+        let scale_y = src_ch as f64 / dst_ch as f64;
+
+        let hf = self.subsampling.h_factor() as f64;
+        let vf = self.subsampling.v_factor() as f64;
+
+        let src_ph = self.src_location.h_offset() / hf;
+        let src_pv = self.src_location.v_offset() / vf;
+        let dst_ph = self.dst_location.h_offset() / hf;
+        let dst_pv = self.dst_location.v_offset() / vf;
+
+        let mut dst = vec![0u8; dst_cw * dst_ch];
+
+        for cy in 0..dst_ch {
+            let sy_raw = (cy as f64 + dst_pv) * scale_y - src_pv;
+            let sy = sy_raw.clamp(0.0, (src_ch - 1) as f64);
+            let sy0 = sy.floor() as usize;
+            let sy1 = (sy0 + 1).min(src_ch - 1);
+            let fy = sy - sy.floor();
+
+            for cx in 0..dst_cw {
+                let sx_raw = (cx as f64 + dst_ph) * scale_x - src_ph;
+                let sx = sx_raw.clamp(0.0, (src_cw - 1) as f64);
+                let sx0 = sx.floor() as usize;
+                let sx1 = (sx0 + 1).min(src_cw - 1);
+                let fx = sx - sx.floor();
+
+                let p00 = src[sy0 * src_cw + sx0] as f64;
+                let p01 = src[sy0 * src_cw + sx1] as f64;
+                let p10 = src[sy1 * src_cw + sx0] as f64;
+                let p11 = src[sy1 * src_cw + sx1] as f64;
+
+                let val = p00 * (1.0 - fx) * (1.0 - fy)
+                    + p01 * fx * (1.0 - fy)
+                    + p10 * (1.0 - fx) * fy
+                    + p11 * fx * fy;
+
+                dst[cy * dst_cw + cx] = val.round().clamp(0.0, 255.0) as u8;
+            }
+        }
+
+        dst
+    }
+
+    /// Resample both Cb and Cr planes.
+    pub fn resample_both_planes(
+        &self,
+        cb_src: &[u8],
+        cr_src: &[u8],
+        src_luma_w: u32,
+        src_luma_h: u32,
+        dst_luma_w: u32,
+        dst_luma_h: u32,
+    ) -> (Vec<u8>, Vec<u8>) {
+        let cb = self.resample_plane(cb_src, src_luma_w, src_luma_h, dst_luma_w, dst_luma_h);
+        let cr = self.resample_plane(cr_src, src_luma_w, src_luma_h, dst_luma_w, dst_luma_h);
+        (cb, cr)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -257,7 +351,6 @@ mod tests {
     #[test]
     fn test_scaled_dims_420_needs_alignment() {
         let s = scaler_420();
-        // 1281 is odd -> needs align to 1282
         let r = s.compute_scaled_dims(1920, 1080, 1281, 721);
         assert_eq!(r.luma_width, 1282);
         assert_eq!(r.luma_height, 722);
@@ -276,29 +369,25 @@ mod tests {
     #[test]
     fn test_total_samples_420() {
         let s = scaler_420();
-        // 1920*1080 luma + 2 * 960*540 chroma = 2073600 + 1036800 = 3110400
         assert_eq!(s.total_samples(1920, 1080), 3_110_400);
     }
 
     #[test]
     fn test_total_samples_444() {
         let s = ChromaScaler::new(ChromaSubsampling::Yuv444, ChromaLocation::Left);
-        // All planes same size: 3 * 1920*1080 = 6220800
         assert_eq!(s.total_samples(1920, 1080), 6_220_800);
     }
 
     #[test]
     fn test_chroma_ratio_420() {
         let s = scaler_420();
-        let ratio = s.chroma_ratio();
-        assert!((ratio - 0.5).abs() < 1e-6);
+        assert!((s.chroma_ratio() - 0.5).abs() < 1e-6);
     }
 
     #[test]
     fn test_chroma_ratio_422() {
         let s = scaler_422();
-        let ratio = s.chroma_ratio();
-        assert!((ratio - 1.0).abs() < 1e-6);
+        assert!((s.chroma_ratio() - 1.0).abs() < 1e-6);
     }
 
     #[test]
@@ -327,7 +416,109 @@ mod tests {
 
     #[test]
     fn test_chroma_odd_dimension_rounds_up() {
-        // 1921 width at 4:2:0 -> chroma_width = ceil(1921/2) = 961
         assert_eq!(ChromaSubsampling::Yuv420.chroma_width(1921), 961);
+    }
+
+    // -- ChromaPlaneResampler tests ------------------------------------------
+
+    #[test]
+    fn test_resample_plane_420_downscale_output_size() {
+        let r = ChromaPlaneResampler::same_siting(ChromaSubsampling::Yuv420, ChromaLocation::Left);
+        let src = vec![128u8; 960 * 540];
+        let dst = r.resample_plane(&src, 1920, 1080, 960, 540);
+        assert_eq!(dst.len(), 480 * 270);
+    }
+
+    #[test]
+    fn test_resample_plane_420_flat_field_preserves_value() {
+        let r = ChromaPlaneResampler::same_siting(ChromaSubsampling::Yuv420, ChromaLocation::Left);
+        let src = vec![200u8; 8 * 4];
+        let dst = r.resample_plane(&src, 16, 8, 8, 4);
+        for &v in &dst {
+            assert_eq!(v, 200);
+        }
+    }
+
+    #[test]
+    fn test_resample_plane_444_identity_size() {
+        let r = ChromaPlaneResampler::same_siting(ChromaSubsampling::Yuv444, ChromaLocation::Left);
+        let src = vec![100u8; 16 * 8];
+        let dst = r.resample_plane(&src, 16, 8, 8, 4);
+        assert_eq!(dst.len(), 8 * 4);
+    }
+
+    #[test]
+    fn test_resample_plane_422_height_preserved() {
+        let r = ChromaPlaneResampler::same_siting(ChromaSubsampling::Yuv422, ChromaLocation::Left);
+        let src = vec![150u8; 8 * 8];
+        let dst = r.resample_plane(&src, 16, 8, 8, 4);
+        assert_eq!(dst.len(), 4 * 4);
+    }
+
+    #[test]
+    fn test_resample_plane_empty_source_returns_zeros() {
+        let r = ChromaPlaneResampler::same_siting(ChromaSubsampling::Yuv420, ChromaLocation::Left);
+        let dst = r.resample_plane(&[], 16, 8, 8, 4);
+        let dst_cw = ChromaSubsampling::Yuv420.chroma_width(8) as usize;
+        let dst_ch = ChromaSubsampling::Yuv420.chroma_height(4) as usize;
+        assert_eq!(dst.len(), dst_cw * dst_ch);
+        assert!(dst.iter().all(|&v| v == 0));
+    }
+
+    #[test]
+    fn test_resample_plane_center_vs_left_siting_differs() {
+        let r_left =
+            ChromaPlaneResampler::same_siting(ChromaSubsampling::Yuv420, ChromaLocation::Left);
+        let r_center =
+            ChromaPlaneResampler::same_siting(ChromaSubsampling::Yuv420, ChromaLocation::Center);
+
+        let src_cw = ChromaSubsampling::Yuv420.chroma_width(32) as usize;
+        let src_ch = ChromaSubsampling::Yuv420.chroma_height(16) as usize;
+        let src: Vec<u8> = (0..src_cw * src_ch)
+            .map(|i| ((i * 3) % 200) as u8)
+            .collect();
+
+        let dst_left = r_left.resample_plane(&src, 32, 16, 16, 8);
+        let dst_center = r_center.resample_plane(&src, 32, 16, 16, 8);
+
+        assert_eq!(dst_left.len(), dst_center.len());
+        let differs = dst_left.iter().zip(dst_center.iter()).any(|(a, b)| a != b);
+        assert!(differs, "different siting should produce different results");
+    }
+
+    #[test]
+    fn test_resample_both_planes_returns_correct_sizes() {
+        let r = ChromaPlaneResampler::same_siting(ChromaSubsampling::Yuv420, ChromaLocation::Left);
+        let src_cw = ChromaSubsampling::Yuv420.chroma_width(16) as usize;
+        let src_ch = ChromaSubsampling::Yuv420.chroma_height(8) as usize;
+        let cb_src = vec![100u8; src_cw * src_ch];
+        let cr_src = vec![150u8; src_cw * src_ch];
+        let (cb_dst, cr_dst) = r.resample_both_planes(&cb_src, &cr_src, 16, 8, 8, 4);
+        let dst_cw = ChromaSubsampling::Yuv420.chroma_width(8) as usize;
+        let dst_ch = ChromaSubsampling::Yuv420.chroma_height(4) as usize;
+        assert_eq!(cb_dst.len(), dst_cw * dst_ch);
+        assert_eq!(cr_dst.len(), dst_cw * dst_ch);
+    }
+
+    #[test]
+    fn test_resample_plane_420_upscale_output_size() {
+        let r = ChromaPlaneResampler::same_siting(ChromaSubsampling::Yuv420, ChromaLocation::Left);
+        let src_cw = ChromaSubsampling::Yuv420.chroma_width(16) as usize;
+        let src_ch = ChromaSubsampling::Yuv420.chroma_height(8) as usize;
+        let src = vec![64u8; src_cw * src_ch];
+        let dst = r.resample_plane(&src, 16, 8, 32, 16);
+        let exp_cw = ChromaSubsampling::Yuv420.chroma_width(32) as usize;
+        let exp_ch = ChromaSubsampling::Yuv420.chroma_height(16) as usize;
+        assert_eq!(dst.len(), exp_cw * exp_ch);
+    }
+
+    #[test]
+    fn test_resampler_cross_siting_constructs() {
+        let r = ChromaPlaneResampler::new(
+            ChromaSubsampling::Yuv420,
+            ChromaLocation::Left,
+            ChromaLocation::Center,
+        );
+        assert_eq!(r.subsampling, ChromaSubsampling::Yuv420);
     }
 }

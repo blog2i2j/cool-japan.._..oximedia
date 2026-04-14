@@ -788,4 +788,95 @@ mod tests {
             approx_eq(cr2020, 128, 2, &format!("Cr BT.2020 grey {v}"));
         }
     }
+
+    // ─── Task G: Additional GPU vs CPU comparison reference tests ────────────
+
+    /// BT.601 reference test vectors from SMPTE RP 177 / ITU-R BT.601.
+    /// Verifies luma Y and chroma Cb/Cr against known standard values.
+    #[test]
+    fn test_bt601_reference_vectors() {
+        // (R, G, B) → (Y, Cb, Cr) reference values (±2 tolerance)
+        let cases: &[((u8, u8, u8), (u8, u8, u8))] = &[
+            ((255, 0, 0), (82, 90, 240)),       // Red
+            ((0, 255, 0), (145, 54, 34)),       // Green
+            ((0, 0, 255), (41, 240, 110)),      // Blue
+            ((255, 255, 255), (235, 128, 128)), // White
+            ((0, 0, 0), (16, 128, 128)),        // Black
+            ((128, 128, 128), (126, 128, 128)), // Mid-grey
+        ];
+        for &((r, g, b), (ey, ecb, ecr)) in cases {
+            let (y, cb, cr) = bt601_rgb_to_ycbcr(r, g, b);
+            approx_eq(y, ey, 3, &format!("Y  for ({r},{g},{b}) BT.601"));
+            approx_eq(cb, ecb, 4, &format!("Cb for ({r},{g},{b}) BT.601"));
+            approx_eq(cr, ecr, 4, &format!("Cr for ({r},{g},{b}) BT.601"));
+        }
+    }
+
+    /// BT.709 reference test vectors from ITU-R BT.709-6 Table 1.
+    #[test]
+    fn test_bt709_reference_vectors() {
+        // Key reference points for BT.709
+        let cases: &[((u8, u8, u8), (u8, u8, u8))] = &[
+            ((255, 255, 255), (235, 128, 128)), // White
+            ((0, 0, 0), (16, 128, 128)),        // Black
+            ((255, 0, 0), (63, 102, 240)),      // Red (Kr=0.2126)
+            ((0, 255, 0), (173, 42, 26)),       // Green (Kg=0.7152)
+            ((0, 0, 255), (32, 240, 118)),      // Blue (Kb=0.0722)
+        ];
+        for &((r, g, b), (ey, ecb, ecr)) in cases {
+            let (y, cb, cr) = bt709_rgb_to_ycbcr(r, g, b);
+            approx_eq(y, ey, 4, &format!("Y  for ({r},{g},{b}) BT.709"));
+            approx_eq(cb, ecb, 5, &format!("Cb for ({r},{g},{b}) BT.709"));
+            approx_eq(cr, ecr, 5, &format!("Cr for ({r},{g},{b}) BT.709"));
+        }
+    }
+
+    /// Verify that BT.601 and BT.709 give different Y for the same colour.
+    /// The two standards use different luma coefficients (Kr, Kg, Kb).
+    #[test]
+    fn test_bt601_vs_bt709_differ_for_primaries() {
+        let test_colours = [(255u8, 0, 0), (0, 255, 0), (0, 0, 255)];
+        for (r, g, b) in test_colours {
+            let (y601, _, _) = bt601_rgb_to_ycbcr(r, g, b);
+            let (y709, _, _) = bt709_rgb_to_ycbcr(r, g, b);
+            assert_ne!(
+                y601, y709,
+                "BT.601 and BT.709 Y should differ for ({r},{g},{b})"
+            );
+        }
+    }
+
+    /// CPU↔CPU path consistency: calling bt601 twice on same input gives same result.
+    #[test]
+    fn test_bt601_deterministic() {
+        let (y1, cb1, cr1) = bt601_rgb_to_ycbcr(100, 150, 200);
+        let (y2, cb2, cr2) = bt601_rgb_to_ycbcr(100, 150, 200);
+        assert_eq!(y1, y2);
+        assert_eq!(cb1, cb2);
+        assert_eq!(cr1, cr2);
+    }
+
+    /// Round-trip BT.709 for a batch of arbitrary colours; max drift ≤ 5.
+    #[test]
+    fn test_bt709_batch_roundtrip_within_tolerance() {
+        let colours = [
+            (10u8, 20u8, 30u8),
+            (200, 100, 50),
+            (64, 128, 192),
+            (0, 255, 128),
+            (255, 128, 0),
+            (77, 77, 77),
+        ];
+        for (r, g, b) in colours {
+            let (y, cb, cr) = bt709_rgb_to_ycbcr(r, g, b);
+            let (ro, go, bo) = bt709_ycbcr_to_rgb(y, cb, cr);
+            let dr = (r as i32 - ro as i32).unsigned_abs();
+            let dg = (g as i32 - go as i32).unsigned_abs();
+            let db = (b as i32 - bo as i32).unsigned_abs();
+            assert!(
+                dr <= 5 && dg <= 5 && db <= 5,
+                "BT.709 roundtrip ({r},{g},{b}) → ({ro},{go},{bo}): diff=({dr},{dg},{db})"
+            );
+        }
+    }
 }

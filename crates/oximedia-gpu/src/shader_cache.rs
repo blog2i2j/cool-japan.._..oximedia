@@ -853,4 +853,115 @@ mod tests {
         assert_eq!(cache.stats().disk_hits, 2);
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    // ── Shader cache invalidation tests ──────────────────────────────────────
+
+    /// Helper: build a `ShaderVersion` keyed by `source_hash`.
+    fn versioned(source: &[u8]) -> ShaderVersion {
+        ShaderVersion::new(hash_source(source), "vulkan", 0)
+    }
+
+    #[test]
+    fn test_invalidation_initial_hit() {
+        let mut cache = GpuShaderCache::default();
+        let source_v1 = b"// shader version 1\nvoid main() {}";
+        let version_v1 = versioned(source_v1);
+        let shader = CompiledShader::new(vec![0xAA; 32], version_v1.clone());
+        cache.insert(shader);
+        // First retrieval must be a hit.
+        assert!(cache.get(&version_v1).is_some(), "version 1 must hit");
+        assert_eq!(cache.stats().hits, 1);
+        assert_eq!(cache.stats().misses, 0);
+    }
+
+    #[test]
+    fn test_invalidation_different_source_is_miss() {
+        let mut cache = GpuShaderCache::default();
+        let source_v1 = b"// shader version 1\nvoid main() {}";
+        let source_v2 = b"// shader version 2\nvoid main() { discard; }";
+        let version_v1 = versioned(source_v1);
+        let version_v2 = versioned(source_v2);
+        // Insert version 1 only.
+        cache.insert(CompiledShader::new(vec![0x11; 16], version_v1.clone()));
+        // Looking up version 2 must be a miss.
+        assert!(
+            cache.get(&version_v2).is_none(),
+            "different source hash must be a miss"
+        );
+        assert_eq!(cache.stats().misses, 1);
+    }
+
+    #[test]
+    fn test_invalidation_old_version_not_accessible_after_remove() {
+        let mut cache = GpuShaderCache::default();
+        let source_v1 = b"// version 1";
+        let source_v2 = b"// version 2";
+        let version_v1 = versioned(source_v1);
+        let version_v2 = versioned(source_v2);
+        // Cache version 1.
+        cache.insert(CompiledShader::new(vec![0x01; 8], version_v1.clone()));
+        assert!(cache.get(&version_v1).is_some(), "v1 hit");
+        // Simulate invalidation: remove v1, insert v2.
+        cache.remove(&version_v1);
+        cache.insert(CompiledShader::new(vec![0x02; 8], version_v2.clone()));
+        // v1 must be gone.
+        assert!(
+            cache.get(&version_v1).is_none(),
+            "old version must not be accessible after remove"
+        );
+        // v2 must be present.
+        assert!(cache.get(&version_v2).is_some(), "new version must hit");
+    }
+
+    #[test]
+    fn test_invalidation_source_hash_changes_on_whitespace_edit() {
+        // Even a single whitespace difference must produce a different hash.
+        let source_a = b"void main(){}";
+        let source_b = b"void main() {}";
+        assert_ne!(
+            hash_source(source_a),
+            hash_source(source_b),
+            "whitespace change must produce different hash"
+        );
+    }
+
+    #[test]
+    fn test_invalidation_disk_cache_version_change() {
+        let dir = std::env::temp_dir().join("oximedia_gpu_shader_inval_test");
+        let _ = std::fs::remove_dir_all(&dir);
+        let mut disk = DiskShaderCache::open(&dir).expect("open disk cache");
+
+        let source_v1 = b"// v1 source";
+        let source_v2 = b"// v2 source -- recompiled";
+        let version_v1 = ShaderVersion::new(hash_source(source_v1), "vulkan", 0);
+        let version_v2 = ShaderVersion::new(hash_source(source_v2), "vulkan", 0);
+
+        // Write version 1.
+        disk.put(&CompiledShader::new(vec![0x01; 4], version_v1.clone()));
+        // Version 1 must hit.
+        assert!(disk.get(&version_v1).is_some(), "v1 disk hit");
+        // Version 2 must miss (not yet written).
+        assert!(disk.get(&version_v2).is_none(), "v2 disk miss before write");
+        // Write version 2.
+        disk.put(&CompiledShader::new(vec![0x02; 4], version_v2.clone()));
+        // Now version 2 must hit.
+        assert!(disk.get(&version_v2).is_some(), "v2 disk hit after write");
+        // Version 1 still hits (two independent entries).
+        assert!(disk.get(&version_v1).is_some(), "v1 still exists");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn test_invalidation_clear_invalidates_all() {
+        let mut cache = GpuShaderCache::default();
+        let v1 = versioned(b"shader A");
+        let v2 = versioned(b"shader B");
+        cache.insert(CompiledShader::new(vec![1u8; 8], v1.clone()));
+        cache.insert(CompiledShader::new(vec![2u8; 8], v2.clone()));
+        cache.clear();
+        assert!(cache.get(&v1).is_none(), "v1 must be gone after clear");
+        assert!(cache.get(&v2).is_none(), "v2 must be gone after clear");
+        assert!(cache.is_empty());
+    }
 }

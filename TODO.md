@@ -1,8 +1,9 @@
 # OxiMedia — The Sovereign Media Framework: Development Roadmap
 
-**Version: 0.1.2**
-**Status as of: 2026-03-17**
-**Total SLOC: ~2,155,000 (Rust)**
+**Version: 0.1.3**
+**Status as of: 2026-04-15**
+**Total SLOC: ~2,650,000 (Rust)**
+**Total Tests: 80,393 passing**
 **Total Crates: 106**
 **Crate Status: 106 Stable / 0 Alpha / 0 Partial**
 
@@ -354,4 +355,4 @@ All of the following must pass before any release tag:
 
 ---
 
-*Last updated: 2026-03-17 — v0.1.2 continuing, ~2.155M SLOC, 106 crates (106 stable); facade exposes ~108 workspace library crates via 60+ feature flags; 11 new crates (hdr, spatial, cache, stream, video, cdn, neural, 360, analytics, caption-gen, pipeline); 70,807 tests passing; 1,386 unwrap() calls eliminated; NMOS IS-04/IS-05/IS-07/IS-08/IS-09/IS-11 complete; AVX-512 SIMD; CLI extended; 4 criterion benchmarks; WASM clean*
+*Last updated: 2026-04-15 — v0.1.3, ~2.650M SLOC, 106 crates (106 stable); facade exposes ~108 workspace library crates via 60+ feature flags; 11 new crates (hdr, spatial, cache, stream, video, cdn, neural, 360, analytics, caption-gen, pipeline); 80,393 tests passing; 1,386 unwrap() calls eliminated; NMOS IS-04/IS-05/IS-07/IS-08/IS-09/IS-11 complete; AVX-512 SIMD; CLI extended; 4 criterion benchmarks; WASM clean*

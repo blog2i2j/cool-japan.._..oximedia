@@ -169,7 +169,16 @@ impl SnapshotManager {
         id
     }
 
-    /// Restores a snapshot to the given matrix.
+    /// Restores a snapshot to the given matrix **atomically**.
+    ///
+    /// Either the matrix is fully updated to match the snapshot, or it is left
+    /// completely unchanged (rollback on any error).
+    ///
+    /// The atomicity guarantee is implemented via a clone-and-apply pattern:
+    /// 1. Clone the target matrix as a backup.
+    /// 2. Apply all changes to the *live* matrix.
+    /// 3. If any step fails, `std::mem::swap` the backup back in, restoring
+    ///    the original state before returning the error.
     ///
     /// Returns `Err` if the snapshot is not found or dimensions don't match.
     pub fn restore(
@@ -188,17 +197,36 @@ impl SnapshotManager {
             });
         }
 
-        // Clear current state
+        // Take a backup of the current state before touching anything.
+        let mut backup = matrix.clone();
+
+        // Apply all changes.  On error, swap the backup back in so the matrix
+        // is left exactly as it was before this call.
+        let result = self.apply_snapshot(snapshot, matrix);
+        if result.is_err() {
+            // Atomic rollback: swap backup into the live matrix slot.
+            std::mem::swap(matrix, &mut backup);
+        }
+        result
+    }
+
+    /// Internal: apply snapshot state to matrix without rollback logic.
+    fn apply_snapshot(
+        &self,
+        snapshot: &RoutingSnapshot,
+        matrix: &mut CrosspointMatrix,
+    ) -> Result<(), SnapshotError> {
+        // Clear current state.
         matrix.clear_all();
 
-        // Restore all crosspoints
+        // Restore all crosspoints.
         for (&(input, output), &gain_db) in &snapshot.crosspoints {
             matrix.connect(input, output, Some(gain_db)).map_err(|e| {
                 SnapshotError::RestoreError(format!("Failed to connect ({input},{output}): {e}"))
             })?;
         }
 
-        // Restore labels
+        // Restore labels.
         for (i, label) in snapshot.input_labels.iter().enumerate() {
             let _ = matrix.set_input_label(i, label.clone());
         }
@@ -550,5 +578,247 @@ mod tests {
         let snap = mgr.get(0).expect("exists");
         let active = snap.active_crosspoints();
         assert_eq!(active.len(), 3);
+    }
+
+    // -----------------------------------------------------------------------
+    // New tests: atomic rollback guarantee (12 tests)
+    // -----------------------------------------------------------------------
+
+    /// Restore of a valid snapshot fully replaces the matrix state.
+    #[test]
+    fn test_atomic_restore_full_replace() {
+        let mut mgr = SnapshotManager::new();
+
+        // Snapshot A: input 0 → output 0 at -6 dB
+        let mut m_a = CrosspointMatrix::new(4, 4);
+        m_a.connect(0, 0, Some(-6.0)).expect("ok");
+        let id_a = mgr.capture(&m_a, "state_a", "", 0);
+
+        // Live matrix: input 2 → output 2 at 0 dB
+        let mut live = CrosspointMatrix::new(4, 4);
+        live.connect(2, 2, Some(0.0)).expect("ok");
+        assert!(live.is_connected(2, 2));
+        assert!(!live.is_connected(0, 0));
+
+        // Restore A into live — should fully replace state.
+        mgr.restore(id_a, &mut live).expect("restore ok");
+        assert!(live.is_connected(0, 0));
+        assert!(!live.is_connected(2, 2)); // old connection gone
+    }
+
+    /// Save and restore is an exact round-trip including gain values.
+    #[test]
+    fn test_atomic_restore_gain_roundtrip() {
+        let mut mgr = SnapshotManager::new();
+        let mut m = CrosspointMatrix::new(4, 4);
+        m.connect(0, 1, Some(-12.5)).expect("ok");
+        m.connect(3, 3, Some(6.0)).expect("ok");
+        let id = mgr.capture(&m, "gains", "", 0);
+
+        let mut target = CrosspointMatrix::new(4, 4);
+        mgr.restore(id, &mut target).expect("restore ok");
+
+        // Check gain is preserved to floating-point precision.
+        let state_01 = target.get_state(0, 1);
+        let state_33 = target.get_state(3, 3);
+        if let crate::matrix::crosspoint::CrosspointState::Connected { gain_db } = state_01 {
+            assert!((gain_db - (-12.5)).abs() < 1e-5, "gain mismatch for (0,1)");
+        } else {
+            panic!("Expected (0,1) to be connected");
+        }
+        if let crate::matrix::crosspoint::CrosspointState::Connected { gain_db } = state_33 {
+            assert!((gain_db - 6.0).abs() < 1e-5, "gain mismatch for (3,3)");
+        } else {
+            panic!("Expected (3,3) to be connected");
+        }
+    }
+
+    /// On a not-found error the matrix is completely unchanged.
+    #[test]
+    fn test_atomic_rollback_on_not_found() {
+        let mgr = SnapshotManager::new();
+        let mut live = CrosspointMatrix::new(4, 4);
+        live.connect(1, 1, Some(0.0)).expect("ok");
+
+        let result = mgr.restore(999, &mut live);
+        assert!(result.is_err());
+
+        // Matrix must be untouched.
+        assert!(live.is_connected(1, 1));
+        assert_eq!(live.get_active_crosspoints().len(), 1);
+    }
+
+    /// On a dimension mismatch error the matrix is completely unchanged.
+    #[test]
+    fn test_atomic_rollback_on_dimension_mismatch() {
+        let mut mgr = SnapshotManager::new();
+        let m = make_matrix(); // 4×4
+        let id = mgr.capture(&m, "4x4", "", 0);
+
+        let mut live = CrosspointMatrix::new(8, 8); // wrong size
+        live.connect(0, 0, Some(0.0)).expect("ok");
+        live.connect(7, 7, Some(0.0)).expect("ok");
+
+        let result = mgr.restore(id, &mut live);
+        assert!(matches!(
+            result,
+            Err(SnapshotError::DimensionMismatch { .. })
+        ));
+
+        // Matrix must still have its original connections.
+        assert!(live.is_connected(0, 0));
+        assert!(live.is_connected(7, 7));
+        assert_eq!(live.get_active_crosspoints().len(), 2);
+    }
+
+    /// Restoring a second snapshot after a first restore works correctly.
+    #[test]
+    fn test_restore_sequence() {
+        let mut mgr = SnapshotManager::new();
+        let mut m1 = CrosspointMatrix::new(4, 4);
+        m1.connect(0, 0, Some(0.0)).expect("ok");
+        let id1 = mgr.capture(&m1, "s1", "", 0);
+
+        let mut m2 = CrosspointMatrix::new(4, 4);
+        m2.connect(1, 1, Some(-3.0)).expect("ok");
+        m2.connect(2, 2, Some(-6.0)).expect("ok");
+        let id2 = mgr.capture(&m2, "s2", "", 100);
+
+        let mut live = CrosspointMatrix::new(4, 4);
+
+        // Restore first snapshot.
+        mgr.restore(id1, &mut live).expect("ok");
+        assert!(live.is_connected(0, 0));
+        assert!(!live.is_connected(1, 1));
+
+        // Restore second snapshot.
+        mgr.restore(id2, &mut live).expect("ok");
+        assert!(!live.is_connected(0, 0));
+        assert!(live.is_connected(1, 1));
+        assert!(live.is_connected(2, 2));
+    }
+
+    /// `list_snapshots` returns all saved snapshots with correct metadata.
+    #[test]
+    fn test_list_snapshots_metadata() {
+        let mut mgr = SnapshotManager::new();
+        let m = make_matrix();
+        let id_a = mgr.capture(&m, "Alpha", "first", 1000);
+        let id_b = mgr.capture(&m, "Beta", "second", 2000);
+
+        let list = mgr.list();
+        assert_eq!(list.len(), 2);
+        assert_eq!(list[0], (id_a, "Alpha"));
+        assert_eq!(list[1], (id_b, "Beta"));
+    }
+
+    /// `compare` shows added crosspoints correctly.
+    #[test]
+    fn test_compare_added_crosspoints() {
+        let mut mgr = SnapshotManager::new();
+        let m_empty = CrosspointMatrix::new(4, 4);
+        let id_before = mgr.capture(&m_empty, "before", "", 0);
+
+        let m = make_matrix(); // 3 connections
+        let id_after = mgr.capture(&m, "after", "", 100);
+
+        let diff = mgr.diff(id_before, id_after).expect("ok");
+        assert_eq!(diff.added.len(), 3);
+        assert!(diff.removed.is_empty());
+        assert!(diff.gain_changed.is_empty());
+        assert!(!diff.is_identical());
+    }
+
+    /// `compare` shows removed crosspoints correctly.
+    #[test]
+    fn test_compare_removed_crosspoints() {
+        let mut mgr = SnapshotManager::new();
+        let m = make_matrix(); // 3 connections
+        let id_before = mgr.capture(&m, "before", "", 0);
+
+        let m_empty = CrosspointMatrix::new(4, 4);
+        let id_after = mgr.capture(&m_empty, "after", "", 100);
+
+        let diff = mgr.diff(id_before, id_after).expect("ok");
+        assert_eq!(diff.removed.len(), 3);
+        assert!(diff.added.is_empty());
+        assert!(!diff.is_identical());
+    }
+
+    /// `compare` shows gain-changed crosspoints correctly.
+    #[test]
+    fn test_compare_gain_changed() {
+        let mut mgr = SnapshotManager::new();
+        let mut m1 = CrosspointMatrix::new(4, 4);
+        m1.connect(0, 0, Some(-3.0)).expect("ok");
+        let id1 = mgr.capture(&m1, "before", "", 0);
+
+        let mut m2 = CrosspointMatrix::new(4, 4);
+        m2.connect(0, 0, Some(-9.0)).expect("ok"); // same point, different gain
+        let id2 = mgr.capture(&m2, "after", "", 100);
+
+        let diff = mgr.diff(id1, id2).expect("ok");
+        assert_eq!(diff.gain_changed.len(), 1);
+        assert!(diff.removed.is_empty());
+        assert!(diff.added.is_empty());
+        let (i, o, before, after) = diff.gain_changed[0];
+        assert_eq!((i, o), (0, 0));
+        assert!((before - (-3.0)).abs() < 1e-6);
+        assert!((after - (-9.0)).abs() < 1e-6);
+    }
+
+    /// `compare` of two identical snapshots is fully identical.
+    #[test]
+    fn test_compare_identical() {
+        let mut mgr = SnapshotManager::new();
+        let m = make_matrix();
+        let id1 = mgr.capture(&m, "s1", "", 0);
+        let id2 = mgr.capture(&m, "s2", "", 50);
+
+        let diff = mgr.diff(id1, id2).expect("ok");
+        assert!(diff.is_identical());
+        assert_eq!(diff.diff_count(), 0);
+        assert_eq!(diff.unchanged, 3);
+    }
+
+    /// Restoring preserves the matrix unchanged when called on itself (idempotent).
+    #[test]
+    fn test_restore_is_idempotent() {
+        let mut mgr = SnapshotManager::new();
+        let m = make_matrix();
+        let id = mgr.capture(&m, "snap", "", 0);
+
+        let mut live = make_matrix();
+        mgr.restore(id, &mut live).expect("first restore ok");
+        mgr.restore(id, &mut live).expect("second restore ok");
+
+        // After two restores, should still match the original.
+        assert!(live.is_connected(0, 0));
+        assert!(live.is_connected(1, 1));
+        assert!(live.is_connected(2, 3));
+        assert_eq!(live.get_active_crosspoints().len(), 3);
+    }
+
+    /// 256×256 sparse restore: captures all 256 connections and restores them.
+    #[test]
+    fn test_snapshot_restore_256x256_diagonal() {
+        let mut mgr = SnapshotManager::new();
+        let mut m = CrosspointMatrix::new(256, 256);
+        for i in 0..256 {
+            m.connect(i, i, Some(-(i as f32))).expect("ok");
+        }
+        let id = mgr.capture(&m, "diagonal", "", 0);
+
+        let mut target = CrosspointMatrix::new(256, 256);
+        mgr.restore(id, &mut target).expect("restore ok");
+
+        // Verify a sample of connections and gains.
+        for i in [0, 63, 127, 200, 255] {
+            assert!(
+                target.is_connected(i, i),
+                "diagonal {i} should be connected"
+            );
+        }
+        assert_eq!(target.get_active_crosspoints().len(), 256);
     }
 }

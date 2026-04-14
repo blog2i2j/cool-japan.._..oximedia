@@ -4,6 +4,16 @@
 //!
 //! Tracks available link bandwidth and allocates capacity to media
 //! streams, preventing over-subscription on routing links.
+//!
+//! # Threshold Warnings
+//!
+//! `BandwidthBudget` supports utilization threshold monitoring via
+//! `UtilizationThreshold` and `BandwidthAlert`. Register an alert
+//! callback with `on_alert()`; it is fired once on each state
+//! transition (`Normal → Warning → Critical` and back), not on every
+//! check.
+
+use std::sync::Arc;
 
 /// Unit of bandwidth measurement.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -83,21 +93,129 @@ struct ActiveAllocation {
     priority: u32,
 }
 
-/// Manages a fixed bandwidth budget for a link or path.
+// ─────────────────────────────────────────────────────────────────────────────
+// Threshold / Alert types
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Utilization thresholds that trigger bandwidth alerts.
+///
+/// Percentages are in the range 0.0–100.0.
+#[derive(Debug, Clone, Copy)]
+pub struct UtilizationThreshold {
+    /// Utilization percentage (0–100) at which a `Warning` alert fires.
+    pub warning_pct: f64,
+    /// Utilization percentage (0–100) at which a `Critical` alert fires.
+    pub critical_pct: f64,
+}
+
+impl Default for UtilizationThreshold {
+    fn default() -> Self {
+        Self {
+            warning_pct: 80.0,
+            critical_pct: 95.0,
+        }
+    }
+}
+
+/// An alert emitted when link utilization crosses a threshold boundary.
 #[derive(Debug, Clone)]
+pub enum BandwidthAlert {
+    /// Utilization crossed the warning threshold.
+    Warning {
+        /// Link identifier.
+        link_id: String,
+        /// Current utilization percentage.
+        utilization_pct: f64,
+    },
+    /// Utilization crossed the critical threshold.
+    Critical {
+        /// Link identifier.
+        link_id: String,
+        /// Current utilization percentage.
+        utilization_pct: f64,
+    },
+    /// Utilization dropped below the warning threshold — alert cleared.
+    Cleared {
+        /// Link identifier.
+        link_id: String,
+    },
+}
+
+/// Callback type for bandwidth alerts.
+///
+/// Uses `Arc` so the callback can be cloned alongside the budget struct.
+pub type AlertCallback = Arc<dyn Fn(BandwidthAlert) + Send + Sync>;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Alert state (for hysteresis)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Internal alert state used for hysteresis: only fire on transitions.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+enum AlertState {
+    /// Utilization is below the warning threshold.
+    #[default]
+    Normal,
+    /// Utilization is at or above the warning threshold but below critical.
+    Warning,
+    /// Utilization is at or above the critical threshold.
+    Critical,
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BandwidthBudget
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Manages a fixed bandwidth budget for a link or path.
+///
+/// `Clone` is derived; the alert callback is shared via `Arc`.
+#[derive(Clone)]
 pub struct BandwidthBudget {
+    /// Identifier used in alert payloads.
+    link_id: String,
     /// Total capacity in bps.
     capacity_bps: f64,
     /// Active allocations.
     allocations: Vec<ActiveAllocation>,
+    /// Optional utilization thresholds.
+    threshold: Option<UtilizationThreshold>,
+    /// Optional alert callback (Arc for Clone + Send + Sync).
+    alert_callback: Option<AlertCallback>,
+    /// Hysteresis state — only emit on state transitions.
+    alert_state: AlertState,
+}
+
+impl std::fmt::Debug for BandwidthBudget {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BandwidthBudget")
+            .field("link_id", &self.link_id)
+            .field("capacity_bps", &self.capacity_bps)
+            .field("allocations", &self.allocations)
+            .field("threshold", &self.threshold)
+            .field(
+                "alert_callback",
+                &self.alert_callback.as_ref().map(|_| "<callback>"),
+            )
+            .field("alert_state", &self.alert_state)
+            .finish()
+    }
 }
 
 impl BandwidthBudget {
     /// Create a new budget with the given capacity.
     pub fn new(capacity: f64, unit: BandwidthUnit) -> Self {
+        Self::with_id("", capacity, unit)
+    }
+
+    /// Create a new budget with the given capacity and link identifier.
+    pub fn with_id(link_id: impl Into<String>, capacity: f64, unit: BandwidthUnit) -> Self {
         Self {
+            link_id: link_id.into(),
             capacity_bps: unit.to_bps(capacity),
             allocations: Vec::new(),
+            threshold: None,
+            alert_callback: None,
+            alert_state: AlertState::Normal,
         }
     }
 
@@ -125,10 +243,73 @@ impl BandwidthBudget {
         (self.allocated_bps() / self.capacity_bps).min(1.0)
     }
 
+    /// Utilization as a percentage 0.0..=100.0.
+    pub fn utilization_pct(&self) -> f64 {
+        self.utilization() * 100.0
+    }
+
     /// Number of active allocations.
     pub fn allocation_count(&self) -> usize {
         self.allocations.len()
     }
+
+    /// Configure utilization thresholds for alert firing.
+    pub fn set_thresholds(&mut self, threshold: UtilizationThreshold) {
+        self.threshold = Some(threshold);
+        // Re-evaluate current state without firing (just update internal state).
+        self.alert_state = self.compute_alert_state(self.utilization_pct());
+    }
+
+    /// Register an alert callback.  The callback will be called once on each
+    /// threshold state transition.
+    pub fn on_alert(&mut self, callback: AlertCallback) {
+        self.alert_callback = Some(callback);
+    }
+
+    // ── Internal helpers ──────────────────────────────────────────────────────
+
+    /// Determine the new alert state given a utilization percentage and the
+    /// current threshold configuration.
+    fn compute_alert_state(&self, pct: f64) -> AlertState {
+        match &self.threshold {
+            None => AlertState::Normal,
+            Some(t) if pct >= t.critical_pct => AlertState::Critical,
+            Some(t) if pct >= t.warning_pct => AlertState::Warning,
+            _ => AlertState::Normal,
+        }
+    }
+
+    /// Compare the new alert state against the stored one and, on a transition,
+    /// fire the callback.
+    fn check_and_fire_alert(&mut self) {
+        let pct = self.utilization_pct();
+        let new_state = self.compute_alert_state(pct);
+
+        if new_state == self.alert_state {
+            return; // no transition — hysteresis prevents repeated firing
+        }
+
+        self.alert_state = new_state;
+
+        if let Some(cb) = &self.alert_callback {
+            let alert = match new_state {
+                AlertState::Normal => BandwidthAlert::Cleared {
+                    link_id: self.link_id.clone(),
+                },
+                AlertState::Warning => BandwidthAlert::Warning {
+                    link_id: self.link_id.clone(),
+                    utilization_pct: pct,
+                },
+                AlertState::Critical => BandwidthAlert::Critical {
+                    link_id: self.link_id.clone(),
+                    utilization_pct: pct,
+                },
+            };
+            cb(alert);
+        }
+    }
+
+    // ── Public allocation API ─────────────────────────────────────────────────
 
     /// Try to allocate bandwidth for a stream.
     pub fn allocate(&mut self, request: &AllocationRequest) -> AllocationResult {
@@ -151,6 +332,7 @@ impl BandwidthBudget {
             priority: request.priority,
         });
 
+        self.check_and_fire_alert();
         AllocationResult::Granted
     }
 
@@ -162,6 +344,7 @@ impl BandwidthBudget {
             .position(|a| a.stream_id == stream_id)
         {
             let removed = self.allocations.remove(pos);
+            self.check_and_fire_alert();
             Some(removed.allocated_bps)
         } else {
             None
@@ -171,6 +354,7 @@ impl BandwidthBudget {
     /// Release all allocations.
     pub fn release_all(&mut self) {
         self.allocations.clear();
+        self.check_and_fire_alert();
     }
 
     /// Check if a stream has an active allocation.
@@ -206,23 +390,40 @@ impl BandwidthBudget {
                     allocated_bps: request.required_bps,
                     priority: request.priority,
                 });
+                self.check_and_fire_alert();
                 return Some(freed_id);
             }
             // Put it back if still not enough room
+            let restore_priority = self.allocations.len() as u32;
             self.allocations.push(ActiveAllocation {
                 stream_id: freed_id,
                 allocated_bps: freed_bps,
-                priority: self.allocations.len() as u32, // restore doesn't need exact priority
+                priority: restore_priority,
             });
         }
         None
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// BudgetAllocator
+// ─────────────────────────────────────────────────────────────────────────────
+
 /// Allocator that manages budgets across multiple links.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct BudgetAllocator {
     budgets: Vec<(String, BandwidthBudget)>,
+}
+
+impl std::fmt::Debug for BudgetAllocator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BudgetAllocator")
+            .field(
+                "budgets",
+                &self.budgets.iter().map(|(n, _)| n).collect::<Vec<_>>(),
+            )
+            .finish()
+    }
 }
 
 impl BudgetAllocator {
@@ -235,7 +436,8 @@ impl BudgetAllocator {
 
     /// Add a link budget.
     pub fn add_link(&mut self, name: impl Into<String>, budget: BandwidthBudget) {
-        self.budgets.push((name.into(), budget));
+        let name = name.into();
+        self.budgets.push((name, budget));
     }
 
     /// Number of managed links.
@@ -265,6 +467,20 @@ impl BudgetAllocator {
     pub fn total_available_bps(&self) -> f64 {
         self.budgets.iter().map(|(_, b)| b.available_bps()).sum()
     }
+
+    /// Set utilization thresholds for a specific link.
+    pub fn set_thresholds_for_link(&mut self, link_id: &str, threshold: UtilizationThreshold) {
+        if let Some(budget) = self.get_budget_mut(link_id) {
+            budget.set_thresholds(threshold);
+        }
+    }
+
+    /// Register an alert callback for a specific link.
+    pub fn on_alert_for_link(&mut self, link_id: &str, callback: AlertCallback) {
+        if let Some(budget) = self.get_budget_mut(link_id) {
+            budget.on_alert(callback);
+        }
+    }
 }
 
 impl Default for BudgetAllocator {
@@ -276,6 +492,7 @@ impl Default for BudgetAllocator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
 
     #[test]
     fn test_bandwidth_unit_to_bps() {
@@ -402,5 +619,205 @@ mod tests {
         assert_eq!(preempted, Some("low".to_string()));
         assert!(b.is_allocated("high"));
         assert!(!b.is_allocated("low"));
+    }
+
+    // ── Threshold / alert tests ───────────────────────────────────────────────
+
+    /// Helper: build a budget that fires alerts into an atomic counter.
+    /// Returns (budget, warning_count, critical_count, cleared_count).
+    fn make_instrumented_budget(
+        capacity_mbps: f64,
+    ) -> (
+        BandwidthBudget,
+        Arc<AtomicU32>,
+        Arc<AtomicU32>,
+        Arc<AtomicU32>,
+    ) {
+        let warning_count = Arc::new(AtomicU32::new(0));
+        let critical_count = Arc::new(AtomicU32::new(0));
+        let cleared_count = Arc::new(AtomicU32::new(0));
+
+        let wc = Arc::clone(&warning_count);
+        let cc = Arc::clone(&critical_count);
+        let clc = Arc::clone(&cleared_count);
+
+        let mut budget = BandwidthBudget::with_id("test-link", capacity_mbps, BandwidthUnit::Mbps);
+        budget.set_thresholds(UtilizationThreshold {
+            warning_pct: 80.0,
+            critical_pct: 95.0,
+        });
+        budget.on_alert(Arc::new(move |alert| match alert {
+            BandwidthAlert::Warning { .. } => {
+                wc.fetch_add(1, Ordering::SeqCst);
+            }
+            BandwidthAlert::Critical { .. } => {
+                cc.fetch_add(1, Ordering::SeqCst);
+            }
+            BandwidthAlert::Cleared { .. } => {
+                clc.fetch_add(1, Ordering::SeqCst);
+            }
+        }));
+
+        (budget, warning_count, critical_count, cleared_count)
+    }
+
+    #[test]
+    fn test_threshold_warning_fires_on_crossing() {
+        let (mut b, warn, crit, _cleared) = make_instrumented_budget(100.0);
+
+        // 81 Mbps → 81% → should cross warning threshold
+        b.allocate(&AllocationRequest::new("s1", 81_000_000.0, 1));
+        assert_eq!(warn.load(Ordering::SeqCst), 1, "warning should fire once");
+        assert_eq!(crit.load(Ordering::SeqCst), 0, "critical should not fire");
+    }
+
+    #[test]
+    fn test_threshold_critical_fires_on_crossing() {
+        let (mut b, warn, crit, _cleared) = make_instrumented_budget(100.0);
+
+        // 96 Mbps → 96% → critical
+        b.allocate(&AllocationRequest::new("s1", 96_000_000.0, 1));
+        // Should have gone directly Normal → Critical (warning threshold also passed)
+        assert_eq!(crit.load(Ordering::SeqCst), 1, "critical should fire once");
+        // Warning was skipped because we jumped straight to critical
+        assert_eq!(warn.load(Ordering::SeqCst), 0, "warning was skipped");
+    }
+
+    #[test]
+    fn test_threshold_cleared_fires_on_release_below_warning() {
+        let (mut b, _warn, _crit, cleared) = make_instrumented_budget(100.0);
+
+        b.allocate(&AllocationRequest::new("s1", 81_000_000.0, 1));
+        assert_eq!(cleared.load(Ordering::SeqCst), 0);
+
+        // Release → utilization drops to 0 → cleared
+        b.release("s1");
+        assert_eq!(
+            cleared.load(Ordering::SeqCst),
+            1,
+            "cleared should fire once"
+        );
+    }
+
+    #[test]
+    fn test_threshold_hysteresis_no_repeated_alerts() {
+        let (mut b, warn, _crit, _cleared) = make_instrumented_budget(100.0);
+
+        // First crossing
+        b.allocate(&AllocationRequest::new("s1", 81_000_000.0, 1));
+        assert_eq!(warn.load(Ordering::SeqCst), 1);
+
+        // Second allocation while still in warning zone — no new alert
+        b.allocate(&AllocationRequest::new("s2", 5_000_000.0, 2));
+        // Still warning (86%), no new transition
+        assert_eq!(warn.load(Ordering::SeqCst), 1, "no repeated warning");
+    }
+
+    #[test]
+    fn test_threshold_warning_to_critical_transition() {
+        let (mut b, warn, crit, _cleared) = make_instrumented_budget(100.0);
+
+        // Cross into warning first
+        b.allocate(&AllocationRequest::new("s1", 82_000_000.0, 1));
+        assert_eq!(warn.load(Ordering::SeqCst), 1);
+        assert_eq!(crit.load(Ordering::SeqCst), 0);
+
+        // Now push into critical
+        b.allocate(&AllocationRequest::new("s2", 14_000_000.0, 2));
+        // 96% → critical transition
+        assert_eq!(crit.load(Ordering::SeqCst), 1, "critical should fire");
+        assert_eq!(warn.load(Ordering::SeqCst), 1, "warning not re-fired");
+    }
+
+    #[test]
+    fn test_threshold_critical_to_warning_to_normal() {
+        let (mut b, warn, crit, cleared) = make_instrumented_budget(100.0);
+
+        // ── Step 1: allocate 96% → Critical ──────────────────────────────────
+        b.allocate(&AllocationRequest::new("s1", 96_000_000.0, 1));
+        assert_eq!(
+            crit.load(Ordering::SeqCst),
+            1,
+            "critical fires on first allocation"
+        );
+
+        // ── Step 2: release → 0% → Cleared (Critical → Normal) ───────────────
+        b.release("s1");
+        assert_eq!(
+            cleared.load(Ordering::SeqCst),
+            1,
+            "cleared fires on release from critical"
+        );
+
+        // ── Step 3: allocate 82% → Warning (Normal → Warning) ────────────────
+        b.allocate(&AllocationRequest::new("s2", 82_000_000.0, 1));
+        assert_eq!(
+            warn.load(Ordering::SeqCst),
+            1,
+            "warning fires after critical cleared"
+        );
+
+        // ── Step 4: release → 0% → Cleared (Warning → Normal) ────────────────
+        // Releasing from warning also fires Cleared, so total cleared = 2.
+        b.release("s2");
+        assert_eq!(
+            cleared.load(Ordering::SeqCst),
+            2,
+            "cleared fires again on release from warning"
+        );
+    }
+
+    #[test]
+    fn test_budget_allocator_per_link_thresholds() {
+        let mut alloc = BudgetAllocator::new();
+        alloc.add_link(
+            "primary",
+            BandwidthBudget::with_id("primary", 100.0, BandwidthUnit::Mbps),
+        );
+        alloc.set_thresholds_for_link(
+            "primary",
+            UtilizationThreshold {
+                warning_pct: 80.0,
+                critical_pct: 95.0,
+            },
+        );
+        let fired = Arc::new(AtomicU32::new(0));
+        let fc = Arc::clone(&fired);
+        alloc.on_alert_for_link(
+            "primary",
+            Arc::new(move |_| {
+                fc.fetch_add(1, Ordering::SeqCst);
+            }),
+        );
+
+        if let Some(budget) = alloc.get_budget_mut("primary") {
+            budget.allocate(&AllocationRequest::new("s1", 85_000_000.0, 1));
+        }
+        assert_eq!(fired.load(Ordering::SeqCst), 1, "per-link alert fired");
+    }
+
+    #[test]
+    fn test_no_alert_without_thresholds() {
+        // Without calling set_thresholds, no alerts should fire
+        let fired = Arc::new(AtomicU32::new(0));
+        let fc = Arc::clone(&fired);
+        let mut b = BandwidthBudget::new(100.0, BandwidthUnit::Mbps);
+        b.on_alert(Arc::new(move |_| {
+            fc.fetch_add(1, Ordering::SeqCst);
+        }));
+
+        b.allocate(&AllocationRequest::new("s1", 99_000_000.0, 1));
+        assert_eq!(
+            fired.load(Ordering::SeqCst),
+            0,
+            "no alert without thresholds"
+        );
+    }
+
+    #[test]
+    fn test_utilization_pct_method() {
+        let mut b = BandwidthBudget::new(100.0, BandwidthUnit::Mbps);
+        b.allocate(&AllocationRequest::new("s1", 75_000_000.0, 1));
+        assert!((b.utilization_pct() - 75.0).abs() < 0.01);
     }
 }

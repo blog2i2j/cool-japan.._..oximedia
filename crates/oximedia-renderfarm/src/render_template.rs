@@ -328,7 +328,7 @@ impl TemplateRegistry {
         Ok(serde_json::to_string_pretty(&list)?)
     }
 
-    /// Populate a registry from a JSON string produced by [`to_json`].
+    /// Populate a registry from a JSON string produced by [`Self::to_json`].
     ///
     /// Existing entries are preserved; duplicates in the JSON are ignored.
     pub fn from_json(&mut self, json: &str) -> Result<usize, TemplateError> {

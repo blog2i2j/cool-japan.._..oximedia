@@ -291,11 +291,11 @@ mod tests {
 
         let h264 = detector.detect_video_codec("h264");
         assert!(h264.is_some());
-        assert_eq!(h264.expect("codec should be detected").name, "H.264/AVC");
+        assert_eq!(h264.unwrap().name, "H.264/AVC");
 
         let h265 = detector.detect_video_codec("h265");
         assert!(h265.is_some());
-        assert_eq!(h265.expect("codec should be detected").name, "H.265/HEVC");
+        assert_eq!(h265.unwrap().name, "H.265/HEVC");
     }
 
     #[test]
@@ -304,11 +304,11 @@ mod tests {
 
         let aac = detector.detect_audio_codec("aac");
         assert!(aac.is_some());
-        assert_eq!(aac.expect("codec should be detected").name, "AAC");
+        assert_eq!(aac.unwrap().name, "AAC");
 
         let mp3 = detector.detect_audio_codec("mp3");
         assert!(mp3.is_some());
-        assert_eq!(mp3.expect("codec should be detected").name, "MP3");
+        assert_eq!(mp3.unwrap().name, "MP3");
     }
 
     #[test]
@@ -327,27 +327,23 @@ mod tests {
 
         let video_encoder = detector.get_recommended_encoder(CodecType::Video);
         assert!(video_encoder.is_ok());
-        assert!(video_encoder.expect("codec should be detected").recommended);
+        assert!(video_encoder.unwrap().recommended);
 
         let audio_encoder = detector.get_recommended_encoder(CodecType::Audio);
         assert!(audio_encoder.is_ok());
-        assert!(audio_encoder.expect("codec should be detected").recommended);
+        assert!(audio_encoder.unwrap().recommended);
     }
 
     #[test]
     fn test_codec_quality_range() {
         let detector = CodecDetector::new();
 
-        let h264 = detector
-            .detect_video_codec("h264")
-            .expect("codec should be detected");
+        let h264 = detector.detect_video_codec("h264").unwrap();
         assert!(h264.quality_range.is_some());
         assert!(h264.default_quality().is_some());
         assert!(h264.is_valid_quality(23));
 
-        let aac = detector
-            .detect_audio_codec("aac")
-            .expect("codec should be detected");
+        let aac = detector.detect_audio_codec("aac").unwrap();
         assert!(aac.quality_range.is_some());
         assert!(aac.is_valid_quality(192));
     }
@@ -358,6 +354,6 @@ mod tests {
 
         let codec = detector.get_codec_by_name("H.264/AVC");
         assert!(codec.is_some());
-        assert_eq!(codec.expect("codec should be detected").id, "h264");
+        assert_eq!(codec.unwrap().id, "h264");
     }
 }

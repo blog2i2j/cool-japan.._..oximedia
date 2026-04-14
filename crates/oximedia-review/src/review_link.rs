@@ -426,9 +426,7 @@ impl ReviewLinkManager {
     ) -> Vec<&'a ReviewLink> {
         self.links
             .values()
-            .filter(|l| {
-                l.session_id == session_id && !l.is_revoked() && !l.is_expired(now_ms)
-            })
+            .filter(|l| l.session_id == session_id && !l.is_revoked() && !l.is_expired(now_ms))
             .collect()
     }
 }

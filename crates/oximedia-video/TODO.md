@@ -10,10 +10,10 @@
 - [ ] Add adaptive block size selection in motion estimation (variable block sizes from 4x4 to 64x64)
 - [ ] Implement bidirectional motion estimation in `motion_compensation` for B-frame-style interpolation
 - [ ] Add multiple deinterlace algorithms to `deinterlace` (bob, weave, Yadif-style adaptive, EEDI-style edge-directed)
-- [ ] Extend `scene_detection` with adaptive threshold based on content complexity histogram
+- [x] Extend `scene_detection` with adaptive threshold based on content complexity histogram
 - [ ] Improve `temporal_denoise` with motion-compensated temporal filtering (MCTF) using motion vectors
-- [ ] Add confidence scoring to `pulldown_detect` cadence detection with frame-level accuracy reporting
-- [ ] Extend `video_fingerprint` with rotation/scale invariance for robust content matching
+- [x] Add confidence scoring to `pulldown_detect` cadence detection with frame-level accuracy reporting
+- [x] Extend `video_fingerprint` with rotation/scale invariance for robust content matching
 
 ## New Features
 - [ ] Implement `super_resolution` module for AI-free upscaling (Lanczos, edge-directed interpolation, NEDI)

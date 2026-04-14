@@ -17,29 +17,29 @@
 - [x] Add rate limiting for sync operations in `sync.rs` to prevent flooding
 
 ## New Features
-- [ ] Implement real-time cursor/viewport sharing via `user_presence_map.rs` with smooth interpolation
+- [x] Implement real-time cursor/viewport sharing via `user_presence_map.rs` with smooth interpolation
 - [x] Add comment threading with resolved/unresolved state in `comments.rs`
-- [ ] Implement session recording/playback for edit history replay
-- [ ] Add webhook notifications for external integrations in `notification.rs`
-- [ ] Implement collaborative markers/annotations with timestamp anchoring in `annotation.rs`
-- [ ] Add project branching/forking support in `snapshot_manager.rs`
-- [ ] Implement per-track locking granularity in `edit_lock.rs` with lock escalation
-- [ ] Add session analytics (edit frequency, active time, collaboration patterns) in `activity_feed.rs`
+- [x] Implement session recording/playback for edit history replay
+- [x] Add webhook notifications for external integrations in `notification.rs`
+- [x] Implement collaborative markers/annotations with timestamp anchoring in `annotation.rs`
+- [x] Add project branching/forking support in `snapshot_manager.rs`
+- [x] Implement per-track locking granularity in `edit_lock.rs` with lock escalation
+- [x] Add session analytics (edit frequency, active time, collaboration patterns) in `activity_feed.rs`
 
 ## Performance
-- [ ] Benchmark CRDT merge performance in `crdt.rs` with 10+ concurrent editors
-- [ ] Optimize `operation_log.rs` DAG traversal for large edit histories (>10K operations)
-- [ ] Add incremental state serialization in `changeset.rs` to reduce sync payload size
-- [ ] Profile WebSocket message throughput in `sync.rs` and optimize binary framing
-- [ ] Implement operation batching in `sync.rs` to reduce network round-trips
+- [x] Benchmark CRDT merge performance in `crdt.rs` with 10+ concurrent editors
+- [x] Optimize `operation_log.rs` DAG traversal for large edit histories (>10K operations)
+- [x] Add incremental state serialization in `changeset.rs` to reduce sync payload size
+- [x] Profile WebSocket message throughput in `sync.rs` and optimize binary framing
+- [x] Implement operation batching in `sync.rs` to reduce network round-trips
 
 ## Testing
-- [ ] Add concurrent editing stress test with simulated network partitions
-- [ ] Test `three_way_merge.rs` with complex overlapping timeline edits
-- [ ] Add property-based tests using `proptest` for CRDT convergence guarantees
-- [ ] Test `edit_lock.rs` deadlock detection under concurrent lock acquisition
-- [ ] Add latency measurement tests for sync round-trip under load
-- [ ] Test `snapshot_manager.rs` branch creation and fast-forward merge detection
+- [x] Add concurrent editing stress test with simulated network partitions
+- [x] Test `three_way_merge.rs` with complex overlapping timeline edits
+- [x] Add property-based tests using `proptest` for CRDT convergence guarantees
+- [x] Test `edit_lock.rs` deadlock detection under concurrent lock acquisition
+- [x] Add latency measurement tests for sync round-trip under load
+- [x] Test `snapshot_manager.rs` branch creation and fast-forward merge detection
 
 ## Documentation
 - [ ] Document collaboration protocol and message format

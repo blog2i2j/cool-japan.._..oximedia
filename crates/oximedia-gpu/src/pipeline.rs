@@ -287,6 +287,181 @@ impl Default for PipelineMetrics {
 }
 
 // ============================================================
+// BarrierBatcher — batched GPU memory barrier management
+// ============================================================
+
+/// Direction of a buffer memory barrier.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BarrierKind {
+    /// Read-after-write hazard: a prior write must complete before a read.
+    ReadAfterWrite,
+    /// Write-after-read hazard: a prior read must complete before a write.
+    WriteAfterRead,
+}
+
+/// Represents a logical buffer barrier between two pipeline stages.
+#[derive(Debug, Clone)]
+pub struct BufferBarrier {
+    /// Identifier of the buffer resource.
+    pub buffer_id: u64,
+    /// Kind of hazard this barrier resolves.
+    pub kind: BarrierKind,
+    /// Source pipeline stage (ordering context).
+    pub src_stage: PipelineStage,
+    /// Destination pipeline stage (ordering context).
+    pub dst_stage: PipelineStage,
+}
+
+impl BufferBarrier {
+    /// Create a new `BufferBarrier`.
+    #[must_use]
+    pub fn new(buffer_id: u64, kind: BarrierKind, src: PipelineStage, dst: PipelineStage) -> Self {
+        Self {
+            buffer_id,
+            kind,
+            src_stage: src,
+            dst_stage: dst,
+        }
+    }
+}
+
+/// Strategy governing when accumulated barriers are flushed to the encoder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BarrierStrategy {
+    /// Flush after every single barrier is added (maximum safety, more overhead).
+    Eager,
+    /// Flush once at least `N` barriers have accumulated.
+    Batched(usize),
+    /// Only flush when explicitly requested (e.g. at pass boundaries).
+    Deferred,
+}
+
+/// Tracks a recorded flush event for observability in tests and diagnostics.
+#[derive(Debug, Clone)]
+pub struct FlushRecord {
+    /// Number of read-after-write barriers sent in this flush.
+    pub raw_count: usize,
+    /// Number of write-after-read barriers sent in this flush.
+    pub war_count: usize,
+}
+
+/// Accumulates GPU buffer barriers and issues them to a mock encoder in batches.
+///
+/// In a real GPU engine the `flush` call would translate the accumulated
+/// barriers into a `wgpu::CommandEncoder::insert_debug_marker` / pipeline-
+/// barrier equivalent.  Here we model the encoder with a simple callback so
+/// that the logic can be exercised in pure-CPU unit tests without a GPU device.
+pub struct BarrierBatcher {
+    pending_read_after_write: Vec<BufferBarrier>,
+    pending_write_after_read: Vec<BufferBarrier>,
+    strategy: BarrierStrategy,
+    /// Number of individual barriers that have been batched and submitted.
+    batched_count: u64,
+    /// History of flush events (used for test assertions and diagnostics).
+    flush_log: Vec<FlushRecord>,
+}
+
+impl BarrierBatcher {
+    /// Create a `BarrierBatcher` with the given strategy.
+    #[must_use]
+    pub fn new(strategy: BarrierStrategy) -> Self {
+        Self {
+            pending_read_after_write: Vec::new(),
+            pending_write_after_read: Vec::new(),
+            strategy,
+            batched_count: 0,
+            flush_log: Vec::new(),
+        }
+    }
+
+    /// Add a barrier.  In `Eager` mode this immediately triggers a flush;
+    /// in `Batched(n)` mode a flush is triggered once `n` barriers are pending;
+    /// in `Deferred` mode barriers accumulate until `flush()` is called explicitly.
+    ///
+    /// Returns `true` if a flush occurred as a result of adding this barrier.
+    pub fn add_barrier(&mut self, barrier: BufferBarrier) -> bool {
+        match barrier.kind {
+            BarrierKind::ReadAfterWrite => self.pending_read_after_write.push(barrier),
+            BarrierKind::WriteAfterRead => self.pending_write_after_read.push(barrier),
+        }
+
+        let should_flush = match self.strategy {
+            BarrierStrategy::Eager => true,
+            BarrierStrategy::Batched(n) => self.pending_count() >= n,
+            BarrierStrategy::Deferred => false,
+        };
+
+        if should_flush {
+            self.flush();
+            true
+        } else {
+            false
+        }
+    }
+
+    /// Flush all pending barriers to the (simulated) encoder.
+    ///
+    /// Returns the total number of barriers flushed in this call.
+    /// After flushing, the pending queues are empty.
+    pub fn flush(&mut self) -> usize {
+        let raw = self.pending_read_after_write.len();
+        let war = self.pending_write_after_read.len();
+        let total = raw + war;
+
+        if total == 0 {
+            return 0;
+        }
+
+        // Record this flush for observability.
+        self.flush_log.push(FlushRecord {
+            raw_count: raw,
+            war_count: war,
+        });
+        self.batched_count += total as u64;
+
+        self.pending_read_after_write.clear();
+        self.pending_write_after_read.clear();
+
+        total
+    }
+
+    /// Number of barriers currently waiting to be flushed.
+    #[must_use]
+    pub fn pending_count(&self) -> usize {
+        self.pending_read_after_write.len() + self.pending_write_after_read.len()
+    }
+
+    /// Total number of individual barriers that have been submitted to the encoder.
+    #[must_use]
+    pub fn batched_count(&self) -> u64 {
+        self.batched_count
+    }
+
+    /// Immutable view of the flush history.
+    #[must_use]
+    pub fn flush_log(&self) -> &[FlushRecord] {
+        &self.flush_log
+    }
+
+    /// Active strategy.
+    #[must_use]
+    pub fn strategy(&self) -> BarrierStrategy {
+        self.strategy
+    }
+}
+
+impl std::fmt::Debug for BarrierBatcher {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BarrierBatcher")
+            .field("strategy", &self.strategy)
+            .field("pending", &self.pending_count())
+            .field("batched_count", &self.batched_count)
+            .field("flush_events", &self.flush_log.len())
+            .finish()
+    }
+}
+
+// ============================================================
 // Unit tests
 // ============================================================
 #[cfg(test)]
@@ -419,5 +594,137 @@ mod tests {
     fn test_stage_display() {
         assert_eq!(PipelineStage::Decode.to_string(), "Decode");
         assert_eq!(PipelineStage::Display.to_string(), "Display");
+    }
+
+    // ── BarrierBatcher tests ──────────────────────────────────────────────────
+
+    fn raw_barrier(buf_id: u64) -> BufferBarrier {
+        BufferBarrier::new(
+            buf_id,
+            BarrierKind::ReadAfterWrite,
+            PipelineStage::Decode,
+            PipelineStage::Filter,
+        )
+    }
+
+    fn war_barrier(buf_id: u64) -> BufferBarrier {
+        BufferBarrier::new(
+            buf_id,
+            BarrierKind::WriteAfterRead,
+            PipelineStage::Filter,
+            PipelineStage::Encode,
+        )
+    }
+
+    #[test]
+    fn test_batcher_eager_flushes_immediately() {
+        let mut b = BarrierBatcher::new(BarrierStrategy::Eager);
+        let flushed = b.add_barrier(raw_barrier(1));
+        assert!(flushed, "eager strategy must flush on every add");
+        assert_eq!(b.pending_count(), 0, "pending must be 0 after eager flush");
+        assert_eq!(b.batched_count(), 1);
+    }
+
+    #[test]
+    fn test_batcher_eager_each_barrier_is_one_flush() {
+        let mut b = BarrierBatcher::new(BarrierStrategy::Eager);
+        for i in 0..5u64 {
+            b.add_barrier(raw_barrier(i));
+        }
+        assert_eq!(b.flush_log().len(), 5, "5 adds → 5 flushes in eager mode");
+        assert_eq!(b.batched_count(), 5);
+    }
+
+    #[test]
+    fn test_batcher_batched_accumulates_before_flush() {
+        let mut b = BarrierBatcher::new(BarrierStrategy::Batched(5));
+        // Add 4 barriers — should not flush yet
+        for i in 0..4u64 {
+            let flushed = b.add_barrier(raw_barrier(i));
+            assert!(!flushed, "should not flush before reaching threshold");
+        }
+        assert_eq!(b.pending_count(), 4);
+        assert_eq!(b.flush_log().len(), 0, "no flushes yet");
+        // 5th barrier triggers flush
+        let flushed = b.add_barrier(raw_barrier(4));
+        assert!(flushed, "5th barrier must trigger flush");
+        assert_eq!(b.pending_count(), 0);
+        assert_eq!(b.flush_log().len(), 1, "exactly 1 batch flush occurred");
+        assert_eq!(b.flush_log()[0].raw_count, 5);
+        assert_eq!(b.batched_count(), 5);
+    }
+
+    #[test]
+    fn test_batcher_batched_two_batches() {
+        let mut b = BarrierBatcher::new(BarrierStrategy::Batched(3));
+        for i in 0..6u64 {
+            b.add_barrier(raw_barrier(i));
+        }
+        assert_eq!(
+            b.flush_log().len(),
+            2,
+            "6 barriers at threshold=3 → 2 flushes"
+        );
+        assert_eq!(b.batched_count(), 6);
+    }
+
+    #[test]
+    fn test_batcher_deferred_does_not_auto_flush() {
+        let mut b = BarrierBatcher::new(BarrierStrategy::Deferred);
+        for i in 0..10u64 {
+            let flushed = b.add_barrier(raw_barrier(i));
+            assert!(!flushed, "deferred mode must never auto-flush");
+        }
+        assert_eq!(b.pending_count(), 10);
+        assert_eq!(b.flush_log().len(), 0);
+    }
+
+    #[test]
+    fn test_batcher_manual_flush_clears_pending() {
+        let mut b = BarrierBatcher::new(BarrierStrategy::Deferred);
+        b.add_barrier(raw_barrier(1));
+        b.add_barrier(war_barrier(2));
+        assert_eq!(b.pending_count(), 2);
+        let flushed_count = b.flush();
+        assert_eq!(flushed_count, 2);
+        assert_eq!(b.pending_count(), 0);
+        assert_eq!(b.batched_count(), 2);
+    }
+
+    #[test]
+    fn test_batcher_empty_flush_does_nothing() {
+        let mut b = BarrierBatcher::new(BarrierStrategy::Deferred);
+        let count = b.flush();
+        assert_eq!(count, 0, "flush on empty batcher should return 0");
+        assert_eq!(
+            b.flush_log().len(),
+            0,
+            "empty flush should not log a record"
+        );
+    }
+
+    #[test]
+    fn test_batcher_mixed_kinds_tracked_separately() {
+        let mut b = BarrierBatcher::new(BarrierStrategy::Deferred);
+        b.add_barrier(raw_barrier(1));
+        b.add_barrier(raw_barrier(2));
+        b.add_barrier(war_barrier(3));
+        b.flush();
+        let record = &b.flush_log()[0];
+        assert_eq!(record.raw_count, 2);
+        assert_eq!(record.war_count, 1);
+    }
+
+    #[test]
+    fn test_batcher_strategy_accessor() {
+        let b = BarrierBatcher::new(BarrierStrategy::Batched(8));
+        assert_eq!(b.strategy(), BarrierStrategy::Batched(8));
+    }
+
+    #[test]
+    fn test_batcher_debug_fmt() {
+        let b = BarrierBatcher::new(BarrierStrategy::Eager);
+        let s = format!("{b:?}");
+        assert!(s.contains("BarrierBatcher"));
     }
 }

@@ -183,6 +183,51 @@ pub mod mix_minus;
 // Sparse crosspoint matrix for large matrices (256×256+)
 pub mod sparse_matrix;
 
+// Tally system for signaling active routing paths to external tally controllers
+pub mod tally_system;
+
+// Intercom module for point-to-point and party-line communication routing
+pub mod intercom;
+
+// Declarative routing configuration DSL
+pub mod routing_macro;
+
+// Virtual soundcard for OS-level audio routing
+pub mod virtual_soundcard;
+
+// Bulk NMOS IS-05 connection activation
+pub mod bulk_ops;
+
+// NMOS IS-05 connection constraint validation
+pub mod constraint;
+
+// NMOS IS-04 node heartbeat tracking
+pub mod heartbeat;
+
+// NMOS IS-05 connection change log
+pub mod connection_log;
+
+// NMOS IS-04 flow registry
+pub mod flow_registry;
+
+// NMOS IS-05 activation scheduling and management
+pub mod nmos_activation;
+
+// Constraint sets for route validation
+pub mod constraint_sets;
+
+// Per-channel strip processing chain
+pub mod channel_strip;
+
+// Cached signal-flow-graph validation
+pub mod validate_cache;
+
+// Lock-free routing updates for glitch-free real-time changes
+pub mod lock_free_router;
+
+// Zero-latency path optimization for live monitoring chains
+pub mod zero_latency;
+
 /// Re-export commonly used types for convenience
 pub mod prelude {
     pub use crate::automation::{AutomationTimeline, Timecode};
@@ -301,5 +346,140 @@ mod tests {
 
         timeline.add_event(event);
         assert_eq!(timeline.event_count(), 1);
+    }
+
+    // -----------------------------------------------------------------------
+    // ChannelRemapper layout conversion tests
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_channel_remapper_mono_to_stereo() {
+        let remapper = ChannelRemapper::upmix_mono_to_stereo();
+        assert_eq!(remapper.input_layout, ChannelLayout::Mono);
+        assert_eq!(remapper.output_layout, ChannelLayout::Stereo);
+        // Mono has 1 channel; stereo has 2.
+        assert_eq!(remapper.input_layout.channel_count(), 1);
+        assert_eq!(remapper.output_layout.channel_count(), 2);
+        // Validate: all output channels should be covered.
+        assert!(
+            remapper.validate().is_ok(),
+            "mono-to-stereo remapper failed validation"
+        );
+    }
+
+    #[test]
+    fn test_channel_remapper_stereo_to_mono() {
+        let remapper = ChannelRemapper::downmix_stereo_to_mono();
+        assert_eq!(remapper.input_layout, ChannelLayout::Stereo);
+        assert_eq!(remapper.output_layout, ChannelLayout::Mono);
+        assert_eq!(remapper.input_layout.channel_count(), 2);
+        assert_eq!(remapper.output_layout.channel_count(), 1);
+        assert!(
+            remapper.validate().is_ok(),
+            "stereo-to-mono remapper failed validation"
+        );
+    }
+
+    #[test]
+    fn test_channel_remapper_51_to_stereo() {
+        let remapper = ChannelRemapper::downmix_51_to_stereo();
+        assert_eq!(remapper.input_layout, ChannelLayout::Surround51);
+        assert_eq!(remapper.output_layout, ChannelLayout::Stereo);
+        assert_eq!(remapper.input_layout.channel_count(), 6);
+        assert_eq!(remapper.output_layout.channel_count(), 2);
+        assert!(
+            remapper.validate().is_ok(),
+            "5.1-to-stereo remapper failed validation"
+        );
+    }
+
+    #[test]
+    fn test_channel_remapper_71_to_stereo_via_714() {
+        // 7.1.4 → 7.1 → verify it exists and has correct layout counts.
+        let remapper = ChannelRemapper::downmix_714_to_71();
+        assert_eq!(remapper.input_layout, ChannelLayout::Atmos714);
+        assert_eq!(remapper.output_layout, ChannelLayout::Surround71);
+        assert_eq!(remapper.input_layout.channel_count(), 12);
+        assert_eq!(remapper.output_layout.channel_count(), 8);
+        assert!(
+            remapper.validate().is_ok(),
+            "7.1.4-to-7.1 remapper failed validation"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Failover route switchover timing test
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_failover_route_switchover_timing() {
+        use crate::failover_route::{FailoverConfig, FailoverManager};
+        use std::time::{Duration, Instant};
+
+        let config = FailoverConfig::default();
+        let mut mgr = FailoverManager::new(config);
+        mgr.add_route("Primary".to_string(), 0);
+        mgr.add_route("Backup 1".to_string(), 1);
+        mgr.add_route("Backup 2".to_string(), 2);
+
+        // Time the failover operation — must complete well under 1 ms.
+        let start = Instant::now();
+        let result = mgr.failover();
+        let elapsed = start.elapsed();
+
+        assert!(
+            result.is_some(),
+            "failover() should return an active route ID"
+        );
+        assert!(
+            elapsed < Duration::from_millis(1),
+            "failover() took {:?} (expected < 1 ms)",
+            elapsed
+        );
+
+        // Verify the active path is now set.
+        assert!(
+            mgr.active_path().is_some(),
+            "active_path should be set after failover"
+        );
+    }
+
+    // -----------------------------------------------------------------------
+    // Stress test: 1000 rapid connect/disconnect cycles on CrosspointMatrix
+    // -----------------------------------------------------------------------
+
+    #[test]
+    fn test_crosspoint_matrix_stress_1000_cycles() {
+        let mut matrix = CrosspointMatrix::new(16, 16);
+
+        for cycle in 0..1000 {
+            let input = cycle % 16;
+            let output = (cycle * 3 + 7) % 16;
+
+            // Connect.
+            matrix
+                .connect(input, output, None)
+                .expect("connect failed in stress test");
+            assert!(
+                matrix.is_connected(input, output),
+                "cycle {cycle}: not connected after connect"
+            );
+
+            // Disconnect.
+            matrix
+                .disconnect(input, output)
+                .expect("disconnect failed in stress test");
+            assert!(
+                !matrix.is_connected(input, output),
+                "cycle {cycle}: still connected after disconnect"
+            );
+        }
+
+        // Matrix must be clean at the end.
+        assert_eq!(
+            matrix.get_active_crosspoints().len(),
+            0,
+            "matrix not clean after stress test"
+        );
     }
 }

@@ -156,6 +156,33 @@ impl FarmPriorityQueue {
     pub fn capacity(&self) -> usize {
         self.capacity
     }
+
+    /// Update the priority of the entry identified by `job_id`.
+    ///
+    /// Internally this performs a remove + reinsert using the standard
+    /// `BinaryHeap` rebuild strategy: rebuild the entire heap from the
+    /// remaining entries with the modified priority.  This is O(n) but
+    /// acceptable because the queue is bounded by `capacity`.
+    ///
+    /// Returns `true` if the entry was found and updated, `false` otherwise.
+    pub fn update_priority(&mut self, job_id: &str, new_priority: u32) -> bool {
+        // Drain the heap into a Vec, modify the target, then rebuild.
+        let mut entries: Vec<PriorityEntry> = self.heap.drain().collect();
+        let found = entries.iter_mut().find(|e| e.job_id == job_id);
+
+        match found {
+            Some(entry) => {
+                entry.priority = new_priority;
+                self.heap = entries.into_iter().collect();
+                true
+            }
+            None => {
+                // Restore all entries if not found.
+                self.heap = entries.into_iter().collect();
+                false
+            }
+        }
+    }
 }
 
 impl Default for FarmPriorityQueue {
@@ -244,7 +271,7 @@ mod tests {
     fn test_push_pop_single() {
         let mut q = FarmPriorityQueue::new();
         q.push(make_entry("j1", 1));
-        let e = q.pop().expect("failed to pop");
+        let e = q.pop().unwrap();
         assert_eq!(e.job_id, "j1");
         assert!(q.is_empty());
     }
@@ -255,9 +282,9 @@ mod tests {
         q.push(make_entry("low", 1));
         q.push(make_entry("high", 3));
         q.push(make_entry("mid", 2));
-        assert_eq!(q.pop().expect("failed to pop").job_id, "high");
-        assert_eq!(q.pop().expect("failed to pop").job_id, "mid");
-        assert_eq!(q.pop().expect("failed to pop").job_id, "low");
+        assert_eq!(q.pop().unwrap().job_id, "high");
+        assert_eq!(q.pop().unwrap().job_id, "mid");
+        assert_eq!(q.pop().unwrap().job_id, "low");
     }
 
     #[test]
@@ -268,8 +295,8 @@ mod tests {
         let e2 = make_entry("second", 5);
         q.push(e1);
         q.push(e2);
-        assert_eq!(q.pop().expect("failed to pop").job_id, "first");
-        assert_eq!(q.pop().expect("failed to pop").job_id, "second");
+        assert_eq!(q.pop().unwrap().job_id, "first");
+        assert_eq!(q.pop().unwrap().job_id, "second");
     }
 
     #[test]
@@ -286,7 +313,7 @@ mod tests {
         let mut q = FarmPriorityQueue::new();
         assert!(q.peek().is_none());
         q.push(make_entry("j1", 10));
-        assert_eq!(q.peek().expect("peek should succeed").job_id, "j1");
+        assert_eq!(q.peek().unwrap().job_id, "j1");
         assert_eq!(q.len(), 1); // peek didn't remove
     }
 
@@ -359,5 +386,123 @@ mod tests {
     fn test_pop_empty() {
         let mut q = FarmPriorityQueue::new();
         assert!(q.pop().is_none());
+    }
+
+    // ── update_priority tests (Task G) ────────────────────────────────────────
+
+    #[test]
+    fn test_update_priority_changes_order() {
+        let mut q = FarmPriorityQueue::new();
+        q.push(make_entry("low", 1));
+        q.push(make_entry("high", 3));
+
+        // Boost "low" above "high".
+        assert!(q.update_priority("low", 5));
+        // "low" (now priority 5) should come out first.
+        assert_eq!(q.pop().expect("pop").job_id, "low");
+        assert_eq!(q.pop().expect("pop").job_id, "high");
+    }
+
+    #[test]
+    fn test_update_priority_demotes_entry() {
+        let mut q = FarmPriorityQueue::new();
+        q.push(make_entry("alpha", 10));
+        q.push(make_entry("beta", 5));
+
+        // Demote "alpha" below "beta".
+        assert!(q.update_priority("alpha", 1));
+        assert_eq!(q.pop().expect("pop").job_id, "beta");
+        assert_eq!(q.pop().expect("pop").job_id, "alpha");
+    }
+
+    #[test]
+    fn test_update_priority_not_found_returns_false() {
+        let mut q = FarmPriorityQueue::new();
+        q.push(make_entry("exists", 5));
+        assert!(!q.update_priority("ghost", 10));
+        // Existing entry still intact.
+        assert_eq!(q.len(), 1);
+    }
+
+    #[test]
+    fn test_update_priority_preserves_len() {
+        let mut q = FarmPriorityQueue::new();
+        q.push(make_entry("a", 1));
+        q.push(make_entry("b", 2));
+        q.push(make_entry("c", 3));
+        q.update_priority("b", 5);
+        assert_eq!(q.len(), 3);
+    }
+
+    #[test]
+    fn test_update_priority_same_value_is_noop() {
+        let mut q = FarmPriorityQueue::new();
+        q.push(make_entry("x", 7));
+        assert!(q.update_priority("x", 7));
+        assert_eq!(q.pop().expect("pop").priority, 7);
+    }
+
+    #[test]
+    fn test_ordering_correctness_high_before_low() {
+        let mut q = FarmPriorityQueue::new();
+        for i in 0u32..5 {
+            q.push(make_entry(&format!("j{i}"), i));
+        }
+        let mut last_priority = u32::MAX;
+        while let Some(e) = q.pop() {
+            assert!(
+                e.priority <= last_priority,
+                "priority {} appeared after {}",
+                e.priority,
+                last_priority
+            );
+            last_priority = e.priority;
+        }
+    }
+
+    #[test]
+    fn test_fifo_same_priority_stable() {
+        let mut q = FarmPriorityQueue::new();
+        let first = make_entry("first", 5);
+        thread::sleep(Duration::from_millis(2));
+        let second = make_entry("second", 5);
+        q.push(first);
+        q.push(second);
+        assert_eq!(q.pop().expect("pop").job_id, "first");
+        assert_eq!(q.pop().expect("pop").job_id, "second");
+    }
+
+    #[test]
+    fn test_len_and_empty() {
+        let mut q = FarmPriorityQueue::new();
+        assert!(q.is_empty());
+        assert_eq!(q.len(), 0);
+        q.push(make_entry("a", 1));
+        assert!(!q.is_empty());
+        assert_eq!(q.len(), 1);
+        q.pop();
+        assert!(q.is_empty());
+    }
+
+    #[test]
+    fn test_update_priority_on_empty_queue_returns_false() {
+        let mut q = FarmPriorityQueue::new();
+        assert!(!q.update_priority("nobody", 10));
+        assert!(q.is_empty());
+    }
+
+    #[test]
+    fn test_update_priority_multiple_entries_same_priority_group() {
+        let mut q = FarmPriorityQueue::new();
+        q.push(make_entry("a", 5));
+        q.push(make_entry("b", 5));
+        q.push(make_entry("c", 5));
+
+        // Boost "c" to priority 9.
+        assert!(q.update_priority("c", 9));
+        assert_eq!(q.pop().expect("pop").job_id, "c");
+        // Remaining two should still have priority 5.
+        assert_eq!(q.pop().expect("pop").priority, 5);
+        assert_eq!(q.pop().expect("pop").priority, 5);
     }
 }

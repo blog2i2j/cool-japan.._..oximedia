@@ -56,8 +56,9 @@ tokio-stream = "0.1"
 tokio-util = { version = "0.7", features = ["codec"] }
 blake3 = "1.8"
 sha2 = { workspace = true }
-lz4 = "1.28"
-zstd = "0.13"
+lz4_flex = { workspace = true }
+# TODO: migrate to oxiarc-zstd (COOLJAPAN Pure Rust Policy)
+# zstd = "0.13"
 walkdir = "2"
 notify = "8"
 crossbeam-channel = "0.5"

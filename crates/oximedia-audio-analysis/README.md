@@ -30,7 +30,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-audio-analysis = "0.1.1"
+oximedia-audio-analysis = "0.1.3"
 ```
 
 ```rust

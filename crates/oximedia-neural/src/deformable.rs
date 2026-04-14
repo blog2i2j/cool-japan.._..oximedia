@@ -45,7 +45,7 @@ use crate::tensor::Tensor;
 /// locations are displaced by `offsets` at inference time.
 ///
 /// For modulated deformable convolution set `modulated = true` and supply a
-/// mask tensor to [`forward_modulated`].
+/// mask tensor to `forward_modulated`.
 #[derive(Debug, Clone)]
 pub struct DeformableConv2d {
     /// Convolution kernels, shape `[out_channels, in_channels, kH, kW]`.
@@ -425,7 +425,8 @@ mod tests {
     /// Zero offsets should behave identically to standard convolution.
     #[test]
     fn test_zero_offsets_equals_standard_conv() {
-        let mut layer = DeformableConv2d::new(1, 1, 3, 3, (1, 1), (1, 1), false).expect("deformable conv2d new");
+        let mut layer = DeformableConv2d::new(1, 1, 3, 3, (1, 1), (1, 1), false)
+            .expect("deformable conv2d new");
         // Identity kernel: only center pixel (kh=1, kw=1) = 1.0.
         layer.weight.data_mut()[4] = 1.0;
 
@@ -440,7 +441,8 @@ mod tests {
 
     #[test]
     fn test_output_shape_no_pad() {
-        let layer = DeformableConv2d::new(2, 4, 3, 3, (1, 1), (0, 0), false).expect("deformable conv2d new");
+        let layer = DeformableConv2d::new(2, 4, 3, 3, (1, 1), (0, 0), false)
+            .expect("deformable conv2d new");
         let input = Tensor::ones(vec![2, 7, 7]).expect("tensor ones");
         let (out_h, out_w) = layer.output_size(7, 7);
         assert_eq!((out_h, out_w), (5, 5));
@@ -451,7 +453,8 @@ mod tests {
 
     #[test]
     fn test_bias_only() {
-        let mut layer = DeformableConv2d::new(1, 2, 1, 1, (1, 1), (0, 0), false).expect("deformable conv2d new");
+        let mut layer = DeformableConv2d::new(1, 2, 1, 1, (1, 1), (0, 0), false)
+            .expect("deformable conv2d new");
         layer.bias.data_mut()[0] = 3.0;
         layer.bias.data_mut()[1] = 7.0;
         let input = Tensor::zeros(vec![1, 4, 4]).expect("tensor zeros");
@@ -466,7 +469,8 @@ mod tests {
     fn test_offsets_shift_sampling() {
         // 1-channel 3×3 input, 1×1 kernel (ksize=1), stride=1, no pad.
         // A +1 row offset shifts the sampling point down by 1 row.
-        let mut layer = DeformableConv2d::new(1, 1, 1, 1, (1, 1), (0, 0), false).expect("deformable conv2d new");
+        let mut layer = DeformableConv2d::new(1, 1, 1, 1, (1, 1), (0, 0), false)
+            .expect("deformable conv2d new");
         layer.weight.data_mut()[0] = 1.0; // passthrough
 
         // Input: row 0 = 0.0, row 1 = 1.0, row 2 = 2.0
@@ -498,7 +502,8 @@ mod tests {
 
     #[test]
     fn test_modulated_zero_mask_gives_bias_only() {
-        let mut layer = DeformableConv2d::new(1, 1, 3, 3, (1, 1), (1, 1), true).expect("deformable conv2d new");
+        let mut layer =
+            DeformableConv2d::new(1, 1, 3, 3, (1, 1), (1, 1), true).expect("deformable conv2d new");
         layer.weight.data_mut()[4] = 1.0;
         layer.bias.data_mut()[0] = 5.0;
 
@@ -506,7 +511,9 @@ mod tests {
         let offsets = Tensor::zeros(vec![18, 4, 4]).expect("tensor zeros");
         let masks = Tensor::zeros(vec![9, 4, 4]).expect("tensor zeros"); // all mask = 0
 
-        let out = layer.forward_modulated(&input, &offsets, &masks).expect("forward_modulated");
+        let out = layer
+            .forward_modulated(&input, &offsets, &masks)
+            .expect("forward_modulated");
         assert_eq!(out.shape(), &[1, 4, 4]);
         // Zero mask → no input contribution → all output = bias = 5.0
         assert!(out.data().iter().all(|&v| close(v, 5.0)));
@@ -514,14 +521,17 @@ mod tests {
 
     #[test]
     fn test_modulated_unit_mask_equals_standard() {
-        let mut layer = DeformableConv2d::new(1, 1, 3, 3, (1, 1), (1, 1), true).expect("deformable conv2d new");
+        let mut layer =
+            DeformableConv2d::new(1, 1, 3, 3, (1, 1), (1, 1), true).expect("deformable conv2d new");
         layer.weight.data_mut()[4] = 1.0; // center kernel = 1, others = 0
 
         let input = Tensor::ones(vec![1, 5, 5]).expect("tensor ones");
         let offsets = Tensor::zeros(vec![18, 5, 5]).expect("tensor zeros");
         let masks = Tensor::ones(vec![9, 5, 5]).expect("tensor ones"); // all mask = 1
 
-        let out = layer.forward_modulated(&input, &offsets, &masks).expect("forward_modulated");
+        let out = layer
+            .forward_modulated(&input, &offsets, &masks)
+            .expect("forward_modulated");
         assert_eq!(out.shape(), &[1, 5, 5]);
         // Unit mask + identity kernel → all 1.0
         assert!(out.data().iter().all(|&v| close(v, 1.0)));
@@ -529,7 +539,8 @@ mod tests {
 
     #[test]
     fn test_invalid_offset_shape() {
-        let layer = DeformableConv2d::new(1, 1, 3, 3, (1, 1), (1, 1), false).expect("deformable conv2d new");
+        let layer = DeformableConv2d::new(1, 1, 3, 3, (1, 1), (1, 1), false)
+            .expect("deformable conv2d new");
         let input = Tensor::ones(vec![1, 5, 5]).expect("tensor ones");
         // Wrong channel count.
         let offsets = Tensor::zeros(vec![9, 5, 5]).expect("tensor zeros"); // should be 18
@@ -538,7 +549,8 @@ mod tests {
 
     #[test]
     fn test_channel_mismatch_error() {
-        let layer = DeformableConv2d::new(3, 1, 3, 3, (1, 1), (0, 0), false).expect("deformable conv2d new");
+        let layer = DeformableConv2d::new(3, 1, 3, 3, (1, 1), (0, 0), false)
+            .expect("deformable conv2d new");
         let input = Tensor::ones(vec![1, 5, 5]).expect("tensor ones"); // wrong channels
         let offsets = Tensor::zeros(vec![18, 3, 3]).expect("tensor zeros");
         assert!(layer.forward(&input, &offsets).is_err());
@@ -546,7 +558,8 @@ mod tests {
 
     #[test]
     fn test_forward_modulated_on_non_modulated_layer_errors() {
-        let layer = DeformableConv2d::new(1, 1, 3, 3, (1, 1), (1, 1), false).expect("deformable conv2d new");
+        let layer = DeformableConv2d::new(1, 1, 3, 3, (1, 1), (1, 1), false)
+            .expect("deformable conv2d new");
         let input = Tensor::ones(vec![1, 4, 4]).expect("tensor ones");
         let offsets = Tensor::zeros(vec![18, 4, 4]).expect("tensor zeros");
         let masks = Tensor::ones(vec![9, 4, 4]).expect("tensor ones");

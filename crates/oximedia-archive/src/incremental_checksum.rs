@@ -59,8 +59,9 @@ impl ChecksumCheckpoint {
 
     /// Deserialize a checkpoint from a JSON string.
     pub fn from_json(json: &str) -> ArchiveResult<Self> {
-        serde_json::from_str(json)
-            .map_err(|e| ArchiveError::Validation(format!("checkpoint deserialization failed: {e}")))
+        serde_json::from_str(json).map_err(|e| {
+            ArchiveError::Validation(format!("checkpoint deserialization failed: {e}"))
+        })
     }
 
     /// Return the fraction of completion (0.0 to 1.0).
@@ -102,7 +103,7 @@ impl Default for IncrementalConfig {
             enable_blake3: true,
             enable_sha256: true,
             enable_crc32: true,
-            chunk_size: 1024 * 1024, // 1 MiB
+            chunk_size: 1024 * 1024,                     // 1 MiB
             checkpoint_interval_bytes: 64 * 1024 * 1024, // 64 MiB
         }
     }
@@ -130,28 +131,19 @@ pub struct IncrementalResult {
 /// SHA-256 round constants.
 #[allow(clippy::unreadable_literal)]
 const SHA256_K: [u32; 64] = [
-    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5,
-    0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
-    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3,
-    0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
-    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc,
-    0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
-    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7,
-    0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
-    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13,
-    0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
-    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3,
-    0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
-    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5,
-    0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
-    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208,
-    0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
+    0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
+    0xd807aa98, 0x12835b01, 0x243185be, 0x550c7dc3, 0x72be5d74, 0x80deb1fe, 0x9bdc06a7, 0xc19bf174,
+    0xe49b69c1, 0xefbe4786, 0x0fc19dc6, 0x240ca1cc, 0x2de92c6f, 0x4a7484aa, 0x5cb0a9dc, 0x76f988da,
+    0x983e5152, 0xa831c66d, 0xb00327c8, 0xbf597fc7, 0xc6e00bf3, 0xd5a79147, 0x06ca6351, 0x14292967,
+    0x27b70a85, 0x2e1b2138, 0x4d2c6dfc, 0x53380d13, 0x650a7354, 0x766a0abb, 0x81c2c92e, 0x92722c85,
+    0xa2bfe8a1, 0xa81a664b, 0xc24b8b70, 0xc76c51a3, 0xd192e819, 0xd6990624, 0xf40e3585, 0x106aa070,
+    0x19a4c116, 0x1e376c08, 0x2748774c, 0x34b0bcb5, 0x391c0cb3, 0x4ed8aa4a, 0x5b9cca4f, 0x682e6ff3,
+    0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ];
 
 #[allow(clippy::unreadable_literal)]
 const SHA256_H_INIT: [u32; 8] = [
-    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a,
-    0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
+    0x6a09e667, 0xbb67ae85, 0x3c6ef372, 0xa54ff53a, 0x510e527f, 0x9b05688c, 0x1f83d9ab, 0x5be0cd19,
 ];
 
 fn sha256_compress_block(state: &mut [u32; 8], block: &[u8]) {
@@ -167,19 +159,32 @@ fn sha256_compress_block(state: &mut [u32; 8], block: &[u8]) {
     for i in 16..64 {
         let s0 = w[i - 15].rotate_right(7) ^ w[i - 15].rotate_right(18) ^ (w[i - 15] >> 3);
         let s1 = w[i - 2].rotate_right(17) ^ w[i - 2].rotate_right(19) ^ (w[i - 2] >> 10);
-        w[i] = w[i - 16].wrapping_add(s0).wrapping_add(w[i - 7]).wrapping_add(s1);
+        w[i] = w[i - 16]
+            .wrapping_add(s0)
+            .wrapping_add(w[i - 7])
+            .wrapping_add(s1);
     }
 
     let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h] = *state;
     for i in 0..64 {
         let s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
         let ch = (e & f) ^ ((!e) & g);
-        let temp1 = h.wrapping_add(s1).wrapping_add(ch).wrapping_add(SHA256_K[i]).wrapping_add(w[i]);
+        let temp1 = h
+            .wrapping_add(s1)
+            .wrapping_add(ch)
+            .wrapping_add(SHA256_K[i])
+            .wrapping_add(w[i]);
         let s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
         let maj = (a & b) ^ (a & c) ^ (b & c);
         let temp2 = s0.wrapping_add(maj);
-        h = g; g = f; f = e; e = d.wrapping_add(temp1);
-        d = c; c = b; b = a; a = temp1.wrapping_add(temp2);
+        h = g;
+        g = f;
+        f = e;
+        e = d.wrapping_add(temp1);
+        d = c;
+        c = b;
+        b = a;
+        a = temp1.wrapping_add(temp2);
     }
 
     state[0] = state[0].wrapping_add(a);
@@ -302,7 +307,9 @@ pub fn compute_incremental(
 
     let mut sha256_hasher = if config.enable_sha256 {
         if let Some(cp) = checkpoint {
-            cp.sha256_state.as_ref().map(|s| ResumableSha256::from_state(s))
+            cp.sha256_state
+                .as_ref()
+                .map(|s| ResumableSha256::from_state(s))
         } else {
             Some(ResumableSha256::new())
         }
@@ -310,12 +317,19 @@ pub fn compute_incremental(
         None
     };
 
-    let mut crc32_val: Option<u32> = if config.enable_crc32 {
-        Some(
-            checkpoint
-                .and_then(|cp| cp.crc32_value)
-                .unwrap_or(0),
-        )
+    // For CRC32 we use crc32fast::Hasher for incremental computation.
+    // When resuming, we reconstruct the hasher by re-hashing the already-
+    // processed prefix (checkpointed value used to validate consistency).
+    let mut crc32_hasher: Option<crc32fast::Hasher> = if config.enable_crc32 {
+        let mut h = crc32fast::Hasher::new();
+        // If resuming, replay the already-processed bytes through CRC32 too.
+        if let Some(cp) = checkpoint {
+            if cp.crc32_value.is_some() {
+                // Re-hash the prefix so our hasher is consistent.
+                h.update(&data[..start_offset]);
+            }
+        }
+        Some(h)
     } else {
         None
     };
@@ -341,14 +355,14 @@ pub fn compute_incremental(
         if let Some(ref mut hasher) = sha256_hasher {
             hasher.update(chunk);
         }
-        if let Some(ref mut crc) = crc32_val {
-            *crc = crc32fast::hash_with_seed(chunk, *crc);
+        if let Some(ref mut h) = crc32_hasher {
+            h.update(chunk);
         }
     }
 
     let blake3_hex = blake3_hasher.map(|h| h.finalize().to_hex().to_string());
     let sha256_hex = sha256_hasher.map(|h| h.finalize_hex());
-    let crc32_hex = crc32_val.map(|v| format!("{v:08x}"));
+    let crc32_hex = crc32_hasher.map(|h| format!("{:08x}", h.finalize()));
 
     Ok(IncrementalResult {
         file_path: checkpoint
@@ -524,8 +538,7 @@ mod tests {
     fn test_compute_incremental_fresh() {
         let data = b"test data for incremental checksumming";
         let config = default_config();
-        let result = compute_incremental(data, &config, None)
-            .expect("compute_incremental failed");
+        let result = compute_incremental(data, &config, None).expect("compute_incremental failed");
         assert!(!result.was_resumed);
         assert_eq!(result.bytes_processed, data.len() as u64);
         assert!(result.blake3_hex.is_some());
@@ -542,8 +555,7 @@ mod tests {
             enable_crc32: false,
             ..default_config()
         };
-        let result = compute_incremental(data, &config, None)
-            .expect("compute_incremental failed");
+        let result = compute_incremental(data, &config, None).expect("compute_incremental failed");
         assert_eq!(
             result.sha256_hex.as_deref(),
             Some("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
@@ -562,8 +574,7 @@ mod tests {
             chunk_size: 8,
             ..default_config()
         };
-        let full_result = compute_incremental(data, &config, None)
-            .expect("full compute failed");
+        let full_result = compute_incremental(data, &config, None).expect("full compute failed");
 
         // Simulate partial processing: compute first 20 bytes
         let mut sha_hasher = ResumableSha256::new();
@@ -580,8 +591,8 @@ mod tests {
         );
 
         // Resume from checkpoint
-        let resumed_result = compute_incremental(data, &config, Some(&checkpoint))
-            .expect("resumed compute failed");
+        let resumed_result =
+            compute_incremental(data, &config, Some(&checkpoint)).expect("resumed compute failed");
 
         assert!(resumed_result.was_resumed);
         assert_eq!(resumed_result.sha256_hex, full_result.sha256_hex);
@@ -597,8 +608,7 @@ mod tests {
             enable_crc32: true,
             ..default_config()
         };
-        let result = compute_incremental(data, &config, None)
-            .expect("compute_incremental failed");
+        let result = compute_incremental(data, &config, None).expect("compute_incremental failed");
         assert!(result.blake3_hex.is_none());
         assert!(result.sha256_hex.is_none());
         assert!(result.crc32_hex.is_some());
@@ -608,8 +618,7 @@ mod tests {
     fn test_compute_incremental_empty_data() {
         let data: &[u8] = b"";
         let config = default_config();
-        let result = compute_incremental(data, &config, None)
-            .expect("compute_incremental failed");
+        let result = compute_incremental(data, &config, None).expect("compute_incremental failed");
         assert_eq!(result.bytes_processed, 0);
         assert_eq!(result.file_size, 0);
     }
@@ -628,8 +637,7 @@ mod tests {
         );
 
         let json = cp.to_json().expect("serialization failed");
-        let restored = ChecksumCheckpoint::from_json(&json)
-            .expect("deserialization failed");
+        let restored = ChecksumCheckpoint::from_json(&json).expect("deserialization failed");
 
         assert_eq!(restored.file_path, cp.file_path);
         assert_eq!(restored.file_size, cp.file_size);
@@ -640,53 +648,25 @@ mod tests {
 
     #[test]
     fn test_checkpoint_progress() {
-        let cp = create_checkpoint(
-            Path::new("/test"),
-            1000,
-            250,
-            None,
-            None,
-            1024,
-        );
+        let cp = create_checkpoint(Path::new("/test"), 1000, 250, None, None, 1024);
         assert!((cp.progress() - 0.25).abs() < 1e-10);
     }
 
     #[test]
     fn test_checkpoint_progress_empty_file() {
-        let cp = create_checkpoint(
-            Path::new("/test"),
-            0,
-            0,
-            None,
-            None,
-            1024,
-        );
+        let cp = create_checkpoint(Path::new("/test"), 0, 0, None, None, 1024);
         assert!((cp.progress() - 1.0).abs() < 1e-10);
     }
 
     #[test]
     fn test_checkpoint_is_complete() {
-        let cp = create_checkpoint(
-            Path::new("/test"),
-            100,
-            100,
-            None,
-            None,
-            1024,
-        );
+        let cp = create_checkpoint(Path::new("/test"), 100, 100, None, None, 1024);
         assert!(cp.is_complete());
     }
 
     #[test]
     fn test_checkpoint_not_complete() {
-        let cp = create_checkpoint(
-            Path::new("/test"),
-            100,
-            50,
-            None,
-            None,
-            1024,
-        );
+        let cp = create_checkpoint(Path::new("/test"), 100, 50, None, None, 1024);
         assert!(!cp.is_complete());
     }
 
@@ -697,14 +677,7 @@ mod tests {
         let mut store = CheckpointStore::new();
         assert!(store.is_empty());
 
-        let cp = create_checkpoint(
-            Path::new("/archive/a.mkv"),
-            1000,
-            500,
-            None,
-            Some(42),
-            1024,
-        );
+        let cp = create_checkpoint(Path::new("/archive/a.mkv"), 1000, 500, None, Some(42), 1024);
         store.save(cp);
         assert_eq!(store.len(), 1);
 
@@ -728,8 +701,22 @@ mod tests {
     #[test]
     fn test_checkpoint_store_clear() {
         let mut store = CheckpointStore::new();
-        store.save(create_checkpoint(Path::new("/a"), 100, 50, None, None, 1024));
-        store.save(create_checkpoint(Path::new("/b"), 200, 100, None, None, 1024));
+        store.save(create_checkpoint(
+            Path::new("/a"),
+            100,
+            50,
+            None,
+            None,
+            1024,
+        ));
+        store.save(create_checkpoint(
+            Path::new("/b"),
+            200,
+            100,
+            None,
+            None,
+            1024,
+        ));
         assert_eq!(store.len(), 2);
         store.clear();
         assert!(store.is_empty());
@@ -738,8 +725,22 @@ mod tests {
     #[test]
     fn test_checkpoint_store_paths() {
         let mut store = CheckpointStore::new();
-        store.save(create_checkpoint(Path::new("/x"), 100, 50, None, None, 1024));
-        store.save(create_checkpoint(Path::new("/y"), 200, 100, None, None, 1024));
+        store.save(create_checkpoint(
+            Path::new("/x"),
+            100,
+            50,
+            None,
+            None,
+            1024,
+        ));
+        store.save(create_checkpoint(
+            Path::new("/y"),
+            200,
+            100,
+            None,
+            None,
+            1024,
+        ));
         let paths = store.paths();
         assert_eq!(paths.len(), 2);
     }
@@ -747,8 +748,22 @@ mod tests {
     #[test]
     fn test_checkpoint_store_overwrite() {
         let mut store = CheckpointStore::new();
-        store.save(create_checkpoint(Path::new("/a"), 100, 25, None, None, 1024));
-        store.save(create_checkpoint(Path::new("/a"), 100, 75, None, None, 1024));
+        store.save(create_checkpoint(
+            Path::new("/a"),
+            100,
+            25,
+            None,
+            None,
+            1024,
+        ));
+        store.save(create_checkpoint(
+            Path::new("/a"),
+            100,
+            75,
+            None,
+            None,
+            1024,
+        ));
         assert_eq!(store.len(), 1);
         let loaded = store.load(Path::new("/a"));
         assert_eq!(loaded.map(|c| c.bytes_processed), Some(75));

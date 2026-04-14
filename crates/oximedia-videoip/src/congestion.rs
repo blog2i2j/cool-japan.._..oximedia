@@ -366,6 +366,161 @@ pub fn estimate_bandwidth_from_dispersion(
     total_bits as f64 / (total_us as f64 / 1_000_000.0)
 }
 
+// ── BBR-based Congestion Controller ──────────────────────────────────────────
+
+use crate::bbr::{AckSample, BbrConfig, BbrController, BbrState};
+
+/// A congestion controller that uses BBR (Bottleneck Bandwidth and Round-trip
+/// propagation time) instead of AIMD.
+///
+/// BBR models the network path using two measurements:
+///
+/// - **BtlBw** — bottleneck bandwidth (max delivery rate over a sliding window)
+/// - **RTprop** — round-trip propagation delay (min RTT over ≥10 seconds)
+///
+/// It uses these to set a *pacing rate* (`BtlBw × pacing_gain`) and a
+/// *congestion window* (`BDP × cwnd_gain`), never inducing queue build-up
+/// during steady-state operation.
+///
+/// # Integration
+///
+/// Call [`report_ack`](Self::report_ack) for every acknowledged packet group,
+/// then read [`target_bitrate_bps`](Self::target_bitrate_bps) to obtain the
+/// recommended sending rate in bits per second.
+pub struct BbrCongestionController {
+    /// Core BBR algorithm.
+    bbr: BbrController,
+    /// Minimum bitrate floor in bits per second.
+    min_bitrate_bps: u64,
+    /// Maximum bitrate ceiling in bits per second.
+    max_bitrate_bps: u64,
+    /// Total ACK events processed.
+    ack_count: u64,
+    /// Last reported pacing rate in bytes/second (cached).
+    last_pacing_rate: f64,
+}
+
+impl BbrCongestionController {
+    /// Creates a new BBR congestion controller with explicit bounds.
+    ///
+    /// # Arguments
+    ///
+    /// * `min_bitrate_bps` — floor in bits per second (e.g. `1_000_000` = 1 Mbps)
+    /// * `max_bitrate_bps` — ceiling in bits per second (e.g. `100_000_000` = 100 Mbps)
+    #[must_use]
+    pub fn new(min_bitrate_bps: u64, max_bitrate_bps: u64) -> Self {
+        Self {
+            bbr: BbrController::new(BbrConfig::default()),
+            min_bitrate_bps,
+            max_bitrate_bps,
+            ack_count: 0,
+            last_pacing_rate: 0.0,
+        }
+    }
+
+    /// Creates a controller with the given custom BBR configuration and bounds.
+    #[must_use]
+    pub fn with_config(bbr_config: BbrConfig, min_bitrate_bps: u64, max_bitrate_bps: u64) -> Self {
+        Self {
+            bbr: BbrController::new(bbr_config),
+            min_bitrate_bps,
+            max_bitrate_bps,
+            ack_count: 0,
+            last_pacing_rate: 0.0,
+        }
+    }
+
+    /// Processes an acknowledgement event and updates the BBR model.
+    ///
+    /// # Arguments
+    ///
+    /// * `delivered_bytes` — bytes confirmed delivered since the last ACK.
+    /// * `elapsed_secs` — wall-clock time elapsed since the last ACK (seconds).
+    /// * `rtt_secs` — round-trip time for this ACK event (seconds).
+    /// * `is_app_limited` — `true` when the sender was application-limited
+    ///   (not constrained by cwnd) when the acknowledged packet was sent.
+    pub fn report_ack(
+        &mut self,
+        delivered_bytes: u64,
+        elapsed_secs: f64,
+        rtt_secs: f64,
+        is_app_limited: bool,
+    ) {
+        let sample = AckSample {
+            delivered: delivered_bytes,
+            elapsed_secs,
+            rtt_secs,
+            is_app_limited,
+        };
+        self.bbr.on_ack(sample);
+        self.last_pacing_rate = self.bbr.pacing_rate();
+        self.ack_count += 1;
+    }
+
+    /// Returns the recommended sending rate in bits per second, clamped to
+    /// `[min_bitrate_bps, max_bitrate_bps]`.
+    #[must_use]
+    pub fn target_bitrate_bps(&self) -> u64 {
+        // BBR's pacing_rate is in bytes/sec; convert to bits/sec.
+        let bps = (self.last_pacing_rate * 8.0) as u64;
+        bps.clamp(self.min_bitrate_bps, self.max_bitrate_bps)
+    }
+
+    /// Returns the current congestion window in bytes.
+    #[must_use]
+    pub fn cwnd_bytes(&self) -> u64 {
+        self.bbr.cwnd()
+    }
+
+    /// Returns the current BBR state machine phase.
+    #[must_use]
+    pub fn bbr_state(&self) -> BbrState {
+        *self.bbr.state()
+    }
+
+    /// Returns the bottleneck bandwidth estimate in bytes per second.
+    #[must_use]
+    pub fn btlbw_bytes_per_sec(&self) -> f64 {
+        self.bbr.btlbw()
+    }
+
+    /// Returns the round-trip propagation time estimate in seconds.
+    #[must_use]
+    pub fn rtprop_secs(&self) -> f64 {
+        self.bbr.rtprop()
+    }
+
+    /// Returns the bandwidth-delay product in bytes.
+    #[must_use]
+    pub fn bdp_bytes(&self) -> u64 {
+        (self.bbr.btlbw() * self.bbr.rtprop()) as u64
+    }
+
+    /// Returns the total number of ACK events processed.
+    #[must_use]
+    pub const fn ack_count(&self) -> u64 {
+        self.ack_count
+    }
+
+    /// Returns `true` if the controller has processed enough ACKs for the BBR
+    /// model to have meaningful bandwidth and RTT estimates.
+    ///
+    /// BBR requires at least a few round trips to leave Startup and settle into
+    /// ProbeBw.  This heuristic considers the model "warmed up" after 10 ACKs.
+    #[must_use]
+    pub fn is_warmed_up(&self) -> bool {
+        self.ack_count >= 10
+    }
+
+    /// Resets the BBR controller to its initial state, discarding all
+    /// bandwidth and RTT estimates.
+    pub fn reset(&mut self) {
+        self.bbr = BbrController::new(BbrConfig::default());
+        self.ack_count = 0;
+        self.last_pacing_rate = 0.0;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -535,5 +690,118 @@ mod tests {
     fn test_estimate_bandwidth_empty() {
         assert_eq!(estimate_bandwidth_from_dispersion(&[], &[]), 0.0);
         assert_eq!(estimate_bandwidth_from_dispersion(&[100], &[]), 0.0);
+    }
+
+    // ── BbrCongestionController tests ──────────────────────────────────────────
+
+    fn make_ack(delivered: u64, elapsed_secs: f64, rtt_secs: f64) -> (u64, f64, f64, bool) {
+        (delivered, elapsed_secs, rtt_secs, false)
+    }
+
+    #[test]
+    fn test_bbr_initial_state_is_startup() {
+        let ctrl = BbrCongestionController::new(1_000_000, 100_000_000);
+        assert_eq!(ctrl.bbr_state(), BbrState::Startup);
+        assert_eq!(ctrl.ack_count(), 0);
+    }
+
+    #[test]
+    fn test_bbr_target_bitrate_clamped_at_min() {
+        // Zero ACKs → pacing_rate is still the initial estimate.
+        let ctrl = BbrCongestionController::new(10_000_000, 100_000_000);
+        // Rate should be ≥ min even if internal estimate is low.
+        assert!(ctrl.target_bitrate_bps() >= 10_000_000);
+    }
+
+    #[test]
+    fn test_bbr_target_bitrate_clamped_at_max() {
+        let mut ctrl = BbrCongestionController::new(1_000_000, 5_000_000);
+        // Feed many large ACKs to drive BtlBw high.
+        for _ in 0..20 {
+            let (d, e, r, a) = make_ack(100_000, 0.01, 0.005);
+            ctrl.report_ack(d, e, r, a);
+        }
+        assert!(
+            ctrl.target_bitrate_bps() <= 5_000_000,
+            "target must be clamped to max: {}",
+            ctrl.target_bitrate_bps()
+        );
+    }
+
+    #[test]
+    fn test_bbr_ack_count_increments() {
+        let mut ctrl = BbrCongestionController::new(1_000_000, 100_000_000);
+        assert_eq!(ctrl.ack_count(), 0);
+        for i in 1..=5 {
+            ctrl.report_ack(1_000, 0.001, 0.010, false);
+            assert_eq!(ctrl.ack_count(), i);
+        }
+    }
+
+    #[test]
+    fn test_bbr_not_warmed_up_initially() {
+        let ctrl = BbrCongestionController::new(1_000_000, 100_000_000);
+        assert!(!ctrl.is_warmed_up());
+    }
+
+    #[test]
+    fn test_bbr_warmed_up_after_ten_acks() {
+        let mut ctrl = BbrCongestionController::new(1_000_000, 100_000_000);
+        for _ in 0..10 {
+            ctrl.report_ack(1_000, 0.001, 0.010, false);
+        }
+        assert!(ctrl.is_warmed_up());
+    }
+
+    #[test]
+    fn test_bbr_cwnd_nonzero() {
+        let ctrl = BbrCongestionController::new(1_000_000, 100_000_000);
+        assert!(ctrl.cwnd_bytes() > 0);
+    }
+
+    #[test]
+    fn test_bbr_rtprop_positive() {
+        let ctrl = BbrCongestionController::new(1_000_000, 100_000_000);
+        assert!(ctrl.rtprop_secs() > 0.0);
+    }
+
+    #[test]
+    fn test_bbr_btlbw_updates_on_acks() {
+        let mut ctrl = BbrCongestionController::new(1_000_000, 100_000_000);
+        let initial_bw = ctrl.btlbw_bytes_per_sec();
+        // Large ACK: 1 MB delivered in 10 ms = 100 MB/s delivery rate.
+        ctrl.report_ack(1_000_000, 0.01, 0.005, false);
+        let after_bw = ctrl.btlbw_bytes_per_sec();
+        // BtlBw should be non-zero and ≥ initial.
+        assert!(after_bw >= initial_bw);
+    }
+
+    #[test]
+    fn test_bbr_bdp_calculation() {
+        let ctrl = BbrCongestionController::new(1_000_000, 100_000_000);
+        let bdp = ctrl.bdp_bytes();
+        let expected = (ctrl.btlbw_bytes_per_sec() * ctrl.rtprop_secs()) as u64;
+        assert_eq!(bdp, expected);
+    }
+
+    #[test]
+    fn test_bbr_with_custom_config() {
+        let bbr_cfg = BbrConfig::default();
+        let ctrl = BbrCongestionController::with_config(bbr_cfg, 2_000_000, 50_000_000);
+        assert_eq!(ctrl.bbr_state(), BbrState::Startup);
+        assert!(ctrl.target_bitrate_bps() >= 2_000_000);
+        assert!(ctrl.target_bitrate_bps() <= 50_000_000);
+    }
+
+    #[test]
+    fn test_bbr_reset_clears_ack_count() {
+        let mut ctrl = BbrCongestionController::new(1_000_000, 100_000_000);
+        for _ in 0..5 {
+            ctrl.report_ack(1_000, 0.001, 0.010, false);
+        }
+        assert_eq!(ctrl.ack_count(), 5);
+        ctrl.reset();
+        assert_eq!(ctrl.ack_count(), 0);
+        assert_eq!(ctrl.bbr_state(), BbrState::Startup);
     }
 }

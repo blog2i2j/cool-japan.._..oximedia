@@ -10,9 +10,8 @@ use super::types::{
 };
 use crate::error::{CvError, CvResult};
 use ndarray::Array4;
-use ort::session::builder::GraphOptimizationLevel;
-use ort::session::Session;
-use ort::value::Value;
+use oxionnx::Session;
+use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
@@ -47,10 +46,8 @@ impl SuperResolutionModel {
         scale_factor: UpscaleFactor,
     ) -> CvResult<Self> {
         let session = Session::builder()
-            .map_err(|e| CvError::onnx_runtime(format!("Failed to create session builder: {e}")))?
-            .with_optimization_level(GraphOptimizationLevel::Level3)
-            .map_err(|e| CvError::onnx_runtime(format!("Failed to set optimization level: {e}")))?
-            .commit_from_file(model_path.as_ref())
+            .with_optimization_level(oxionnx::OptLevel::All)
+            .load(model_path.as_ref())
             .map_err(|e| CvError::model_load(format!("Failed to load model: {e}")))?;
 
         Ok(Self {
@@ -401,26 +398,40 @@ impl SuperResolutionModel {
         // Convert RGB u8 to normalized float32 [1, 3, H, W]
         let input_tensor = self.preprocess_image(image, width, height)?;
 
-        // Convert to ONNX Value
-        let input_value = Value::from_array(input_tensor)
-            .map_err(|e| CvError::onnx_runtime(format!("Failed to create input tensor: {e}")))?;
+        // Convert ndarray → oxionnx Tensor
+        let flat: Vec<f32> = input_tensor.iter().copied().collect();
+        let shape: Vec<usize> = input_tensor.shape().to_vec();
+        let tensor = oxionnx::Tensor::new(flat, shape);
 
-        // Run inference and extract owned data to release the session borrow
-        let (shape_owned, data_owned) = {
-            let mut session = self
-                .session
-                .lock()
-                .map_err(|e| CvError::onnx_runtime(format!("Session lock error: {e}")))?;
-            let outputs = session
-                .run(ort::inputs![input_value])
-                .map_err(|e| CvError::onnx_runtime(format!("Inference failed: {e}")))?;
-            let (shape, data) = outputs[0].try_extract_tensor::<f32>().map_err(|e| {
-                CvError::tensor_error(format!("Failed to extract output tensor: {e}"))
-            })?;
-            let shape_owned: Vec<i64> = shape.iter().copied().collect();
-            let data_owned: Vec<f32> = data.to_vec();
-            (shape_owned, data_owned)
-        };
+        let session = self
+            .session
+            .lock()
+            .map_err(|e| CvError::onnx_runtime(format!("Session lock error: {e}")))?;
+
+        let input_name = session
+            .input_names()
+            .first()
+            .cloned()
+            .unwrap_or_else(|| "input".to_string());
+
+        let mut inputs = HashMap::new();
+        inputs.insert(input_name.as_str(), tensor);
+
+        let outputs = session
+            .run(&inputs)
+            .map_err(|e| CvError::onnx_runtime(format!("Inference failed: {e}")))?;
+
+        let output_name = session.output_names().first().cloned().unwrap_or_default();
+
+        // Drop session lock before using outputs
+        drop(session);
+
+        let out_tensor = outputs
+            .get(&output_name)
+            .ok_or_else(|| CvError::onnx_runtime("No output tensor found".to_owned()))?;
+
+        let shape_owned: Vec<i64> = out_tensor.shape.iter().map(|&x| x as i64).collect();
+        let data_owned: Vec<f32> = out_tensor.data.clone();
 
         // Convert back to RGB u8
         let scale = self.scale_factor.scale();

@@ -351,9 +351,7 @@ mod tests {
         p.add_step(ConversionStep::Demux, || Err("oops".to_string()));
         p.add_step(ConversionStep::Mux, || Ok(()));
         let result = p.execute();
-        let failure = result
-            .first_failure()
-            .expect("pipeline should have a failure");
+        let failure = result.first_failure().unwrap();
         assert_eq!(failure.step.step_name(), "demux");
         assert_eq!(failure.error.as_deref(), Some("oops"));
     }

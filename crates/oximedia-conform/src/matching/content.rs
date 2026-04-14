@@ -120,7 +120,7 @@ pub fn calculate_md5<P: AsRef<Path>>(path: P) -> ConformResult<String> {
         context.consume(&buffer[..n]);
     }
 
-    Ok(format!("{:x}", context.finalize()))
+    Ok(hex::encode(*context.finalize()))
 }
 
 /// Calculate `XXHash` for a file.

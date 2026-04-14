@@ -258,11 +258,7 @@ impl ReviewHistory {
     /// Get unique user IDs that have entries in the history.
     #[must_use]
     pub fn unique_users(&self) -> Vec<String> {
-        let mut users: Vec<String> = self
-            .entries
-            .iter()
-            .map(|e| e.user_id.clone())
-            .collect();
+        let mut users: Vec<String> = self.entries.iter().map(|e| e.user_id.clone()).collect();
         users.sort();
         users.dedup();
         users
@@ -296,7 +292,12 @@ mod tests {
     #[test]
     fn test_record_single_entry() {
         let mut history = ReviewHistory::new();
-        let seq = history.record(100, HistoryActionKind::CommentAdded, "user1", "Added comment");
+        let seq = history.record(
+            100,
+            HistoryActionKind::CommentAdded,
+            "user1",
+            "Added comment",
+        );
         assert_eq!(seq, 1);
         assert_eq!(history.len(), 1);
         assert!(!history.is_empty());
@@ -317,8 +318,15 @@ mod tests {
     fn test_get_by_sequence() {
         let mut history = ReviewHistory::new();
         history.record(100, HistoryActionKind::CommentAdded, "user1", "Added");
-        let seq = history.record(200, HistoryActionKind::VersionUploaded, "user2", "Uploaded v2");
-        let entry = history.get_by_sequence(seq).expect("should succeed in test");
+        let seq = history.record(
+            200,
+            HistoryActionKind::VersionUploaded,
+            "user2",
+            "Uploaded v2",
+        );
+        let entry = history
+            .get_by_sequence(seq)
+            .expect("should succeed in test");
         assert_eq!(entry.kind, HistoryActionKind::VersionUploaded);
         assert_eq!(entry.user_id, "user2");
         assert!(history.get_by_sequence(999).is_none());
@@ -392,7 +400,9 @@ mod tests {
             Some("old text".to_string()),
             Some("new text".to_string()),
         );
-        let entry = history.get_by_sequence(seq).expect("should succeed in test");
+        let entry = history
+            .get_by_sequence(seq)
+            .expect("should succeed in test");
         assert_eq!(entry.target_id.as_deref(), Some("comment-42"));
         assert_eq!(entry.previous_value.as_deref(), Some("old text"));
         assert_eq!(entry.new_value.as_deref(), Some("new text"));

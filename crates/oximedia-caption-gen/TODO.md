@@ -16,11 +16,11 @@
 - [ ] Improve `diarization::CrosstalkDetector` with adjustable overlap tolerance percentage
 
 ## New Features
-- [ ] Add `forced_narrative` module for identifying and marking forced narrative subtitles (FN/SDH)
-- [ ] Implement `caption_format_adapter` module converting `CaptionBlock` to SRT/VTT/TTML output strings
+- [x] Add `forced_narrative` module for identifying and marking forced narrative subtitles (FN/SDH)
+- [x] Implement `caption_format_adapter` module converting `CaptionBlock` to SRT/VTT/TTML output strings
 - [ ] Add `punctuation_restoration` module for adding punctuation to raw ASR transcript output
 - [ ] Implement `language_detect` module to auto-detect transcript language for locale-aware line breaking
-- [ ] Add `caption_timing_adjuster` module for shifting/stretching caption timings to match edited video
+- [x] Add `caption_timing_adjuster` module for shifting/stretching caption timings to match edited video
 - [ ] Implement `caption_diff` module for comparing two caption tracks and highlighting differences
 - [ ] Add `style_generator` module suggesting font size, position, colors based on video content analysis
 - [ ] Implement `multi_language` module for bilingual caption layout (primary + secondary language)

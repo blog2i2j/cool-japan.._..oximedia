@@ -66,7 +66,7 @@ pub enum RightsCommand {
 
         /// Show detailed breakdown
         #[arg(long)]
-        verbose: bool,
+        detail: bool,
     },
 
     /// Transfer rights to a new holder
@@ -209,14 +209,14 @@ pub async fn handle_rights_command(command: RightsCommand, json_output: bool) ->
             intended_use,
             territory,
             date,
-            verbose,
+            detail,
         } => {
             check_rights(
                 &asset,
                 intended_use.as_deref(),
                 territory.as_deref(),
                 date.as_deref(),
-                verbose,
+                detail,
                 json_output,
             )
             .await
@@ -381,7 +381,7 @@ async fn check_rights(
     intended_use: Option<&str>,
     territory: Option<&str>,
     date: Option<&str>,
-    verbose: bool,
+    detail: bool,
     json_output: bool,
 ) -> Result<()> {
     // Default: no rights found (requires database)
@@ -417,7 +417,7 @@ async fn check_rights(
         }
         println!();
         println!("{:25} {}", "Status:", status.yellow());
-        if verbose {
+        if detail {
             println!("{:25} {}", "Note:", message);
         }
     }

@@ -637,4 +637,116 @@ mod tests {
         let stats = FnSdhTrackStats::default();
         assert_eq!(stats.sdh_ratio(), 0.0);
     }
+
+    // ─── Additional tests ─────────────────────────────────────────────────────
+
+    #[test]
+    fn classify_empty_block_is_normal() {
+        let block = make_block(1, &[]);
+        let ann = classify_block(&block);
+        assert_eq!(ann.kind, FnSdhKind::Normal);
+    }
+
+    #[test]
+    fn classifier_empty_track_returns_empty() {
+        let clf = FnSdhClassifier::default();
+        let result = clf.classify_track(&[]);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn classify_round_bracket_sound_effect() {
+        let block = make_block(1, &["(audience applause)"]);
+        let ann = classify_block(&block);
+        assert_eq!(ann.kind, FnSdhKind::SoundEffect);
+    }
+
+    #[test]
+    fn classify_on_screen_text_with_numbers_and_commas() {
+        // "NEW YORK, 2025" — uppercase + punctuation, no terminal sentence punct
+        let block = make_block(1, &["NEW YORK, 2025"]);
+        let ann = classify_block(&block);
+        // uppercase alphabetics with no terminal period → OnScreenText
+        assert_eq!(ann.kind, FnSdhKind::OnScreenText);
+    }
+
+    #[test]
+    fn classifier_mark_forced_multiple_blocks() {
+        let mut clf = FnSdhClassifier::default();
+        clf.mark_forced(2);
+        clf.mark_forced(4);
+        let track = vec![
+            make_block(1, &["Normal speech"]),
+            make_block(2, &["Normal speech"]),
+            make_block(3, &["Normal speech"]),
+            make_block(4, &["Normal speech"]),
+        ];
+        let anns = clf.classify_track(&track);
+        assert_eq!(anns[0].kind, FnSdhKind::Normal);
+        assert_eq!(anns[1].kind, FnSdhKind::ForcedNarrative);
+        assert_eq!(anns[2].kind, FnSdhKind::Normal);
+        assert_eq!(anns[3].kind, FnSdhKind::ForcedNarrative);
+    }
+
+    #[test]
+    fn classifier_filter_non_normal_empty_track() {
+        let clf = FnSdhClassifier::default();
+        let non_normal = clf.filter_non_normal(&[]);
+        assert!(non_normal.is_empty());
+    }
+
+    #[test]
+    fn track_stats_all_sound_effects() {
+        let annotations: Vec<FnSdhAnnotation> = (1..=5)
+            .map(|i| FnSdhAnnotation {
+                block_id: i,
+                kind: FnSdhKind::SoundEffect,
+                reason: String::new(),
+                confidence: 0.9,
+            })
+            .collect();
+        let stats = FnSdhTrackStats::from_annotations(&annotations);
+        assert_eq!(stats.sound_effect_count, 5);
+        assert_eq!(stats.normal_count, 0);
+        assert!((stats.sdh_ratio() - 1.0).abs() < 1e-5);
+    }
+
+    #[test]
+    fn fn_sdh_kind_equality() {
+        assert_eq!(FnSdhKind::ForcedNarrative, FnSdhKind::ForcedNarrative);
+        assert_ne!(FnSdhKind::ForcedNarrative, FnSdhKind::SoundEffect);
+        assert_ne!(FnSdhKind::OnScreenText, FnSdhKind::SpeakerLabel);
+    }
+
+    #[test]
+    fn annotation_fields_accessible() {
+        let ann = FnSdhAnnotation {
+            block_id: 42,
+            kind: FnSdhKind::ForcedNarrative,
+            reason: "test reason".to_string(),
+            confidence: 0.88,
+        };
+        assert_eq!(ann.block_id, 42);
+        assert_eq!(ann.kind, FnSdhKind::ForcedNarrative);
+        assert_eq!(ann.reason, "test reason");
+        assert!((ann.confidence - 0.88).abs() < 1e-5);
+    }
+
+    #[test]
+    fn classify_mixed_bracket_lines_not_sound_effect() {
+        // Only one line is bracketed; the other is not → not all_lines_bracketed
+        let block = make_block(1, &["[MUSIC PLAYING]", "Hello there"]);
+        let ann = classify_block(&block);
+        // Should not be classified as SoundEffect since not all lines bracketed.
+        assert_ne!(ann.kind, FnSdhKind::SoundEffect);
+    }
+
+    #[test]
+    fn fn_sdh_classifier_default_min_confidence_is_0_60() {
+        let clf = FnSdhClassifier::default();
+        // OnScreenText confidence is 0.70 > 0.60 → should survive threshold.
+        let block = make_block(1, &["LONDON"]);
+        let anns = clf.classify_track(&[block]);
+        assert_eq!(anns[0].kind, FnSdhKind::OnScreenText);
+    }
 }

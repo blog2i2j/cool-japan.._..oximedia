@@ -198,6 +198,194 @@ pub fn analyse_gamut_coverage(lut: &[Rgb], gamut: GamutBox) -> GamutCoverage {
 }
 
 // ---------------------------------------------------------------------------
+// Chromaticity gamut coverage (Item 3 implementation)
+// ---------------------------------------------------------------------------
+
+/// CIE xy chromaticity coordinate.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Chromaticity {
+    /// CIE x.
+    pub x: f64,
+    /// CIE y.
+    pub y: f64,
+}
+
+impl Chromaticity {
+    /// Create a new chromaticity coordinate.
+    #[must_use]
+    pub const fn new(x: f64, y: f64) -> Self {
+        Self { x, y }
+    }
+}
+
+/// A triangular gamut boundary on the CIE xy chromaticity diagram.
+///
+/// Defined by three primary chromaticities forming a triangle.
+#[derive(Clone, Debug)]
+pub struct ChromaticityGamut {
+    /// Red primary.
+    pub red: Chromaticity,
+    /// Green primary.
+    pub green: Chromaticity,
+    /// Blue primary.
+    pub blue: Chromaticity,
+}
+
+impl ChromaticityGamut {
+    /// Rec.709 / sRGB gamut.
+    #[must_use]
+    pub const fn rec709() -> Self {
+        Self {
+            red: Chromaticity::new(0.640, 0.330),
+            green: Chromaticity::new(0.300, 0.600),
+            blue: Chromaticity::new(0.150, 0.060),
+        }
+    }
+
+    /// Rec.2020 gamut.
+    #[must_use]
+    pub const fn rec2020() -> Self {
+        Self {
+            red: Chromaticity::new(0.708, 0.292),
+            green: Chromaticity::new(0.170, 0.797),
+            blue: Chromaticity::new(0.131, 0.046),
+        }
+    }
+
+    /// DCI-P3 gamut.
+    #[must_use]
+    pub const fn dci_p3() -> Self {
+        Self {
+            red: Chromaticity::new(0.680, 0.320),
+            green: Chromaticity::new(0.265, 0.690),
+            blue: Chromaticity::new(0.150, 0.060),
+        }
+    }
+
+    /// Test whether a chromaticity point lies inside this triangular gamut.
+    ///
+    /// Uses the signed-area (barycentric) method.  Points on the boundary
+    /// are considered inside.
+    #[must_use]
+    pub fn contains(&self, p: Chromaticity) -> bool {
+        let s_ab = cross_sign(self.red, self.green, p);
+        let s_bc = cross_sign(self.green, self.blue, p);
+        let s_ca = cross_sign(self.blue, self.red, p);
+        let has_neg = s_ab < 0.0 || s_bc < 0.0 || s_ca < 0.0;
+        let has_pos = s_ab > 0.0 || s_bc > 0.0 || s_ca > 0.0;
+        !(has_neg && has_pos)
+    }
+}
+
+fn cross_sign(a: Chromaticity, b: Chromaticity, p: Chromaticity) -> f64 {
+    (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x)
+}
+
+/// Convert linear Rec.709 RGB to CIE XYZ (D65).
+#[must_use]
+pub fn rgb_to_xyz(rgb: &Rgb) -> [f64; 3] {
+    [
+        0.412_391 * rgb[0] + 0.357_584 * rgb[1] + 0.180_481 * rgb[2],
+        0.212_639 * rgb[0] + 0.715_169 * rgb[1] + 0.072_192 * rgb[2],
+        0.019_331 * rgb[0] + 0.119_195 * rgb[1] + 0.950_532 * rgb[2],
+    ]
+}
+
+/// Convert CIE XYZ to xy chromaticity.
+///
+/// Returns `None` when X + Y + Z ≈ 0 (near-black).
+#[must_use]
+pub fn xyz_to_chromaticity(xyz: &[f64; 3]) -> Option<Chromaticity> {
+    let sum = xyz[0] + xyz[1] + xyz[2];
+    if sum < 1e-10 {
+        return None;
+    }
+    Some(Chromaticity::new(xyz[0] / sum, xyz[1] / sum))
+}
+
+/// Convert linear RGB to CIE xy chromaticity.
+///
+/// Returns `None` for near-black colours.
+#[must_use]
+pub fn rgb_to_chromaticity(rgb: &Rgb) -> Option<Chromaticity> {
+    xyz_to_chromaticity(&rgb_to_xyz(rgb))
+}
+
+/// Result of a chromaticity-space gamut coverage analysis.
+#[derive(Debug, Clone)]
+pub struct ChromaticityGamutCoverage {
+    /// Number of LUT points whose chromaticity is inside the gamut.
+    pub inside_count: usize,
+    /// Number of near-black / achromatic points (chromaticity undefined).
+    pub achromatic_count: usize,
+    /// Total LUT points analysed.
+    pub total_count: usize,
+    /// `inside_count / (total_count - achromatic_count)`.
+    pub coverage_ratio: f64,
+}
+
+impl ChromaticityGamutCoverage {
+    /// Coverage as a percentage (0–100).
+    #[must_use]
+    pub fn coverage_percent(&self) -> f64 {
+        self.coverage_ratio * 100.0
+    }
+}
+
+/// Analyse what fraction of a LUT's outputs fall within a chromaticity gamut.
+///
+/// Each LUT output RGB triplet is converted to CIE xy and tested against
+/// the triangular gamut defined by `target_gamut`.  Near-black colours
+/// (where chromaticity is undefined) are counted in `achromatic_count` and
+/// excluded from the coverage ratio denominator.
+#[must_use]
+pub fn analyse_chromaticity_gamut_coverage(
+    lut: &[Rgb],
+    target_gamut: &ChromaticityGamut,
+) -> ChromaticityGamutCoverage {
+    let total = lut.len();
+    let mut inside = 0_usize;
+    let mut achromatic = 0_usize;
+
+    for rgb in lut {
+        match rgb_to_chromaticity(rgb) {
+            None => achromatic += 1,
+            Some(chroma) => {
+                if target_gamut.contains(chroma) {
+                    inside += 1;
+                }
+            }
+        }
+    }
+
+    let chromatic = total.saturating_sub(achromatic);
+    let coverage_ratio = if chromatic == 0 {
+        1.0 // degenerate: all achromatic
+    } else {
+        inside as f64 / chromatic as f64
+    };
+
+    ChromaticityGamutCoverage {
+        inside_count: inside,
+        achromatic_count: achromatic,
+        total_count: total,
+        coverage_ratio,
+    }
+}
+
+/// Convenience wrapper returning `None` for empty slices.
+#[must_use]
+pub fn compare_gamut_coverage(
+    lut: &[Rgb],
+    target_gamut: &ChromaticityGamut,
+) -> Option<ChromaticityGamutCoverage> {
+    if lut.is_empty() {
+        return None;
+    }
+    Some(analyse_chromaticity_gamut_coverage(lut, target_gamut))
+}
+
+// ---------------------------------------------------------------------------
 // Clipping analysis
 // ---------------------------------------------------------------------------
 
@@ -462,5 +650,114 @@ mod tests {
         let lut: Vec<Rgb> = vec![[0.2, 0.3, 0.4], [0.8, 0.7, 0.6]];
         let stats = compute_lut_stats(&lut);
         assert!((stats.r.range() - 0.6).abs() < 1e-9);
+    }
+
+    // -----------------------------------------------------------------------
+    // Chromaticity gamut coverage tests (Item 3)
+    // -----------------------------------------------------------------------
+
+    fn chromatic_identity_lut(size: usize) -> Vec<Rgb> {
+        let scale = (size - 1) as f64;
+        let mut lut = Vec::with_capacity(size * size * size);
+        for r in 0..size {
+            for g in 0..size {
+                for b in 0..size {
+                    // Offset by 0.01 to avoid all-black achromatic nodes.
+                    let rv = (r as f64 / scale).max(0.01);
+                    let gv = (g as f64 / scale).max(0.01);
+                    let bv = (b as f64 / scale).max(0.01);
+                    lut.push([rv, gv, bv]);
+                }
+            }
+        }
+        lut
+    }
+
+    #[test]
+    fn test_chromaticity_identity_inside_rec709() {
+        let lut = chromatic_identity_lut(3);
+        let gamut = ChromaticityGamut::rec709();
+        let cov = analyse_chromaticity_gamut_coverage(&lut, &gamut);
+        assert!(cov.coverage_ratio > 0.5, "expected majority inside Rec.709");
+    }
+
+    #[test]
+    fn test_rec2020_contains_more_than_rec709() {
+        let test_rgb: Vec<Rgb> = vec![[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
+        let cov709 = analyse_chromaticity_gamut_coverage(&test_rgb, &ChromaticityGamut::rec709());
+        let cov2020 = analyse_chromaticity_gamut_coverage(&test_rgb, &ChromaticityGamut::rec2020());
+        assert!(
+            cov2020.coverage_ratio >= cov709.coverage_ratio,
+            "Rec.2020 should contain at least as many Rec.709 primaries"
+        );
+    }
+
+    #[test]
+    fn test_achromatic_counted_separately() {
+        let lut: Vec<Rgb> = vec![[0.0, 0.0, 0.0]; 8];
+        let gamut = ChromaticityGamut::rec709();
+        let cov = analyse_chromaticity_gamut_coverage(&lut, &gamut);
+        assert_eq!(cov.achromatic_count, 8);
+        assert_eq!(cov.total_count, 8);
+        assert!((cov.coverage_ratio - 1.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_coverage_percent_bounds() {
+        let lut = chromatic_identity_lut(3);
+        let gamut = ChromaticityGamut::rec709();
+        let cov = analyse_chromaticity_gamut_coverage(&lut, &gamut);
+        assert!(cov.coverage_percent() >= 0.0);
+        assert!(cov.coverage_percent() <= 100.0 + 1e-9);
+    }
+
+    #[test]
+    fn test_white_point_inside_rec709() {
+        let gamut = ChromaticityGamut::rec709();
+        let d65 = Chromaticity::new(0.3127, 0.3290);
+        assert!(
+            gamut.contains(d65),
+            "D65 white point should be inside Rec.709"
+        );
+    }
+
+    #[test]
+    fn test_far_point_outside_gamut() {
+        let gamut = ChromaticityGamut::rec709();
+        assert!(!gamut.contains(Chromaticity::new(0.9, 0.9)));
+    }
+
+    #[test]
+    fn test_rgb_to_chromaticity_pure_red() {
+        let rgb: Rgb = [1.0, 0.0, 0.0];
+        let chroma = rgb_to_chromaticity(&rgb).expect("non-achromatic");
+        assert!((chroma.x - 0.640).abs() < 0.01, "x={}", chroma.x);
+        assert!((chroma.y - 0.330).abs() < 0.01, "y={}", chroma.y);
+    }
+
+    #[test]
+    fn test_rgb_to_chromaticity_black_is_none() {
+        assert!(rgb_to_chromaticity(&[0.0, 0.0, 0.0]).is_none());
+    }
+
+    #[test]
+    fn test_compare_gamut_coverage_empty() {
+        assert!(compare_gamut_coverage(&[], &ChromaticityGamut::rec709()).is_none());
+    }
+
+    #[test]
+    fn test_compare_gamut_coverage_nonempty() {
+        let lut: Vec<Rgb> = vec![[0.5, 0.3, 0.1], [0.2, 0.7, 0.4]];
+        let result = compare_gamut_coverage(&lut, &ChromaticityGamut::rec709());
+        assert!(result.is_some());
+    }
+
+    #[test]
+    fn test_dci_p3_green_outside_rec709() {
+        let gamut_709 = ChromaticityGamut::rec709();
+        let gamut_p3 = ChromaticityGamut::dci_p3();
+        let p3_green = Chromaticity::new(0.265, 0.690);
+        assert!(gamut_p3.contains(p3_green));
+        assert!(!gamut_709.contains(p3_green));
     }
 }

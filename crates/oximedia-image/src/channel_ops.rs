@@ -191,10 +191,7 @@ pub fn insert_channel_f32(
 }
 
 /// Splits an interleaved buffer into separate planar channels.
-pub fn deinterleave_f32(
-    buf: &[f32],
-    desc: &ChannelDescriptor,
-) -> Result<Vec<Vec<f32>>, String> {
+pub fn deinterleave_f32(buf: &[f32], desc: &ChannelDescriptor) -> Result<Vec<Vec<f32>>, String> {
     if desc.layout != ChannelLayout::Interleaved {
         return Err("deinterleave_f32 expects interleaved layout".to_string());
     }
@@ -220,10 +217,7 @@ pub fn deinterleave_f32(
 }
 
 /// Merges separate planar channels into an interleaved buffer.
-pub fn interleave_f32(
-    planes: &[Vec<f32>],
-    desc: &ChannelDescriptor,
-) -> Result<Vec<f32>, String> {
+pub fn interleave_f32(planes: &[Vec<f32>], desc: &ChannelDescriptor) -> Result<Vec<f32>, String> {
     if planes.len() != desc.num_channels {
         return Err(format!(
             "plane count mismatch: expected {}, got {}",

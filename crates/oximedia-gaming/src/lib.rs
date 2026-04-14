@@ -97,6 +97,25 @@ pub mod game_profile;
 pub mod multi_stream;
 pub mod region_capture;
 
+// Additional modules — wired from existing implementations
+pub mod anti_cheat;
+pub mod async_encoder;
+pub mod audience_analytics;
+pub mod audio_event;
+pub mod chat_overlay;
+pub mod clip_recorder;
+pub mod donation_alert;
+pub mod game_capture_ext;
+pub mod genre_highlight;
+pub mod gpu_scaling;
+pub mod output_protocol;
+pub mod recording_mode;
+pub mod scene_switcher;
+pub mod stream_deck;
+pub mod stream_quality_monitor;
+pub mod viewer_counter;
+pub mod zero_copy_pipeline;
+
 pub use event_recorder::{
     EventFormat, EventRecorder, GameEvent as RecorderGameEvent, GameEventType as RecorderEventType,
 };

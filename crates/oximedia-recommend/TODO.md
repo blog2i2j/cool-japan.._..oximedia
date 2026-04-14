@@ -12,11 +12,11 @@
 - [ ] Add real-time model updating in `collaborative::matrix::CollaborativeEngine` (incremental matrix factorization)
 - [ ] Implement user segment-based recommendations in `personalize` (cluster users into segments)
 - [ ] Extend `diversity::ensure::DiversityEnforcer` with maximal marginal relevance (MMR) reranking
-- [ ] Add `impression_tracker` deduplication — never recommend already-seen content
+- [x] Add `impression_tracker` deduplication — never recommend already-seen content
 - [ ] Implement `cold_start` with popularity-based fallback and demographic-based initialization
 - [ ] Extend `explain::generate` with visual explanation data (feature importance scores)
-- [ ] Add `ab_test` statistical significance testing (chi-squared, t-test for engagement metrics)
-- [ ] Implement rate limiting in `RecommendationEngine` to prevent abuse of recommendation API
+- [x] Add `ab_test` statistical significance testing (chi-squared, t-test for engagement metrics)
+- [x] Implement rate limiting in `RecommendationEngine` to prevent abuse of recommendation API
 
 ## New Features
 - [ ] Add knowledge graph-based recommendations — leverage media metadata relationships (director, genre, cast)

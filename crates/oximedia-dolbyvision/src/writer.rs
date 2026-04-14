@@ -3,7 +3,7 @@
 //! Handles writing of Dolby Vision RPU to HEVC SEI messages and raw bitstreams.
 
 use crate::{metadata::*, rpu::*, DolbyVisionError, DolbyVisionRpu, Profile, Result};
-use bitstream_io::{BigEndian, BitWrite, BitWriter};
+use oximedia_bitstream::{BigEndian, BitWrite, BitWriter};
 use std::io::Cursor;
 
 /// Dolby Vision T.35 country code (United States).
@@ -100,19 +100,19 @@ fn create_sei_payload(rpu_data: &[u8]) -> Result<Vec<u8>> {
 
     // Write T.35 country code
     writer
-        .write(8, T35_COUNTRY_CODE)
+        .write_var(8, T35_COUNTRY_CODE)
         .map_err(DolbyVisionError::Io)?;
 
     // Write T.35 terminal provider code
     writer
-        .write(16, T35_TERMINAL_PROVIDER_CODE)
+        .write_var(16, T35_TERMINAL_PROVIDER_CODE)
         .map_err(DolbyVisionError::Io)?;
 
     // Write RPU data
     writer.write_bytes(rpu_data).map_err(DolbyVisionError::Io)?;
 
     // Add trailing bits (0x80 for byte alignment)
-    writer.write(8, 0x80u8).map_err(DolbyVisionError::Io)?;
+    writer.write_var(8, 0x80u8).map_err(DolbyVisionError::Io)?;
 
     Ok(payload)
 }
@@ -123,10 +123,12 @@ fn write_sei_size<W: std::io::Write>(
     mut size: u32,
 ) -> Result<()> {
     while size > 255 {
-        writer.write(8, 0xFFu8).map_err(DolbyVisionError::Io)?;
+        writer.write_var(8, 0xFFu8).map_err(DolbyVisionError::Io)?;
         size -= 255;
     }
-    writer.write(8, size as u8).map_err(DolbyVisionError::Io)?;
+    writer
+        .write_var(8, size as u8)
+        .map_err(DolbyVisionError::Io)?;
     Ok(())
 }
 
@@ -136,11 +138,11 @@ fn write_rpu_header<W: std::io::Write>(
     header: &RpuHeader,
 ) -> Result<()> {
     writer
-        .write(6, header.rpu_type)
+        .write_var(6, header.rpu_type)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(11, header.rpu_format)
+        .write_var(11, header.rpu_format)
         .map_err(DolbyVisionError::Io)?;
 
     writer
@@ -152,11 +154,11 @@ fn write_rpu_header<W: std::io::Write>(
     }
 
     writer
-        .write(10, header.picture_index)
+        .write_var(10, header.picture_index)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(4, header.change_flags.bits())
+        .write_var(4, header.change_flags.bits())
         .map_err(DolbyVisionError::Io)?;
 
     writer
@@ -165,36 +167,36 @@ fn write_rpu_header<W: std::io::Write>(
 
     if header.nlq_param_pred_flag {
         writer
-            .write(4, header.num_nlq_param_predictors)
+            .write_var(4, header.num_nlq_param_predictors)
             .map_err(DolbyVisionError::Io)?;
     }
 
     writer
-        .write(2, header.component_order)
+        .write_var(2, header.component_order)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(1, header.coef_data_type)
+        .write_var(1, header.coef_data_type)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(4, header.coef_log2_denom)
+        .write_var(4, header.coef_log2_denom)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(2, header.mapping_color_space)
+        .write_var(2, header.mapping_color_space)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(2, header.mapping_chroma_format)
+        .write_var(2, header.mapping_chroma_format)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(3, header.num_pivots_minus_2)
+        .write_var(3, header.num_pivots_minus_2)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(12, header.pred_pivot_value)
+        .write_var(12, header.pred_pivot_value)
         .map_err(DolbyVisionError::Io)?;
 
     Ok(())
@@ -206,11 +208,11 @@ fn write_vdr_seq_info<W: std::io::Write>(
     seq_info: &VdrSeqInfo,
 ) -> Result<()> {
     writer
-        .write(8, seq_info.vdr_dm_metadata_id)
+        .write_var(8, seq_info.vdr_dm_metadata_id)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(2, seq_info.scene_refresh_flag)
+        .write_var(2, seq_info.scene_refresh_flag)
         .map_err(DolbyVisionError::Io)?;
 
     writer
@@ -218,27 +220,27 @@ fn write_vdr_seq_info<W: std::io::Write>(
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(1, seq_info.coef_data_type)
+        .write_var(1, seq_info.coef_data_type)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(4, seq_info.coef_log2_denom)
+        .write_var(4, seq_info.coef_log2_denom)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(4, seq_info.vdr_bit_depth)
+        .write_var(4, seq_info.vdr_bit_depth)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(4, seq_info.bl_bit_depth)
+        .write_var(4, seq_info.bl_bit_depth)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(4, seq_info.el_bit_depth)
+        .write_var(4, seq_info.el_bit_depth)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(4, seq_info.source_bit_depth)
+        .write_var(4, seq_info.source_bit_depth)
         .map_err(DolbyVisionError::Io)?;
 
     Ok(())
@@ -252,15 +254,15 @@ fn write_vdr_dm_data<W: std::io::Write>(
     _profile: Profile,
 ) -> Result<()> {
     writer
-        .write(8, vdr_dm_data.affected_dm_metadata_id)
+        .write_var(8, vdr_dm_data.affected_dm_metadata_id)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(8, vdr_dm_data.current_dm_metadata_id)
+        .write_var(8, vdr_dm_data.current_dm_metadata_id)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(2, vdr_dm_data.scene_refresh_flag)
+        .write_var(2, vdr_dm_data.scene_refresh_flag)
         .map_err(DolbyVisionError::Io)?;
 
     let ycbcr_to_rgb_present = vdr_dm_data.ycbcr_to_rgb_matrix.is_some();
@@ -282,53 +284,53 @@ fn write_vdr_dm_data<W: std::io::Write>(
     }
 
     writer
-        .write(16, vdr_dm_data.signal_eotf)
+        .write_var(16, vdr_dm_data.signal_eotf)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(16, vdr_dm_data.signal_eotf_param0)
+        .write_var(16, vdr_dm_data.signal_eotf_param0)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(16, vdr_dm_data.signal_eotf_param1)
+        .write_var(16, vdr_dm_data.signal_eotf_param1)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(32, vdr_dm_data.signal_eotf_param2)
+        .write_var(32, vdr_dm_data.signal_eotf_param2)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(5, vdr_dm_data.signal_bit_depth)
+        .write_var(5, vdr_dm_data.signal_bit_depth)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(2, vdr_dm_data.signal_color_space)
+        .write_var(2, vdr_dm_data.signal_color_space)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(2, vdr_dm_data.signal_chroma_format)
+        .write_var(2, vdr_dm_data.signal_chroma_format)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(2, vdr_dm_data.signal_full_range_flag)
+        .write_var(2, vdr_dm_data.signal_full_range_flag)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(12, vdr_dm_data.source_min_pq)
+        .write_var(12, vdr_dm_data.source_min_pq)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(12, vdr_dm_data.source_max_pq)
+        .write_var(12, vdr_dm_data.source_max_pq)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(10, vdr_dm_data.source_diagonal)
+        .write_var(10, vdr_dm_data.source_diagonal)
         .map_err(DolbyVisionError::Io)?;
 
     // Write reshaping curves
     let num_curves = vdr_dm_data.reshaping_curves.len().saturating_sub(1);
     writer
-        .write(2, num_curves as u8)
+        .write_var(2, num_curves as u8)
         .map_err(DolbyVisionError::Io)?;
 
     for curve in &vdr_dm_data.reshaping_curves {
@@ -338,7 +340,7 @@ fn write_vdr_dm_data<W: std::io::Write>(
     // Write NLQ parameters
     let num_nlq_params = vdr_dm_data.nlq_params.len().saturating_sub(1);
     writer
-        .write(2, num_nlq_params as u8)
+        .write_var(2, num_nlq_params as u8)
         .map_err(DolbyVisionError::Io)?;
 
     for params in &vdr_dm_data.nlq_params {
@@ -355,7 +357,9 @@ fn write_color_matrix<W: std::io::Write>(
 ) -> Result<()> {
     for row in &matrix.matrix {
         for &col in row {
-            writer.write_signed(16, col).map_err(DolbyVisionError::Io)?;
+            writer
+                .write_signed_var(16, col)
+                .map_err(DolbyVisionError::Io)?;
         }
     }
     Ok(())
@@ -368,25 +372,25 @@ fn write_reshaping_curve<W: std::io::Write>(
 ) -> Result<()> {
     let num_pivots = curve.pivots.len().saturating_sub(1);
     writer
-        .write(4, num_pivots as u8)
+        .write_var(4, num_pivots as u8)
         .map_err(DolbyVisionError::Io)?;
 
     for &pivot in &curve.pivots {
-        writer.write(12, pivot).map_err(DolbyVisionError::Io)?;
+        writer.write_var(12, pivot).map_err(DolbyVisionError::Io)?;
     }
 
     for (i, &idc) in curve.mapping_idc.iter().enumerate() {
-        writer.write(2, idc).map_err(DolbyVisionError::Io)?;
+        writer.write_var(2, idc).map_err(DolbyVisionError::Io)?;
 
         if idc == 0 && i < curve.poly_order_minus1.len() {
             // Polynomial mapping
             let order = curve.poly_order_minus1[i];
-            writer.write(2, order).map_err(DolbyVisionError::Io)?;
+            writer.write_var(2, order).map_err(DolbyVisionError::Io)?;
 
             if i < curve.poly_coef.len() {
                 for &coef in &curve.poly_coef[i] {
                     writer
-                        .write_signed(16, coef)
+                        .write_signed_var(16, coef)
                         .map_err(DolbyVisionError::Io)?;
                 }
             }
@@ -394,12 +398,12 @@ fn write_reshaping_curve<W: std::io::Write>(
     }
 
     writer
-        .write(2, curve.mmr_order_minus1)
+        .write_var(2, curve.mmr_order_minus1)
         .map_err(DolbyVisionError::Io)?;
 
     for &coef in &curve.mmr_coef {
         writer
-            .write_signed(16, coef)
+            .write_signed_var(16, coef)
             .map_err(DolbyVisionError::Io)?;
     }
 
@@ -412,19 +416,19 @@ fn write_nlq_params<W: std::io::Write>(
     params: &NlqParams,
 ) -> Result<()> {
     writer
-        .write(10, params.nlq_offset)
+        .write_var(10, params.nlq_offset)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(27, params.vdr_in_max)
+        .write_var(27, params.vdr_in_max)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(26, params.linear_deadzone_slope)
+        .write_var(26, params.linear_deadzone_slope)
         .map_err(DolbyVisionError::Io)?;
 
     writer
-        .write(26, params.linear_deadzone_threshold)
+        .write_var(26, params.linear_deadzone_threshold)
         .map_err(DolbyVisionError::Io)?;
 
     Ok(())
@@ -441,15 +445,15 @@ fn write_level1_metadata<W: std::io::Write>(
 
     if let Some(meta) = metadata {
         writer
-            .write(12, meta.min_pq)
+            .write_var(12, meta.min_pq)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(12, meta.max_pq)
+            .write_var(12, meta.max_pq)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(12, meta.avg_pq)
+            .write_var(12, meta.avg_pq)
             .map_err(DolbyVisionError::Io)?;
     }
 
@@ -467,39 +471,39 @@ fn write_level2_metadata<W: std::io::Write>(
 
     if let Some(meta) = metadata {
         writer
-            .write(8, meta.target_display_index)
+            .write_var(8, meta.target_display_index)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write_signed(16, meta.trim_slope)
+            .write_signed_var(16, meta.trim_slope)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write_signed(16, meta.trim_offset)
+            .write_signed_var(16, meta.trim_offset)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write_signed(16, meta.trim_power)
+            .write_signed_var(16, meta.trim_power)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write_signed(16, meta.trim_chroma_weight)
+            .write_signed_var(16, meta.trim_chroma_weight)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write_signed(16, meta.trim_saturation_gain)
+            .write_signed_var(16, meta.trim_saturation_gain)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write_signed(16, meta.ms_weight)
+            .write_signed_var(16, meta.ms_weight)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(16, meta.target_mid_contrast)
+            .write_var(16, meta.target_mid_contrast)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(16, meta.clip_trim)
+            .write_var(16, meta.clip_trim)
             .map_err(DolbyVisionError::Io)?;
     }
 
@@ -517,19 +521,19 @@ fn write_level5_metadata<W: std::io::Write>(
 
     if let Some(meta) = metadata {
         writer
-            .write(16, meta.active_area_left_offset)
+            .write_var(16, meta.active_area_left_offset)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(16, meta.active_area_right_offset)
+            .write_var(16, meta.active_area_right_offset)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(16, meta.active_area_top_offset)
+            .write_var(16, meta.active_area_top_offset)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(16, meta.active_area_bottom_offset)
+            .write_var(16, meta.active_area_bottom_offset)
             .map_err(DolbyVisionError::Io)?;
     }
 
@@ -547,31 +551,35 @@ fn write_level6_metadata<W: std::io::Write>(
 
     if let Some(meta) = metadata {
         writer
-            .write(16, meta.max_cll)
+            .write_var(16, meta.max_cll)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(16, meta.max_fall)
+            .write_var(16, meta.max_fall)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(32, meta.min_display_mastering_luminance)
+            .write_var(32, meta.min_display_mastering_luminance)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(32, meta.max_display_mastering_luminance)
+            .write_var(32, meta.max_display_mastering_luminance)
             .map_err(DolbyVisionError::Io)?;
 
         for primary in &meta.master_display_primaries {
-            writer.write(16, primary[0]).map_err(DolbyVisionError::Io)?;
-            writer.write(16, primary[1]).map_err(DolbyVisionError::Io)?;
+            writer
+                .write_var(16, primary[0])
+                .map_err(DolbyVisionError::Io)?;
+            writer
+                .write_var(16, primary[1])
+                .map_err(DolbyVisionError::Io)?;
         }
 
         writer
-            .write(16, meta.master_display_white_point[0])
+            .write_var(16, meta.master_display_white_point[0])
             .map_err(DolbyVisionError::Io)?;
         writer
-            .write(16, meta.master_display_white_point[1])
+            .write_var(16, meta.master_display_white_point[1])
             .map_err(DolbyVisionError::Io)?;
     }
 
@@ -589,43 +597,43 @@ fn write_level8_metadata<W: std::io::Write>(
 
     if let Some(meta) = metadata {
         writer
-            .write(8, meta.target_display_index)
+            .write_var(8, meta.target_display_index)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(16, meta.target_max_pq)
+            .write_var(16, meta.target_max_pq)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(16, meta.target_min_pq)
+            .write_var(16, meta.target_min_pq)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(8, meta.target_primary_index)
+            .write_var(8, meta.target_primary_index)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(8, meta.target_eotf)
+            .write_var(8, meta.target_eotf)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(16, meta.diagonal_size)
+            .write_var(16, meta.diagonal_size)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(16, meta.peak_luminance)
+            .write_var(16, meta.peak_luminance)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(16, meta.diffuse_white_luminance)
+            .write_var(16, meta.diffuse_white_luminance)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(16, meta.ambient_luminance)
+            .write_var(16, meta.ambient_luminance)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(16, meta.surround_reflection)
+            .write_var(16, meta.surround_reflection)
             .map_err(DolbyVisionError::Io)?;
     }
 
@@ -643,19 +651,19 @@ fn write_level9_metadata<W: std::io::Write>(
 
     if let Some(meta) = metadata {
         writer
-            .write(8, meta.source_primary_index)
+            .write_var(8, meta.source_primary_index)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(16, meta.source_max_pq)
+            .write_var(16, meta.source_max_pq)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(16, meta.source_min_pq)
+            .write_var(16, meta.source_min_pq)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(16, meta.source_diagonal)
+            .write_var(16, meta.source_diagonal)
             .map_err(DolbyVisionError::Io)?;
     }
 
@@ -673,11 +681,11 @@ fn write_level11_metadata<W: std::io::Write>(
 
     if let Some(meta) = metadata {
         writer
-            .write(8, meta.content_type as u8)
+            .write_var(8, meta.content_type as u8)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(8, meta.whitepoint)
+            .write_var(8, meta.whitepoint)
             .map_err(DolbyVisionError::Io)?;
 
         writer
@@ -685,23 +693,23 @@ fn write_level11_metadata<W: std::io::Write>(
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(8, meta.sharpness)
+            .write_var(8, meta.sharpness)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(8, meta.noise_reduction)
+            .write_var(8, meta.noise_reduction)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(8, meta.mpeg_noise_reduction)
+            .write_var(8, meta.mpeg_noise_reduction)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(8, meta.frame_rate)
+            .write_var(8, meta.frame_rate)
             .map_err(DolbyVisionError::Io)?;
 
         writer
-            .write(8, meta.temporal_filter_strength)
+            .write_var(8, meta.temporal_filter_strength)
             .map_err(DolbyVisionError::Io)?;
     }
 

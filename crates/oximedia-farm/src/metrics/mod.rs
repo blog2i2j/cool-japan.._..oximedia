@@ -357,10 +357,10 @@ impl FarmMetrics {
         let encoder = prometheus::TextEncoder::new();
         let metric_families = self.registry.gather();
         let mut buffer = Vec::new();
-        encoder
-            .encode(&metric_families, &mut buffer)
-            .expect("Prometheus TextEncoder encodes to valid bytes");
-        String::from_utf8(buffer).expect("Prometheus text output is valid UTF-8")
+        if encoder.encode(&metric_families, &mut buffer).is_err() {
+            return String::new();
+        }
+        String::from_utf8(buffer).unwrap_or_default()
     }
 }
 
@@ -376,14 +376,14 @@ mod tests {
 
     #[test]
     fn test_metrics_creation() {
-        let metrics = FarmMetrics::new().expect("failed to create");
+        let metrics = FarmMetrics::new().unwrap();
         let output = metrics.gather();
         assert!(!output.is_empty());
     }
 
     #[test]
     fn test_job_metrics() {
-        let metrics = FarmMetrics::new().expect("failed to create");
+        let metrics = FarmMetrics::new().unwrap();
 
         metrics.record_job_submitted();
         metrics.record_job_completed(10.0);
@@ -400,7 +400,7 @@ mod tests {
 
     #[test]
     fn test_task_metrics() {
-        let metrics = FarmMetrics::new().expect("failed to create");
+        let metrics = FarmMetrics::new().unwrap();
 
         metrics.record_task_completed(5.0);
         metrics.record_task_failed();
@@ -415,7 +415,7 @@ mod tests {
 
     #[test]
     fn test_worker_metrics() {
-        let metrics = FarmMetrics::new().expect("failed to create");
+        let metrics = FarmMetrics::new().unwrap();
 
         metrics.update_worker_counts(10, 8, 3, 4, 1);
 
@@ -426,7 +426,7 @@ mod tests {
 
     #[test]
     fn test_queue_metrics() {
-        let metrics = FarmMetrics::new().expect("failed to create");
+        let metrics = FarmMetrics::new().unwrap();
 
         metrics.set_queue_depth(15);
         metrics.set_queue_depth_by_priority("high", 5);
@@ -439,7 +439,7 @@ mod tests {
 
     #[test]
     fn test_resource_metrics() {
-        let metrics = FarmMetrics::new().expect("failed to create");
+        let metrics = FarmMetrics::new().unwrap();
 
         metrics.update_worker_resources("worker-1", 0.75, 0.60, 0.50);
 
@@ -451,7 +451,7 @@ mod tests {
 
     #[test]
     fn test_throughput_metrics() {
-        let metrics = FarmMetrics::new().expect("failed to create");
+        let metrics = FarmMetrics::new().unwrap();
 
         metrics.record_bytes_processed(1024 * 1024 * 100); // 100MB
         metrics.record_frames_processed(3000);

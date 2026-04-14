@@ -247,17 +247,11 @@ mod tests {
 
         let result = detector.detect(Path::new("test.png"));
         assert!(result.is_ok());
-        assert_eq!(
-            result.expect("PNG detection should succeed").format,
-            ImageFormat::Png
-        );
+        assert_eq!(result.unwrap().format, ImageFormat::Png);
 
         let result = detector.detect(Path::new("test.webp"));
         assert!(result.is_ok());
-        assert_eq!(
-            result.expect("WebP detection should succeed").format,
-            ImageFormat::Webp
-        );
+        assert_eq!(result.unwrap().format, ImageFormat::Webp);
     }
 
     #[test]

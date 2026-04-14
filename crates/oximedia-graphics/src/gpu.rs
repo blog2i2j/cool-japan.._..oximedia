@@ -82,10 +82,7 @@ impl GpuRenderer {
             return Err(GraphicsError::InvalidDimensions(width, height));
         }
 
-        let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor {
-            backends: wgpu::Backends::all(),
-            ..Default::default()
-        });
+        let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
 
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptions {
@@ -94,18 +91,17 @@ impl GpuRenderer {
                 force_fallback_adapter: false,
             })
             .await
-            .ok_or_else(|| GraphicsError::GpuError("Failed to find adapter".to_string()))?;
+            .map_err(|_| GraphicsError::GpuError("Failed to find adapter".to_string()))?;
 
         let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: Some("Graphics Device"),
-                    required_features: wgpu::Features::empty(),
-                    required_limits: wgpu::Limits::default(),
-                    memory_hints: wgpu::MemoryHints::default(),
-                },
-                None,
-            )
+            .request_device(&wgpu::DeviceDescriptor {
+                label: Some("Graphics Device"),
+                required_features: wgpu::Features::empty(),
+                required_limits: wgpu::Limits::default(),
+                memory_hints: wgpu::MemoryHints::default(),
+                experimental_features: wgpu::ExperimentalFeatures::disabled(),
+                trace: wgpu::Trace::Off,
+            })
             .await
             .map_err(|e| GraphicsError::GpuError(format!("Failed to create device: {e}")))?;
 
@@ -117,7 +113,7 @@ impl GpuRenderer {
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("Graphics Pipeline Layout"),
             bind_group_layouts: &[],
-            push_constant_ranges: &[],
+            immediate_size: 0,
         });
 
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
@@ -154,7 +150,7 @@ impl GpuRenderer {
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
-            multiview: None,
+            multiview_mask: None,
             cache: None,
         });
 
@@ -228,6 +224,7 @@ impl GpuRenderer {
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                     view: &view,
                     resolve_target: None,
+                    depth_slice: None,
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
                         store: wgpu::StoreOp::Store,
@@ -236,6 +233,7 @@ impl GpuRenderer {
                 depth_stencil_attachment: None,
                 timestamp_writes: None,
                 occlusion_query_set: None,
+                multiview_mask: None,
             });
 
             render_pass.set_pipeline(&self.pipeline);
@@ -279,7 +277,7 @@ impl GpuRenderer {
         let buffer_slice = buffer.slice(..);
         buffer_slice.map_async(wgpu::MapMode::Read, |_| {});
 
-        self.device.poll(wgpu::Maintain::Wait);
+        let _ = self.device.poll(wgpu::PollType::wait_indefinitely());
 
         let data = buffer_slice.get_mapped_range();
         let result = data.to_vec();

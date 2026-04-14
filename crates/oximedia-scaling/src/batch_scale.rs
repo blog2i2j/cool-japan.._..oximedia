@@ -1,15 +1,104 @@
 #![allow(dead_code)]
-//! Batch scaling operations with progress tracking.
+//! Batch scaling operations with progress tracking, callbacks, and cancellation.
 //!
 //! Provides infrastructure for scaling multiple images or video frames
-//! in batch with configurable parallelism, progress reporting, and
-//! error handling policies.
+//! in batch with configurable parallelism, progress reporting callbacks,
+//! cancellation token support, and error handling policies.
 
 use std::collections::HashMap;
 use std::fmt;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
+
+// -- CancellationToken -------------------------------------------------------
+
+/// A thread-safe handle that can signal a batch job to stop.
+///
+/// Clone the token to share it across threads.  Call [`CancellationToken::cancel`]
+/// from any thread; the batch job checks the flag between items.
+#[derive(Debug, Clone)]
+pub struct CancellationToken {
+    cancelled: Arc<AtomicBool>,
+}
+
+impl CancellationToken {
+    /// Create a new, un-cancelled token.
+    pub fn new() -> Self {
+        Self {
+            cancelled: Arc::new(AtomicBool::new(false)),
+        }
+    }
+
+    /// Signal cancellation.  Safe to call from any thread.
+    pub fn cancel(&self) {
+        self.cancelled.store(true, Ordering::Release);
+    }
+
+    /// Returns `true` if cancellation has been requested.
+    pub fn is_cancelled(&self) -> bool {
+        self.cancelled.load(Ordering::Acquire)
+    }
+}
+
+impl Default for CancellationToken {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+// -- ProgressEvent -----------------------------------------------------------
+
+/// A progress event emitted to the registered callback during batch processing.
+#[derive(Debug, Clone)]
+pub enum ProgressEvent {
+    /// An item has started processing.
+    ItemStarted {
+        /// Index of the item within the batch (0-based).
+        index: usize,
+        /// Source path of the item.
+        source: PathBuf,
+    },
+    /// An item completed successfully.
+    ItemCompleted {
+        /// Index of the item.
+        index: usize,
+        /// Source path.
+        source: PathBuf,
+    },
+    /// An item failed.
+    ItemFailed {
+        /// Index of the item.
+        index: usize,
+        /// Source path.
+        source: PathBuf,
+        /// Error message.
+        error: String,
+    },
+    /// An item was skipped (after policy evaluation).
+    ItemSkipped {
+        /// Index of the item.
+        index: usize,
+        /// Source path.
+        source: PathBuf,
+    },
+    /// The entire batch was cancelled via a [`CancellationToken`].
+    BatchCancelled {
+        /// Number of items processed before cancellation.
+        processed: usize,
+    },
+    /// All items in the batch have been evaluated.
+    BatchFinished {
+        /// Final completed count.
+        completed: u64,
+        /// Total failed items.
+        failed: u64,
+        /// Total skipped items.
+        skipped: u64,
+    },
+}
+
+// -- ErrorPolicy -------------------------------------------------------------
 
 /// Error handling policy for batch operations.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -344,8 +433,14 @@ impl fmt::Display for BatchSummary {
     }
 }
 
+// -- BatchScaleJob -----------------------------------------------------------
+
+/// Type alias for an optional boxed progress callback.
+type ProgressCallback = Option<Box<dyn FnMut(ProgressEvent) + Send + 'static>>;
+
 /// Batch scaling job that manages a collection of items.
-#[derive(Debug)]
+///
+/// Supports optional progress callbacks and cancellation tokens.
 pub struct BatchScaleJob {
     /// Items in the batch.
     items: Vec<BatchItem>,
@@ -353,6 +448,19 @@ pub struct BatchScaleJob {
     config: BatchConfig,
     /// Progress tracker.
     progress: ProgressTracker,
+    /// Optional progress callback.
+    callback: ProgressCallback,
+    /// Optional cancellation token.
+    cancel_token: Option<CancellationToken>,
+}
+
+impl std::fmt::Debug for BatchScaleJob {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("BatchScaleJob")
+            .field("item_count", &self.items.len())
+            .field("config", &self.config)
+            .finish_non_exhaustive()
+    }
 }
 
 impl BatchScaleJob {
@@ -363,7 +471,32 @@ impl BatchScaleJob {
             items,
             config,
             progress: ProgressTracker::new(total),
+            callback: None,
+            cancel_token: None,
         }
+    }
+
+    /// Attaches a progress callback.
+    pub fn with_progress_callback<F>(mut self, cb: F) -> Self
+    where
+        F: FnMut(ProgressEvent) + Send + 'static,
+    {
+        self.callback = Some(Box::new(cb));
+        self
+    }
+
+    /// Attaches a cancellation token.
+    pub fn with_cancellation_token(mut self, token: CancellationToken) -> Self {
+        self.cancel_token = Some(token);
+        self
+    }
+
+    /// Returns whether cancellation has been requested.
+    pub fn is_cancelled(&self) -> bool {
+        self.cancel_token
+            .as_ref()
+            .map(|t| t.is_cancelled())
+            .unwrap_or(false)
     }
 
     /// Returns the number of items.
@@ -391,13 +524,34 @@ impl BatchScaleJob {
         &mut self.items
     }
 
-    /// Simulates processing all items (for testing/demonstration).
+    /// Simulates processing all items, honouring callbacks and cancellation.
     pub fn process_all(&mut self) -> BatchSummary {
         let mut errors = HashMap::new();
+        let mut processed_count = 0usize;
 
-        for item in &mut self.items {
+        for (idx, item) in self.items.iter_mut().enumerate() {
+            if self
+                .cancel_token
+                .as_ref()
+                .map(|t| t.is_cancelled())
+                .unwrap_or(false)
+            {
+                if let Some(cb) = self.callback.as_mut() {
+                    cb(ProgressEvent::BatchCancelled {
+                        processed: processed_count,
+                    });
+                }
+                break;
+            }
+
             item.mark_in_progress();
-            // Simulate: items with "fail" in the name fail
+            if let Some(cb) = self.callback.as_mut() {
+                cb(ProgressEvent::ItemStarted {
+                    index: idx,
+                    source: item.source.clone(),
+                });
+            }
+
             let should_fail = item.source.to_string_lossy().contains("fail");
 
             if should_fail {
@@ -409,6 +563,13 @@ impl BatchScaleJob {
                             item.source.to_string_lossy().to_string(),
                             "simulated failure".to_string(),
                         );
+                        if let Some(cb) = self.callback.as_mut() {
+                            cb(ProgressEvent::ItemFailed {
+                                index: idx,
+                                source: item.source.clone(),
+                                error: "simulated failure".to_string(),
+                            });
+                        }
                         break;
                     }
                     ErrorPolicy::SkipAndContinue => {
@@ -418,26 +579,62 @@ impl BatchScaleJob {
                             item.source.to_string_lossy().to_string(),
                             "simulated failure".to_string(),
                         );
+                        if let Some(cb) = self.callback.as_mut() {
+                            cb(ProgressEvent::ItemFailed {
+                                index: idx,
+                                source: item.source.clone(),
+                                error: "simulated failure".to_string(),
+                            });
+                        }
                     }
                     ErrorPolicy::RetryThenSkip => {
                         if item.retry_count < self.config.max_retries {
                             item.increment_retry();
                             item.mark_failed("simulated failure after retry");
+                            self.progress.record_failed();
+                            errors.insert(
+                                item.source.to_string_lossy().to_string(),
+                                "simulated failure after retry".to_string(),
+                            );
+                            if let Some(cb) = self.callback.as_mut() {
+                                cb(ProgressEvent::ItemFailed {
+                                    index: idx,
+                                    source: item.source.clone(),
+                                    error: "simulated failure after retry".to_string(),
+                                });
+                            }
                         } else {
                             item.mark_skipped();
                             self.progress.record_skipped();
+                            if let Some(cb) = self.callback.as_mut() {
+                                cb(ProgressEvent::ItemSkipped {
+                                    index: idx,
+                                    source: item.source.clone(),
+                                });
+                            }
                         }
-                        self.progress.record_failed();
-                        errors.insert(
-                            item.source.to_string_lossy().to_string(),
-                            "simulated failure".to_string(),
-                        );
                     }
                 }
             } else {
                 item.mark_completed();
                 self.progress.record_completed();
+                if let Some(cb) = self.callback.as_mut() {
+                    cb(ProgressEvent::ItemCompleted {
+                        index: idx,
+                        source: item.source.clone(),
+                    });
+                }
             }
+
+            processed_count += 1;
+        }
+
+        if let Some(cb) = self.callback.as_mut() {
+            cb(ProgressEvent::BatchFinished {
+                completed: self.progress.completed(),
+                failed: self.progress.failed(),
+                skipped: self.progress.skipped(),
+            });
         }
 
         let mut summary = BatchSummary::new(
@@ -620,5 +817,177 @@ mod tests {
         assert_eq!(summary.completed, 2);
         assert_eq!(summary.failed, 1);
         assert!(!summary.errors.is_empty());
+    }
+
+    // -- CancellationToken tests ---------------------------------------------
+
+    #[test]
+    fn test_cancellation_token_default_not_cancelled() {
+        let token = CancellationToken::new();
+        assert!(!token.is_cancelled());
+    }
+
+    #[test]
+    fn test_cancellation_token_cancel() {
+        let token = CancellationToken::new();
+        token.cancel();
+        assert!(token.is_cancelled());
+    }
+
+    #[test]
+    fn test_cancellation_token_clone_shares_state() {
+        let token = CancellationToken::new();
+        let token2 = token.clone();
+        token.cancel();
+        assert!(
+            token2.is_cancelled(),
+            "clone should share the cancelled flag"
+        );
+    }
+
+    #[test]
+    fn test_cancellation_token_default_trait() {
+        let token = CancellationToken::default();
+        assert!(!token.is_cancelled());
+    }
+
+    #[test]
+    fn test_job_is_cancelled_without_token() {
+        let items: Vec<BatchItem> = Vec::new();
+        let job = BatchScaleJob::new(items, BatchConfig::new());
+        assert!(!job.is_cancelled());
+    }
+
+    #[test]
+    fn test_job_is_cancelled_with_token() {
+        let token = CancellationToken::new();
+        let items: Vec<BatchItem> = Vec::new();
+        let job =
+            BatchScaleJob::new(items, BatchConfig::new()).with_cancellation_token(token.clone());
+        assert!(!job.is_cancelled());
+        token.cancel();
+        assert!(job.is_cancelled());
+    }
+
+    #[test]
+    fn test_batch_cancelled_stops_processing() {
+        let token = CancellationToken::new();
+        token.cancel();
+
+        let items = vec![
+            BatchItem::new(PathBuf::from("/a.png"), PathBuf::from("/o/a.png"), 100, 100),
+            BatchItem::new(PathBuf::from("/b.png"), PathBuf::from("/o/b.png"), 100, 100),
+        ];
+
+        let mut job = BatchScaleJob::new(items, BatchConfig::new()).with_cancellation_token(token);
+
+        let summary = job.process_all();
+        assert_eq!(summary.completed, 0);
+    }
+
+    // -- ProgressCallback tests ----------------------------------------------
+
+    #[test]
+    fn test_progress_callback_receives_events() {
+        use std::sync::{Arc, Mutex};
+
+        let events: Arc<Mutex<Vec<String>>> = Arc::new(Mutex::new(Vec::new()));
+        let ev_clone = Arc::clone(&events);
+
+        let items = vec![
+            BatchItem::new(PathBuf::from("/a.png"), PathBuf::from("/o/a.png"), 100, 100),
+            BatchItem::new(PathBuf::from("/b.png"), PathBuf::from("/o/b.png"), 100, 100),
+        ];
+
+        let mut job =
+            BatchScaleJob::new(items, BatchConfig::new()).with_progress_callback(move |event| {
+                let label = match &event {
+                    ProgressEvent::ItemStarted { .. } => "started",
+                    ProgressEvent::ItemCompleted { .. } => "completed",
+                    ProgressEvent::ItemFailed { .. } => "failed",
+                    ProgressEvent::ItemSkipped { .. } => "skipped",
+                    ProgressEvent::BatchCancelled { .. } => "cancelled",
+                    ProgressEvent::BatchFinished { .. } => "finished",
+                };
+                ev_clone.lock().unwrap().push(label.to_string());
+            });
+
+        let _ = job.process_all();
+        let received = events.lock().unwrap();
+        // 2 items * (started + completed) + BatchFinished = 5 events
+        assert_eq!(received.len(), 5);
+        assert_eq!(received[0], "started");
+        assert_eq!(received[1], "completed");
+        assert_eq!(received[4], "finished");
+    }
+
+    #[test]
+    fn test_progress_callback_failure_event() {
+        use std::sync::{Arc, Mutex};
+
+        let failed_paths: Arc<Mutex<Vec<PathBuf>>> = Arc::new(Mutex::new(Vec::new()));
+        let fp_clone = Arc::clone(&failed_paths);
+
+        let items = vec![BatchItem::new(
+            PathBuf::from("/fail_item.png"),
+            PathBuf::from("/o/x.png"),
+            100,
+            100,
+        )];
+
+        let mut job = BatchScaleJob::new(
+            items,
+            BatchConfig::new().with_error_policy(ErrorPolicy::SkipAndContinue),
+        )
+        .with_progress_callback(move |event| {
+            if let ProgressEvent::ItemFailed { source, .. } = event {
+                fp_clone.lock().unwrap().push(source);
+            }
+        });
+
+        let summary = job.process_all();
+        assert_eq!(summary.failed, 1);
+        assert_eq!(failed_paths.lock().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_progress_callback_batch_finished_counts() {
+        use std::sync::{Arc, Mutex};
+
+        let finished: Arc<Mutex<Option<(u64, u64, u64)>>> = Arc::new(Mutex::new(None));
+        let fin_clone = Arc::clone(&finished);
+
+        let items = vec![
+            BatchItem::new(PathBuf::from("/a.png"), PathBuf::from("/o/a.png"), 50, 50),
+            BatchItem::new(
+                PathBuf::from("/fail_b.png"),
+                PathBuf::from("/o/b.png"),
+                50,
+                50,
+            ),
+            BatchItem::new(PathBuf::from("/c.png"), PathBuf::from("/o/c.png"), 50, 50),
+        ];
+
+        let mut job = BatchScaleJob::new(
+            items,
+            BatchConfig::new().with_error_policy(ErrorPolicy::SkipAndContinue),
+        )
+        .with_progress_callback(move |event| {
+            if let ProgressEvent::BatchFinished {
+                completed,
+                failed,
+                skipped,
+            } = event
+            {
+                *fin_clone.lock().unwrap() = Some((completed, failed, skipped));
+            }
+        });
+
+        let _ = job.process_all();
+        let result = finished.lock().unwrap();
+        let (c, f, s) = result.expect("BatchFinished should have been emitted");
+        assert_eq!(c, 2);
+        assert_eq!(f, 1);
+        assert_eq!(s, 0);
     }
 }

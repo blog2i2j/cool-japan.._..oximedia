@@ -202,6 +202,266 @@ impl PanoramaBuilder {
     }
 }
 
+// ── Sub-pixel alignment ───────────────────────────────────────────────────────
+
+/// Sub-pixel displacement result from [`subpixel_align`].
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SubPixelOffset {
+    /// Refined horizontal displacement (fractional pixels).
+    pub dx: f64,
+    /// Refined vertical displacement (fractional pixels).
+    pub dy: f64,
+    /// Estimated normalised cross-correlation in `[0, 1]`.
+    pub correlation: f64,
+}
+
+impl SubPixelOffset {
+    /// Returns `true` if the correlation exceeds `min_correlation`.
+    #[must_use]
+    pub fn is_reliable(&self, min_correlation: f64) -> bool {
+        self.correlation >= min_correlation
+    }
+
+    /// Adds this offset to an integer position, returning a fractional canvas
+    /// coordinate.
+    #[must_use]
+    pub fn apply_to(&self, x: i32, y: i32) -> (f64, f64) {
+        (x as f64 + self.dx, y as f64 + self.dy)
+    }
+}
+
+/// Compute the normalised cross-correlation (NCC) between two same-size patches.
+///
+/// Returns a value in `[-1, 1]`. Returns `0.0` if either patch has zero
+/// variance (uniform colour).
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
+pub fn normalised_cross_correlation(a: &[f32], b: &[f32]) -> f64 {
+    assert_eq!(a.len(), b.len(), "patch sizes must match");
+    let n = a.len();
+    if n == 0 {
+        return 0.0;
+    }
+    let mean_a: f64 = a.iter().map(|&v| v as f64).sum::<f64>() / n as f64;
+    let mean_b: f64 = b.iter().map(|&v| v as f64).sum::<f64>() / n as f64;
+
+    let mut num = 0.0_f64;
+    let mut denom_a = 0.0_f64;
+    let mut denom_b = 0.0_f64;
+    for (&va, &vb) in a.iter().zip(b.iter()) {
+        let da = va as f64 - mean_a;
+        let db = vb as f64 - mean_b;
+        num += da * db;
+        denom_a += da * da;
+        denom_b += db * db;
+    }
+    let denom = (denom_a * denom_b).sqrt();
+    if denom < 1e-12 {
+        return 0.0;
+    }
+    (num / denom).clamp(-1.0, 1.0)
+}
+
+/// Extract a rectangular patch from a larger image, clamping out-of-bounds
+/// coordinates to the nearest edge pixel.
+#[must_use]
+#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+pub fn extract_patch(
+    img: &[f32],
+    img_width: usize,
+    img_height: usize,
+    patch_x: i64,
+    patch_y: i64,
+    patch_w: usize,
+    patch_h: usize,
+) -> Vec<f32> {
+    let mut patch = Vec::with_capacity(patch_w * patch_h);
+    let iw = img_width as i64;
+    let ih = img_height as i64;
+    for py in 0..patch_h as i64 {
+        for px in 0..patch_w as i64 {
+            let sx = (patch_x + px).clamp(0, iw - 1) as usize;
+            let sy = (patch_y + py).clamp(0, ih - 1) as usize;
+            patch.push(img[sy * img_width + sx]);
+        }
+    }
+    patch
+}
+
+/// Refine an integer-pixel offset to sub-pixel accuracy using parabolic
+/// interpolation of the NCC surface.
+///
+/// Searches over a `±search_radius` integer window centred on
+/// `(initial_x, initial_y)` in the *moving* image to find the highest NCC
+/// against the *fixed* template patch. A 1-D parabola is then fitted through
+/// the peak and its two axis-aligned neighbours to estimate a fractional
+/// displacement correction.
+///
+/// # Returns
+///
+/// A [`SubPixelOffset`] with `dx`/`dy` relative to `(initial_x, initial_y)`
+/// and the peak NCC value.
+#[must_use]
+#[allow(clippy::cast_precision_loss)]
+pub fn subpixel_align(
+    fixed: &[f32],
+    fixed_w: usize,
+    fixed_h: usize,
+    moving: &[f32],
+    moving_w: usize,
+    moving_h: usize,
+    initial_x: i64,
+    initial_y: i64,
+    search_radius: usize,
+) -> SubPixelOffset {
+    let r = search_radius as i64;
+    let diameter = 2 * search_radius + 1;
+    let mut scores = vec![0.0_f64; diameter * diameter];
+
+    for dy in -r..=r {
+        for dx in -r..=r {
+            let patch = extract_patch(
+                moving,
+                moving_w,
+                moving_h,
+                initial_x + dx,
+                initial_y + dy,
+                fixed_w,
+                fixed_h,
+            );
+            let ncc = normalised_cross_correlation(fixed, &patch);
+            let gx = (dx + r) as usize;
+            let gy = (dy + r) as usize;
+            scores[gy * diameter + gx] = ncc;
+        }
+    }
+
+    // Find the grid-level peak
+    let mut best_score = f64::NEG_INFINITY;
+    let mut best_gx = r as usize;
+    let mut best_gy = r as usize;
+    for gy in 0..diameter {
+        for gx in 0..diameter {
+            let s = scores[gy * diameter + gx];
+            if s > best_score {
+                best_score = s;
+                best_gx = gx;
+                best_gy = gy;
+            }
+        }
+    }
+
+    // Parabolic sub-pixel refinement in x
+    let sub_dx = if best_gx > 0 && best_gx + 1 < diameter {
+        let sm = scores[best_gy * diameter + (best_gx - 1)];
+        let s0 = scores[best_gy * diameter + best_gx];
+        let sp = scores[best_gy * diameter + (best_gx + 1)];
+        let denom = 2.0 * (2.0 * s0 - sm - sp);
+        if denom.abs() > 1e-12 {
+            (sm - sp) / denom
+        } else {
+            0.0
+        }
+    } else {
+        0.0
+    };
+
+    // Parabolic sub-pixel refinement in y
+    let sub_dy = if best_gy > 0 && best_gy + 1 < diameter {
+        let sm = scores[(best_gy - 1) * diameter + best_gx];
+        let s0 = scores[best_gy * diameter + best_gx];
+        let sp = scores[(best_gy + 1) * diameter + best_gx];
+        let denom = 2.0 * (2.0 * s0 - sm - sp);
+        if denom.abs() > 1e-12 {
+            (sm - sp) / denom
+        } else {
+            0.0
+        }
+    } else {
+        0.0
+    };
+
+    let dx = (best_gx as f64 - r as f64) + sub_dx;
+    let dy = (best_gy as f64 - r as f64) + sub_dy;
+
+    SubPixelOffset {
+        dx,
+        dy,
+        correlation: best_score.clamp(0.0, 1.0),
+    }
+}
+
+/// Refine all patch offsets in a `PanoramaBuilder` to sub-pixel accuracy.
+///
+/// Each patch (except the first, which is the fixed reference) is compared
+/// against the first patch via [`subpixel_align`]. Patches whose correlation
+/// falls below `min_correlation` are returned with their original integer
+/// offset.
+///
+/// `pixel_data` is a slice of `(patch_id, pixels)` pairs where `pixels` is a
+/// single-channel `f32` buffer of length `patch.width * patch.height`.
+///
+/// Returns a `Vec<(patch_id, SubPixelOffset)>` — one entry per non-reference patch.
+#[must_use]
+pub fn refine_patch_offsets(
+    builder: &PanoramaBuilder,
+    pixel_data: &[(u32, Vec<f32>)],
+    search_radius: usize,
+    min_correlation: f64,
+) -> Vec<(u32, SubPixelOffset)> {
+    if builder.patches.is_empty() || pixel_data.is_empty() {
+        return Vec::new();
+    }
+
+    let first = &builder.patches[0];
+    let first_pixels = match pixel_data.iter().find(|(id, _)| *id == first.id) {
+        Some((_, data)) => data.as_slice(),
+        None => return Vec::new(),
+    };
+
+    let ref_w = first.width as usize;
+    let ref_h = first.height as usize;
+
+    builder.patches[1..]
+        .iter()
+        .filter_map(|patch| {
+            let moving_pixels = pixel_data
+                .iter()
+                .find(|(id, _)| *id == patch.id)
+                .map(|(_, data)| data.as_slice())?;
+            let moving_w = patch.width as usize;
+            let moving_h = patch.height as usize;
+            let initial_x = (patch.x_offset - first.x_offset) as i64;
+            let initial_y = (patch.y_offset - first.y_offset) as i64;
+
+            let offset = subpixel_align(
+                first_pixels,
+                ref_w,
+                ref_h,
+                moving_pixels,
+                moving_w,
+                moving_h,
+                initial_x,
+                initial_y,
+                search_radius,
+            );
+
+            if offset.is_reliable(min_correlation) {
+                Some((patch.id, offset))
+            } else {
+                Some((
+                    patch.id,
+                    SubPixelOffset {
+                        dx: initial_x as f64,
+                        dy: initial_y as f64,
+                        correlation: offset.correlation,
+                    },
+                ))
+            }
+        })
+        .collect()
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -312,5 +572,123 @@ mod tests {
         builder.add_patch(make_patch(1, 0, 0, 100, 100));
         builder.add_patch(make_patch(2, 100, 0, 100, 100));
         assert_eq!(builder.patch_count(), 2);
+    }
+
+    // ── Sub-pixel alignment tests ───────────────────────────────────────────
+
+    #[test]
+    fn test_ncc_identical_patches() {
+        let a = vec![0.1f32, 0.5, 0.9, 0.3];
+        let ncc = normalised_cross_correlation(&a, &a);
+        assert!((ncc - 1.0).abs() < 1e-9, "identical patches NCC={ncc}");
+    }
+
+    #[test]
+    fn test_ncc_uniform_patches_returns_zero() {
+        // Both patches uniform => both std-devs are 0 => returns 0.0
+        let a = vec![0.5_f32; 9];
+        let b = vec![0.5_f32; 9];
+        let ncc = normalised_cross_correlation(&a, &b);
+        assert!(ncc.abs() < 1e-9, "uniform NCC should be 0, got {ncc}");
+    }
+
+    #[test]
+    fn test_ncc_inverted_patches() {
+        let a: Vec<f32> = vec![1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0];
+        let b: Vec<f32> = a.iter().map(|&v| 1.0 - v).collect();
+        let ncc = normalised_cross_correlation(&a, &b);
+        assert!(ncc < -0.9, "inverted NCC should be near -1, got {ncc}");
+    }
+
+    #[test]
+    fn test_extract_patch_within_bounds() {
+        let img: Vec<f32> = (0..16).map(|i| i as f32).collect(); // 4x4
+        let patch = extract_patch(&img, 4, 4, 1, 1, 2, 2);
+        assert_eq!(patch.len(), 4);
+        // Pixel (1,1)=5, (2,1)=6, (1,2)=9, (2,2)=10
+        assert!((patch[0] - 5.0).abs() < 1e-6);
+        assert!((patch[1] - 6.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_extract_patch_clamped_border() {
+        let img = vec![0.5_f32; 4 * 4];
+        let patch = extract_patch(&img, 4, 4, -2, -2, 3, 3);
+        assert_eq!(patch.len(), 9);
+        for &v in &patch {
+            assert!((v - 0.5).abs() < 1e-6);
+        }
+    }
+
+    #[test]
+    fn test_subpixel_align_zero_offset() {
+        // When fixed == moving, best integer offset should be (0, 0)
+        let img: Vec<f32> = (0..100).map(|i| (i as f32 / 100.0).sin()).collect();
+        let offset = subpixel_align(&img, 10, 10, &img, 10, 10, 0, 0, 2);
+        assert!(
+            offset.dx.abs() < 1.5,
+            "dx should be near 0, got {}",
+            offset.dx
+        );
+        assert!(
+            offset.dy.abs() < 1.5,
+            "dy should be near 0, got {}",
+            offset.dy
+        );
+        assert!(
+            offset.correlation > 0.9,
+            "correlation={}",
+            offset.correlation
+        );
+    }
+
+    #[test]
+    fn test_subpixel_align_correlation_clamped() {
+        let a = vec![0.3_f32; 16];
+        let b = vec![0.7_f32; 16];
+        let offset = subpixel_align(&a, 4, 4, &b, 4, 4, 0, 0, 1);
+        assert!(offset.correlation >= 0.0);
+        assert!(offset.correlation <= 1.0);
+    }
+
+    #[test]
+    fn test_subpixel_offset_is_reliable() {
+        let off = SubPixelOffset {
+            dx: 0.3,
+            dy: -0.2,
+            correlation: 0.85,
+        };
+        assert!(off.is_reliable(0.8));
+        assert!(!off.is_reliable(0.9));
+    }
+
+    #[test]
+    fn test_subpixel_offset_apply_to() {
+        let off = SubPixelOffset {
+            dx: 0.5,
+            dy: -0.25,
+            correlation: 1.0,
+        };
+        let (rx, ry) = off.apply_to(10, 20);
+        assert!((rx - 10.5).abs() < 1e-9);
+        assert!((ry - 19.75).abs() < 1e-9);
+    }
+
+    #[test]
+    fn test_refine_patch_offsets_empty_builder() {
+        let builder = PanoramaBuilder::new(1920, 1080);
+        let data: Vec<(u32, Vec<f32>)> = Vec::new();
+        let result = refine_patch_offsets(&builder, &data, 2, 0.5);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_refine_patch_offsets_single_reference() {
+        // Only one patch => no moving patches => result empty
+        let mut builder = PanoramaBuilder::new(1920, 1080);
+        builder.add_patch(make_patch(1, 0, 0, 4, 4));
+        let data = vec![(1u32, vec![0.5_f32; 16])];
+        let result = refine_patch_offsets(&builder, &data, 1, 0.0);
+        assert!(result.is_empty());
     }
 }

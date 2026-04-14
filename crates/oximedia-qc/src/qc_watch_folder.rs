@@ -1,8 +1,8 @@
 //! QC watch-folder scanning — automatically validates files that arrive in a monitored directory.
 //!
-//! [`WatchFolderScanner::scan_once`] performs a single-pass scan: it finds files not yet
+//! `WatchFolderScanner::scan_once` performs a single-pass scan: it finds files not yet
 //! validated (by consulting an in-memory seen-set), runs QC on each, and returns
-//! [`QcJobResult`] values. Callers can embed this in a polling loop or trigger it
+//! `QcJobResult` values. Callers can embed this in a polling loop or trigger it
 //! from a filesystem notification system.
 
 #![allow(dead_code)]
@@ -126,7 +126,7 @@ impl WatchFolderScanner {
     ///
     /// Discovers media files not yet seen, runs a lightweight QC analysis on
     /// each (structural checks only — no I/O decode), records them in the
-    /// seen-set and returns a [`QcJobResult`] per processed file.
+    /// seen-set and returns a `QcJobResult` per processed file.
     ///
     /// # Errors
     ///

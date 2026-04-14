@@ -64,18 +64,6 @@ pub enum BroadcastStandardId {
     CsaCanada,
     /// Portaria 354 (Brazil).
     PortariaBrazil,
-    /// Disney+ streaming platform.
-    DisneyPlus,
-    /// Amazon Prime Video streaming platform.
-    PrimeVideo,
-    /// Apple Spatial Audio / Spatial Audio binaural headphone target.
-    AppleSpatialAudio,
-    /// Dolby Atmos immersive audio standard (dialog-gated).
-    DolbyAtmos,
-    /// TikTok short-form video platform.
-    TikTok,
-    /// Facebook / Instagram social video platforms.
-    FacebookInstagram,
     /// Custom user-defined profile.
     Custom,
 }
@@ -91,12 +79,6 @@ impl fmt::Display for BroadcastStandardId {
             Self::AgcomItaly => write!(f, "AGCOM 219/09"),
             Self::CsaCanada => write!(f, "CSA Canada"),
             Self::PortariaBrazil => write!(f, "Portaria 354"),
-            Self::DisneyPlus => write!(f, "Disney+"),
-            Self::PrimeVideo => write!(f, "Prime Video"),
-            Self::AppleSpatialAudio => write!(f, "Apple Spatial Audio"),
-            Self::DolbyAtmos => write!(f, "Dolby Atmos"),
-            Self::TikTok => write!(f, "TikTok"),
-            Self::FacebookInstagram => write!(f, "Facebook/Instagram"),
             Self::Custom => write!(f, "Custom"),
         }
     }
@@ -177,9 +159,6 @@ pub struct BroadcastStandardProfile {
     pub requires_dialnorm: bool,
     /// Description of the standard.
     pub description: String,
-    /// Optional target dialogue level in LUFS (used by Dolby Atmos and dialog-gated standards).
-    /// When `None`, no separate dialogue target is specified.
-    pub dialogue_level: Option<f32>,
 }
 
 impl BroadcastStandardProfile {
@@ -207,14 +186,7 @@ impl BroadcastStandardProfile {
             min_measurement_duration_s: 0.0,
             requires_dialnorm: false,
             description: String::new(),
-            dialogue_level: None,
         }
-    }
-
-    /// Set the dialogue level (e.g. for Dolby Atmos dialog-gated standards).
-    pub fn with_dialogue_level(mut self, level_lufs: f32) -> Self {
-        self.dialogue_level = Some(level_lufs);
-        self
     }
 
     /// Set the LRA constraint.
@@ -357,12 +329,6 @@ impl BroadcastStandardRegistry {
         registry.register(Self::agcom_italy());
         registry.register(Self::csa_canada());
         registry.register(Self::portaria_brazil());
-        registry.register(Self::disney_plus());
-        registry.register(Self::prime_video());
-        registry.register(Self::apple_spatial_audio());
-        registry.register(Self::dolby_atmos());
-        registry.register(Self::tiktok());
-        registry.register(Self::facebook_instagram());
         registry
     }
 
@@ -506,125 +472,6 @@ impl BroadcastStandardRegistry {
         .with_gating_mode(GatingMode::Both)
         .with_description("Brazilian broadcast loudness standard")
     }
-
-    /// Disney+ streaming platform profile.
-    ///
-    /// Target: -24 LUFS integrated, -1.0 dBTP true peak, LRA ≤ 18 LU.
-    pub fn disney_plus() -> BroadcastStandardProfile {
-        BroadcastStandardProfile::new(
-            BroadcastStandardId::DisneyPlus,
-            "Disney+",
-            BroadcastRegion::Global,
-            -24.0,
-            1.0,
-            1.0,
-            -1.0,
-        )
-        .with_gating_mode(GatingMode::Both)
-        .with_lra_constraint(LoudnessRangeConstraint::new(Some(18.0), 5.0, 15.0))
-        .with_description(
-            "Disney+ streaming loudness target: -24 LUFS integrated, LRA ≤ 18 LU, -1 dBTP true peak",
-        )
-    }
-
-    /// Amazon Prime Video streaming platform profile.
-    ///
-    /// Target: -14 LUFS integrated, -1.0 dBTP true peak, LRA ≤ 20 LU.
-    pub fn prime_video() -> BroadcastStandardProfile {
-        BroadcastStandardProfile::new(
-            BroadcastStandardId::PrimeVideo,
-            "Prime Video",
-            BroadcastRegion::Global,
-            -14.0,
-            1.0,
-            1.0,
-            -1.0,
-        )
-        .with_gating_mode(GatingMode::Both)
-        .with_lra_constraint(LoudnessRangeConstraint::new(Some(20.0), 5.0, 15.0))
-        .with_description(
-            "Amazon Prime Video loudness target: -14 LUFS integrated, LRA ≤ 20 LU, -1 dBTP true peak",
-        )
-    }
-
-    /// Apple Spatial Audio binaural headphone target profile.
-    ///
-    /// Target: -16 LUFS integrated, -1.5 dBTP true peak, LRA ≤ 15 LU.
-    /// Optimised for binaural rendering via Apple's headphone spatialization engine.
-    pub fn apple_spatial_audio() -> BroadcastStandardProfile {
-        BroadcastStandardProfile::new(
-            BroadcastStandardId::AppleSpatialAudio,
-            "Apple Spatial Audio",
-            BroadcastRegion::Global,
-            -16.0,
-            1.0,
-            1.0,
-            -1.5,
-        )
-        .with_gating_mode(GatingMode::Both)
-        .with_lra_constraint(LoudnessRangeConstraint::new(Some(15.0), 5.0, 12.0))
-        .with_description(
-            "Apple Spatial Audio binaural headphone target: -16 LUFS integrated, LRA ≤ 15 LU, -1.5 dBTP true peak",
-        )
-    }
-
-    /// Dolby Atmos immersive audio standard profile.
-    ///
-    /// Target: -18 LUFS integrated (dialog-gated), -1.0 dBTP true peak, LRA ≤ 20 LU.
-    /// The `dialogue_level` field is set to -18.0 LUFS.
-    pub fn dolby_atmos() -> BroadcastStandardProfile {
-        BroadcastStandardProfile::new(
-            BroadcastStandardId::DolbyAtmos,
-            "Dolby Atmos",
-            BroadcastRegion::Global,
-            -18.0,
-            1.0,
-            1.0,
-            -1.0,
-        )
-        .with_gating_mode(GatingMode::Both)
-        .with_lra_constraint(LoudnessRangeConstraint::new(Some(20.0), 5.0, 15.0))
-        .with_dialogue_level(-18.0)
-        .with_description(
-            "Dolby Atmos immersive audio: -18 LUFS integrated (dialog-gated), LRA ≤ 20 LU, -1 dBTP true peak",
-        )
-    }
-
-    /// TikTok short-form video platform profile.
-    ///
-    /// Target: -14 LUFS integrated, -1.0 dBTP true peak.
-    pub fn tiktok() -> BroadcastStandardProfile {
-        BroadcastStandardProfile::new(
-            BroadcastStandardId::TikTok,
-            "TikTok",
-            BroadcastRegion::Global,
-            -14.0,
-            1.0,
-            1.0,
-            -1.0,
-        )
-        .with_gating_mode(GatingMode::Both)
-        .with_description("TikTok loudness target: -14 LUFS integrated, -1 dBTP true peak")
-    }
-
-    /// Facebook / Instagram social video platforms profile.
-    ///
-    /// Target: -14 LUFS integrated, -1.0 dBTP true peak.
-    pub fn facebook_instagram() -> BroadcastStandardProfile {
-        BroadcastStandardProfile::new(
-            BroadcastStandardId::FacebookInstagram,
-            "Facebook/Instagram",
-            BroadcastRegion::Global,
-            -14.0,
-            1.0,
-            1.0,
-            -1.0,
-        )
-        .with_gating_mode(GatingMode::Both)
-        .with_description(
-            "Facebook/Instagram loudness target: -14 LUFS integrated, -1 dBTP true peak",
-        )
-    }
 }
 
 impl Default for BroadcastStandardRegistry {
@@ -738,22 +585,11 @@ mod tests {
     #[test]
     fn test_registry_with_defaults() {
         let registry = BroadcastStandardRegistry::with_defaults();
-        // 7 broadcast + 6 streaming platform = 13 standards
-        assert_eq!(registry.len(), 13);
+        assert_eq!(registry.len(), 7);
         assert!(!registry.is_empty());
         assert!(registry.get(BroadcastStandardId::EbuR128).is_some());
         assert!(registry.get(BroadcastStandardId::AtscA85).is_some());
         assert!(registry.get(BroadcastStandardId::AribTrB32).is_some());
-        assert!(registry.get(BroadcastStandardId::DisneyPlus).is_some());
-        assert!(registry.get(BroadcastStandardId::PrimeVideo).is_some());
-        assert!(registry
-            .get(BroadcastStandardId::AppleSpatialAudio)
-            .is_some());
-        assert!(registry.get(BroadcastStandardId::DolbyAtmos).is_some());
-        assert!(registry.get(BroadcastStandardId::TikTok).is_some());
-        assert!(registry
-            .get(BroadcastStandardId::FacebookInstagram)
-            .is_some());
     }
 
     #[test]
@@ -807,140 +643,5 @@ mod tests {
         assert!((profile.min_measurement_duration_s - 10.0).abs() < f64::EPSILON);
         assert!(profile.is_loudness_compliant(-15.0));
         assert!(!profile.is_loudness_compliant(-12.0));
-    }
-
-    #[test]
-    fn test_disney_plus_profile() {
-        let profile = BroadcastStandardRegistry::disney_plus();
-        assert_eq!(profile.id, BroadcastStandardId::DisneyPlus);
-        assert!((profile.target_lufs - (-24.0)).abs() < f64::EPSILON);
-        assert!((profile.max_true_peak_dbtp - (-1.0)).abs() < f64::EPSILON);
-        assert_eq!(profile.region, BroadcastRegion::Global);
-        let lra = profile
-            .lra_constraint
-            .expect("Disney+ must have LRA constraint");
-        assert_eq!(lra.max_lra_lu, Some(18.0));
-        assert!(!lra.is_compliant(20.0));
-    }
-
-    #[test]
-    fn test_prime_video_profile() {
-        let profile = BroadcastStandardRegistry::prime_video();
-        assert_eq!(profile.id, BroadcastStandardId::PrimeVideo);
-        assert!((profile.target_lufs - (-14.0)).abs() < f64::EPSILON);
-        assert!((profile.max_true_peak_dbtp - (-1.0)).abs() < f64::EPSILON);
-        let lra = profile
-            .lra_constraint
-            .expect("Prime Video must have LRA constraint");
-        assert_eq!(lra.max_lra_lu, Some(20.0));
-    }
-
-    #[test]
-    fn test_apple_spatial_audio_profile() {
-        let profile = BroadcastStandardRegistry::apple_spatial_audio();
-        assert_eq!(profile.id, BroadcastStandardId::AppleSpatialAudio);
-        assert!((profile.target_lufs - (-16.0)).abs() < f64::EPSILON);
-        assert!((profile.max_true_peak_dbtp - (-1.5)).abs() < f64::EPSILON);
-        let lra = profile
-            .lra_constraint
-            .expect("Apple Spatial Audio must have LRA constraint");
-        assert_eq!(lra.max_lra_lu, Some(15.0));
-        // LRA of 16 exceeds the 15 LU ceiling
-        assert!(!lra.is_compliant(16.0));
-    }
-
-    #[test]
-    fn test_dolby_atmos_profile() {
-        let profile = BroadcastStandardRegistry::dolby_atmos();
-        assert_eq!(profile.id, BroadcastStandardId::DolbyAtmos);
-        assert!((profile.target_lufs - (-18.0)).abs() < f64::EPSILON);
-        assert!((profile.max_true_peak_dbtp - (-1.0)).abs() < f64::EPSILON);
-        // Dialogue level must be set to -18.0 for Dolby Atmos
-        let dialogue = profile
-            .dialogue_level
-            .expect("Dolby Atmos must have dialogue_level");
-        assert!((f64::from(dialogue) - (-18.0)).abs() < f64::EPSILON);
-        let lra = profile
-            .lra_constraint
-            .expect("Dolby Atmos must have LRA constraint");
-        assert_eq!(lra.max_lra_lu, Some(20.0));
-    }
-
-    #[test]
-    fn test_tiktok_profile() {
-        let profile = BroadcastStandardRegistry::tiktok();
-        assert_eq!(profile.id, BroadcastStandardId::TikTok);
-        assert!((profile.target_lufs - (-14.0)).abs() < f64::EPSILON);
-        assert!((profile.max_true_peak_dbtp - (-1.0)).abs() < f64::EPSILON);
-        // TikTok has no explicit LRA ceiling in the spec
-        assert!(profile.dialogue_level.is_none());
-    }
-
-    #[test]
-    fn test_facebook_instagram_profile() {
-        let profile = BroadcastStandardRegistry::facebook_instagram();
-        assert_eq!(profile.id, BroadcastStandardId::FacebookInstagram);
-        assert!((profile.target_lufs - (-14.0)).abs() < f64::EPSILON);
-        assert!((profile.max_true_peak_dbtp - (-1.0)).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn test_streaming_platform_ids_display() {
-        assert_eq!(format!("{}", BroadcastStandardId::DisneyPlus), "Disney+");
-        assert_eq!(
-            format!("{}", BroadcastStandardId::PrimeVideo),
-            "Prime Video"
-        );
-        assert_eq!(
-            format!("{}", BroadcastStandardId::AppleSpatialAudio),
-            "Apple Spatial Audio"
-        );
-        assert_eq!(
-            format!("{}", BroadcastStandardId::DolbyAtmos),
-            "Dolby Atmos"
-        );
-        assert_eq!(format!("{}", BroadcastStandardId::TikTok), "TikTok");
-        assert_eq!(
-            format!("{}", BroadcastStandardId::FacebookInstagram),
-            "Facebook/Instagram"
-        );
-    }
-
-    #[test]
-    fn test_dialogue_level_field() {
-        // Non-Atmos profiles should have no dialogue_level
-        let ebu = BroadcastStandardRegistry::ebu_r128();
-        assert!(ebu.dialogue_level.is_none());
-        // Dolby Atmos must carry its dialogue level
-        let atmos = BroadcastStandardRegistry::dolby_atmos();
-        assert!(atmos.dialogue_level.is_some());
-        // Custom profile set via builder
-        let custom = BroadcastStandardProfile::new(
-            BroadcastStandardId::Custom,
-            "Test",
-            BroadcastRegion::Global,
-            -18.0,
-            1.0,
-            1.0,
-            -1.0,
-        )
-        .with_dialogue_level(-18.0);
-        let dl = custom.dialogue_level.expect("must have dialogue level");
-        assert!((f64::from(dl) - (-18.0)).abs() < f64::EPSILON);
-    }
-
-    #[test]
-    fn test_global_region_streaming_standards() {
-        let registry = BroadcastStandardRegistry::with_defaults();
-        let global = registry.get_by_region(BroadcastRegion::Global);
-        // All 6 new streaming platform profiles belong to Global region
-        assert!(global.len() >= 6);
-        let global_ids: Vec<BroadcastStandardId> = global.iter().map(|p| p.id).collect();
-        assert!(global_ids.contains(&BroadcastStandardId::DisneyPlus));
-        assert!(global_ids.contains(&BroadcastStandardId::PrimeVideo));
-        assert!(global_ids.contains(&BroadcastStandardId::AppleSpatialAudio));
-        assert!(global_ids.contains(&BroadcastStandardId::DolbyAtmos));
-        assert!(global_ids.contains(&BroadcastStandardId::TikTok));
-        assert!(global_ids.contains(&BroadcastStandardId::FacebookInstagram));
     }
 }

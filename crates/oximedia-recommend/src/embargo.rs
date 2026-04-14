@@ -236,21 +236,14 @@ impl EmbargoRegistry {
     pub fn filter(&self, items: Vec<ScoredItem>, region: &str, now: i64) -> Vec<ScoredItem> {
         items
             .into_iter()
-            .filter(|item| {
-                self.status(&item.content_id, region, now) == EmbargoStatus::Available
-            })
+            .filter(|item| self.status(&item.content_id, region, now) == EmbargoStatus::Available)
             .collect()
     }
 
     /// Soft-filter: retain all items but apply the `soft_penalty` multiplier to
     /// embargoed ones and drop expired ones.
     #[must_use]
-    pub fn soft_filter(
-        &self,
-        items: Vec<ScoredItem>,
-        region: &str,
-        now: i64,
-    ) -> Vec<ScoredItem> {
+    pub fn soft_filter(&self, items: Vec<ScoredItem>, region: &str, now: i64) -> Vec<ScoredItem> {
         items
             .into_iter()
             .filter_map(|mut item| {
@@ -388,8 +381,14 @@ mod tests {
     fn test_registry_add_and_status() {
         let mut reg = EmbargoRegistry::new();
         reg.add(base_rule("movie1", 5000));
-        assert_eq!(reg.status("movie1", "global", 4000), EmbargoStatus::Embargoed);
-        assert_eq!(reg.status("movie1", "global", 6000), EmbargoStatus::Available);
+        assert_eq!(
+            reg.status("movie1", "global", 4000),
+            EmbargoStatus::Embargoed
+        );
+        assert_eq!(
+            reg.status("movie1", "global", 6000),
+            EmbargoStatus::Available
+        );
     }
 
     #[test]
@@ -398,7 +397,10 @@ mod tests {
         reg.add(base_rule("movie1", 5000));
         reg.remove("movie1");
         // After removal, defaults to available
-        assert_eq!(reg.status("movie1", "global", 1000), EmbargoStatus::Available);
+        assert_eq!(
+            reg.status("movie1", "global", 1000),
+            EmbargoStatus::Available
+        );
     }
 
     #[test]
@@ -418,10 +420,7 @@ mod tests {
     fn test_registry_hard_filter_removes_expired() {
         let mut reg = EmbargoRegistry::new();
         reg.add(base_rule("old", 0).with_expiry(500));
-        let items = vec![
-            ScoredItem::new("old", 0.9),
-            ScoredItem::new("new", 0.5),
-        ];
+        let items = vec![ScoredItem::new("old", 0.9), ScoredItem::new("new", 0.5)];
         let filtered = reg.filter(items, "global", 1000);
         assert_eq!(filtered.len(), 1);
         assert_eq!(filtered[0].content_id, "new");
@@ -467,8 +466,7 @@ mod tests {
 
     #[test]
     fn test_region_window_with_region_specific_release() {
-        let rule = base_rule("c1", 10_000)
-            .with_region(RegionWindow::new("EU", 2000, Some(8000)));
+        let rule = base_rule("c1", 10_000).with_region(RegionWindow::new("EU", 2000, Some(8000)));
         assert_eq!(rule.status_for("EU", 1000), EmbargoStatus::Embargoed);
         assert_eq!(rule.status_for("EU", 5000), EmbargoStatus::Available);
         assert_eq!(rule.status_for("EU", 9000), EmbargoStatus::Expired);

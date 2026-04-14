@@ -122,10 +122,10 @@ impl Default for CostRates {
     fn default() -> Self {
         // Reasonable defaults expressed in fractional USD.
         Self {
-            per_cpu_second: 0.000_010,   // $0.01 / 1 000 CPU-sec
-            per_gpu_second: 0.000_100,   // $0.10 / 1 000 GPU-sec
-            per_memory_gb_hour: 0.010,   // $0.01 / GB·h
-            per_job_fee: 0.001,          // $0.001 flat fee
+            per_cpu_second: 0.000_010, // $0.01 / 1 000 CPU-sec
+            per_gpu_second: 0.000_100, // $0.10 / 1 000 GPU-sec
+            per_memory_gb_hour: 0.010, // $0.01 / GB·h
+            per_job_fee: 0.001,        // $0.001 flat fee
         }
     }
 }

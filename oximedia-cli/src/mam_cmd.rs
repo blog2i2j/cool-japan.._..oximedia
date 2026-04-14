@@ -55,7 +55,7 @@ pub enum MamCommand {
         catalog: PathBuf,
 
         /// Search query string
-        #[arg(short, long)]
+        #[arg(short = 'Q', long)]
         query: String,
 
         /// Filter by comma-separated tags

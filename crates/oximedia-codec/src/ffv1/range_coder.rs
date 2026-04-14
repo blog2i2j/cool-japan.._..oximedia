@@ -136,8 +136,11 @@ impl SimpleRangeEncoder {
     /// Encode a single binary decision using the given adaptive state.
     pub fn put_bit(&mut self, state: &mut u8, bit: bool) {
         let s = u32::from(*state);
-        // Split range: probability of bit=1 is proportional to s/256
-        let split = ((self.range >> 8) * s) & 0xFFFF_FF00;
+        // Split range: probability of bit=1 is proportional to s/256.
+        // Clamp to [1, range-1] so that range never becomes 0, which would
+        // cause the renorm loop to spin forever.
+        let raw_split = ((self.range >> 8) * s) & 0xFFFF_FF00;
+        let split = raw_split.clamp(1, self.range.saturating_sub(1).max(1));
 
         if bit {
             // Code 1: upper part
@@ -276,7 +279,9 @@ impl SimpleRangeDecoder {
     /// Decode a single binary decision using the given adaptive state.
     pub fn get_bit(&mut self, state: &mut u8) -> CodecResult<bool> {
         let s = u32::from(*state);
-        let split = ((self.range >> 8) * s) & 0xFFFF_FF00;
+        // Same split clamping as the encoder to ensure consistency.
+        let raw_split = ((self.range >> 8) * s) & 0xFFFF_FF00;
+        let split = raw_split.clamp(1, self.range.saturating_sub(1).max(1));
 
         if self.low < self.range - split {
             // bit = 0

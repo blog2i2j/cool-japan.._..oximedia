@@ -5,22 +5,11 @@
 
 use crate::error::{CvError, CvResult};
 use crate::ml::tensor::Tensor;
-use ort::session::builder::{GraphOptimizationLevel, SessionBuilder};
-use ort::session::Session as OrtSession;
 use std::path::Path;
 use std::sync::Arc;
 
-// Execution providers are optional features
-#[cfg(feature = "cuda")]
-use ort::execution_providers::CUDAExecutionProvider;
-#[cfg(target_os = "macos")]
-use ort::execution_providers::CoreMLExecutionProvider;
-#[cfg(target_os = "windows")]
-use ort::execution_providers::DirectMLExecutionProvider;
-#[cfg(feature = "rocm")]
-use ort::execution_providers::ROCmExecutionProvider;
-#[cfg(feature = "tensorrt")]
-use ort::execution_providers::TensorRTExecutionProvider;
+#[cfg(feature = "onnx")]
+use oxionnx::Session as OxiSession;
 
 /// Device type for model execution.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -121,6 +110,7 @@ impl OnnxRuntime {
     /// # Ok(())
     /// # }
     /// ```
+    #[cfg(feature = "onnx")]
     pub fn load_model(&self, path: impl AsRef<Path>) -> CvResult<Session> {
         let path = path.as_ref();
 
@@ -154,6 +144,7 @@ impl OnnxRuntime {
     /// # Ok(())
     /// # }
     /// ```
+    #[cfg(feature = "onnx")]
     pub fn load_model_from_bytes(&self, bytes: &[u8]) -> CvResult<Session> {
         let session = self.build_session_from_bytes(bytes)?;
 
@@ -168,106 +159,72 @@ impl OnnxRuntime {
         self.device
     }
 
-    /// Build an ONNX Runtime session from file.
-    fn build_session(&self, path: &Path) -> CvResult<OrtSession> {
-        let mut builder = OrtSession::builder()
-            .map_err(|e| CvError::onnx_runtime(format!("Failed to create session builder: {e}")))?
-            .with_optimization_level(GraphOptimizationLevel::Level3)
-            .map_err(|e| CvError::onnx_runtime(format!("Failed to set optimization level: {e}")))?;
+    /// Build an oxionnx session from file.
+    #[cfg(feature = "onnx")]
+    fn build_session(&self, path: &Path) -> CvResult<OxiSession> {
+        // For GPU device types, ort-backend is required
+        self.check_device_support()?;
 
-        // Configure execution provider based on device
-        builder = self.configure_execution_provider(builder)?;
-
-        // Load model
-        builder
-            .commit_from_file(path)
+        oxionnx::Session::builder()
+            .with_optimization_level(oxionnx::OptLevel::All)
+            .load(path)
             .map_err(|e| CvError::model_load(format!("Failed to load model from file: {e}")))
     }
 
-    /// Build an ONNX Runtime session from bytes.
-    fn build_session_from_bytes(&self, bytes: &[u8]) -> CvResult<OrtSession> {
-        let mut builder = OrtSession::builder()
-            .map_err(|e| CvError::onnx_runtime(format!("Failed to create session builder: {e}")))?
-            .with_optimization_level(GraphOptimizationLevel::Level3)
-            .map_err(|e| CvError::onnx_runtime(format!("Failed to set optimization level: {e}")))?;
+    /// Build an oxionnx session from bytes.
+    #[cfg(feature = "onnx")]
+    fn build_session_from_bytes(&self, bytes: &[u8]) -> CvResult<OxiSession> {
+        // For GPU device types, ort-backend is required
+        self.check_device_support()?;
 
-        // Configure execution provider based on device
-        builder = self.configure_execution_provider(builder)?;
-
-        // Load model from bytes
-        builder
-            .commit_from_memory(bytes)
+        oxionnx::Session::builder()
+            .with_optimization_level(oxionnx::OptLevel::All)
+            .load_from_bytes(bytes)
             .map_err(|e| CvError::model_load(format!("Failed to load model from bytes: {e}")))
     }
 
-    /// Configure execution provider for the session builder.
-    #[allow(unused_variables)]
-    fn configure_execution_provider(&self, builder: SessionBuilder) -> CvResult<SessionBuilder> {
-        let builder = match self.device {
-            DeviceType::Cpu => builder,
+    /// Validate that the requested device is supported.
+    #[cfg(feature = "onnx")]
+    fn check_device_support(&self) -> CvResult<()> {
+        match self.device {
+            DeviceType::Cpu => Ok(()),
+            // CUDA: Pure Rust path via oxionnx/cuda (OxiCUDA backend).
+            // Gracefully falls back to CPU at runtime when no GPU is present.
             #[cfg(feature = "cuda")]
-            DeviceType::Cuda => builder
-                .with_execution_providers([CUDAExecutionProvider::default().build()])
-                .map_err(|e| {
-                    CvError::onnx_runtime(format!("Failed to configure CUDA provider: {e}"))
-                })?,
+            DeviceType::Cuda => Ok(()),
             #[cfg(not(feature = "cuda"))]
-            DeviceType::Cuda => {
-                return Err(CvError::onnx_runtime(
-                    "CUDA support not compiled in".to_owned(),
-                ))
-            }
+            DeviceType::Cuda => Err(CvError::onnx_runtime(
+                "CUDA support requires the 'cuda' feature".to_owned(),
+            )),
+            // ROCm: Pure Rust CPU inference (GPU backend planned).
             #[cfg(feature = "rocm")]
-            DeviceType::Rocm => builder
-                .with_execution_providers([ROCmExecutionProvider::default().build()])
-                .map_err(|e| {
-                    CvError::onnx_runtime(format!("Failed to configure ROCm provider: {e}"))
-                })?,
+            DeviceType::Rocm => Ok(()),
             #[cfg(not(feature = "rocm"))]
-            DeviceType::Rocm => {
-                return Err(CvError::onnx_runtime(
-                    "ROCm support not compiled in".to_owned(),
-                ))
-            }
+            DeviceType::Rocm => Err(CvError::onnx_runtime(
+                "ROCm support requires the 'rocm' feature".to_owned(),
+            )),
+            // TensorRT: Pure Rust CPU inference (GPU backend planned).
             #[cfg(feature = "tensorrt")]
-            DeviceType::TensorRt => builder
-                .with_execution_providers([TensorRTExecutionProvider::default().build()])
-                .map_err(|e| {
-                    CvError::onnx_runtime(format!("Failed to configure TensorRT provider: {e}"))
-                })?,
+            DeviceType::TensorRt => Ok(()),
             #[cfg(not(feature = "tensorrt"))]
-            DeviceType::TensorRt => {
-                return Err(CvError::onnx_runtime(
-                    "TensorRT support not compiled in".to_owned(),
-                ))
-            }
+            DeviceType::TensorRt => Err(CvError::onnx_runtime(
+                "TensorRT support requires the 'tensorrt' feature".to_owned(),
+            )),
+            // DirectML: Windows-only (no current Pure Rust backend).
             #[cfg(target_os = "windows")]
-            DeviceType::DirectMl => builder
-                .with_execution_providers([DirectMLExecutionProvider::default().build()])
-                .map_err(|e| {
-                    CvError::onnx_runtime(format!("Failed to configure DirectML provider: {e}"))
-                })?,
+            DeviceType::DirectMl => Ok(()),
             #[cfg(not(target_os = "windows"))]
-            DeviceType::DirectMl => {
-                return Err(CvError::onnx_runtime(
-                    "DirectML is only available on Windows".to_owned(),
-                ))
-            }
+            DeviceType::DirectMl => Err(CvError::onnx_runtime(
+                "DirectML is only available on Windows".to_owned(),
+            )),
+            // CoreML: macOS-only (no current Pure Rust backend).
             #[cfg(target_os = "macos")]
-            DeviceType::CoreMl => builder
-                .with_execution_providers([CoreMLExecutionProvider::default().build()])
-                .map_err(|e| {
-                    CvError::onnx_runtime(format!("Failed to configure CoreML provider: {e}"))
-                })?,
+            DeviceType::CoreMl => Ok(()),
             #[cfg(not(target_os = "macos"))]
-            DeviceType::CoreMl => {
-                return Err(CvError::onnx_runtime(
-                    "CoreML is only available on macOS".to_owned(),
-                ))
-            }
-        };
-
-        Ok(builder)
+            DeviceType::CoreMl => Err(CvError::onnx_runtime(
+                "CoreML is only available on macOS".to_owned(),
+            )),
+        }
     }
 }
 
@@ -283,11 +240,13 @@ impl Default for OnnxRuntime {
 ///
 /// Represents a loaded ONNX model ready for inference.
 /// Sessions are thread-safe and can be cloned cheaply.
+#[cfg(feature = "onnx")]
 #[derive(Clone)]
 pub struct Session {
-    inner: Arc<std::sync::Mutex<OrtSession>>,
+    inner: Arc<std::sync::Mutex<OxiSession>>,
 }
 
+#[cfg(feature = "onnx")]
 impl Session {
     /// Run inference with input tensors.
     ///
@@ -316,45 +275,45 @@ impl Session {
     /// # }
     /// ```
     pub fn run(&self, inputs: &[Tensor]) -> CvResult<Vec<Tensor>> {
-        // Convert our tensors to ort values
-        let ort_inputs: Vec<ort::value::DynValue> = inputs
+        // Convert our tensors to oxionnx tensors
+        let oxi_inputs: Vec<oxionnx_core::Tensor> = inputs
             .iter()
-            .map(super::tensor::Tensor::to_ort_value)
+            .map(super::tensor::Tensor::to_oxionnx_tensor)
             .collect::<CvResult<Vec<_>>>()?;
 
-        // Lock the session for mutable access
-        let mut session = self
+        // Lock the session for access
+        let session = self
             .inner
             .lock()
             .map_err(|e| CvError::onnx_runtime(format!("Session lock error: {e}")))?;
 
         // Get input names from the session to build named inputs
-        let input_names: Vec<String> = session
-            .inputs()
-            .iter()
-            .map(|i| i.name().to_string())
-            .collect();
+        let input_names: Vec<String> = session.input_names().to_vec();
 
-        if ort_inputs.len() > input_names.len() {
+        if oxi_inputs.len() > input_names.len() {
             return Err(CvError::onnx_runtime(format!(
                 "Too many inputs: got {}, model expects {}",
-                ort_inputs.len(),
+                oxi_inputs.len(),
                 input_names.len()
             )));
         }
 
-        // Build named input pairs and run inference
-        let named_inputs: Vec<(String, ort::value::DynValue)> =
-            input_names.into_iter().zip(ort_inputs).collect();
+        // Build named input HashMap and run inference
+        let mut named_inputs = std::collections::HashMap::new();
+        for (name, tensor) in input_names.iter().zip(oxi_inputs) {
+            named_inputs.insert(name.as_str(), tensor);
+        }
 
         let outputs = session
-            .run(named_inputs)
+            .run(&named_inputs)
             .map_err(|e| CvError::onnx_runtime(format!("Inference failed: {e}")))?;
 
-        // Convert outputs back to our tensors
-        outputs
-            .values()
-            .map(|value| Tensor::from_ort_value(&value))
+        // Collect outputs in order of output_names to preserve Vec ordering
+        let output_names = session.output_names().to_vec();
+        output_names
+            .iter()
+            .filter_map(|name| outputs.get(name))
+            .map(super::tensor::Tensor::from_oxionnx_tensor)
             .collect()
     }
 
@@ -375,10 +334,9 @@ impl Session {
     /// ```
     #[must_use]
     pub fn input_names(&self) -> Vec<String> {
-        self.inner.lock().map_or_else(
-            |_| Vec::new(),
-            |s| s.inputs().iter().map(|i| i.name().to_string()).collect(),
-        )
+        self.inner
+            .lock()
+            .map_or_else(|_| Vec::new(), |s| s.input_names().to_vec())
     }
 
     /// Get output names for the model.
@@ -398,23 +356,29 @@ impl Session {
     /// ```
     #[must_use]
     pub fn output_names(&self) -> Vec<String> {
-        self.inner.lock().map_or_else(
-            |_| Vec::new(),
-            |s| s.outputs().iter().map(|o| o.name().to_string()).collect(),
-        )
+        self.inner
+            .lock()
+            .map_or_else(|_| Vec::new(), |s| s.output_names().to_vec())
     }
 
     /// Get the number of inputs.
     #[must_use]
     pub fn input_count(&self) -> usize {
-        self.inner.lock().map_or(0, |s| s.inputs().len())
+        self.inner.lock().map_or(0, |s| s.input_names().len())
     }
 
     /// Get the number of outputs.
     #[must_use]
     pub fn output_count(&self) -> usize {
-        self.inner.lock().map_or(0, |s| s.outputs().len())
+        self.inner.lock().map_or(0, |s| s.output_names().len())
     }
+}
+
+/// Stub Session for when the onnx feature is not enabled.
+#[cfg(not(feature = "onnx"))]
+#[derive(Clone)]
+pub struct Session {
+    _private: (),
 }
 
 #[cfg(test)]

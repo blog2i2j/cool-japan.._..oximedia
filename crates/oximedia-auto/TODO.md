@@ -1,8 +1,9 @@
 # oximedia-auto TODO
 
 ## Current Status
-- 31 modules providing automated video editing: highlights, cuts, assembly, rules, scoring
-- Additional modules: `smart_crop`, `smart_reframe`, `smart_trim`, `music_sync`, `tempo_detect`, `narrative`, `scene_classifier`, `color_match`, `subtitle_sync`, `tag_suggest`, `visual_theme`
+- 55 modules providing automated video editing: highlights, cuts, assembly, rules, scoring, pacing curves, subject tracking, reframing, and more
+- Core modules: `smart_crop`, `smart_reframe` (+ `SubjectTracker`, `VerticalToHorizontalParams`), `smart_trim`, `music_sync`, `tempo_detect`, `narrative`, `scene_classifier`, `color_match`, `subtitle_sync`, `tag_suggest`, `visual_theme`
+- Pacing: `pacing_curve` (`PacingCurve` with 7 `CurveShape` variants, `CurveAnalyser`, `CurveStats`)
 - Complete `AutoEditor` pipeline with `auto_edit()` orchestrating detect-score-cut-assemble workflow
 - All numerical operations use plain Rust primitives (f32/f64/Vec/fixed arrays); no ndarray dependency
 
@@ -11,10 +12,10 @@
 - [ ] Improve `highlights::HighlightDetector` with configurable multi-pass analysis (coarse then fine)
 - [ ] Add confidence scores to `cuts::CutPoint` for user review prioritization
 - [ ] Extend `assembly::AssemblyType` with `Recap` variant for episode/series recaps
-- [ ] Add `rules::PacingPreset::Custom` with user-defined shot duration curves
+- [x] Add `rules::PacingPreset::Custom` with user-defined shot duration curves (`pacing_curve` module: `PacingCurve`, `CurveShape` 7 variants, `CurveKeyframe`, `CurveAnalyser`; `distribute_clips`/`compute_cut_positions`; 27 tests)
 - [ ] Improve `scoring::SceneScorer` with temporal context (score relative to neighbors)
-- [ ] Extend `smart_reframe` with subject tracking across multiple frames for smooth panning
-- [ ] Add vertical-to-horizontal reframing in `smart_reframe` (not just horizontal-to-vertical)
+- [x] Extend `smart_reframe` with subject tracking across multiple frames for smooth panning (`SubjectTracker` + `SubjectBounds` with EMA; `generate_sequence`/`generate_smooth_sequence`; 10 tests)
+- [x] Add vertical-to-horizontal reframing in `smart_reframe` (`VerticalToHorizontalParams`, `VerticalToHorizontalStrategy` 5 variants, `FrameOrientation`; `primary_placement`/`side_regions`/`saliency_crop_window`; 7 tests)
 - [ ] Improve `music_sync` with downbeat vs upbeat distinction for edit point selection
 
 ## New Features

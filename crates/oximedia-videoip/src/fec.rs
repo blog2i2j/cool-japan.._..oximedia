@@ -333,6 +333,235 @@ impl FecDecoder {
     }
 }
 
+// ── AdaptiveFecController ─────────────────────────────────────────────────────
+
+/// Configuration for the adaptive FEC rate controller.
+#[derive(Debug, Clone)]
+pub struct AdaptiveFecConfig {
+    /// Minimum parity ratio (parity / data shards), e.g. 0.05 = 5 %.
+    pub min_ratio: f32,
+    /// Maximum parity ratio, e.g. 0.40 = 40 %.
+    pub max_ratio: f32,
+    /// Number of data shards to use (fixed; only parity count adapts).
+    pub data_shards: usize,
+    /// Sliding window size (in packet reports) for loss-rate measurement.
+    pub window_size: usize,
+    /// Packet-loss rate threshold above which the FEC ratio steps up.
+    pub loss_step_up_threshold: f64,
+    /// Packet-loss rate threshold below which the FEC ratio steps down.
+    pub loss_step_down_threshold: f64,
+    /// Amount to increase the parity ratio per adaptation cycle.
+    pub ratio_step_up: f32,
+    /// Amount to decrease the parity ratio per adaptation cycle.
+    pub ratio_step_down: f32,
+    /// Number of consecutive stable cycles before stepping down.
+    pub stable_cycles_before_step_down: u32,
+}
+
+impl Default for AdaptiveFecConfig {
+    fn default() -> Self {
+        Self {
+            min_ratio: 0.05,
+            max_ratio: 0.40,
+            data_shards: 20,
+            window_size: 200,
+            loss_step_up_threshold: 0.01,    // 1 % loss → step up
+            loss_step_down_threshold: 0.001, // < 0.1 % loss → step down
+            ratio_step_up: 0.05,
+            ratio_step_down: 0.02,
+            stable_cycles_before_step_down: 5,
+        }
+    }
+}
+
+/// Statistics reported by the [`AdaptiveFecController`].
+#[derive(Debug, Clone, Default)]
+pub struct AdaptiveFecStats {
+    /// Current parity ratio in use.
+    pub current_ratio: f32,
+    /// Current parity shard count derived from the ratio.
+    pub current_parity_shards: usize,
+    /// Measured sliding-window packet-loss rate (0.0–1.0).
+    pub loss_rate: f64,
+    /// Total adaptation up-steps taken.
+    pub steps_up: u64,
+    /// Total adaptation down-steps taken.
+    pub steps_down: u64,
+    /// Consecutive stable adaptation cycles.
+    pub stable_cycles: u32,
+}
+
+/// Adaptive FEC rate controller.
+///
+/// Observes a sliding window of packet delivery outcomes and adjusts the
+/// parity-to-data shard ratio automatically:
+///
+/// - When measured loss rate exceeds `loss_step_up_threshold`, the ratio is
+///   increased by `ratio_step_up` (up to `max_ratio`).
+/// - When loss is consistently below `loss_step_down_threshold` for
+///   `stable_cycles_before_step_down` cycles, the ratio is decreased by
+///   `ratio_step_down` (down to `min_ratio`).
+///
+/// Call [`record_outcome`](Self::record_outcome) for each packet (received =
+/// `true`, lost = `false`), then call [`adapt`](Self::adapt) periodically
+/// (e.g. once per FEC group) to obtain a fresh [`FecEncoder`].
+pub struct AdaptiveFecController {
+    /// Configuration (public so callers can read data_shards etc.).
+    pub config: AdaptiveFecConfig,
+    /// Current parity ratio.
+    current_ratio: f32,
+    /// Sliding window: `true` = packet received, `false` = packet lost.
+    window: std::collections::VecDeque<bool>,
+    /// Consecutive cycles with loss below the step-down threshold.
+    stable_cycles: u32,
+    /// Statistics.
+    stats: AdaptiveFecStats,
+}
+
+impl AdaptiveFecController {
+    /// Creates a new adaptive FEC controller with the given configuration.
+    ///
+    /// The controller starts at the midpoint between `min_ratio` and
+    /// `max_ratio` so that it can react quickly in both directions.
+    #[must_use]
+    pub fn new(config: AdaptiveFecConfig) -> Self {
+        let initial_ratio = (config.min_ratio + config.max_ratio) / 2.0;
+        let parity = Self::ratio_to_parity(initial_ratio, config.data_shards);
+        Self {
+            current_ratio: initial_ratio,
+            window: std::collections::VecDeque::with_capacity(config.window_size),
+            stable_cycles: 0,
+            stats: AdaptiveFecStats {
+                current_ratio: initial_ratio,
+                current_parity_shards: parity,
+                ..Default::default()
+            },
+            config,
+        }
+    }
+
+    /// Creates a controller with default configuration.
+    #[must_use]
+    pub fn with_defaults() -> Self {
+        Self::new(AdaptiveFecConfig::default())
+    }
+
+    /// Records the reception outcome for a single packet.
+    ///
+    /// `received` should be `true` when the packet arrived intact and `false`
+    /// when a loss was detected (gap in sequence numbers).
+    pub fn record_outcome(&mut self, received: bool) {
+        self.window.push_back(received);
+        if self.window.len() > self.config.window_size {
+            self.window.pop_front();
+        }
+    }
+
+    /// Records multiple outcomes at once (convenience wrapper).
+    ///
+    /// `total` is the number of packets expected; `lost` is the number not
+    /// received.  The remaining `total - lost` are recorded as received.
+    pub fn record_batch(&mut self, total: usize, lost: usize) {
+        let received = total.saturating_sub(lost);
+        for _ in 0..received {
+            self.record_outcome(true);
+        }
+        for _ in 0..lost {
+            self.record_outcome(false);
+        }
+    }
+
+    /// Runs one adaptation cycle and returns the current FEC ratio.
+    ///
+    /// The returned ratio can be used to construct a fresh [`FecEncoder`] via
+    /// [`FecEncoder::with_ratio`].  Typically called once per FEC group
+    /// (every `data_shards` packets).
+    pub fn adapt(&mut self) -> f32 {
+        let loss_rate = self.measured_loss_rate();
+        self.stats.loss_rate = loss_rate;
+
+        if loss_rate > self.config.loss_step_up_threshold {
+            self.current_ratio =
+                (self.current_ratio + self.config.ratio_step_up).min(self.config.max_ratio);
+            self.stable_cycles = 0;
+            self.stats.steps_up += 1;
+        } else if loss_rate < self.config.loss_step_down_threshold {
+            self.stable_cycles += 1;
+            if self.stable_cycles >= self.config.stable_cycles_before_step_down {
+                self.current_ratio =
+                    (self.current_ratio - self.config.ratio_step_down).max(self.config.min_ratio);
+                self.stable_cycles = 0;
+                self.stats.steps_down += 1;
+            }
+        } else {
+            self.stable_cycles = 0;
+        }
+
+        let parity = Self::ratio_to_parity(self.current_ratio, self.config.data_shards);
+        self.stats.current_ratio = self.current_ratio;
+        self.stats.current_parity_shards = parity;
+        self.stats.stable_cycles = self.stable_cycles;
+
+        self.current_ratio
+    }
+
+    /// Builds a [`FecEncoder`] with the *current* adaptive ratio.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the Reed-Solomon encoder cannot be constructed.
+    pub fn build_encoder(&self) -> VideoIpResult<FecEncoder> {
+        let parity = Self::ratio_to_parity(self.current_ratio, self.config.data_shards).max(1);
+        FecEncoder::new(self.config.data_shards, parity)
+    }
+
+    /// Returns the current parity ratio (0.0–1.0).
+    #[must_use]
+    pub fn current_ratio(&self) -> f32 {
+        self.current_ratio
+    }
+
+    /// Returns the current parity shard count (always ≥ 1).
+    #[must_use]
+    pub fn current_parity_shards(&self) -> usize {
+        Self::ratio_to_parity(self.current_ratio, self.config.data_shards).max(1)
+    }
+
+    /// Returns the measured sliding-window packet-loss rate (0.0–1.0).
+    #[must_use]
+    pub fn measured_loss_rate(&self) -> f64 {
+        if self.window.is_empty() {
+            return 0.0;
+        }
+        let lost = self.window.iter().filter(|&&r| !r).count();
+        lost as f64 / self.window.len() as f64
+    }
+
+    /// Returns a snapshot of the controller statistics.
+    #[must_use]
+    pub fn stats(&self) -> &AdaptiveFecStats {
+        &self.stats
+    }
+
+    /// Resets the sliding window and statistics without changing configuration
+    /// or the current ratio.
+    pub fn reset(&mut self) {
+        self.window.clear();
+        self.stable_cycles = 0;
+        let parity = Self::ratio_to_parity(self.current_ratio, self.config.data_shards);
+        self.stats = AdaptiveFecStats {
+            current_ratio: self.current_ratio,
+            current_parity_shards: parity,
+            ..Default::default()
+        };
+    }
+
+    /// Converts a ratio to a parity shard count (rounded up, clamped to ≥ 1).
+    fn ratio_to_parity(ratio: f32, data_shards: usize) -> usize {
+        ((data_shards as f32 * ratio).ceil() as usize).max(1)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -469,5 +698,171 @@ mod tests {
 
         decoder.cleanup_old_groups(0);
         assert_eq!(decoder.pending_groups.len(), 0);
+    }
+
+    // ── AdaptiveFecController tests ───────────────────────────────────────────
+
+    #[test]
+    fn test_adaptive_fec_initial_ratio_is_midpoint() {
+        let config = AdaptiveFecConfig {
+            min_ratio: 0.05,
+            max_ratio: 0.25,
+            ..Default::default()
+        };
+        let ctrl = AdaptiveFecController::new(config);
+        let expected = 0.15_f32;
+        assert!(
+            (ctrl.current_ratio() - expected).abs() < 1e-4,
+            "initial ratio {:.4} ≠ {expected:.4}",
+            ctrl.current_ratio()
+        );
+    }
+
+    #[test]
+    fn test_adaptive_fec_steps_up_on_high_loss() {
+        let config = AdaptiveFecConfig {
+            min_ratio: 0.05,
+            max_ratio: 0.40,
+            loss_step_up_threshold: 0.01,
+            ratio_step_up: 0.05,
+            window_size: 100,
+            ..Default::default()
+        };
+        let mut ctrl = AdaptiveFecController::new(config);
+        let initial = ctrl.current_ratio();
+        // Inject 10 % loss — well above the 1 % threshold.
+        ctrl.record_batch(100, 10);
+        let new_ratio = ctrl.adapt();
+        assert!(
+            new_ratio > initial,
+            "ratio should increase on high loss: {new_ratio:.4} > {initial:.4}"
+        );
+        assert_eq!(ctrl.stats().steps_up, 1);
+    }
+
+    #[test]
+    fn test_adaptive_fec_steps_down_after_stable_cycles() {
+        // Use a tiny window so the old loss data ages out quickly.
+        let config = AdaptiveFecConfig {
+            min_ratio: 0.05,
+            max_ratio: 0.40,
+            loss_step_down_threshold: 0.001,
+            ratio_step_down: 0.02,
+            stable_cycles_before_step_down: 3,
+            window_size: 10, // small: 10 new packets flush old loss data
+            ..Default::default()
+        };
+        let mut ctrl = AdaptiveFecController::new(config);
+        // Force ratio up: push some high-loss data and adapt.
+        ctrl.record_batch(10, 5);
+        ctrl.adapt();
+        let after_up = ctrl.current_ratio();
+        // Now flush the window with zero-loss data (more than window_size packets).
+        // Then run 3 stable adapt cycles.
+        for _ in 0..3 {
+            ctrl.record_batch(10, 0); // overwrites the old loss data
+            ctrl.adapt();
+        }
+        let after_down = ctrl.current_ratio();
+        assert!(
+            after_down < after_up,
+            "ratio should decrease after stable cycles: {after_down:.4} < {after_up:.4}"
+        );
+        assert!(ctrl.stats().steps_down >= 1);
+    }
+
+    #[test]
+    fn test_adaptive_fec_clamped_at_max() {
+        let config = AdaptiveFecConfig {
+            min_ratio: 0.05,
+            max_ratio: 0.20,
+            loss_step_up_threshold: 0.001,
+            ratio_step_up: 0.10,
+            window_size: 50,
+            ..Default::default()
+        };
+        let mut ctrl = AdaptiveFecController::new(config);
+        for _ in 0..20 {
+            ctrl.record_batch(100, 50);
+            ctrl.adapt();
+        }
+        assert!(
+            ctrl.current_ratio() <= 0.20 + f32::EPSILON,
+            "ratio must not exceed max_ratio, got {}",
+            ctrl.current_ratio()
+        );
+    }
+
+    #[test]
+    fn test_adaptive_fec_clamped_at_min() {
+        let config = AdaptiveFecConfig {
+            min_ratio: 0.05,
+            max_ratio: 0.40,
+            loss_step_down_threshold: 1.0, // always stable
+            ratio_step_down: 0.10,
+            stable_cycles_before_step_down: 1,
+            window_size: 50,
+            ..Default::default()
+        };
+        let mut ctrl = AdaptiveFecController::new(config);
+        for _ in 0..50 {
+            ctrl.record_batch(100, 0);
+            ctrl.adapt();
+        }
+        assert!(
+            ctrl.current_ratio() >= 0.05 - f32::EPSILON,
+            "ratio must not go below min_ratio, got {}",
+            ctrl.current_ratio()
+        );
+    }
+
+    #[test]
+    fn test_adaptive_fec_build_encoder_succeeds() {
+        let ctrl = AdaptiveFecController::with_defaults();
+        let encoder = ctrl.build_encoder().expect("build_encoder should succeed");
+        assert!(encoder.parity_shards() >= 1);
+        assert_eq!(encoder.data_shards(), ctrl.config.data_shards);
+    }
+
+    #[test]
+    fn test_adaptive_fec_measured_loss_rate_zero_on_empty() {
+        let ctrl = AdaptiveFecController::with_defaults();
+        assert!(
+            ctrl.measured_loss_rate().abs() < f64::EPSILON,
+            "empty window should report 0 % loss"
+        );
+    }
+
+    #[test]
+    fn test_adaptive_fec_measured_loss_rate_correct() {
+        let mut ctrl = AdaptiveFecController::with_defaults();
+        ctrl.record_batch(20, 10);
+        let rate = ctrl.measured_loss_rate();
+        assert!(
+            (rate - 0.5).abs() < 0.01,
+            "expected ~50 % loss, got {:.2} %",
+            rate * 100.0
+        );
+    }
+
+    #[test]
+    fn test_adaptive_fec_reset_clears_window() {
+        let mut ctrl = AdaptiveFecController::with_defaults();
+        ctrl.record_batch(100, 10);
+        ctrl.adapt();
+        ctrl.reset();
+        assert!(ctrl.measured_loss_rate().abs() < f64::EPSILON);
+        assert_eq!(ctrl.stats().steps_up, 0);
+    }
+
+    #[test]
+    fn test_adaptive_fec_stats_reflects_parity_shards() {
+        let mut ctrl = AdaptiveFecController::with_defaults();
+        ctrl.record_batch(100, 20);
+        ctrl.adapt();
+        let stats = ctrl.stats();
+        let expected =
+            ((stats.current_ratio * ctrl.config.data_shards as f32).ceil() as usize).max(1);
+        assert_eq!(stats.current_parity_shards, expected);
     }
 }

@@ -261,3 +261,237 @@ fn test_timeout_error_displays_elapsed_ms() {
     assert!(msg.contains("timeout"));
     assert!(msg.contains("7500"));
 }
+
+// ── Fine-grained path enforcement tests ──────────────────────────────────────
+
+use std::path::Path;
+
+/// A filesystem path within the allow-list is permitted.
+#[test]
+fn test_path_enforcement_allowed_path_succeeds() {
+    let ctx = SandboxContext::new(SandboxConfig {
+        permissions: PermissionSet::new()
+            .grant(PERM_FILESYSTEM)
+            .allow_path("/tmp/plugin-work"),
+        ..SandboxConfig::default()
+    });
+    assert!(ctx
+        .check_path(Path::new("/tmp/plugin-work/output.bin"))
+        .is_ok());
+}
+
+/// An exact match on the allowed path is also permitted.
+#[test]
+fn test_path_enforcement_exact_match_succeeds() {
+    let ctx = SandboxContext::new(SandboxConfig {
+        permissions: PermissionSet::new()
+            .grant(PERM_FILESYSTEM)
+            .allow_path("/tmp/plugin-work"),
+        ..SandboxConfig::default()
+    });
+    assert!(ctx.check_path(Path::new("/tmp/plugin-work")).is_ok());
+}
+
+/// A path outside the allow-list is denied even with PERM_FILESYSTEM.
+#[test]
+fn test_path_enforcement_path_outside_allowlist_denied() {
+    let ctx = SandboxContext::new(SandboxConfig {
+        permissions: PermissionSet::new()
+            .grant(PERM_FILESYSTEM)
+            .allow_path("/tmp/plugin-work"),
+        ..SandboxConfig::default()
+    });
+    let err = ctx
+        .check_path(Path::new("/var/log/system.log"))
+        .expect_err("must be denied");
+    assert!(
+        matches!(err, SandboxError::PathDenied { .. }),
+        "expected PathDenied, got {err:?}"
+    );
+}
+
+/// Without PERM_FILESYSTEM the path check returns PermissionDenied.
+#[test]
+fn test_path_enforcement_no_fs_perm_gives_permission_denied() {
+    let ctx = SandboxContext::new(SandboxConfig {
+        permissions: PermissionSet::new().allow_path("/tmp").grant(PERM_NETWORK),
+        ..SandboxConfig::default()
+    });
+    let err = ctx
+        .check_path(Path::new("/tmp/allowed-looking-file"))
+        .expect_err("must be denied");
+    assert!(
+        matches!(err, SandboxError::PermissionDenied { .. }),
+        "expected PermissionDenied without PERM_FILESYSTEM, got {err:?}"
+    );
+}
+
+/// Multiple allowed paths — each is accessible, others are not.
+#[test]
+fn test_path_enforcement_multiple_allowlist_entries() {
+    let ctx = SandboxContext::new(SandboxConfig {
+        permissions: PermissionSet::new()
+            .grant(PERM_FILESYSTEM)
+            .allow_path("/tmp/media")
+            .allow_path("/var/cache/oximedia"),
+        ..SandboxConfig::default()
+    });
+    assert!(ctx.check_path(Path::new("/tmp/media/frame.png")).is_ok());
+    assert!(ctx
+        .check_path(Path::new("/var/cache/oximedia/segment.ts"))
+        .is_ok());
+    assert!(ctx.check_path(Path::new("/etc/passwd")).is_err());
+}
+
+/// deny_path removes an entry from the allow-list.
+#[test]
+fn test_path_enforcement_deny_path_revokes_access() {
+    let perms = PermissionSet::new()
+        .grant(PERM_FILESYSTEM)
+        .allow_path("/tmp/a")
+        .allow_path("/tmp/b")
+        .deny_path(Path::new("/tmp/a"));
+    let ctx = SandboxContext::new(SandboxConfig {
+        permissions: perms,
+        ..SandboxConfig::default()
+    });
+    assert!(
+        ctx.check_path(Path::new("/tmp/a/file.bin")).is_err(),
+        "/tmp/a must be revoked"
+    );
+    assert!(ctx.check_path(Path::new("/tmp/b/file.bin")).is_ok());
+}
+
+/// Empty allow-list (with PERM_FILESYSTEM) permits any path.
+#[test]
+fn test_path_enforcement_empty_allowlist_permits_all_paths() {
+    let ctx = SandboxContext::new(SandboxConfig {
+        permissions: PermissionSet::new().grant(PERM_FILESYSTEM),
+        ..SandboxConfig::default()
+    });
+    assert!(ctx.check_path(Path::new("/etc/passwd")).is_ok());
+    assert!(ctx.check_path(Path::new("/home/user/.config")).is_ok());
+}
+
+// ── CPU quota enforcement tests ───────────────────────────────────────────────
+
+/// CPU quota: a single charge within the limit succeeds.
+#[test]
+fn test_cpu_enforcement_single_charge_within_limit_ok() {
+    let ctx = SandboxContext::new(SandboxConfig {
+        max_cpu_ns: 1_000_000,
+        ..SandboxConfig::default()
+    });
+    assert!(ctx.charge_cpu_ns(500_000).is_ok());
+    assert_eq!(ctx.used_cpu_ns(), 500_000);
+}
+
+/// CPU quota: accumulated charges within limit all succeed.
+#[test]
+fn test_cpu_enforcement_accumulated_charges_within_limit() {
+    let ctx = SandboxContext::new(SandboxConfig {
+        max_cpu_ns: 1_000_000,
+        ..SandboxConfig::default()
+    });
+    ctx.charge_cpu_ns(300_000).expect("first");
+    ctx.charge_cpu_ns(300_000).expect("second");
+    ctx.charge_cpu_ns(300_000).expect("third");
+    assert_eq!(ctx.used_cpu_ns(), 900_000);
+}
+
+/// CPU quota: exceeding budget returns CpuExceeded and rolls back.
+#[test]
+fn test_cpu_enforcement_exceeding_budget_denied_and_rolled_back() {
+    let ctx = SandboxContext::new(SandboxConfig {
+        max_cpu_ns: 100_000,
+        ..SandboxConfig::default()
+    });
+    ctx.charge_cpu_ns(80_000).expect("first");
+    let err = ctx.charge_cpu_ns(30_000).expect_err("must exceed");
+    assert!(
+        matches!(err, SandboxError::CpuExceeded),
+        "expected CpuExceeded, got {err:?}"
+    );
+    assert_eq!(
+        ctx.used_cpu_ns(),
+        80_000,
+        "counter must be rolled back to pre-exceeded value"
+    );
+}
+
+/// CPU quota: unlimited (max_cpu_ns = 0) never triggers CpuExceeded.
+#[test]
+fn test_cpu_enforcement_unlimited_never_exceeded() {
+    let ctx = SandboxContext::new(SandboxConfig {
+        max_cpu_ns: 0,
+        ..SandboxConfig::default()
+    });
+    ctx.charge_cpu_ns(u64::MAX / 2).expect("should not exceed");
+    assert_eq!(ctx.used_cpu_ns(), u64::MAX / 2);
+}
+
+// ── Combined permission + memory + path enforcement ───────────────────────────
+
+/// Permission OK but memory exceeded still blocks execution.
+#[test]
+fn test_combined_perm_ok_but_memory_exceeded_blocks() {
+    let sb = PluginSandbox::new(SandboxConfig {
+        permissions: PermissionSet::new().grant(PERM_FILESYSTEM),
+        max_memory_mb: 1,
+        ..SandboxConfig::default()
+    });
+    let result = sb.run(|ctx| {
+        ctx.check_permission(PERM_FILESYSTEM)?;
+        ctx.check_memory(2 * 1024 * 1024)?;
+        Ok(())
+    });
+    assert!(
+        matches!(result, Err(SandboxError::MemoryExceeded { .. })),
+        "expected MemoryExceeded but got {result:?}"
+    );
+}
+
+/// All checks pass in a carefully configured sandbox.
+#[test]
+fn test_combined_all_checks_pass_in_configured_sandbox() {
+    let sb = PluginSandbox::new(SandboxConfig {
+        permissions: PermissionSet::new()
+            .grant(PERM_FILESYSTEM)
+            .grant(PERM_NETWORK)
+            .allow_path("/tmp"),
+        max_memory_mb: 256,
+        max_cpu_ns: 10_000_000,
+        timeout_ms: 60_000,
+        max_cpu_percent: 100,
+    });
+    let result = sb.run(|ctx| {
+        ctx.check_permission(PERM_FILESYSTEM)?;
+        ctx.check_permission(PERM_NETWORK)?;
+        ctx.check_path(Path::new("/tmp/output"))?;
+        ctx.check_memory(1024)?;
+        ctx.charge_cpu_ns(5_000)?;
+        ctx.check_timeout()?;
+        Ok("all good")
+    });
+    assert_eq!(result.expect("all checks passed"), "all good");
+}
+
+/// PathDenied error display contains the denied path string.
+#[test]
+fn test_path_denied_error_display_contains_path() {
+    let err = SandboxError::PathDenied {
+        path: "/etc/shadow".to_string(),
+    };
+    let msg = err.to_string();
+    assert!(
+        msg.contains("/etc/shadow"),
+        "error message must contain the denied path"
+    );
+}
+
+/// CpuExceeded error display mentions CPU.
+#[test]
+fn test_cpu_exceeded_error_display() {
+    let err = SandboxError::CpuExceeded;
+    assert!(err.to_string().to_lowercase().contains("cpu"));
+}

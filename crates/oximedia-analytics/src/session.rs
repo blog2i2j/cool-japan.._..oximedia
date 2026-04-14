@@ -364,6 +364,137 @@ pub fn attention_heatmap(
         .collect()
 }
 
+// ─── Reservoir-sampled attention heatmap ──────────────────────────────────────
+
+/// Configuration for reservoir-sampled attention heatmap generation.
+///
+/// When there are too many sessions to keep in memory, a uniform random sample
+/// of size `reservoir_size` is maintained via Algorithm R (Vitter 1985).
+#[derive(Debug, Clone)]
+pub struct ReservoirHeatmapConfig {
+    /// Maximum number of sessions held in the reservoir at any time.
+    pub reservoir_size: usize,
+    /// Width of each heatmap bucket in milliseconds.
+    pub bucket_ms: u32,
+    /// 64-bit seed for the pseudorandom number generator.
+    pub seed: u64,
+}
+
+impl Default for ReservoirHeatmapConfig {
+    fn default() -> Self {
+        Self {
+            reservoir_size: 1_000,
+            bucket_ms: 5_000,
+            seed: 0xDEAD_BEEF_CAFE_1234,
+        }
+    }
+}
+
+/// A memory-bounded attention heatmap computed via reservoir sampling.
+#[derive(Debug, Clone)]
+pub struct SampledHeatmap {
+    /// Heatmap bucket values (same layout as [`attention_heatmap`]).
+    pub points: Vec<HeatPoint>,
+    /// Number of sessions offered to the reservoir.
+    pub total_sessions_seen: usize,
+    /// Actual number of sessions sampled (≤ `reservoir_size`).
+    pub sessions_sampled: usize,
+}
+
+/// Build a memory-bounded attention heatmap using reservoir sampling
+/// (Vitter Algorithm R).
+///
+/// Returns `None` when `content_duration_ms == 0`, `bucket_ms == 0`, or
+/// `reservoir_size == 0`.
+pub fn reservoir_sampled_heatmap<'a>(
+    sessions: impl Iterator<Item = &'a ViewerSession>,
+    content_duration_ms: u64,
+    config: &ReservoirHeatmapConfig,
+) -> Option<SampledHeatmap> {
+    if content_duration_ms == 0 || config.bucket_ms == 0 || config.reservoir_size == 0 {
+        return None;
+    }
+
+    let capacity = config.reservoir_size;
+    let mut reservoir: Vec<&ViewerSession> = Vec::with_capacity(capacity);
+    let mut total_seen: usize = 0;
+
+    // splitmix64 PRNG — dependency-free.
+    let mut rng_state: u64 = config.seed;
+    let next_u64 = |state: &mut u64| -> u64 {
+        *state = state.wrapping_add(0x9e37_79b9_7f4a_7c15);
+        let mut z: u64 = *state;
+        z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
+        z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
+        z ^ (z >> 31)
+    };
+
+    for session in sessions {
+        if total_seen < capacity {
+            reservoir.push(session);
+        } else {
+            let j = (next_u64(&mut rng_state) % (total_seen as u64 + 1)) as usize;
+            if j < capacity {
+                reservoir[j] = session;
+            }
+        }
+        total_seen += 1;
+    }
+
+    let sessions_sampled = reservoir.len();
+    let heat_points = attention_heatmap_refs(&reservoir, content_duration_ms, config.bucket_ms);
+
+    Some(SampledHeatmap {
+        points: heat_points,
+        total_sessions_seen: total_seen,
+        sessions_sampled,
+    })
+}
+
+/// Compute attention heatmap over a slice of session references.
+fn attention_heatmap_refs(
+    sessions: &[&ViewerSession],
+    content_duration_ms: u64,
+    bucket_ms: u32,
+) -> Vec<HeatPoint> {
+    if sessions.is_empty() || content_duration_ms == 0 || bucket_ms == 0 {
+        return Vec::new();
+    }
+    let bucket_ms_u64 = u64::from(bucket_ms);
+    let num_buckets = ((content_duration_ms + bucket_ms_u64 - 1) / bucket_ms_u64) as usize;
+    let mut counts = vec![0u32; num_buckets];
+
+    for &session in sessions {
+        let map = build_playback_map(session, content_duration_ms);
+        for (bucket_idx, count) in counts.iter_mut().enumerate() {
+            let bucket_start_ms = bucket_idx as u64 * bucket_ms_u64;
+            let bucket_end_ms = (bucket_start_ms + bucket_ms_u64).min(content_duration_ms);
+            let start_sec = (bucket_start_ms / 1000) as usize;
+            let end_sec = ((bucket_end_ms + 999) / 1000) as usize;
+            let end_sec = end_sec.min(map.positions_watched.len());
+            let watched = (start_sec..end_sec)
+                .any(|s| map.positions_watched.get(s).copied().unwrap_or(false));
+            if watched {
+                *count += 1;
+            }
+        }
+    }
+
+    let max_count = counts.iter().copied().max().unwrap_or(0);
+    if max_count == 0 {
+        return Vec::new();
+    }
+
+    counts
+        .into_iter()
+        .enumerate()
+        .map(|(idx, c)| HeatPoint {
+            position_ms: idx as u64 * bucket_ms_u64,
+            intensity: c as f32 / max_count as f32,
+        })
+        .collect()
+}
+
 // ─── Tests ──────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -658,5 +789,176 @@ mod tests {
         let mut s = ViewerSession::new("id2", None, "vid2", 0);
         s.push_event(PlaybackEvent::Play { timestamp_ms: 100 });
         assert_eq!(s.events.len(), 1);
+    }
+
+    // ── reservoir_sampled_heatmap ─────────────────────────────────────────────
+
+    fn full_watch(id: &str, content_ms: u64) -> ViewerSession {
+        simple_session(
+            id,
+            "c1",
+            vec![
+                PlaybackEvent::Play { timestamp_ms: 0 },
+                PlaybackEvent::End {
+                    position_ms: content_ms,
+                    watch_duration_ms: content_ms,
+                },
+            ],
+        )
+    }
+
+    fn half_watch(id: &str, content_ms: u64) -> ViewerSession {
+        simple_session(
+            id,
+            "c1",
+            vec![
+                PlaybackEvent::Play { timestamp_ms: 0 },
+                PlaybackEvent::End {
+                    position_ms: content_ms / 2,
+                    watch_duration_ms: content_ms / 2,
+                },
+            ],
+        )
+    }
+
+    #[test]
+    fn reservoir_none_on_zero_duration() {
+        let sessions = vec![full_watch("s1", 10_000)];
+        assert!(
+            reservoir_sampled_heatmap(sessions.iter(), 0, &ReservoirHeatmapConfig::default())
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn reservoir_none_on_zero_bucket() {
+        let sessions = vec![full_watch("s1", 10_000)];
+        let cfg = ReservoirHeatmapConfig {
+            bucket_ms: 0,
+            ..Default::default()
+        };
+        assert!(reservoir_sampled_heatmap(sessions.iter(), 10_000, &cfg).is_none());
+    }
+
+    #[test]
+    fn reservoir_none_on_zero_capacity() {
+        let sessions = vec![full_watch("s1", 10_000)];
+        let cfg = ReservoirHeatmapConfig {
+            reservoir_size: 0,
+            ..Default::default()
+        };
+        assert!(reservoir_sampled_heatmap(sessions.iter(), 10_000, &cfg).is_none());
+    }
+
+    #[test]
+    fn reservoir_empty_input_empty_points() {
+        let sessions: Vec<ViewerSession> = vec![];
+        let cfg = ReservoirHeatmapConfig {
+            reservoir_size: 5,
+            bucket_ms: 2_000,
+            seed: 42,
+        };
+        let r = reservoir_sampled_heatmap(sessions.iter(), 10_000, &cfg).expect("result");
+        assert_eq!(r.total_sessions_seen, 0);
+        assert_eq!(r.sessions_sampled, 0);
+        assert!(r.points.is_empty());
+    }
+
+    #[test]
+    fn reservoir_fewer_sessions_keeps_all() {
+        let sessions: Vec<ViewerSession> = (0..5)
+            .map(|i| full_watch(&format!("s{i}"), 10_000))
+            .collect();
+        let cfg = ReservoirHeatmapConfig {
+            reservoir_size: 100,
+            bucket_ms: 2_000,
+            seed: 1,
+        };
+        let r = reservoir_sampled_heatmap(sessions.iter(), 10_000, &cfg).expect("result");
+        assert_eq!(r.total_sessions_seen, 5);
+        assert_eq!(r.sessions_sampled, 5);
+    }
+
+    #[test]
+    fn reservoir_caps_at_capacity() {
+        let sessions: Vec<ViewerSession> = (0..50)
+            .map(|i| full_watch(&format!("s{i}"), 10_000))
+            .collect();
+        let cfg = ReservoirHeatmapConfig {
+            reservoir_size: 10,
+            bucket_ms: 2_000,
+            seed: 42,
+        };
+        let r = reservoir_sampled_heatmap(sessions.iter(), 10_000, &cfg).expect("result");
+        assert_eq!(r.total_sessions_seen, 50);
+        assert_eq!(r.sessions_sampled, 10);
+    }
+
+    #[test]
+    fn reservoir_full_watch_all_max_intensity() {
+        let sessions: Vec<ViewerSession> = (0..20)
+            .map(|i| full_watch(&format!("s{i}"), 10_000))
+            .collect();
+        let cfg = ReservoirHeatmapConfig {
+            reservoir_size: 20,
+            bucket_ms: 2_000,
+            seed: 7,
+        };
+        let r = reservoir_sampled_heatmap(sessions.iter(), 10_000, &cfg).expect("result");
+        assert!(!r.points.is_empty());
+        for p in &r.points {
+            assert!(
+                (p.intensity - 1.0).abs() < 1e-6,
+                "bucket {}ms intensity={}",
+                p.position_ms,
+                p.intensity
+            );
+        }
+    }
+
+    #[test]
+    fn reservoir_partial_watch_intensity_gradient() {
+        let mut sessions: Vec<ViewerSession> = (0..10)
+            .map(|i| full_watch(&format!("full_{i}"), 10_000))
+            .collect();
+        sessions.extend((0..10).map(|i| half_watch(&format!("half_{i}"), 10_000)));
+        let cfg = ReservoirHeatmapConfig {
+            reservoir_size: 20,
+            bucket_ms: 5_000,
+            seed: 99,
+        };
+        let r = reservoir_sampled_heatmap(sessions.iter(), 10_000, &cfg).expect("result");
+        assert_eq!(r.points.len(), 2);
+        assert!((r.points[0].intensity - 1.0).abs() < 1e-6);
+        assert!(
+            (r.points[1].intensity - 0.5).abs() < 0.1,
+            "expected ~0.5, got {}",
+            r.points[1].intensity
+        );
+    }
+
+    #[test]
+    fn reservoir_deterministic_with_same_seed() {
+        let sessions: Vec<ViewerSession> = (0..100)
+            .map(|i| {
+                if i % 3 == 0 {
+                    half_watch(&format!("s{i}"), 30_000)
+                } else {
+                    full_watch(&format!("s{i}"), 30_000)
+                }
+            })
+            .collect();
+        let cfg = ReservoirHeatmapConfig {
+            reservoir_size: 30,
+            bucket_ms: 5_000,
+            seed: 0xABCD_EF01,
+        };
+        let r1 = reservoir_sampled_heatmap(sessions.iter(), 30_000, &cfg).expect("r1");
+        let r2 = reservoir_sampled_heatmap(sessions.iter(), 30_000, &cfg).expect("r2");
+        assert_eq!(r1.sessions_sampled, r2.sessions_sampled);
+        assert_eq!(r1.points.len(), r2.points.len());
+        for (a, b) in r1.points.iter().zip(r2.points.iter()) {
+            assert!((a.intensity - b.intensity).abs() < 1e-9);
+        }
     }
 }

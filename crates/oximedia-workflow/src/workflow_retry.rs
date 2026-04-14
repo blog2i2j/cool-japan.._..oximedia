@@ -42,7 +42,11 @@ impl BackoffStrategy {
             Self::Exponential { base, max } => {
                 let multiplier = 2u64.saturating_pow(attempt);
                 let delay = base.saturating_mul(multiplier as u32);
-                if delay > *max { *max } else { delay }
+                if delay > *max {
+                    *max
+                } else {
+                    delay
+                }
             }
             Self::Fibonacci { base } => {
                 let fib = fibonacci(attempt);
@@ -119,7 +123,10 @@ impl CircuitBreaker {
     pub fn allow_request(&mut self) -> bool {
         match &self.state {
             CircuitState::Closed => true,
-            CircuitState::Open { opened_at, cooldown } => {
+            CircuitState::Open {
+                opened_at,
+                cooldown,
+            } => {
                 if opened_at.elapsed() >= *cooldown {
                     self.state = CircuitState::HalfOpen {
                         successes_needed: self.recovery_threshold,
@@ -206,7 +213,8 @@ impl RetryBudget {
     /// Check if a retry is allowed and, if so, record it.
     pub fn try_acquire(&mut self) -> bool {
         let now = Instant::now();
-        self.entries.retain(|t| now.duration_since(*t) < self.window);
+        self.entries
+            .retain(|t| now.duration_since(*t) < self.window);
         if self.entries.len() < self.max_retries as usize {
             self.entries.push(now);
             true
@@ -218,7 +226,8 @@ impl RetryBudget {
     /// Return how many retries remain in the current window.
     pub fn remaining(&mut self) -> u32 {
         let now = Instant::now();
-        self.entries.retain(|t| now.duration_since(*t) < self.window);
+        self.entries
+            .retain(|t| now.duration_since(*t) < self.window);
         self.max_retries.saturating_sub(self.entries.len() as u32)
     }
 }
@@ -471,10 +480,8 @@ mod tests {
 
     #[test]
     fn test_orchestrator_basic_retry() {
-        let mut orch = RetryOrchestrator::new(
-            BackoffStrategy::Constant(Duration::from_millis(100)),
-            3,
-        );
+        let mut orch =
+            RetryOrchestrator::new(BackoffStrategy::Constant(Duration::from_millis(100)), 3);
         let fail = RetryOutcome::RetryableFailure("err".into());
         // First retry.
         let delay = orch.should_retry("task-1", &fail);
@@ -489,10 +496,8 @@ mod tests {
 
     #[test]
     fn test_orchestrator_success_resets() {
-        let mut orch = RetryOrchestrator::new(
-            BackoffStrategy::Constant(Duration::from_millis(50)),
-            3,
-        );
+        let mut orch =
+            RetryOrchestrator::new(BackoffStrategy::Constant(Duration::from_millis(50)), 3);
         let fail = RetryOutcome::RetryableFailure("err".into());
         orch.should_retry("t1", &fail);
         assert_eq!(orch.attempt_count("t1"), 1);
@@ -502,24 +507,17 @@ mod tests {
 
     #[test]
     fn test_orchestrator_permanent_failure() {
-        let mut orch = RetryOrchestrator::new(
-            BackoffStrategy::Constant(Duration::from_millis(50)),
-            5,
-        );
-        let result = orch.should_retry(
-            "t1",
-            &RetryOutcome::PermanentFailure("fatal".into()),
-        );
+        let mut orch =
+            RetryOrchestrator::new(BackoffStrategy::Constant(Duration::from_millis(50)), 5);
+        let result = orch.should_retry("t1", &RetryOutcome::PermanentFailure("fatal".into()));
         assert!(result.is_none());
     }
 
     #[test]
     fn test_orchestrator_with_budget() {
-        let mut orch = RetryOrchestrator::new(
-            BackoffStrategy::Constant(Duration::from_millis(50)),
-            100,
-        )
-        .with_budget(2, Duration::from_secs(60));
+        let mut orch =
+            RetryOrchestrator::new(BackoffStrategy::Constant(Duration::from_millis(50)), 100)
+                .with_budget(2, Duration::from_secs(60));
         let fail = RetryOutcome::RetryableFailure("err".into());
         // Budget allows 2 retries.
         assert!(orch.should_retry("t1", &fail).is_some());
@@ -530,11 +528,9 @@ mod tests {
 
     #[test]
     fn test_orchestrator_reset() {
-        let mut orch = RetryOrchestrator::new(
-            BackoffStrategy::Constant(Duration::from_millis(50)),
-            3,
-        )
-        .with_circuit_breaker(3, Duration::from_secs(10), 1);
+        let mut orch =
+            RetryOrchestrator::new(BackoffStrategy::Constant(Duration::from_millis(50)), 3)
+                .with_circuit_breaker(3, Duration::from_secs(10), 1);
         let fail = RetryOutcome::RetryableFailure("err".into());
         orch.should_retry("t1", &fail);
         orch.should_retry("t1", &fail);

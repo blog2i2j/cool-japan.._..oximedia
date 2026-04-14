@@ -77,7 +77,10 @@ pub mod types;
 
 // Re-export primary types for convenient access
 pub use cache::{CacheManager, CoLocatedMvLookup, MvCache, MvCacheEntry, RefFrameMvs};
-pub use diamond::{AdaptiveDiamond, CrossDiamond, LargeDiamond, PredictorDiamond, SmallDiamond};
+pub use diamond::{
+    AdaptiveDiamond, CrossDiamond, ExtendedDiamond, HexagonalSearch, LargeDiamond,
+    PredictorDiamond, SmallDiamond, UMHexSearch,
+};
 pub use hierarchical::{
     CoarseToFineRefiner, HierarchicalConfig, HierarchicalSearch, ImagePyramid, PyramidLevel,
 };

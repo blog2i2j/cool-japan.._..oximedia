@@ -24,11 +24,14 @@ use oximedia_core::{CodecId, PixelFormat, Rational, Timestamp};
 /// use oximedia_codec::vp8::Vp8Decoder;
 /// use oximedia_codec::traits::{DecoderConfig, VideoDecoder};
 ///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// let config = DecoderConfig::default();
 /// let mut decoder = Vp8Decoder::new(config)?;
 ///
 /// // Decoder is ready to receive packets
 /// assert!(decoder.dimensions().is_none());
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug)]
 pub struct Vp8Decoder {
@@ -71,8 +74,11 @@ impl Vp8Decoder {
     /// use oximedia_codec::vp8::Vp8Decoder;
     /// use oximedia_codec::traits::DecoderConfig;
     ///
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let config = DecoderConfig::default();
     /// let decoder = Vp8Decoder::new(config)?;
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn new(config: DecoderConfig) -> CodecResult<Self> {
         Ok(Self {

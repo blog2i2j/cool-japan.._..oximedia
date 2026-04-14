@@ -260,12 +260,21 @@ impl ComplianceReport {
 
     /// Returns violations filtered by severity.
     pub fn violations_by_severity(&self, severity: Severity) -> Vec<&ComplianceViolation> {
-        self.violations.iter().filter(|v| v.severity == severity).collect()
+        self.violations
+            .iter()
+            .filter(|v| v.severity == severity)
+            .collect()
     }
 
     /// Returns violations filtered by standard.
-    pub fn violations_by_standard(&self, standard: ComplianceStandard) -> Vec<&ComplianceViolation> {
-        self.violations.iter().filter(|v| v.standard == standard).collect()
+    pub fn violations_by_standard(
+        &self,
+        standard: ComplianceStandard,
+    ) -> Vec<&ComplianceViolation> {
+        self.violations
+            .iter()
+            .filter(|v| v.standard == standard)
+            .collect()
     }
 
     /// Returns the highest severity found, if any.
@@ -275,9 +284,10 @@ impl ComplianceReport {
 
     /// Returns true if there are no critical or major violations.
     pub fn is_compliant(&self) -> bool {
-        !self.violations.iter().any(|v| {
-            v.severity == Severity::Critical || v.severity == Severity::Major
-        })
+        !self
+            .violations
+            .iter()
+            .any(|v| v.severity == Severity::Critical || v.severity == Severity::Major)
     }
 
     /// Returns a summary count of violations by severity.
@@ -504,18 +514,17 @@ mod tests {
     use super::*;
 
     fn make_asset(path: &str) -> ComplianceAsset {
-        ComplianceAsset::new(
-            PathBuf::from(path),
-            SystemTime::now(),
-            1024,
-        )
+        ComplianceAsset::new(PathBuf::from(path), SystemTime::now(), 1024)
     }
 
     #[test]
     fn test_compliance_standard_display() {
         assert_eq!(ComplianceStandard::Gdpr.to_string(), "GDPR");
         assert_eq!(ComplianceStandard::Hipaa.to_string(), "HIPAA");
-        assert_eq!(ComplianceStandard::BroadcastContent.to_string(), "Broadcast Content");
+        assert_eq!(
+            ComplianceStandard::BroadcastContent.to_string(),
+            "Broadcast Content"
+        );
         assert_eq!(ComplianceStandard::Sox.to_string(), "SOX");
         assert_eq!(ComplianceStandard::PciDss.to_string(), "PCI-DSS");
     }
@@ -530,23 +539,16 @@ mod tests {
 
     #[test]
     fn test_retention_policy_within_bounds() {
-        let policy = RetentionPolicy::new(
-            "test",
-            ComplianceStandard::Gdpr,
-            Duration::from_secs(86400),
-        );
+        let policy =
+            RetentionPolicy::new("test", ComplianceStandard::Gdpr, Duration::from_hours(24));
         let status = policy.check_retention(SystemTime::now());
         assert_eq!(status, RetentionStatus::WithinRetention);
     }
 
     #[test]
     fn test_retention_policy_with_max() {
-        let policy = RetentionPolicy::new(
-            "test",
-            ComplianceStandard::Gdpr,
-            Duration::from_secs(0),
-        )
-        .with_max_retention(Duration::from_secs(1));
+        let policy = RetentionPolicy::new("test", ComplianceStandard::Gdpr, Duration::from_secs(0))
+            .with_max_retention(Duration::from_secs(1));
         // Just created, should be within
         let status = policy.check_retention(SystemTime::now());
         assert_eq!(status, RetentionStatus::WithinRetention);
@@ -554,8 +556,14 @@ mod tests {
 
     #[test]
     fn test_retention_status_display() {
-        assert_eq!(RetentionStatus::WithinRetention.to_string(), "Within Retention");
-        assert_eq!(RetentionStatus::ExceededMaxRetention.to_string(), "Exceeded Max Retention");
+        assert_eq!(
+            RetentionStatus::WithinRetention.to_string(),
+            "Within Retention"
+        );
+        assert_eq!(
+            RetentionStatus::ExceededMaxRetention.to_string(),
+            "Exceeded Max Retention"
+        );
         assert_eq!(RetentionStatus::LegalHold.to_string(), "Legal Hold");
     }
 
@@ -618,7 +626,10 @@ mod tests {
             .with_access_logged(true);
         let report = checker.check_batch(
             &[asset],
-            &[ComplianceStandard::Hipaa, ComplianceStandard::BroadcastContent],
+            &[
+                ComplianceStandard::Hipaa,
+                ComplianceStandard::BroadcastContent,
+            ],
         );
         assert!(report.is_compliant());
         assert_eq!(report.assets_checked, 1);
@@ -630,7 +641,10 @@ mod tests {
         let asset = make_asset("/test.dat").with_tag("unrated_content");
         let report = checker.check_batch(
             &[asset],
-            &[ComplianceStandard::Hipaa, ComplianceStandard::BroadcastContent],
+            &[
+                ComplianceStandard::Hipaa,
+                ComplianceStandard::BroadcastContent,
+            ],
         );
         let summary = report.severity_summary();
         assert!(summary.contains_key("CRITICAL"));

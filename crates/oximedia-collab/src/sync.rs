@@ -5,11 +5,9 @@
 
 use crate::session::Session;
 use crate::{CollabConfig, CollabError, Result};
-use flate2::read::{GzDecoder, GzEncoder};
-use flate2::Compression;
+use oxiarc_deflate::{gzip_compress, gzip_decompress};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
-use std::io::Read;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 use uuid::Uuid;
@@ -91,22 +89,13 @@ impl CompressedMessage {
 
 /// Compress data using gzip
 fn compress_data(data: &[u8]) -> Result<Vec<u8>> {
-    let mut encoder = GzEncoder::new(data, Compression::default());
-    let mut compressed = Vec::new();
-    encoder
-        .read_to_end(&mut compressed)
-        .map_err(|e| CollabError::SyncError(format!("Compression failed: {}", e)))?;
-    Ok(compressed)
+    gzip_compress(data, 6).map_err(|e| CollabError::SyncError(format!("Compression failed: {}", e)))
 }
 
 /// Decompress data using gzip
 fn decompress_data(data: &[u8]) -> Result<Vec<u8>> {
-    let mut decoder = GzDecoder::new(data);
-    let mut decompressed = Vec::new();
-    decoder
-        .read_to_end(&mut decompressed)
-        .map_err(|e| CollabError::SyncError(format!("Decompression failed: {}", e)))?;
-    Ok(decompressed)
+    gzip_decompress(data)
+        .map_err(|e| CollabError::SyncError(format!("Decompression failed: {}", e)))
 }
 
 /// Sync connection state

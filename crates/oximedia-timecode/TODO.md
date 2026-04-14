@@ -26,9 +26,9 @@
 - [ ] Implement `jam_sync` module for syncing local timecode generator to external timecode reference with holdover
 - [ ] Add `timecode_event` module for event-triggered timecode capture (mark in/out points, cue triggers)
 - [ ] Implement `ndf_to_df` and `df_to_ndf` conversion utilities in `tc_convert` for workflow interop
-- [ ] Add `embedded_tc` module for reading/writing ATC (Ancillary Timecode) in SDI ancillary data packets
-- [ ] Implement `timecode_log` module for recording timecode-stamped production notes and metadata events
-- [ ] Add `timecode_display` module for formatting timecode in different regional conventions (SMPTE vs EBU)
+- [x] Add `embedded_tc` module for reading/writing ATC (Ancillary Timecode) in SDI ancillary data packets
+- [x] Implement `timecode_log` module for recording timecode-stamped production notes and metadata events
+- [x] Add `timecode_display` module for formatting timecode in different regional conventions (SMPTE vs EBU)
 
 ## Performance
 - [ ] Cache frame count in `Timecode` struct to avoid recomputing `to_frames()` on repeated access

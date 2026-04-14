@@ -79,6 +79,7 @@
 
 use rayon::prelude::*;
 
+pub mod adaptive_threshold;
 pub mod analysis;
 pub mod audio_scene_boundary;
 pub mod boundary;
@@ -89,6 +90,7 @@ pub mod classify;
 pub mod color_continuity;
 pub mod color_histogram;
 pub mod composition;
+pub mod confidence_calibration;
 pub mod continuity;
 pub mod coverage;
 pub mod coverage_map;
@@ -102,8 +104,11 @@ pub mod flash_detection;
 pub mod frame_buffer;
 pub mod framing;
 pub mod framing_guide;
+pub mod golden_ratio;
+pub mod insert_cutaway;
 pub mod log;
 pub mod metrics;
+pub mod ml_boundary;
 pub mod pacing;
 pub mod pattern;
 pub mod rating;
@@ -111,12 +116,17 @@ pub mod realtime;
 pub mod scene;
 pub mod scene_graph;
 pub mod shot_annotation;
+pub mod shot_classifier;
+pub mod shot_density;
 pub mod shot_grouping;
 pub mod shot_matching;
+pub mod shot_metadata;
+pub mod shot_palette;
 pub mod shot_report;
 pub mod shot_rhythm;
 pub mod shot_similarity;
 pub mod shot_stats;
+pub mod shot_tempo;
 pub mod shot_transition;
 pub mod shot_type;
 pub mod storyboard;
@@ -124,6 +134,8 @@ pub mod temporal_fingerprint;
 pub mod transition_analysis;
 pub mod types;
 pub mod visualize;
+pub mod wipe_direction;
+pub mod wipe_patterns;
 
 // Re-export commonly used items at crate root
 pub use error::{ShotError, ShotResult};

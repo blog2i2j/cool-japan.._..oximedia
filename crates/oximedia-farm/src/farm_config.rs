@@ -4,18 +4,57 @@
 //! Provides a layered configuration model on top of
 //! [`crate::CoordinatorConfig`] / [`crate::WorkerConfig`] with support for
 //! named encoding profiles, resource quotas, and environment-specific
-//! overrides. All structs are pure Rust with no additional dependencies
-//! beyond what the crate already uses.
+//! overrides. Supports YAML and TOML serialisation/deserialisation.
 
 use std::collections::HashMap;
+use std::path::Path;
 use std::time::Duration;
+
+// ---------------------------------------------------------------------------
+// Error type
+// ---------------------------------------------------------------------------
+
+/// Errors that can occur when loading or saving farm configuration.
+#[derive(Debug, thiserror::Error)]
+pub enum FarmConfigError {
+    /// I/O error reading or writing a file.
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
+    /// YAML parse or serialization error.
+    #[error("YAML error: {0}")]
+    Yaml(String),
+    /// TOML parse error.
+    #[error("TOML parse error: {0}")]
+    TomlDe(String),
+    /// TOML serialization error.
+    #[error("TOML serialize error: {0}")]
+    TomlSer(String),
+}
+
+// ---------------------------------------------------------------------------
+// Custom serde helper for Duration (stored as seconds)
+// ---------------------------------------------------------------------------
+
+mod duration_secs {
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+    use std::time::Duration;
+
+    pub fn serialize<S: Serializer>(dur: &Duration, ser: S) -> Result<S::Ok, S::Error> {
+        dur.as_secs().serialize(ser)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(de: D) -> Result<Duration, D::Error> {
+        let secs = u64::deserialize(de)?;
+        Ok(Duration::from_secs(secs))
+    }
+}
 
 // ---------------------------------------------------------------------------
 // Encoding profile
 // ---------------------------------------------------------------------------
 
 /// A named encoding profile describing target codec parameters.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct EncodingProfile {
     /// Human-readable profile name (e.g. "broadcast-hd").
     pub name: String,
@@ -92,7 +131,7 @@ impl EncodingProfile {
 // ---------------------------------------------------------------------------
 
 /// Resource quota that limits what a single job may consume.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct ResourceQuota {
     /// Maximum CPU cores a single job may use.
     pub max_cpu_cores: u32,
@@ -100,7 +139,8 @@ pub struct ResourceQuota {
     pub max_memory_mib: u64,
     /// Maximum GPU devices.
     pub max_gpus: u32,
-    /// Maximum wall-clock duration.
+    /// Maximum wall-clock duration in seconds.
+    #[serde(with = "duration_secs")]
     pub max_wall_time: Duration,
     /// Maximum disk scratch space in MiB.
     pub max_scratch_mib: u64,
@@ -141,7 +181,7 @@ impl ResourceQuota {
 // ---------------------------------------------------------------------------
 
 /// Farm-wide configuration aggregating profiles, quotas, and policies.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct FarmConfig {
     /// Named encoding profiles.
     pub profiles: HashMap<String, EncodingProfile>,
@@ -156,7 +196,8 @@ pub struct FarmConfig {
     /// Maximum number of retries for any task in the farm.
     pub global_max_retries: u32,
     /// Grace period after a worker misses a heartbeat before it is
-    /// considered dead.
+    /// considered dead (stored as seconds).
+    #[serde(with = "duration_secs")]
     pub heartbeat_grace: Duration,
 }
 
@@ -184,6 +225,70 @@ impl FarmConfig {
     pub fn new() -> Self {
         Self::default()
     }
+
+    // ── I/O helpers ──────────────────────────────────────────────────────────
+
+    /// Load a `FarmConfig` from a YAML file.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FarmConfigError::Io` if the file cannot be read, or
+    /// `FarmConfigError::Yaml` if the content is not valid YAML.
+    pub fn from_yaml_file(path: &Path) -> Result<Self, FarmConfigError> {
+        let s = std::fs::read_to_string(path)?;
+        Self::from_str_yaml(&s)
+    }
+
+    /// Load a `FarmConfig` from a TOML file.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FarmConfigError::Io` if the file cannot be read, or
+    /// `FarmConfigError::TomlDe` if the content is not valid TOML.
+    pub fn from_toml_file(path: &Path) -> Result<Self, FarmConfigError> {
+        let s = std::fs::read_to_string(path)?;
+        Self::from_str_toml(&s)
+    }
+
+    /// Parse a `FarmConfig` from a YAML string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FarmConfigError::Yaml` if the string is not valid YAML or
+    /// cannot be deserialised into `FarmConfig`.
+    pub fn from_str_yaml(s: &str) -> Result<Self, FarmConfigError> {
+        serde_yaml_ng::from_str(s).map_err(|e| FarmConfigError::Yaml(e.to_string()))
+    }
+
+    /// Parse a `FarmConfig` from a TOML string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FarmConfigError::TomlDe` if the string is not valid TOML or
+    /// cannot be deserialised into `FarmConfig`.
+    pub fn from_str_toml(s: &str) -> Result<Self, FarmConfigError> {
+        toml::from_str(s).map_err(|e| FarmConfigError::TomlDe(e.to_string()))
+    }
+
+    /// Serialise this `FarmConfig` to a YAML string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FarmConfigError::Yaml` if serialisation fails.
+    pub fn to_yaml(&self) -> Result<String, FarmConfigError> {
+        serde_yaml_ng::to_string(self).map_err(|e| FarmConfigError::Yaml(e.to_string()))
+    }
+
+    /// Serialise this `FarmConfig` to a TOML string.
+    ///
+    /// # Errors
+    ///
+    /// Returns `FarmConfigError::TomlSer` if serialisation fails.
+    pub fn to_toml(&self) -> Result<String, FarmConfigError> {
+        toml::to_string(self).map_err(|e| FarmConfigError::TomlSer(e.to_string()))
+    }
+
+    // ── Profile / quota management ────────────────────────────────────────────
 
     /// Add or replace an encoding profile.
     pub fn add_profile(&mut self, profile: EncodingProfile) {
@@ -233,225 +338,15 @@ impl FarmConfig {
 }
 
 // ---------------------------------------------------------------------------
-// TOML / config-file loading
-// ---------------------------------------------------------------------------
-
-/// Intermediate serde types used exclusively for TOML deserialization.
-mod toml_schema {
-    use serde::Deserialize;
-    use std::collections::HashMap;
-
-    #[derive(Debug, Deserialize, Default)]
-    pub struct TomlRoot {
-        #[serde(default)]
-        pub farm: TomlFarm,
-        #[serde(default)]
-        pub profiles: Vec<TomlProfile>,
-        #[serde(default)]
-        pub quotas: Vec<TomlQuota>,
-    }
-
-    #[derive(Debug, Deserialize, Default)]
-    pub struct TomlFarm {
-        pub default_profile: Option<String>,
-        pub default_quota: Option<String>,
-        #[serde(default)]
-        pub emergency_override: bool,
-        pub global_max_retries: Option<u32>,
-        pub heartbeat_grace_secs: Option<u64>,
-    }
-
-    #[derive(Debug, Deserialize, Default)]
-    pub struct TomlProfile {
-        pub name: String,
-        #[serde(default = "default_h264")]
-        pub codec: String,
-        #[serde(default = "default_mp4")]
-        pub container: String,
-        #[serde(default)]
-        pub bitrate_kbps: u32,
-        #[serde(default)]
-        pub crf: u8,
-        #[serde(default = "default_1920")]
-        pub width: u32,
-        #[serde(default = "default_1080")]
-        pub height: u32,
-        #[serde(default = "default_30")]
-        pub fps_num: u32,
-        #[serde(default = "default_1")]
-        pub fps_den: u32,
-        #[serde(default = "default_1u8")]
-        pub passes: u8,
-        #[serde(default)]
-        pub extra: HashMap<String, String>,
-    }
-
-    #[derive(Debug, Deserialize, Default)]
-    pub struct TomlQuota {
-        pub name: String,
-        #[serde(default = "default_4")]
-        pub max_cpu_cores: u32,
-        #[serde(default = "default_8192")]
-        pub max_memory_mib: u64,
-        #[serde(default = "default_1")]
-        pub max_gpus: u32,
-        #[serde(default = "default_3600")]
-        pub max_wall_time_secs: u64,
-        #[serde(default = "default_10240")]
-        pub max_scratch_mib: u64,
-    }
-
-    fn default_h264() -> String {
-        "h264".to_string()
-    }
-    fn default_mp4() -> String {
-        "mp4".to_string()
-    }
-    fn default_1920() -> u32 {
-        1920
-    }
-    fn default_1080() -> u32 {
-        1080
-    }
-    fn default_30() -> u32 {
-        30
-    }
-    fn default_1() -> u32 {
-        1
-    }
-    fn default_1u8() -> u8 {
-        1
-    }
-    fn default_4() -> u32 {
-        4
-    }
-    fn default_8192() -> u64 {
-        8192
-    }
-    fn default_3600() -> u64 {
-        3600
-    }
-    fn default_10240() -> u64 {
-        10240
-    }
-}
-
-/// Load a [`FarmConfig`] from a TOML string.
-///
-/// The expected schema is:
-///
-/// ```toml
-/// [farm]
-/// default_profile = "hd-h264"
-/// default_quota = "standard"
-/// emergency_override = false
-/// global_max_retries = 3
-/// heartbeat_grace_secs = 90
-///
-/// [[profiles]]
-/// name = "hd-h264"
-/// codec = "h264"
-/// container = "mp4"
-/// bitrate_kbps = 8000
-/// crf = 0
-/// width = 1920
-/// height = 1080
-/// fps_num = 30
-/// fps_den = 1
-/// passes = 1
-///
-/// [[quotas]]
-/// name = "standard"
-/// max_cpu_cores = 8
-/// max_memory_mib = 16384
-/// max_gpus = 1
-/// max_wall_time_secs = 3600
-/// max_scratch_mib = 20480
-/// ```
-///
-/// All fields in `[[profiles]]` and `[[quotas]]` except `name` are optional
-/// and fall back to the same defaults as [`EncodingProfile::default`] and
-/// [`ResourceQuota::default`].
-///
-/// # Errors
-///
-/// Returns [`crate::FarmError::InvalidConfig`] when the TOML cannot be parsed
-/// or contains structurally invalid data.
-pub fn load_farm_config_from_toml(toml_str: &str) -> crate::Result<FarmConfig> {
-    use std::time::Duration;
-    use toml_schema::TomlRoot;
-
-    let root: TomlRoot = toml::from_str(toml_str)
-        .map_err(|e| crate::FarmError::InvalidConfig(format!("TOML parse error: {e}")))?;
-
-    let mut cfg = FarmConfig::new();
-
-    // ── [farm] section ────────────────────────────────────────────────────────
-    let farm = &root.farm;
-    if let Some(ref dp) = farm.default_profile {
-        cfg.default_profile = dp.clone();
-    }
-    if let Some(ref dq) = farm.default_quota {
-        cfg.default_quota = dq.clone();
-    }
-    cfg.emergency_override = farm.emergency_override;
-    if let Some(retries) = farm.global_max_retries {
-        cfg.global_max_retries = retries;
-    }
-    if let Some(grace) = farm.heartbeat_grace_secs {
-        cfg.heartbeat_grace = Duration::from_secs(grace);
-    }
-
-    // ── [[profiles]] section ──────────────────────────────────────────────────
-    for tp in &root.profiles {
-        if tp.name.is_empty() {
-            return Err(crate::FarmError::InvalidConfig(
-                "profile entry missing required 'name' field".to_string(),
-            ));
-        }
-        let profile = EncodingProfile {
-            name: tp.name.clone(),
-            codec: tp.codec.clone(),
-            container: tp.container.clone(),
-            bitrate_kbps: tp.bitrate_kbps,
-            crf: tp.crf,
-            width: tp.width,
-            height: tp.height,
-            fps_num: tp.fps_num,
-            fps_den: tp.fps_den,
-            passes: tp.passes,
-            extra: tp.extra.clone(),
-        };
-        cfg.add_profile(profile);
-    }
-
-    // ── [[quotas]] section ────────────────────────────────────────────────────
-    for tq in &root.quotas {
-        if tq.name.is_empty() {
-            return Err(crate::FarmError::InvalidConfig(
-                "quota entry missing required 'name' field".to_string(),
-            ));
-        }
-        let quota = ResourceQuota {
-            max_cpu_cores: tq.max_cpu_cores,
-            max_memory_mib: tq.max_memory_mib,
-            max_gpus: tq.max_gpus,
-            max_wall_time: Duration::from_secs(tq.max_wall_time_secs),
-            max_scratch_mib: tq.max_scratch_mib,
-        };
-        cfg.add_quota(tq.name.clone(), quota);
-    }
-
-    Ok(cfg)
-}
-
-// ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write as _;
+
+    // ── Original unit tests ───────────────────────────────────────────────────
 
     #[test]
     fn test_encoding_profile_default() {
@@ -491,7 +386,7 @@ mod tests {
 
     #[test]
     fn test_is_not_crf_mode() {
-        let p = EncodingProfile::default(); // bitrate > 0, crf = 0
+        let p = EncodingProfile::default();
         assert!(!p.is_crf_mode());
     }
 
@@ -517,9 +412,7 @@ mod tests {
         let mut cfg = FarmConfig::new();
         cfg.add_profile(EncodingProfile::new("4k-hevc", "hevc"));
         assert_eq!(cfg.profile_count(), 2);
-        let p = cfg
-            .get_profile("4k-hevc")
-            .expect("get_profile should succeed");
+        let p = cfg.get_profile("4k-hevc").expect("profile should exist");
         assert_eq!(p.codec, "hevc");
     }
 
@@ -528,7 +421,7 @@ mod tests {
         let mut cfg = FarmConfig::new();
         cfg.add_quota("heavy", ResourceQuota::new(32, 65536));
         assert_eq!(cfg.quota_count(), 2);
-        let q = cfg.get_quota("heavy").expect("get_quota should succeed");
+        let q = cfg.get_quota("heavy").expect("quota should exist");
         assert_eq!(q.max_cpu_cores, 32);
     }
 
@@ -549,91 +442,148 @@ mod tests {
         let p = EncodingProfile::new("web", "vp9");
         assert_eq!(p.name, "web");
         assert_eq!(p.codec, "vp9");
-        assert_eq!(p.container, "mp4"); // default
+        assert_eq!(p.container, "mp4");
     }
 
-    // ── TOML loading ──────────────────────────────────────────────────────────
+    // ── TOML round-trip ───────────────────────────────────────────────────────
 
     #[test]
-    fn test_load_farm_config_from_toml_basic() {
-        let toml = r#"
-[farm]
-default_profile = "hd"
-default_quota = "std"
-emergency_override = true
-global_max_retries = 5
-heartbeat_grace_secs = 120
-"#;
-        let cfg = super::load_farm_config_from_toml(toml).expect("should parse");
-        assert_eq!(cfg.default_profile, "hd");
-        assert_eq!(cfg.default_quota, "std");
-        assert!(cfg.emergency_override);
-        assert_eq!(cfg.global_max_retries, 5);
-        assert_eq!(cfg.heartbeat_grace, std::time::Duration::from_secs(120));
+    fn test_toml_round_trip_default() {
+        let cfg = FarmConfig::new();
+        let toml_str = cfg.to_toml().expect("serialize to TOML");
+        assert!(!toml_str.is_empty());
+        let restored: FarmConfig = FarmConfig::from_str_toml(&toml_str).expect("deserialize TOML");
+        assert_eq!(restored.default_profile, cfg.default_profile);
+        assert_eq!(restored.default_quota, cfg.default_quota);
+        assert_eq!(restored.global_max_retries, cfg.global_max_retries);
+        assert_eq!(restored.heartbeat_grace, cfg.heartbeat_grace);
+        assert_eq!(restored.emergency_override, cfg.emergency_override);
     }
 
     #[test]
-    fn test_load_farm_config_from_toml_with_profiles_and_quotas() {
-        let toml = r#"
-[farm]
-default_profile = "broadcast"
-default_quota = "heavy"
+    fn test_toml_round_trip_with_extra_profile() {
+        let mut cfg = FarmConfig::new();
+        let mut extra = HashMap::new();
+        extra.insert("x265-preset".to_string(), "slow".to_string());
+        cfg.add_profile(EncodingProfile {
+            name: "cinema-4k".to_string(),
+            codec: "hevc".to_string(),
+            container: "mkv".to_string(),
+            bitrate_kbps: 0,
+            crf: 18,
+            width: 3840,
+            height: 2160,
+            fps_num: 24,
+            fps_den: 1,
+            passes: 2,
+            extra,
+        });
+        cfg.add_quota("heavy", ResourceQuota::new(16, 32768));
 
-[[profiles]]
-name = "broadcast"
-codec = "hevc"
-container = "ts"
-bitrate_kbps = 15000
-width = 1920
-height = 1080
-fps_num = 50
-fps_den = 1
-passes = 2
-
-[[quotas]]
-name = "heavy"
-max_cpu_cores = 16
-max_memory_mib = 32768
-max_gpus = 2
-max_wall_time_secs = 7200
-max_scratch_mib = 51200
-"#;
-        let cfg = super::load_farm_config_from_toml(toml).expect("should parse");
-        // Profiles: the built-in "default" + "broadcast"
-        assert_eq!(cfg.profile_count(), 2);
-        let p = cfg.get_profile("broadcast").expect("profile should exist");
-        assert_eq!(p.codec, "hevc");
-        assert_eq!(p.bitrate_kbps, 15000);
-        assert_eq!(p.fps_num, 50);
-        assert_eq!(p.passes, 2);
-
-        // Quotas: built-in "default" + "heavy"
-        assert_eq!(cfg.quota_count(), 2);
-        let q = cfg.get_quota("heavy").expect("quota should exist");
-        assert_eq!(q.max_cpu_cores, 16);
-        assert_eq!(q.max_memory_mib, 32768);
-        assert_eq!(q.max_gpus, 2);
+        let toml_str = cfg.to_toml().expect("serialize to TOML");
+        let restored = FarmConfig::from_str_toml(&toml_str).expect("deserialize TOML");
+        assert_eq!(cfg, restored);
     }
 
     #[test]
-    fn test_load_farm_config_from_toml_invalid_returns_error() {
-        let bad_toml = "this is [not valid toml!!";
-        let result = super::load_farm_config_from_toml(bad_toml);
+    fn test_toml_file_round_trip() {
+        let cfg = FarmConfig::new();
+        let mut f = tempfile::NamedTempFile::new().expect("tempfile");
+        let toml_str = cfg.to_toml().expect("serialize");
+        f.write_all(toml_str.as_bytes()).expect("write");
+        let path = f.path().to_path_buf();
+        let restored = FarmConfig::from_toml_file(&path).expect("from_toml_file");
+        assert_eq!(restored.default_profile, cfg.default_profile);
+        assert_eq!(restored.heartbeat_grace, cfg.heartbeat_grace);
+    }
+
+    // ── YAML round-trip ───────────────────────────────────────────────────────
+
+    #[test]
+    fn test_yaml_round_trip_default() {
+        let cfg = FarmConfig::new();
+        let yaml_str = cfg.to_yaml().expect("serialize to YAML");
+        assert!(!yaml_str.is_empty());
+        let restored = FarmConfig::from_str_yaml(&yaml_str).expect("deserialize YAML");
+        assert_eq!(restored.default_profile, cfg.default_profile);
+        assert_eq!(restored.default_quota, cfg.default_quota);
+        assert_eq!(restored.global_max_retries, cfg.global_max_retries);
+        assert_eq!(restored.heartbeat_grace, cfg.heartbeat_grace);
+    }
+
+    #[test]
+    fn test_yaml_round_trip_with_extra_profile() {
+        let mut cfg = FarmConfig::new();
+        cfg.add_profile(EncodingProfile::new("web-vp9", "vp9"));
+        cfg.add_quota("light", ResourceQuota::new(2, 4096));
+        cfg.emergency_override = true;
+
+        let yaml_str = cfg.to_yaml().expect("serialize to YAML");
+        let restored = FarmConfig::from_str_yaml(&yaml_str).expect("deserialize YAML");
+        assert_eq!(cfg, restored);
+    }
+
+    #[test]
+    fn test_yaml_file_round_trip() {
+        let mut cfg = FarmConfig::new();
+        cfg.global_max_retries = 7;
+        cfg.heartbeat_grace = Duration::from_secs(120);
+
+        let mut f = tempfile::NamedTempFile::new().expect("tempfile");
+        let yaml_str = cfg.to_yaml().expect("serialize");
+        f.write_all(yaml_str.as_bytes()).expect("write");
+        let path = f.path().to_path_buf();
+        let restored = FarmConfig::from_yaml_file(&path).expect("from_yaml_file");
+        assert_eq!(restored.global_max_retries, 7);
+        assert_eq!(restored.heartbeat_grace, Duration::from_secs(120));
+    }
+
+    #[test]
+    fn test_yaml_invalid_returns_error() {
+        let result = FarmConfig::from_str_yaml("not: valid: yaml: {{{");
         assert!(result.is_err());
-        let err = result.unwrap_err();
-        assert!(
-            err.to_string().contains("TOML parse error")
-                || err.to_string().contains("Invalid configuration")
-        );
     }
 
     #[test]
-    fn test_load_farm_config_from_toml_empty_input_uses_defaults() {
-        let cfg = super::load_farm_config_from_toml("").expect("empty TOML should parse");
-        // Should have the default profile and quota already present from FarmConfig::new().
-        assert_eq!(cfg.profile_count(), 1);
-        assert_eq!(cfg.quota_count(), 1);
-        assert_eq!(cfg.default_profile, "default");
-        assert_eq!(cfg.default_quota, "default");
+    fn test_toml_invalid_returns_error() {
+        let result = FarmConfig::from_str_toml("not = [valid toml");
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_duration_serde_via_toml() {
+        // Verify that Duration fields survive TOML round-trip with correct seconds
+        let mut cfg = FarmConfig::new();
+        cfg.heartbeat_grace = Duration::from_secs(45);
+        let toml_str = cfg.to_toml().expect("serialize");
+        let restored = FarmConfig::from_str_toml(&toml_str).expect("deserialize");
+        assert_eq!(restored.heartbeat_grace.as_secs(), 45);
+    }
+
+    #[test]
+    fn test_duration_serde_via_yaml() {
+        let mut cfg = FarmConfig::new();
+        cfg.heartbeat_grace = Duration::from_secs(300);
+        let yaml_str = cfg.to_yaml().expect("serialize");
+        let restored = FarmConfig::from_str_yaml(&yaml_str).expect("deserialize");
+        assert_eq!(restored.heartbeat_grace.as_secs(), 300);
+    }
+
+    #[test]
+    fn test_toml_contains_expected_keys() {
+        let cfg = FarmConfig::new();
+        let toml_str = cfg.to_toml().expect("serialize");
+        assert!(toml_str.contains("default_profile"));
+        assert!(toml_str.contains("global_max_retries"));
+        assert!(toml_str.contains("heartbeat_grace"));
+    }
+
+    #[test]
+    fn test_yaml_contains_expected_keys() {
+        let cfg = FarmConfig::new();
+        let yaml_str = cfg.to_yaml().expect("serialize");
+        assert!(yaml_str.contains("default_profile"));
+        assert!(yaml_str.contains("global_max_retries"));
+        assert!(yaml_str.contains("heartbeat_grace"));
     }
 }

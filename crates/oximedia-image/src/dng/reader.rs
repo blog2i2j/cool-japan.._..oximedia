@@ -451,10 +451,10 @@ impl DngReader {
 }
 
 fn decompress_deflate_dng(data: &[u8]) -> ImageResult<Vec<u8>> {
-    use flate2::read::ZlibDecoder;
+    use oxiarc_deflate::ZlibStreamDecoder;
     use std::io::Read;
 
-    let mut decoder = ZlibDecoder::new(data);
+    let mut decoder = ZlibStreamDecoder::new(data);
     let mut output = Vec::new();
     decoder
         .read_to_end(&mut output)

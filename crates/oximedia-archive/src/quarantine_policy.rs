@@ -301,7 +301,8 @@ impl QuarantineInventory {
 
     /// Add a record to the inventory.
     pub fn add(&mut self, id: u64, quarantine_epoch_secs: u64, size_bytes: u64, path: PathBuf) {
-        self.records.push((id, quarantine_epoch_secs, size_bytes, path));
+        self.records
+            .push((id, quarantine_epoch_secs, size_bytes, path));
     }
 
     /// Total number of records.
@@ -572,12 +573,15 @@ mod tests {
         let evicted = policy.select_for_eviction(&records, &req);
         let freed: u64 = evicted
             .iter()
-            .map(|id| records.iter().find(|(r, _, _)| r == id).map(|(_, _, s)| *s).unwrap_or(0))
+            .map(|id| {
+                records
+                    .iter()
+                    .find(|(r, _, _)| r == id)
+                    .map(|(_, _, s)| *s)
+                    .unwrap_or(0)
+            })
             .sum();
-        assert!(
-            freed >= 250,
-            "freed {freed} bytes, expected at least 250"
-        );
+        assert!(freed >= 250, "freed {freed} bytes, expected at least 250");
     }
 
     // --- QuarantineInventory ---
@@ -639,7 +643,11 @@ mod tests {
         assert_eq!(p.allow_restore, false);
         assert_eq!(p.secure_delete, true);
         assert!(p.max_single_file_bytes.is_some());
-        assert!(p.auto_cleanup_after_days.expect("strict policy should have auto_cleanup_after_days") <= 30);
+        assert!(
+            p.auto_cleanup_after_days
+                .expect("strict policy should have auto_cleanup_after_days")
+                <= 30
+        );
     }
 
     #[test]

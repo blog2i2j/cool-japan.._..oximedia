@@ -104,12 +104,15 @@ impl VideoCodec {
     }
 }
 
-/// Supported audio codecs (patent-free only).
+/// Supported audio codecs.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AudioCodec {
     Opus,
     Vorbis,
     Flac,
+    Pcm,
+    Aac,
+    Mp3,
 }
 
 impl AudioCodec {
@@ -119,6 +122,9 @@ impl AudioCodec {
             "opus" | "libopus" => Ok(Self::Opus),
             "vorbis" | "libvorbis" => Ok(Self::Vorbis),
             "flac" => Ok(Self::Flac),
+            "pcm" | "pcm_s16le" | "pcm_s24le" | "pcm_f32le" | "wav" => Ok(Self::Pcm),
+            "aac" | "libfdk_aac" => Ok(Self::Aac),
+            "mp3" | "libmp3lame" | "lame" => Ok(Self::Mp3),
             _ => Err(anyhow!("Unsupported audio codec: {}", s)),
         }
     }
@@ -129,6 +135,9 @@ impl AudioCodec {
             Self::Opus => "Opus",
             Self::Vorbis => "Vorbis",
             Self::Flac => "FLAC",
+            Self::Pcm => "PCM",
+            Self::Aac => "AAC",
+            Self::Mp3 => "MP3",
         }
     }
 }
@@ -371,6 +380,9 @@ fn parse_audio_codec(options: &TranscodeOptions) -> Result<Option<AudioCodec>> {
             match ext.to_str() {
                 Some("webm") | Some("mkv") => Ok(Some(AudioCodec::Opus)),
                 Some("flac") => Ok(Some(AudioCodec::Flac)),
+                Some("wav") => Ok(Some(AudioCodec::Pcm)),
+                Some("mp4") | Some("m4a") => Ok(Some(AudioCodec::Aac)),
+                Some("mp3") => Ok(Some(AudioCodec::Mp3)),
                 _ => Ok(None),
             }
         } else {
@@ -712,7 +724,39 @@ mod tests {
             AudioCodec::from_str("flac").expect("flac should parse"),
             AudioCodec::Flac
         );
-        assert!(AudioCodec::from_str("aac").is_err());
+        assert_eq!(
+            AudioCodec::from_str("pcm").expect("pcm should parse"),
+            AudioCodec::Pcm
+        );
+        assert_eq!(
+            AudioCodec::from_str("pcm_s16le").expect("pcm_s16le should parse"),
+            AudioCodec::Pcm
+        );
+        assert_eq!(
+            AudioCodec::from_str("wav").expect("wav should parse"),
+            AudioCodec::Pcm
+        );
+        assert_eq!(
+            AudioCodec::from_str("aac").expect("aac should parse"),
+            AudioCodec::Aac
+        );
+        assert_eq!(
+            AudioCodec::from_str("libfdk_aac").expect("libfdk_aac should parse"),
+            AudioCodec::Aac
+        );
+        assert_eq!(
+            AudioCodec::from_str("mp3").expect("mp3 should parse"),
+            AudioCodec::Mp3
+        );
+        assert_eq!(
+            AudioCodec::from_str("libmp3lame").expect("libmp3lame should parse"),
+            AudioCodec::Mp3
+        );
+        assert_eq!(
+            AudioCodec::from_str("lame").expect("lame should parse"),
+            AudioCodec::Mp3
+        );
+        assert!(AudioCodec::from_str("unknown_codec").is_err());
     }
 
     #[test]

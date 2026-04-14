@@ -316,7 +316,7 @@ mod tests {
         let m = sample_manifest();
         let s = m.find_stream(1);
         assert!(s.is_some());
-        assert_eq!(s.expect("stream 1 should exist").codec, "opus");
+        assert_eq!(s.unwrap().codec, "opus");
     }
 
     #[test]

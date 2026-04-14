@@ -809,9 +809,9 @@ fn decompress_packbits(data: &[u8]) -> ImageResult<Vec<u8>> {
 }
 
 fn decompress_deflate(data: &[u8]) -> ImageResult<Vec<u8>> {
-    use flate2::read::ZlibDecoder;
+    use oxiarc_deflate::ZlibStreamDecoder;
 
-    let mut decoder = ZlibDecoder::new(data);
+    let mut decoder = ZlibStreamDecoder::new(data);
     let mut output = Vec::new();
     decoder
         .read_to_end(&mut output)
@@ -952,10 +952,9 @@ fn find_literal_length(data: &[u8]) -> usize {
 }
 
 fn compress_deflate(data: &[u8]) -> ImageResult<Vec<u8>> {
-    use flate2::write::ZlibEncoder;
-    use flate2::Compression;
+    use oxiarc_deflate::ZlibStreamEncoder;
 
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
+    let mut encoder = ZlibStreamEncoder::new(Vec::new(), 6);
     encoder
         .write_all(data)
         .map_err(|e| ImageError::Compression(format!("Deflate compression failed: {e}")))?;

@@ -144,6 +144,21 @@ pub mod utils;
 /// Per-frame luma/chroma statistics and broadcast safety analysis.
 pub mod video_measure;
 
+/// Auto-fix suggestions and application for common QC failures.
+pub mod auto_fix;
+/// IMF (Interoperable Master Format) compliance checking (SMPTE ST 2067/ST 2084).
+pub mod imf_compliance;
+/// QC comparison mode — diff two media files and highlight quality differences.
+pub mod qc_compare;
+/// QC report delivery: email, webhook, and Slack notification targets.
+pub mod qc_delivery;
+/// Additional QC extensions and checker implementations.
+pub mod qc_extensions;
+/// QC watch-folder scanning — automatically validates files on arrival.
+pub mod qc_watch_folder;
+/// Network stream QC — validate live RTMP/SRT/HLS streams in real-time.
+pub mod stream_qc;
+
 #[cfg(feature = "database")]
 pub mod database;
 

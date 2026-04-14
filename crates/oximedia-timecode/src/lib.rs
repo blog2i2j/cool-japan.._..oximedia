@@ -19,17 +19,21 @@
 )]
 
 pub mod burn_in;
+pub mod compare;
 pub mod continuity;
 pub mod drop_frame;
 pub mod duration;
+pub mod embedded_tc;
 pub mod frame_offset;
 pub mod frame_rate;
 pub mod jam_sync;
 pub mod ltc;
 pub mod ltc_encoder;
 pub mod ltc_parser;
+pub mod ltc_simd;
 pub mod midi_timecode;
 pub mod reader;
+pub mod subframe;
 pub mod sync;
 pub mod sync_map;
 pub mod tc_calculator;
@@ -37,6 +41,7 @@ pub mod tc_compare;
 pub mod tc_convert;
 pub mod tc_drift;
 pub mod tc_interpolate;
+pub mod tc_list;
 pub mod tc_math;
 pub mod tc_metadata;
 pub mod tc_offset_table;
@@ -46,9 +51,12 @@ pub mod tc_smpte_ranges;
 pub mod tc_subtitle_sync;
 pub mod tc_validator;
 pub mod timecode_calculator;
+pub mod timecode_display;
 pub mod timecode_event;
 pub mod timecode_format;
 pub mod timecode_generator;
+pub mod timecode_log;
+pub mod timecode_overlay;
 pub mod timecode_range;
 pub mod vitc;
 
