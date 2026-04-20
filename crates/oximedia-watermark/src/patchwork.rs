@@ -38,10 +38,13 @@ pub struct PatchworkEmbedder {
 
 impl PatchworkEmbedder {
     /// Create a new patchwork embedder.
-    #[must_use]
-    pub fn new(config: PatchworkConfig) -> Self {
-        let codec = PayloadCodec::new(16, 8).expect("should succeed in test");
-        Self { config, codec }
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the Reed-Solomon codec cannot be initialised.
+    pub fn new(config: PatchworkConfig) -> WatermarkResult<Self> {
+        let codec = PayloadCodec::new(16, 8)?;
+        Ok(Self { config, codec })
     }
 
     /// Embed watermark using patchwork algorithm.
@@ -337,7 +340,7 @@ mod tests {
             key: 42,
         };
 
-        let embedder = PatchworkEmbedder::new(config);
+        let embedder = PatchworkEmbedder::new(config).unwrap();
 
         let samples: Vec<f32> = vec![0.0; 100000];
         let payload = b"Test";

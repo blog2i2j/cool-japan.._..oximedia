@@ -200,15 +200,22 @@ impl IndexBuilder {
 mod tests {
     use super::*;
 
+    fn tmp_index() -> String {
+        std::env::temp_dir()
+            .join("oximedia-search-index-builder-test_index")
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_index_builder_new() {
-        let builder = IndexBuilder::new("/tmp/test_index");
+        let builder = IndexBuilder::new(&tmp_index());
         assert_eq!(builder.document_count(), 0);
     }
 
     #[test]
     fn test_add_document() {
-        let mut builder = IndexBuilder::new("/tmp/test_index");
+        let mut builder = IndexBuilder::new(&tmp_index());
         let doc = IndexDocument {
             asset_id: Uuid::new_v4(),
             file_path: "/test/video.mp4".to_string(),
@@ -243,7 +250,7 @@ mod tests {
 
     #[test]
     fn test_clear() {
-        let mut builder = IndexBuilder::new("/tmp/test_index");
+        let mut builder = IndexBuilder::new(&tmp_index());
         let doc = IndexDocument {
             asset_id: Uuid::new_v4(),
             file_path: "/test/video.mp4".to_string(),

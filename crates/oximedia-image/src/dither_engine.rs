@@ -331,7 +331,9 @@ impl DitherEngine {
     /// Ordered Bayer dithering.
     #[allow(clippy::cast_precision_loss)]
     fn apply_ordered(&self, buf: &mut [f64], width: usize, height: usize) {
-        let matrix = self.bayer_cache.as_ref().expect("bayer matrix not cached");
+        let Some(matrix) = self.bayer_cache.as_ref() else {
+            return;
+        };
         let n = matrix.len();
         let levels = ((1_u32 << self.config.target_bits) - 1) as f64;
 

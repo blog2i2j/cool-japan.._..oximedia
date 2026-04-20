@@ -409,9 +409,19 @@ pub fn generate_synthetic_sequence(
 mod tests {
     use super::*;
 
+    fn tmp_path(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("oximedia-bench-sequences-{name}"))
+    }
+
     #[test]
     fn test_sequence_creation() {
-        let seq = TestSequence::new("test", "/tmp/test.y4m", 1920, 1080, Rational::new(30, 1));
+        let seq = TestSequence::new(
+            "test",
+            tmp_path("test.y4m"),
+            1920,
+            1080,
+            Rational::new(30, 1),
+        );
 
         assert_eq!(seq.name, "test");
         assert_eq!(seq.width, 1920);
@@ -420,10 +430,16 @@ mod tests {
 
     #[test]
     fn test_sequence_builder() {
-        let seq = TestSequence::new("test", "/tmp/test.y4m", 1920, 1080, Rational::new(30, 1))
-            .with_frame_count(300)
-            .with_content_type(ContentType::Sports)
-            .with_motion(MotionCharacteristics::High);
+        let seq = TestSequence::new(
+            "test",
+            tmp_path("test.y4m"),
+            1920,
+            1080,
+            Rational::new(30, 1),
+        )
+        .with_frame_count(300)
+        .with_content_type(ContentType::Sports)
+        .with_motion(MotionCharacteristics::High);
 
         assert_eq!(seq.frame_count, 300);
         assert_eq!(seq.content_type, ContentType::Sports);
@@ -432,25 +448,43 @@ mod tests {
 
     #[test]
     fn test_resolution_checks() {
-        let seq_1080p =
-            TestSequence::new("1080p", "/tmp/test.y4m", 1920, 1080, Rational::new(30, 1));
+        let seq_1080p = TestSequence::new(
+            "1080p",
+            tmp_path("test.y4m"),
+            1920,
+            1080,
+            Rational::new(30, 1),
+        );
         assert!(seq_1080p.is_high_resolution());
         assert!(!seq_1080p.is_4k());
 
-        let seq_4k = TestSequence::new("4k", "/tmp/test.y4m", 3840, 2160, Rational::new(30, 1));
+        let seq_4k =
+            TestSequence::new("4k", tmp_path("test.y4m"), 3840, 2160, Rational::new(30, 1));
         assert!(seq_4k.is_high_resolution());
         assert!(seq_4k.is_4k());
     }
 
     #[test]
     fn test_resolution_string() {
-        let seq = TestSequence::new("test", "/tmp/test.y4m", 1920, 1080, Rational::new(30, 1));
+        let seq = TestSequence::new(
+            "test",
+            tmp_path("test.y4m"),
+            1920,
+            1080,
+            Rational::new(30, 1),
+        );
         assert_eq!(seq.resolution_string(), "1920x1080");
     }
 
     #[test]
     fn test_total_pixels() {
-        let seq = TestSequence::new("test", "/tmp/test.y4m", 1920, 1080, Rational::new(30, 1));
+        let seq = TestSequence::new(
+            "test",
+            tmp_path("test.y4m"),
+            1920,
+            1080,
+            Rational::new(30, 1),
+        );
         assert_eq!(seq.total_pixels(), 1920 * 1080);
     }
 
@@ -458,11 +492,23 @@ mod tests {
     fn test_sequence_set() {
         let mut set = SequenceSet::new();
 
-        let seq1 = TestSequence::new("seq1", "/tmp/seq1.y4m", 1920, 1080, Rational::new(30, 1))
-            .with_content_type(ContentType::Sports);
+        let seq1 = TestSequence::new(
+            "seq1",
+            tmp_path("seq1.y4m"),
+            1920,
+            1080,
+            Rational::new(30, 1),
+        )
+        .with_content_type(ContentType::Sports);
 
-        let seq2 = TestSequence::new("seq2", "/tmp/seq2.y4m", 1280, 720, Rational::new(30, 1))
-            .with_content_type(ContentType::Animation);
+        let seq2 = TestSequence::new(
+            "seq2",
+            tmp_path("seq2.y4m"),
+            1280,
+            720,
+            Rational::new(30, 1),
+        )
+        .with_content_type(ContentType::Animation);
 
         set.add(seq1);
         set.add(seq2);
@@ -499,9 +545,15 @@ mod tests {
 
     #[test]
     fn test_sequence_metadata() {
-        let seq = TestSequence::new("test", "/tmp/test.y4m", 1920, 1080, Rational::new(30, 1))
-            .with_metadata("source", "camera_a")
-            .with_metadata("date", "2024-01-01");
+        let seq = TestSequence::new(
+            "test",
+            tmp_path("test.y4m"),
+            1920,
+            1080,
+            Rational::new(30, 1),
+        )
+        .with_metadata("source", "camera_a")
+        .with_metadata("date", "2024-01-01");
 
         assert_eq!(seq.metadata.get("source"), Some(&"camera_a".to_string()));
         assert_eq!(seq.metadata.get("date"), Some(&"2024-01-01".to_string()));
@@ -985,6 +1037,10 @@ pub struct DatabaseStatistics {
 mod extended_tests {
     use super::*;
 
+    fn tmp_path(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("oximedia-bench-sequences-ext-{name}"))
+    }
+
     #[test]
     fn test_sequence_generator() {
         let gen = SequenceGenerator::new(1920, 1080, Rational::new(30, 1));
@@ -998,7 +1054,7 @@ mod extended_tests {
 
         let seq = TestSequence::new(
             "test_1080p",
-            "/tmp/test.y4m",
+            tmp_path("test.y4m"),
             1920,
             1080,
             Rational::new(30, 1),
@@ -1016,13 +1072,25 @@ mod extended_tests {
         let mut db = SequenceDatabase::new();
 
         db.add(
-            TestSequence::new("seq1", "/tmp/seq1.y4m", 1920, 1080, Rational::new(30, 1))
-                .with_frame_count(300),
+            TestSequence::new(
+                "seq1",
+                tmp_path("seq1.y4m"),
+                1920,
+                1080,
+                Rational::new(30, 1),
+            )
+            .with_frame_count(300),
         );
 
         db.add(
-            TestSequence::new("seq2", "/tmp/seq2.y4m", 1280, 720, Rational::new(30, 1))
-                .with_frame_count(150),
+            TestSequence::new(
+                "seq2",
+                tmp_path("seq2.y4m"),
+                1280,
+                720,
+                Rational::new(30, 1),
+            )
+            .with_frame_count(150),
         );
 
         let stats = db.statistics();

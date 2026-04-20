@@ -32,7 +32,7 @@
 //! use oximedia_watermark::realtime_embedder::{RealtimeEmbedder, RealtimeEmbedderConfig};
 //!
 //! let config = RealtimeEmbedderConfig::default();
-//! let mut embedder = RealtimeEmbedder::new(config, 44100);
+//! let mut embedder = RealtimeEmbedder::new(config, 44100).expect("codec ok");
 //!
 //! // Feed the payload once; then keep calling process_chunk with live audio.
 //! embedder.set_payload(b"LiveStream-001").expect("payload ok");
@@ -187,15 +187,15 @@ impl RealtimeEmbedder {
     /// # Errors
     ///
     /// Returns [`WatermarkError`] if the RS codec cannot be initialised.
-    pub fn new(config: RealtimeEmbedderConfig, sample_rate: u32) -> Self {
-        let codec = PayloadCodec::new(config.rs_data_shards, config.rs_parity_shards)
-            .expect("RS codec init");
+    pub fn new(config: RealtimeEmbedderConfig, sample_rate: u32) -> WatermarkResult<Self> {
+        let codec =
+            PayloadCodec::new(config.rs_data_shards, config.rs_parity_shards)?;
 
         // Pre-generate a PN sequence of `chip_rate` chips — one per sample of
         // a single bit's worth of audio.
         let pn_sequence = generate_pn_sequence(config.chip_rate, config.key);
 
-        Self {
+        Ok(Self {
             config,
             buffer: VecDeque::new(),
             encoded_bits: Vec::new(),
@@ -206,7 +206,7 @@ impl RealtimeEmbedder {
             raw_payload: Vec::new(),
             sample_rate,
             codec,
-        }
+        })
     }
 
     /// Set (or replace) the payload to embed.
@@ -522,7 +522,7 @@ mod tests {
             rs_data_shards: 8,
             rs_parity_shards: 4,
         };
-        RealtimeEmbedder::new(config, 44100)
+        RealtimeEmbedder::new(config, 44100).unwrap()
     }
 
     #[test]
@@ -659,7 +659,7 @@ mod tests {
             rs_parity_shards: 2,
             ..Default::default()
         };
-        let mut emb = RealtimeEmbedder::new(config, 44100);
+        let mut emb = RealtimeEmbedder::new(config, 44100).unwrap();
         emb.set_payload(b"W").expect("ok");
         let total_bits = emb.encoded_bit_count();
 
@@ -683,7 +683,7 @@ mod tests {
             rs_parity_shards: 2,
             ..Default::default()
         };
-        let mut emb = RealtimeEmbedder::new(config, 44100);
+        let mut emb = RealtimeEmbedder::new(config, 44100).unwrap();
         emb.set_payload(b"NL").expect("ok");
         let total_bits = emb.encoded_bit_count();
 
@@ -723,7 +723,7 @@ mod tests {
             rs_parity_shards: 8,
             ..Default::default()
         };
-        let mut emb2 = RealtimeEmbedder::new(config2, 44100);
+        let mut emb2 = RealtimeEmbedder::new(config2, 44100).unwrap();
         emb2.set_payload(b"X").expect("ok");
 
         let snap = emb2.snapshot();

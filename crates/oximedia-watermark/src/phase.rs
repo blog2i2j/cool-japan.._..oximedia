@@ -46,10 +46,13 @@ pub struct PhaseEmbedder {
 
 impl PhaseEmbedder {
     /// Create a new phase embedder.
-    #[must_use]
-    pub fn new(config: PhaseConfig) -> Self {
-        let codec = PayloadCodec::new(16, 8).expect("should succeed in test");
-        Self { config, codec }
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the Reed-Solomon codec cannot be initialised.
+    pub fn new(config: PhaseConfig) -> WatermarkResult<Self> {
+        let codec = PayloadCodec::new(16, 8)?;
+        Ok(Self { config, codec })
     }
 
     /// Embed watermark by modifying phase.
@@ -196,10 +199,13 @@ pub struct PhaseDetector {
 
 impl PhaseDetector {
     /// Create a new phase detector.
-    #[must_use]
-    pub fn new(config: PhaseConfig) -> Self {
-        let codec = PayloadCodec::new(16, 8).expect("should succeed in test");
-        Self { config, codec }
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the Reed-Solomon codec cannot be initialised.
+    pub fn new(config: PhaseConfig) -> WatermarkResult<Self> {
+        let codec = PayloadCodec::new(16, 8)?;
+        Ok(Self { config, codec })
     }
 
     /// Detect and extract watermark.
@@ -333,8 +339,8 @@ mod tests {
     #[allow(clippy::cast_precision_loss)]
     fn test_phase_embedding() {
         let config = PhaseConfig::default();
-        let embedder = PhaseEmbedder::new(config.clone());
-        let detector = PhaseDetector::new(config);
+        let embedder = PhaseEmbedder::new(config.clone()).unwrap();
+        let detector = PhaseDetector::new(config).unwrap();
 
         // Phase coding requires broadband signal energy across all embedding bins
         // (bins 10-499 with this config).  A pure sine wave concentrates energy at
@@ -366,7 +372,7 @@ mod tests {
     #[test]
     fn test_capacity() {
         let config = PhaseConfig::default();
-        let embedder = PhaseEmbedder::new(config);
+        let embedder = PhaseEmbedder::new(config).unwrap();
 
         let capacity = embedder.capacity(44100);
         assert!(capacity > 0);

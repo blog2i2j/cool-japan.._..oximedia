@@ -18,7 +18,6 @@
 //!
 //! ```rust
 //! use oximedia_packager::streaming_output::{SegmentStream, SegmentStreamConfig, ProducedSegment};
-//! use std::path::PathBuf;
 //!
 //! # tokio_test::block_on(async {
 //! let config = SegmentStreamConfig::default();
@@ -30,7 +29,7 @@
 //!     data: vec![0u8; 512],
 //!     duration_secs: 6.0,
 //!     is_init: false,
-//!     path_hint: Some(PathBuf::from("/tmp/seg0.ts")),
+//!     path_hint: Some(std::env::temp_dir().join("oximedia-packager-streaming-seg0.ts")),
 //! };
 //! tx.send(seg1).await.expect("send ok");
 //! drop(tx); // close the channel
@@ -310,7 +309,7 @@ mod tests {
     #[test]
     fn test_produced_segment_with_path() {
         let seg = ProducedSegment::media(0, vec![], 6.0)
-            .with_path(PathBuf::from("/tmp/seg0.ts"));
+            .with_path(std::env::temp_dir().join("oximedia-packager-stream-seg0.ts"));
         assert!(seg.path_hint.is_some());
     }
 

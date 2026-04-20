@@ -24,7 +24,8 @@
 //!     max_duration_ms: 60_000,
 //! };
 //!
-//! let result = validate_job_output("/tmp/render/job-1", &validator, 30_000);
+//! let job_dir = std::env::temp_dir().join("oximedia-renderfarm-job-output-job-1");
+//! let result = validate_job_output(job_dir.to_string_lossy().as_ref(), &validator, 30_000);
 //! assert!(result.passed);
 //! ```
 
@@ -206,6 +207,13 @@ pub fn validate_job_output_with_metadata(
 mod tests {
     use super::*;
 
+    fn tmp_path(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-renderfarm-job-out-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     // --- ValidationResult helpers ---
 
     #[test]
@@ -274,7 +282,7 @@ mod tests {
             max_duration_ms: 60_000,
             ..Default::default()
         };
-        let result = validate_job_output("/tmp/out", &v, 30_000);
+        let result = validate_job_output(&tmp_path("out"), &v, 30_000);
         assert!(result.passed, "30 s < 60 s limit should pass");
     }
 
@@ -284,7 +292,7 @@ mod tests {
             max_duration_ms: 10_000,
             ..Default::default()
         };
-        let result = validate_job_output("/tmp/out", &v, 20_000);
+        let result = validate_job_output(&tmp_path("out"), &v, 20_000);
         assert!(!result.passed, "20 s > 10 s limit should fail");
         assert!(result.errors.iter().any(|e| e.contains("exceeded")));
     }
@@ -295,7 +303,7 @@ mod tests {
             max_duration_ms: 0, // disabled
             ..Default::default()
         };
-        let result = validate_job_output("/tmp/out", &v, 999_999_999);
+        let result = validate_job_output(&tmp_path("out"), &v, 999_999_999);
         assert!(result.passed);
     }
 
@@ -306,7 +314,7 @@ mod tests {
             max_duration_ms: 60_000,
             min_size_bytes: 0,
         };
-        let result = validate_job_output("/tmp/render/job1", &v, 5_000);
+        let result = validate_job_output(&tmp_path("render-job1"), &v, 5_000);
         assert!(result.passed, "stub always passes file checks");
     }
 
@@ -319,7 +327,7 @@ mod tests {
             max_duration_ms: 0,
             ..Default::default()
         };
-        let result = validate_job_output_with_metadata("/tmp/out", &v, 0, 512);
+        let result = validate_job_output_with_metadata(&tmp_path("out"), &v, 0, 512);
         assert!(!result.passed);
         assert!(result.errors.iter().any(|e| e.contains("too small")));
     }
@@ -331,7 +339,7 @@ mod tests {
             max_duration_ms: 0,
             ..Default::default()
         };
-        let result = validate_job_output_with_metadata("/tmp/out", &v, 0, 4096);
+        let result = validate_job_output_with_metadata(&tmp_path("out"), &v, 0, 4096);
         assert!(result.passed);
     }
 
@@ -343,7 +351,7 @@ mod tests {
             ..Default::default()
         };
         // 1500 bytes: >= 1024 but < 2048 (2× minimum) → warning
-        let result = validate_job_output_with_metadata("/tmp/out", &v, 0, 1_500);
+        let result = validate_job_output_with_metadata(&tmp_path("out"), &v, 0, 1_500);
         assert!(result.passed);
         assert!(
             !result.warnings.is_empty(),
@@ -358,7 +366,7 @@ mod tests {
             max_duration_ms: 1_000,
             ..Default::default()
         };
-        let result = validate_job_output_with_metadata("/tmp/out", &v, 5_000, 100);
+        let result = validate_job_output_with_metadata(&tmp_path("out"), &v, 5_000, 100);
         assert!(!result.passed);
         assert_eq!(result.errors.len(), 2);
     }

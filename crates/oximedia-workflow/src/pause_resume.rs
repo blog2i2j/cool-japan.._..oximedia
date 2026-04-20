@@ -656,12 +656,16 @@ mod tests {
 
     #[test]
     fn test_with_state() {
+        let out = std::env::temp_dir()
+            .join("oximedia-workflow-pause-out.mp4")
+            .to_string_lossy()
+            .into_owned();
         let cp = PauseCheckpoint::new("wf-state", 0)
-            .with_state("output_path", "/tmp/out.mp4")
+            .with_state("output_path", &out)
             .with_state("fps", "24");
         assert_eq!(
             cp.state_data.get("output_path").map(String::as_str),
-            Some("/tmp/out.mp4")
+            Some(out.as_str())
         );
         assert_eq!(cp.state_data.get("fps").map(String::as_str), Some("24"));
     }

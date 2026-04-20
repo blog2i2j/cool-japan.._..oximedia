@@ -480,28 +480,28 @@ mod tests {
     #[test]
     fn push_pop_round_trip() {
         let (mut ctrl, h) = make_ctrl_with_queue(8);
-        let sig = ctrl.push(h, 99u32).unwrap();
+        let sig = ctrl.push(h, 99u32).expect("push to valid queue should succeed");
         assert_eq!(sig, BackpressureSignal::Ok);
-        let val = ctrl.pop::<u32>(h).unwrap();
+        let val = ctrl.pop::<u32>(h).expect("pop from valid queue should succeed");
         assert_eq!(val, Some(99u32));
     }
 
     #[test]
     fn pop_empty_queue_returns_none() {
         let (mut ctrl, h) = make_ctrl_with_queue(4);
-        let val = ctrl.pop::<u8>(h).unwrap();
+        let val = ctrl.pop::<u8>(h).expect("pop from valid empty queue should succeed");
         assert!(val.is_none());
     }
 
     #[test]
     fn queue_full_signals_drop() {
         let (mut ctrl, h) = make_ctrl_with_queue(2);
-        ctrl.push(h, 1u8).unwrap();
-        ctrl.push(h, 2u8).unwrap();
+        ctrl.push(h, 1u8).expect("push 1 should succeed");
+        ctrl.push(h, 2u8).expect("push 2 should succeed");
         // Queue is now at capacity
-        let sig = ctrl.push(h, 3u8).unwrap();
+        let sig = ctrl.push(h, 3u8).expect("push to full queue returns signal, not error");
         assert_eq!(sig, BackpressureSignal::QueueFull);
-        let stats = ctrl.stats(h).unwrap();
+        let stats = ctrl.stats(h).expect("stats should succeed for valid handle");
         assert_eq!(stats.dropped_frames, 1);
         assert_eq!(stats.total_pushed, 2);
     }
@@ -510,11 +510,11 @@ mod tests {
     fn high_water_mark_signals_throttle() {
         let (mut ctrl, h) = make_ctrl_with_queue(4);
         // Default high-water ratio = 0.75, so throttle fires at depth >= 3
-        ctrl.push(h, 0u32).unwrap();
-        ctrl.push(h, 1u32).unwrap();
-        let sig = ctrl.push(h, 2u32).unwrap();
+        ctrl.push(h, 0u32).expect("push 0 should succeed");
+        ctrl.push(h, 1u32).expect("push 1 should succeed");
+        let sig = ctrl.push(h, 2u32).expect("push 2 returns signal, not error");
         assert_eq!(sig, BackpressureSignal::ShouldThrottle);
-        let stats = ctrl.stats(h).unwrap();
+        let stats = ctrl.stats(h).expect("stats should succeed for valid handle");
         assert_eq!(stats.throttle_events, 1);
     }
 
@@ -523,10 +523,10 @@ mod tests {
         let mut ctrl = BackpressureController::new();
         let h1 = ctrl.add_queue(QueueId::new("a", "b"), 8);
         let h2 = ctrl.add_queue(QueueId::new("b", "c"), 8);
-        ctrl.push(h1, 1u32).unwrap();
-        ctrl.push(h1, 2u32).unwrap();
-        ctrl.push(h2, 3u32).unwrap();
-        ctrl.pop::<u32>(h1).unwrap();
+        ctrl.push(h1, 1u32).expect("push to h1 should succeed");
+        ctrl.push(h1, 2u32).expect("push to h1 should succeed");
+        ctrl.push(h2, 3u32).expect("push to h2 should succeed");
+        ctrl.pop::<u32>(h1).expect("pop from h1 should succeed");
         let (pushed, popped, dropped) = ctrl.aggregate_stats();
         assert_eq!(pushed, 3);
         assert_eq!(popped, 1);
@@ -536,11 +536,11 @@ mod tests {
     #[test]
     fn flush_clears_queue() {
         let (mut ctrl, h) = make_ctrl_with_queue(8);
-        ctrl.push(h, 42u64).unwrap();
-        ctrl.push(h, 43u64).unwrap();
-        assert_eq!(ctrl.depth(h).unwrap(), 2);
-        ctrl.flush(h).unwrap();
-        assert!(ctrl.is_empty(h).unwrap());
+        ctrl.push(h, 42u64).expect("push should succeed");
+        ctrl.push(h, 43u64).expect("push should succeed");
+        assert_eq!(ctrl.depth(h).expect("depth should succeed for valid handle"), 2);
+        ctrl.flush(h).expect("flush should succeed for valid handle");
+        assert!(ctrl.is_empty(h).expect("is_empty should succeed for valid handle"));
     }
 
     #[test]
@@ -556,23 +556,23 @@ mod tests {
     #[test]
     fn set_high_water_ratio_clamped() {
         let (mut ctrl, h) = make_ctrl_with_queue(10);
-        ctrl.set_high_water_ratio(h, 1.5).unwrap(); // should clamp to 1.0
+        ctrl.set_high_water_ratio(h, 1.5).expect("set_high_water_ratio should succeed for valid handle"); // should clamp to 1.0
         // With ratio=1.0 only a completely full queue triggers throttle;
         // pushing 9 items (depth 1..9, ratio < 1.0) should all return Ok.
         for i in 0u32..9 {
-            let sig = ctrl.push(h, i).unwrap();
+            let sig = ctrl.push(h, i).expect("push should succeed for item {i}");
             assert_eq!(sig, BackpressureSignal::Ok, "item {i} unexpectedly throttled");
         }
         // The 10th push fills the queue exactly (depth/capacity == 1.0 >= 1.0)
         // so it returns ShouldThrottle (not QueueFull — it was still enqueued)
-        let sig = ctrl.push(h, 9u32).unwrap();
+        let sig = ctrl.push(h, 9u32).expect("10th push should succeed and return signal");
         assert_eq!(sig, BackpressureSignal::ShouldThrottle);
     }
 
     #[test]
     fn type_mismatch_returns_error() {
         let (mut ctrl, h) = make_ctrl_with_queue(4);
-        ctrl.push(h, 42u32).unwrap();
+        ctrl.push(h, 42u32).expect("push u32 should succeed");
         // Attempt to pop as a different type
         let result = ctrl.pop::<String>(h);
         assert!(result.is_err());
@@ -592,13 +592,13 @@ mod tests {
     fn peak_depth_tracked() {
         let (mut ctrl, h) = make_ctrl_with_queue(16);
         for i in 0u32..5 {
-            ctrl.push(h, i).unwrap();
+            ctrl.push(h, i).expect("push should succeed");
         }
         // Drain 3
-        ctrl.pop::<u32>(h).unwrap();
-        ctrl.pop::<u32>(h).unwrap();
-        ctrl.pop::<u32>(h).unwrap();
-        let stats = ctrl.stats(h).unwrap();
+        ctrl.pop::<u32>(h).expect("pop 1 should succeed");
+        ctrl.pop::<u32>(h).expect("pop 2 should succeed");
+        ctrl.pop::<u32>(h).expect("pop 3 should succeed");
+        let stats = ctrl.stats(h).expect("stats should succeed for valid handle");
         assert_eq!(stats.peak_depth, 5);
         assert_eq!(stats.total_popped, 3);
     }

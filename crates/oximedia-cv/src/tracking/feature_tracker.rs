@@ -149,10 +149,10 @@ impl FeatureTracker {
             return Ok(self.features.clone());
         }
 
-        let prev_frame = self
-            .previous_frame
-            .as_ref()
-            .expect("previous_frame is Some: is_none check returned early above");
+        // previous_frame is Some: is_none check returned early above
+        let Some(prev_frame) = self.previous_frame.as_ref() else {
+            return Ok(self.features.clone());
+        };
 
         // Track existing features
         if !self.features.is_empty() {

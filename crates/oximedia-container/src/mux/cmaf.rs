@@ -14,6 +14,7 @@
 #![forbid(unsafe_code)]
 
 use std::collections::HashMap;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 // ─── Public data types ────────────────────────────────────────────────────────
 
@@ -91,6 +92,10 @@ pub struct CmafConfig {
     pub brand: CmafBrand,
     /// Default timescale used when a track does not specify one.
     pub timescale: u32,
+    /// Enables low-latency chunked fragment emission.
+    pub low_latency_chunked: bool,
+    /// Target chunk duration in milliseconds when low-latency mode is enabled.
+    pub chunk_duration_ms: Option<u32>,
 }
 
 impl Default for CmafConfig {
@@ -100,6 +105,8 @@ impl Default for CmafConfig {
             use_encryption: false,
             brand: CmafBrand::CmafCm,
             timescale: 90000,
+            low_latency_chunked: false,
+            chunk_duration_ms: None,
         }
     }
 }
@@ -524,8 +531,8 @@ impl CmafMuxer {
         if self.pending.is_empty() {
             return None;
         }
-        let data = self.emit_segment();
         let start_pts = self.pending.start_pts.unwrap_or(0);
+        let data = self.emit_segment();
         let seg = CmafSegment {
             sequence_number: self.sequence_number - 1,
             start_pts,
@@ -541,13 +548,17 @@ impl CmafMuxer {
             return Vec::new();
         }
 
+        if self.config.low_latency_chunked {
+            return self.emit_chunked_segment();
+        }
+
         let seq = self.sequence_number;
         self.sequence_number += 1;
 
         // Collect all raw sample bytes for mdat.
         // Use a two-pass approach: first build traf content, then fix up data offsets.
         let mut mdat_payload: Vec<u8> = Vec::new();
-        let mut track_runs: Vec<TrackRun> = Vec::new();
+        let mut track_runs: Vec<FragTrackRun> = Vec::new();
 
         for &tid in &self.track_order {
             let samples_opt = self.pending.samples.get(&tid);
@@ -564,7 +575,7 @@ impl CmafMuxer {
                 let flags: u32 = if s.keyframe { 0x0200_0000 } else { 0x0101_0000 };
                 #[allow(clippy::cast_possible_wrap)]
                 let pts_offset = (s.pts as i64 - s.dts as i64) as i32;
-                entries.push(SampleEntry {
+                entries.push(FragSampleEntry {
                     duration: s.duration,
                     size: s.data.len() as u32,
                     flags,
@@ -573,7 +584,7 @@ impl CmafMuxer {
                 mdat_payload.extend_from_slice(&s.data);
             }
 
-            track_runs.push(TrackRun {
+            track_runs.push(FragTrackRun {
                 track_id: tid,
                 base_dts,
                 mdat_offset_start,
@@ -583,7 +594,7 @@ impl CmafMuxer {
 
         // Pass 2: build moof (we'll patch data_offset after computing moof size)
         // We build a placeholder moof with data_offset=0, then fix it.
-        let build_moof = |data_offset_base: i32, track_runs: &[TrackRun]| -> Vec<u8> {
+        let build_moof = |data_offset_base: i32, track_runs: &[FragTrackRun]| -> Vec<u8> {
             let mut moof_content = Vec::new();
             // mfhd
             moof_content.extend(build_mfhd(seq));
@@ -617,31 +628,190 @@ impl CmafMuxer {
 
         out
     }
+
+    fn emit_chunked_segment(&mut self) -> Vec<u8> {
+        let chunk_duration_ms = self.config.chunk_duration_ms.unwrap_or(200);
+        let chunks = self.partition_pending_chunks(chunk_duration_ms);
+        let mut out = Vec::new();
+
+        for chunk in chunks {
+            if chunk.is_empty() {
+                continue;
+            }
+
+            let reference_track_id = self
+                .track_order
+                .iter()
+                .copied()
+                .find(|track_id| chunk.samples.contains_key(track_id))
+                .unwrap_or(1);
+            let media_time = chunk.start_pts.unwrap_or(0);
+            let seq = self.sequence_number;
+            self.sequence_number += 1;
+
+            let (moof, mdat) = build_fragment_boxes(&self.track_order, &chunk.samples, seq);
+            out.extend(build_styp_cmfl());
+            out.extend(build_prft(reference_track_id, media_time));
+            out.extend(moof);
+            out.extend(mdat);
+        }
+
+        self.pending = PendingSegment::default();
+        out
+    }
+
+    fn partition_pending_chunks(&self, chunk_duration_ms: u32) -> Vec<PendingSegment> {
+        let mut chunks: Vec<PendingSegment> = Vec::new();
+
+        for &track_id in &self.track_order {
+            let Some(track) = self.tracks.get(&track_id) else {
+                continue;
+            };
+            let Some(samples) = self.pending.samples.get(&track_id) else {
+                continue;
+            };
+
+            let first_dts = samples.first().map_or(0, |sample| sample.dts);
+            for sample in samples {
+                let elapsed_ticks = sample.dts.saturating_sub(first_dts);
+                let elapsed_ms =
+                    elapsed_ticks.saturating_mul(1000) / u64::from(track.timescale.max(1));
+                let chunk_index = usize::try_from(elapsed_ms / u64::from(chunk_duration_ms.max(1)))
+                    .unwrap_or(usize::MAX);
+                while chunks.len() <= chunk_index {
+                    chunks.push(PendingSegment::default());
+                }
+                chunks[chunk_index].push(sample.clone());
+            }
+        }
+
+        chunks
+    }
+}
+
+fn build_fragment_boxes(
+    track_order: &[u32],
+    samples_by_track: &HashMap<u32, Vec<CmafSample>>,
+    sequence_number: u32,
+) -> (Vec<u8>, Vec<u8>) {
+    let mut mdat_payload: Vec<u8> = Vec::new();
+    let mut track_runs: Vec<FragTrackRun> = Vec::new();
+
+    for &track_id in track_order {
+        let Some(samples) = samples_by_track.get(&track_id) else {
+            continue;
+        };
+        if samples.is_empty() {
+            continue;
+        }
+
+        let mdat_offset_start = mdat_payload.len() as u32;
+        let base_dts = samples[0].dts;
+        let mut entries = Vec::new();
+
+        for sample in samples {
+            let flags: u32 = if sample.keyframe {
+                0x0200_0000
+            } else {
+                0x0101_0000
+            };
+            let pts_offset = i64::try_from(sample.pts)
+                .and_then(|pts| i64::try_from(sample.dts).map(|dts| pts - dts))
+                .ok()
+                .and_then(|offset| i32::try_from(offset).ok())
+                .unwrap_or(0);
+            entries.push(FragSampleEntry {
+                duration: sample.duration,
+                size: sample.data.len() as u32,
+                flags,
+                pts_offset,
+            });
+            mdat_payload.extend_from_slice(&sample.data);
+        }
+
+        track_runs.push(FragTrackRun {
+            track_id,
+            base_dts,
+            mdat_offset_start,
+            entries,
+        });
+    }
+
+    let build_moof = |data_offset_base: i32| -> Vec<u8> {
+        let mut moof_content = Vec::new();
+        moof_content.extend(build_mfhd(sequence_number));
+        for track_run in &track_runs {
+            moof_content.extend(build_traf(
+                track_run.track_id,
+                track_run.base_dts,
+                data_offset_base + track_run.mdat_offset_start as i32,
+                &track_run.entries,
+            ));
+        }
+        write_box(b"moof", &moof_content)
+    };
+
+    let moof_first = build_moof(0);
+    let moof_size = moof_first.len() as i32;
+    let moof = build_moof(moof_size + 8);
+    let mdat = write_box(b"mdat", &mdat_payload);
+    (moof, mdat)
+}
+
+fn build_styp_cmfl() -> Vec<u8> {
+    let mut content = Vec::new();
+    content.extend_from_slice(b"cmfl");
+    content.extend_from_slice(&write_u32_be(0));
+    content.extend_from_slice(b"cmfl");
+    content.extend_from_slice(b"cmf2");
+    write_box(b"styp", &content)
+}
+
+fn build_prft(reference_track_id: u32, media_time: u64) -> Vec<u8> {
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default();
+    let ntp_seconds = now.as_secs().saturating_add(2_208_988_800);
+    let fractional = ((u128::from(now.subsec_nanos())) << 32) / 1_000_000_000u128;
+    let ntp_timestamp = (ntp_seconds << 32) | u64::try_from(fractional).unwrap_or(u64::MAX);
+
+    let mut content = Vec::new();
+    content.extend_from_slice(&write_u32_be(reference_track_id));
+    content.extend_from_slice(&write_u64_be(ntp_timestamp));
+    content.extend_from_slice(&write_u64_be(media_time));
+    write_full_box(b"prft", 1, 0, &content)
 }
 
 // ─── traf helpers ─────────────────────────────────────────────────────────────
 
-struct SampleEntry {
-    duration: u32,
-    size: u32,
-    flags: u32,
-    pts_offset: i32,
+/// A single sample entry within a track run (used by both CMAF and fMP4 muxers).
+pub(crate) struct FragSampleEntry {
+    pub(crate) duration: u32,
+    pub(crate) size: u32,
+    pub(crate) flags: u32,
+    pub(crate) pts_offset: i32,
 }
 
-struct TrackRun {
-    track_id: u32,
-    base_dts: u64,
-    mdat_offset_start: u32,
-    entries: Vec<SampleEntry>,
+/// Describes one track's samples within a fragment, with mdat offset info.
+pub(crate) struct FragTrackRun {
+    pub(crate) track_id: u32,
+    pub(crate) base_dts: u64,
+    pub(crate) mdat_offset_start: u32,
+    pub(crate) entries: Vec<FragSampleEntry>,
 }
 
-fn build_mfhd(sequence_number: u32) -> Vec<u8> {
+pub(crate) fn build_mfhd(sequence_number: u32) -> Vec<u8> {
     let mut c = Vec::new();
     c.extend_from_slice(&write_u32_be(sequence_number));
     write_full_box(b"mfhd", 0, 0, &c)
 }
 
-fn build_traf(track_id: u32, base_dts: u64, data_offset: i32, entries: &[SampleEntry]) -> Vec<u8> {
+pub(crate) fn build_traf(
+    track_id: u32,
+    base_dts: u64,
+    data_offset: i32,
+    entries: &[FragSampleEntry],
+) -> Vec<u8> {
     let mut c = Vec::new();
     c.extend(build_tfhd(track_id));
     c.extend(build_tfdt(base_dts));
@@ -649,19 +819,19 @@ fn build_traf(track_id: u32, base_dts: u64, data_offset: i32, entries: &[SampleE
     write_box(b"traf", &c)
 }
 
-fn build_tfhd(track_id: u32) -> Vec<u8> {
+pub(crate) fn build_tfhd(track_id: u32) -> Vec<u8> {
     let mut c = Vec::new();
     c.extend_from_slice(&write_u32_be(track_id));
     // flags: default-base-is-moof (0x020000)
     write_full_box(b"tfhd", 0, 0x02_00_00, &c)
 }
 
-fn build_tfdt(base_dts: u64) -> Vec<u8> {
+pub(crate) fn build_tfdt(base_dts: u64) -> Vec<u8> {
     // version=1 → 64-bit baseMediaDecodeTime
     write_full_box(b"tfdt", 1, 0, &write_u64_be(base_dts))
 }
 
-fn build_trun(data_offset: i32, entries: &[SampleEntry]) -> Vec<u8> {
+pub(crate) fn build_trun(data_offset: i32, entries: &[FragSampleEntry]) -> Vec<u8> {
     // flags:
     //   0x000001 = data-offset-present
     //   0x000004 = first-sample-flags-present (not used here)
@@ -687,22 +857,22 @@ fn build_trun(data_offset: i32, entries: &[SampleEntry]) -> Vec<u8> {
 
 // ─── stbl empty boxes ──────────────────────────────────────────────────────────
 
-fn build_empty_stts() -> Vec<u8> {
+pub(crate) fn build_empty_stts() -> Vec<u8> {
     write_full_box(b"stts", 0, 0, &write_u32_be(0))
 }
 
-fn build_empty_stsc() -> Vec<u8> {
+pub(crate) fn build_empty_stsc() -> Vec<u8> {
     write_full_box(b"stsc", 0, 0, &write_u32_be(0))
 }
 
-fn build_empty_stsz() -> Vec<u8> {
+pub(crate) fn build_empty_stsz() -> Vec<u8> {
     let mut c = Vec::new();
     c.extend_from_slice(&write_u32_be(0)); // sample_size
     c.extend_from_slice(&write_u32_be(0)); // sample_count
     write_full_box(b"stsz", 0, 0, &c)
 }
 
-fn build_empty_stco() -> Vec<u8> {
+pub(crate) fn build_empty_stco() -> Vec<u8> {
     write_full_box(b"stco", 0, 0, &write_u32_be(0))
 }
 

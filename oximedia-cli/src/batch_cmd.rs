@@ -399,7 +399,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_submit_missing_config() {
-        let cfg = PathBuf::from("/tmp/oximedia_batch_missing_config.json");
+        let cfg = std::env::temp_dir().join("oximedia_batch_missing_config.json");
         let db = std::env::temp_dir().join("oximedia_batch_test_missing.db");
         let result = cmd_submit(&cfg, "normal", &db, false).await;
         assert!(result.is_err());

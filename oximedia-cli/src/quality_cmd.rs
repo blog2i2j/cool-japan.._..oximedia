@@ -703,8 +703,8 @@ mod tests {
     #[tokio::test]
     async fn test_cmd_compare_missing_reference() {
         let result = cmd_compare(
-            &PathBuf::from("/tmp/nonexistent_ref_12345.mkv"),
-            &PathBuf::from("/tmp/nonexistent_dist_12345.mkv"),
+            &std::env::temp_dir().join("nonexistent_ref_12345.mkv"),
+            &std::env::temp_dir().join("nonexistent_dist_12345.mkv"),
             "psnr",
             "text",
             1920,
@@ -744,7 +744,7 @@ mod tests {
     #[tokio::test]
     async fn test_cmd_analyze_missing_file() {
         let result = cmd_analyze(
-            &PathBuf::from("/tmp/nonexistent_analyze_12345.mkv"),
+            &std::env::temp_dir().join("nonexistent_analyze_12345.mkv"),
             "blur",
             "text",
         )

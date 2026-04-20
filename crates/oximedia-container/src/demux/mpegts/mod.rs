@@ -33,6 +33,7 @@
 
 mod packet;
 mod psi;
+pub mod scte35;
 
 use async_trait::async_trait;
 use bytes::Bytes;

@@ -91,9 +91,9 @@ impl ToneCurve {
         if self.points.is_empty() {
             return pq_in;
         }
-        // Safety: checked non-empty above
-        let first = self.points.first().expect("checked non-empty");
-        let last = self.points.last().expect("checked non-empty");
+        // points is non-empty: the early return above guards both accesses.
+        let first = &self.points[0];
+        let last = &self.points[self.points.len() - 1];
 
         if pq_in <= first.pq_in {
             return first.pq_out;
@@ -112,7 +112,8 @@ impl ToneCurve {
             }
         }
 
-        self.points.last().expect("checked non-empty").pq_out
+        // points is non-empty: empty returns pq_in at top of function.
+        self.points[self.points.len() - 1].pq_out
     }
 
     /// Returns `true` when `pq_out` is non-decreasing along the curve.

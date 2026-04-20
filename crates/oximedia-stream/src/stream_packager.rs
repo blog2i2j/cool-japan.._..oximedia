@@ -440,7 +440,10 @@ mod tests {
 
     #[test]
     fn test_file_segment_writer_path_format() {
-        let writer = FileSegmentWriter::new("/tmp/segs", "seg_");
+        let writer = FileSegmentWriter::new(
+            std::env::temp_dir().join("oximedia-stream-pkgr-segs"),
+            "seg_",
+        );
         let path = writer.segment_path(7);
         assert_eq!(
             path.file_name().and_then(|n| n.to_str()),

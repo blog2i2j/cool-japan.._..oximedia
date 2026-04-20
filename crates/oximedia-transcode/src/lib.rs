@@ -130,12 +130,15 @@ pub mod audio_transcode;
 pub mod bitrate_estimator;
 mod builder;
 mod codec_config;
+pub mod codec_dispatch;
 pub mod codec_mapping;
 pub mod crf_optimizer;
 mod filters;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod frame_pipeline;
 mod hw_accel;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod multi_track;
 mod multipass;
 mod normalization;
 mod parallel;
@@ -193,11 +196,13 @@ pub use codec_config::{
     FlacConfig, H264Config, H264Profile, JxlConfig, JxlEffort, OpusApplication, OpusConfig,
     Vp9Config,
 };
+pub use codec_dispatch::{make_video_encoder, VideoEncoderParams};
 pub use codec_profile::CodecTunePreset;
 pub use filters::{AudioFilter, FilterNode, VideoFilter};
 pub use hw_accel::{
-    detect_available_hw_accel, detect_best_hw_accel_for_codec, get_available_encoders,
-    HwAccelConfig, HwAccelType, HwEncoder, HwFeature,
+    detect_available_hw_accel, detect_best_hw_accel_for_codec, detect_hw_accel_caps,
+    detect_hw_accel_with_probe, get_available_encoders, HwAccelCapabilities, HwAccelConfig,
+    HwAccelDevice, HwAccelType, HwEncoder, HwFeature, HwKind, HwProbe, MockProbe, SystemProbe,
 };
 pub use stream_copy::{
     CopyDecision, StreamCopyConfig, StreamCopyDetector, StreamCopyMode, StreamInfo, StreamType,
@@ -213,6 +218,8 @@ pub use frame_pipeline::{
     wire_hdr_into_pipeline, AudioFrameOp, FramePipelineConfig, FramePipelineExecutor,
     FramePipelineResult, VideoFrameOp,
 };
+#[cfg(not(target_arch = "wasm32"))]
+pub use multi_track::{MultiTrackExecutor, MultiTrackStats, PerTrack};
 pub use multipass::{MultiPassConfig, MultiPassEncoder, MultiPassMode};
 pub use normalization::{AudioNormalizer, LoudnessStandard, LoudnessTarget, NormalizationConfig};
 pub use parallel::{

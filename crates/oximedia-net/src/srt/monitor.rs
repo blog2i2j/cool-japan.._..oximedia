@@ -43,11 +43,10 @@ impl BandwidthEstimator {
         // Remove old samples outside the window
         while let Some(sample) = self.samples.front() {
             if now.duration_since(sample.timestamp) > self.window_duration {
-                let old = self
-                    .samples
-                    .pop_front()
-                    .expect("invariant: front exists (just checked with while let Some)");
-                self.total_bytes = self.total_bytes.saturating_sub(old.bytes);
+                // Front was confirmed by `while let Some(sample)`.
+                if let Some(old) = self.samples.pop_front() {
+                    self.total_bytes = self.total_bytes.saturating_sub(old.bytes);
+                }
             } else {
                 break;
             }
@@ -68,11 +67,10 @@ impl BandwidthEstimator {
             return 0.0;
         }
 
-        let oldest = self
-            .samples
-            .front()
-            .expect("invariant: samples non-empty (checked above)")
-            .timestamp;
+        let oldest = match self.samples.front() {
+            Some(s) => s.timestamp,
+            None => return 0.0,
+        };
         let duration = Instant::now().duration_since(oldest).as_secs_f64();
 
         if duration > 0.0 {

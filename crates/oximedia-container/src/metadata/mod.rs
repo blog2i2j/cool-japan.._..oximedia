@@ -32,6 +32,7 @@
 //! editor.save().await?;
 //! ```
 
+pub mod batch;
 pub mod editor;
 pub mod reader;
 pub mod tags;

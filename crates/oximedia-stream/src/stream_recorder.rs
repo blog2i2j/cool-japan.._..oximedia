@@ -531,6 +531,10 @@ impl LiveRecorder {
 mod tests {
     use super::*;
 
+    fn tmp_path(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("oximedia-stream-recorder-{name}"))
+    }
+
     fn seg(sequence: u64, timestamp_ms: u64, duration_ms: u32) -> RecordedSegment {
         RecordedSegment::new(
             sequence,
@@ -698,26 +702,26 @@ mod tests {
 
     #[test]
     fn test_recording_config_segment_duration_clamped() {
-        let cfg = RecordingConfig::new("/tmp/stream", 0);
+        let cfg = RecordingConfig::new(tmp_path("stream"), 0);
         assert_eq!(cfg.segment_duration_secs, 1);
     }
 
     #[test]
     fn test_recording_config_validate_ok() {
-        let cfg = RecordingConfig::new("/tmp/stream", 4);
+        let cfg = RecordingConfig::new(tmp_path("stream"), 4);
         assert!(cfg.validate().is_ok());
     }
 
     #[test]
     fn test_recording_config_validate_empty_pattern_fails() {
-        let mut cfg = RecordingConfig::new("/tmp/stream", 4);
+        let mut cfg = RecordingConfig::new(tmp_path("stream"), 4);
         cfg.filename_pattern = String::new();
         assert!(cfg.validate().is_err());
     }
 
     #[test]
     fn test_recording_config_segment_path_uses_index() {
-        let cfg = RecordingConfig::new("/tmp/stream", 4);
+        let cfg = RecordingConfig::new(tmp_path("stream"), 4);
         let path = cfg.segment_path(42);
         assert!(path.to_string_lossy().contains("42"));
     }

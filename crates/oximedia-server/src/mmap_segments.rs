@@ -427,7 +427,10 @@ mod tests {
     #[test]
     fn test_mapped_segment_bytes() {
         let data = b"hello segment".to_vec();
-        let seg = MappedSegment::from_bytes(data.clone(), PathBuf::from("/tmp/seg.ts"));
+        let seg = MappedSegment::from_bytes(
+            data.clone(),
+            std::env::temp_dir().join("oximedia-server-mmap-seg.ts"),
+        );
         assert_eq!(seg.bytes(), data.as_slice());
         assert_eq!(seg.len, data.len());
     }
@@ -435,14 +438,20 @@ mod tests {
     #[test]
     fn test_mapped_segment_slice_valid() {
         let data = b"abcdefgh".to_vec();
-        let seg = MappedSegment::from_bytes(data, PathBuf::from("/tmp/seg.ts"));
+        let seg = MappedSegment::from_bytes(
+            data,
+            std::env::temp_dir().join("oximedia-server-mmap-seg.ts"),
+        );
         assert_eq!(seg.slice(2, 5), Some(b"cde" as &[u8]));
     }
 
     #[test]
     fn test_mapped_segment_slice_out_of_bounds() {
         let data = b"abcde".to_vec();
-        let seg = MappedSegment::from_bytes(data, PathBuf::from("/tmp/seg.ts"));
+        let seg = MappedSegment::from_bytes(
+            data,
+            std::env::temp_dir().join("oximedia-server-mmap-seg.ts"),
+        );
         assert!(seg.slice(3, 10).is_none());
     }
 

@@ -26,8 +26,8 @@
 //!     name: "Music".into(),
 //!     category: StemCategory::Music,
 //!     ..Default::default()
-//! }).unwrap();
-//! mixer.set_stem_level(music_id, 0.8).unwrap();
+//! }).expect("add_stem should succeed");
+//! mixer.set_stem_level(music_id, 0.8).expect("set_stem_level with valid gain should succeed");
 //! ```
 
 use std::collections::HashMap;
@@ -506,9 +506,9 @@ mod tests {
                 category: StemCategory::Music,
                 ..Default::default()
             })
-            .unwrap();
+            .expect("add_stem should succeed");
         assert_eq!(mixer.stem_count(), 1);
-        mixer.remove_stem(id).unwrap();
+        mixer.remove_stem(id).expect("remove_stem should succeed for existing id");
         assert_eq!(mixer.stem_count(), 0);
     }
 
@@ -523,18 +523,18 @@ mod tests {
         let mut mixer = StemMixer::new(48000);
         let id = mixer
             .add_stem(StemConfig::default())
-            .unwrap();
-        mixer.set_stem_level(id, 0.5).unwrap();
-        assert!((mixer.stem_level(id).unwrap() - 0.5).abs() < 1e-6);
+            .expect("add_stem should succeed");
+        mixer.set_stem_level(id, 0.5).expect("set_stem_level with valid gain should succeed");
+        assert!((mixer.stem_level(id).expect("stem_level should return value for existing id") - 0.5).abs() < 1e-6);
         // Clamped to 4.0
-        mixer.set_stem_level(id, 100.0).unwrap();
-        assert!((mixer.stem_level(id).unwrap() - 4.0).abs() < 1e-6);
+        mixer.set_stem_level(id, 100.0).expect("set_stem_level should clamp and succeed");
+        assert!((mixer.stem_level(id).expect("stem_level should return value for existing id") - 4.0).abs() < 1e-6);
     }
 
     #[test]
     fn test_negative_level_errors() {
         let mut mixer = StemMixer::new(48000);
-        let id = mixer.add_stem(StemConfig::default()).unwrap();
+        let id = mixer.add_stem(StemConfig::default()).expect("add_stem should succeed");
         assert!(mixer.set_stem_level(id, -1.0).is_err());
     }
 
@@ -547,16 +547,16 @@ mod tests {
                 category: StemCategory::Effects,
                 ..Default::default()
             })
-            .unwrap();
+            .expect("add_stem should succeed");
         let chan = make_channel_id(1);
-        mixer.assign_channel(chan, id).unwrap();
-        mixer.set_stem_mute(id, true).unwrap();
+        mixer.assign_channel(chan, id).expect("assign_channel should succeed");
+        mixer.set_stem_mute(id, true).expect("set_stem_mute should succeed");
 
         let buf = sine_buffer(64, 0.8);
         let mut ch_map = HashMap::new();
         ch_map.insert(chan, (buf.clone(), buf));
         let out = mixer.process(&ch_map, 64);
-        let (l, _r) = out.get(&id).unwrap();
+        let (l, _r) = out.get(&id).expect("stem output should be present in process result");
         let peak: f32 = l.iter().copied().fold(0.0, f32::max);
         assert!(
             peak < 1e-9,
@@ -573,22 +573,22 @@ mod tests {
                 category: StemCategory::Music,
                 ..Default::default()
             })
-            .unwrap();
+            .expect("add_stem Music should succeed");
         let id_fx = mixer
             .add_stem(StemConfig {
                 name: "FX".into(),
                 category: StemCategory::Effects,
                 ..Default::default()
             })
-            .unwrap();
+            .expect("add_stem FX should succeed");
 
         let chan_m = make_channel_id(10);
         let chan_f = make_channel_id(11);
-        mixer.assign_channel(chan_m, id_music).unwrap();
-        mixer.assign_channel(chan_f, id_fx).unwrap();
+        mixer.assign_channel(chan_m, id_music).expect("assign_channel to music stem should succeed");
+        mixer.assign_channel(chan_f, id_fx).expect("assign_channel to fx stem should succeed");
 
         // Solo Music — FX should be silent.
-        mixer.set_stem_solo(id_music, true).unwrap();
+        mixer.set_stem_solo(id_music, true).expect("set_stem_solo should succeed");
 
         let buf = sine_buffer(64, 1.0);
         let mut ch_map = HashMap::new();
@@ -596,14 +596,14 @@ mod tests {
         ch_map.insert(chan_f, (buf.clone(), buf));
         let out = mixer.process(&ch_map, 64);
 
-        let (fx_l, _) = out.get(&id_fx).unwrap();
+        let (fx_l, _) = out.get(&id_fx).expect("fx stem output should be present in process result");
         let peak_fx: f32 = fx_l.iter().copied().fold(0.0, f32::max);
         assert!(
             peak_fx < 1e-9,
             "Non-soloed stem should be silent, got {peak_fx}"
         );
 
-        let (mu_l, _) = out.get(&id_music).unwrap();
+        let (mu_l, _) = out.get(&id_music).expect("music stem output should be present in process result");
         let peak_music: f32 = mu_l.iter().copied().fold(0.0_f32, |a, x| a.max(x.abs()));
         assert!(
             peak_music > 0.1,
@@ -614,28 +614,28 @@ mod tests {
     #[test]
     fn test_channel_assignment_exclusive() {
         let mut mixer = StemMixer::new(48000);
-        let id_a = mixer.add_stem(StemConfig::default()).unwrap();
-        let id_b = mixer.add_stem(StemConfig::default()).unwrap();
+        let id_a = mixer.add_stem(StemConfig::default()).expect("add_stem A should succeed");
+        let id_b = mixer.add_stem(StemConfig::default()).expect("add_stem B should succeed");
         let chan = make_channel_id(5);
 
-        mixer.assign_channel(chan, id_a).unwrap();
+        mixer.assign_channel(chan, id_a).expect("assign_channel to stem A should succeed");
         assert_eq!(mixer.stem_for_channel(chan), Some(id_a));
 
         // Reassign to id_b — should leave id_a.
-        mixer.assign_channel(chan, id_b).unwrap();
+        mixer.assign_channel(chan, id_b).expect("reassign channel to stem B should succeed");
         assert_eq!(mixer.stem_for_channel(chan), Some(id_b));
-        assert_eq!(mixer.stem(id_a).unwrap().channels.len(), 0);
+        assert_eq!(mixer.stem(id_a).expect("stem A should still exist").channels.len(), 0);
     }
 
     #[test]
     fn test_bus_routing() {
         let mut mixer = StemMixer::new(48000);
-        let id = mixer.add_stem(StemConfig::default()).unwrap();
+        let id = mixer.add_stem(StemConfig::default()).expect("add_stem should succeed");
         let bus = make_bus_id();
-        mixer.route_stem_to_bus(id, bus).unwrap();
-        assert_eq!(mixer.stem(id).unwrap().target_bus, Some(bus));
-        mixer.clear_stem_routing(id).unwrap();
-        assert_eq!(mixer.stem(id).unwrap().target_bus, None);
+        mixer.route_stem_to_bus(id, bus).expect("route_stem_to_bus should succeed");
+        assert_eq!(mixer.stem(id).expect("stem should exist").target_bus, Some(bus));
+        mixer.clear_stem_routing(id).expect("clear_stem_routing should succeed");
+        assert_eq!(mixer.stem(id).expect("stem should still exist after clear").target_bus, None);
     }
 
     #[test]
@@ -648,11 +648,11 @@ mod tests {
                 level: 1.0,
                 ..Default::default()
             })
-            .unwrap();
+            .expect("add_stem Dialog should succeed");
         let c1 = make_channel_id(20);
         let c2 = make_channel_id(21);
-        mixer.assign_channel(c1, id).unwrap();
-        mixer.assign_channel(c2, id).unwrap();
+        mixer.assign_channel(c1, id).expect("assign channel c1 should succeed");
+        mixer.assign_channel(c2, id).expect("assign channel c2 should succeed");
 
         let buf1 = vec![0.5_f32; 64];
         let buf2 = vec![0.3_f32; 64];
@@ -661,7 +661,7 @@ mod tests {
         ch_map.insert(c2, (buf2.clone(), buf2));
 
         let out = mixer.process(&ch_map, 64);
-        let (l, _) = out.get(&id).unwrap();
+        let (l, _) = out.get(&id).expect("dialog stem output should be present in process result");
         // 0.5 + 0.3 = 0.8
         assert!(
             (l[0] - 0.8).abs() < 1e-5,
@@ -673,16 +673,16 @@ mod tests {
     #[test]
     fn test_snapshot_updated_after_process() {
         let mut mixer = StemMixer::new(48000);
-        let id = mixer.add_stem(StemConfig::default()).unwrap();
+        let id = mixer.add_stem(StemConfig::default()).expect("add_stem should succeed");
         let chan = make_channel_id(30);
-        mixer.assign_channel(chan, id).unwrap();
+        mixer.assign_channel(chan, id).expect("assign_channel should succeed");
 
         let buf = vec![0.7_f32; 64];
         let mut ch_map = HashMap::new();
         ch_map.insert(chan, (buf.clone(), buf));
         mixer.process(&ch_map, 64);
 
-        let snap = mixer.snapshot(id).unwrap();
+        let snap = mixer.snapshot(id).expect("snapshot should be present after process");
         assert!(snap.audible);
         assert!((snap.peak_left - 0.7).abs() < 1e-5);
     }

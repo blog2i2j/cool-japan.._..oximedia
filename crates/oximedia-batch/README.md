@@ -6,6 +6,8 @@ Comprehensive batch processing engine for OxiMedia.
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
+Version: 0.1.4 — 2026-04-20 — 709 tests
+
 ## Features
 
 ### Core Batch Processing
@@ -42,7 +44,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-batch = "0.1.3"
+oximedia-batch = "0.1.4"
 ```
 
 ### Basic Example

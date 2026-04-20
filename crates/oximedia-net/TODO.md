@@ -15,7 +15,7 @@
 - [ ] Add RTMP enhanced mode (RTMP+) with AV1/VP9 codec support in rtmp module
 - [ ] Implement WebRTC WHIP/WHEP signaling for browser-based ingest/playback in webrtc module
 - [x] Add QUIC datagram mode for ultra-low-latency media transport in quic module
-- [ ] Improve ABR algorithm with buffer-based (BBA) strategy alongside bandwidth-based in abr module
+- [x] Improve ABR algorithm with buffer-based (BBA) strategy alongside bandwidth-based in abr module
 - [x] Add SRT encryption with AES-256-GCM in addition to current AES-128-CTR
 
 ## New Features

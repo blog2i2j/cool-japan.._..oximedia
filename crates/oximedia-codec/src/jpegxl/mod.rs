@@ -9,6 +9,8 @@
 //! - **8-bit and 16-bit** sample support
 //! - **RGB, RGBA, and Grayscale** color types
 //! - **Codestream format**: Direct JXL codestream (0xFF 0x0A signature)
+//! - **Animation**: Multi-frame animated JPEG-XL (AJXL) with configurable
+//!   tick rates and per-frame duration
 //!
 //! ## Architecture
 //!
@@ -53,8 +55,11 @@ mod types;
 
 // Re-export public API
 pub use bitreader::{BitReader, BitWriter};
-pub use decoder::{DecodedImage, JxlDecoder};
-pub use encoder::JxlEncoder;
+pub use decoder::{DecodedImage, JxlDecoder, JxlStreamingDecoder};
+pub use encoder::{AnimatedJxlEncoder, JxlEncoder};
 pub use entropy::{AnsDecoder, AnsDistribution, AnsEncoder};
 pub use modular::{forward_rct, inverse_rct, ModularDecoder, ModularEncoder};
-pub use types::{JxlColorSpace, JxlConfig, JxlFrameEncoding, JxlHeader};
+pub use types::{
+    JxlAnimation, JxlColorSpace, JxlConfig, JxlFrame, JxlFrameAnimation, JxlFrameEncoding,
+    JxlHeader,
+};

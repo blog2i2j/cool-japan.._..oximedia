@@ -393,11 +393,14 @@ mod tests {
         let annotation = Annotation::new(drawing);
         let annotations = vec![&annotation];
 
-        let temp_file = "/tmp/test_export.json";
-        let result = export_to_json(session_id, &annotations, temp_file).await;
+        let temp_file = std::env::temp_dir()
+            .join("oximedia-review-drawing-export-test.json")
+            .to_string_lossy()
+            .into_owned();
+        let result = export_to_json(session_id, &annotations, &temp_file).await;
         assert!(result.is_ok());
 
         // Clean up
-        let _ = std::fs::remove_file(temp_file);
+        let _ = std::fs::remove_file(&temp_file);
     }
 }

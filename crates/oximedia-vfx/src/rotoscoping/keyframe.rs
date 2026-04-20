@@ -34,10 +34,11 @@ impl KeyframedMask {
     pub fn add_keyframe(&mut self, time: f64, mask: BezierMask, easing: EasingFunction) {
         let keyframe = MaskKeyframe { time, mask, easing };
 
-        match self
-            .keyframes
-            .binary_search_by(|k| k.time.partial_cmp(&time).expect("should succeed in test"))
-        {
+        match self.keyframes.binary_search_by(|k| {
+            k.time
+                .partial_cmp(&time)
+                .unwrap_or(std::cmp::Ordering::Less)
+        }) {
             Ok(idx) => self.keyframes[idx] = keyframe,
             Err(idx) => self.keyframes.insert(idx, keyframe),
         }
@@ -55,10 +56,11 @@ impl KeyframedMask {
         }
 
         // Find surrounding keyframes
-        let idx = match self
-            .keyframes
-            .binary_search_by(|k| k.time.partial_cmp(&time).expect("should succeed in test"))
-        {
+        let idx = match self.keyframes.binary_search_by(|k| {
+            k.time
+                .partial_cmp(&time)
+                .unwrap_or(std::cmp::Ordering::Less)
+        }) {
             Ok(idx) => return Some(self.keyframes[idx].mask.clone()),
             Err(idx) => idx,
         };

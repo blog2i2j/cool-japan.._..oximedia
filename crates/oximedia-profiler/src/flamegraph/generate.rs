@@ -85,10 +85,9 @@ impl FlameGraphGenerator {
                     value: 0,
                     children: Vec::new(),
                 };
+                let idx = node.children.len();
                 node.children.push(new_child);
-                node.children
-                    .last_mut()
-                    .expect("invariant: child was just pushed above")
+                &mut node.children[idx]
             }
         };
 

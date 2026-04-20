@@ -197,21 +197,11 @@ impl SearchEngine {
         let query_parser = QueryParser::for_index(
             &index,
             vec![
-                schema
-                    .get_field("filename")
-                    .expect("invariant: schema field registered at construction"),
-                schema
-                    .get_field("title")
-                    .expect("invariant: schema field registered at construction"),
-                schema
-                    .get_field("description")
-                    .expect("invariant: schema field registered at construction"),
-                schema
-                    .get_field("keywords")
-                    .expect("invariant: schema field registered at construction"),
-                schema
-                    .get_field("categories")
-                    .expect("invariant: schema field registered at construction"),
+                schema.get_field("filename")?,
+                schema.get_field("title")?,
+                schema.get_field("description")?,
+                schema.get_field("keywords")?,
+                schema.get_field("categories")?,
             ],
         );
 
@@ -233,134 +223,66 @@ impl SearchEngine {
         let mut tantivy_doc = TantivyDocument::new();
 
         // Add fields
-        tantivy_doc.add_text(
-            self.schema
-                .get_field("asset_id")
-                .expect("invariant: schema field registered at construction"),
-            doc.asset_id.to_string(),
-        );
-
-        tantivy_doc.add_text(
-            self.schema
-                .get_field("filename")
-                .expect("invariant: schema field registered at construction"),
-            &doc.filename,
-        );
+        tantivy_doc.add_text(self.schema.get_field("asset_id")?, doc.asset_id.to_string());
+        tantivy_doc.add_text(self.schema.get_field("filename")?, &doc.filename);
 
         if let Some(title) = &doc.title {
-            tantivy_doc.add_text(
-                self.schema
-                    .get_field("title")
-                    .expect("invariant: schema field registered at construction"),
-                title,
-            );
+            tantivy_doc.add_text(self.schema.get_field("title")?, title);
         }
 
         if let Some(description) = &doc.description {
-            tantivy_doc.add_text(
-                self.schema
-                    .get_field("description")
-                    .expect("invariant: schema field registered at construction"),
-                description,
-            );
+            tantivy_doc.add_text(self.schema.get_field("description")?, description);
         }
 
         // Add keywords
+        let keywords_field = self.schema.get_field("keywords")?;
+        let keyword_facet_field = self.schema.get_field("keyword_facet")?;
         for keyword in &doc.keywords {
-            tantivy_doc.add_text(
-                self.schema
-                    .get_field("keywords")
-                    .expect("invariant: schema field registered at construction"),
-                keyword,
-            );
+            tantivy_doc.add_text(keywords_field, keyword);
             tantivy_doc.add_facet(
-                self.schema
-                    .get_field("keyword_facet")
-                    .expect("invariant: schema field registered at construction"),
+                keyword_facet_field,
                 Facet::from(&format!("/keyword/{keyword}")),
             );
         }
 
         // Add categories
+        let categories_field = self.schema.get_field("categories")?;
+        let category_facet_field = self.schema.get_field("category_facet")?;
         for category in &doc.categories {
-            tantivy_doc.add_text(
-                self.schema
-                    .get_field("categories")
-                    .expect("invariant: schema field registered at construction"),
-                category,
-            );
+            tantivy_doc.add_text(categories_field, category);
             tantivy_doc.add_facet(
-                self.schema
-                    .get_field("category_facet")
-                    .expect("invariant: schema field registered at construction"),
+                category_facet_field,
                 Facet::from(&format!("/category/{category}")),
             );
         }
 
         if let Some(mime_type) = &doc.mime_type {
-            tantivy_doc.add_text(
-                self.schema
-                    .get_field("mime_type")
-                    .expect("invariant: schema field registered at construction"),
-                mime_type,
-            );
+            tantivy_doc.add_text(self.schema.get_field("mime_type")?, mime_type);
             tantivy_doc.add_facet(
-                self.schema
-                    .get_field("mime_type_facet")
-                    .expect("invariant: schema field registered at construction"),
+                self.schema.get_field("mime_type_facet")?,
                 Facet::from(&format!("/mime/{mime_type}")),
             );
         }
 
         // Add numeric fields
         if let Some(duration) = doc.duration_ms {
-            tantivy_doc.add_i64(
-                self.schema
-                    .get_field("duration_ms")
-                    .expect("invariant: schema field registered at construction"),
-                duration,
-            );
+            tantivy_doc.add_i64(self.schema.get_field("duration_ms")?, duration);
         }
 
         if let Some(width) = doc.width {
-            tantivy_doc.add_i64(
-                self.schema
-                    .get_field("width")
-                    .expect("invariant: schema field registered at construction"),
-                i64::from(width),
-            );
+            tantivy_doc.add_i64(self.schema.get_field("width")?, i64::from(width));
         }
 
         if let Some(height) = doc.height {
-            tantivy_doc.add_i64(
-                self.schema
-                    .get_field("height")
-                    .expect("invariant: schema field registered at construction"),
-                i64::from(height),
-            );
+            tantivy_doc.add_i64(self.schema.get_field("height")?, i64::from(height));
         }
 
         if let Some(file_size) = doc.file_size {
-            tantivy_doc.add_i64(
-                self.schema
-                    .get_field("file_size")
-                    .expect("invariant: schema field registered at construction"),
-                file_size,
-            );
+            tantivy_doc.add_i64(self.schema.get_field("file_size")?, file_size);
         }
 
-        tantivy_doc.add_i64(
-            self.schema
-                .get_field("created_at")
-                .expect("invariant: schema field registered at construction"),
-            doc.created_at,
-        );
-        tantivy_doc.add_i64(
-            self.schema
-                .get_field("updated_at")
-                .expect("invariant: schema field registered at construction"),
-            doc.updated_at,
-        );
+        tantivy_doc.add_i64(self.schema.get_field("created_at")?, doc.created_at);
+        tantivy_doc.add_i64(self.schema.get_field("updated_at")?, doc.updated_at);
 
         // Add to index
         let writer = self
@@ -395,12 +317,7 @@ impl SearchEngine {
     ///
     /// Returns an error if deletion fails
     pub fn delete_document(&self, asset_id: Uuid) -> Result<()> {
-        let term = Term::from_field_text(
-            self.schema
-                .get_field("asset_id")
-                .expect("invariant: schema field registered at construction"),
-            &asset_id.to_string(),
-        );
+        let term = Term::from_field_text(self.schema.get_field("asset_id")?, &asset_id.to_string());
 
         let writer = self
             .writer
@@ -428,14 +345,10 @@ impl SearchEngine {
 
         // MIME type filters
         if !query.filters.mime_types.is_empty() {
+            let mime_field = self.schema.get_field("mime_type")?;
             let mut mime_queries: Vec<(Occur, Box<dyn Query>)> = Vec::new();
             for mime_type in &query.filters.mime_types {
-                let term = Term::from_field_text(
-                    self.schema
-                        .get_field("mime_type")
-                        .expect("invariant: schema field registered at construction"),
-                    mime_type,
-                );
+                let term = Term::from_field_text(mime_field, mime_type);
                 mime_queries.push((
                     Occur::Should,
                     Box::new(TermQuery::new(term, Default::default())),
@@ -496,17 +409,21 @@ impl SearchEngine {
             .order_by_score();
         let top_docs = searcher.search(&final_query, &top_docs_collector)?;
 
+        // Pre-resolve fields before the loop to avoid repeated lookups
+        let field_asset_id = self.schema.get_field("asset_id")?;
+        let field_title = self.schema.get_field("title")?;
+        let field_description = self.schema.get_field("description")?;
+        let field_filename = self.schema.get_field("filename")?;
+        let field_mime_type = self.schema.get_field("mime_type")?;
+        let field_created_at = self.schema.get_field("created_at")?;
+
         // Convert to search results
         let mut results = Vec::new();
         for (score, doc_address) in top_docs {
             let retrieved_doc: TantivyDocument = searcher.doc(doc_address)?;
 
             let asset_id_str = retrieved_doc
-                .get_first(
-                    self.schema
-                        .get_field("asset_id")
-                        .expect("invariant: schema field registered at construction"),
-                )
+                .get_first(field_asset_id)
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
 
@@ -514,48 +431,28 @@ impl SearchEngine {
                 .map_err(|_| MamError::Internal("Invalid asset ID in index".to_string()))?;
 
             let title = retrieved_doc
-                .get_first(
-                    self.schema
-                        .get_field("title")
-                        .expect("invariant: schema field registered at construction"),
-                )
+                .get_first(field_title)
                 .and_then(|v| v.as_str())
                 .map(String::from);
 
             let description = retrieved_doc
-                .get_first(
-                    self.schema
-                        .get_field("description")
-                        .expect("invariant: schema field registered at construction"),
-                )
+                .get_first(field_description)
                 .and_then(|v| v.as_str())
                 .map(String::from);
 
             let filename = retrieved_doc
-                .get_first(
-                    self.schema
-                        .get_field("filename")
-                        .expect("invariant: schema field registered at construction"),
-                )
+                .get_first(field_filename)
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
 
             let mime_type = retrieved_doc
-                .get_first(
-                    self.schema
-                        .get_field("mime_type")
-                        .expect("invariant: schema field registered at construction"),
-                )
+                .get_first(field_mime_type)
                 .and_then(|v| v.as_str())
                 .map(String::from);
 
             let created_at = retrieved_doc
-                .get_first(
-                    self.schema
-                        .get_field("created_at")
-                        .expect("invariant: schema field registered at construction"),
-                )
+                .get_first(field_created_at)
                 .and_then(|v| v.as_i64())
                 .unwrap_or(0);
 

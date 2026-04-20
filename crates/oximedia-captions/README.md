@@ -6,6 +6,8 @@ Professional closed captioning and subtitle authoring system for OxiMedia, suppo
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
+Version: 0.1.4 — 2026-04-20 — 586 tests
+
 ## Features
 
 - **Closed Caption Formats** — CEA-608 (Line 21/NTSC), CEA-708 (ATSC), Teletext (EBU/BBC), ARIB (Japan)
@@ -31,9 +33,9 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-captions = "0.1.3"
+oximedia-captions = "0.1.4"
 # or with specific format support:
-oximedia-captions = { version = "0.1.3", features = ["cea", "web", "broadcast"] }
+oximedia-captions = { version = "0.1.4", features = ["cea", "web", "broadcast"] }
 ```
 
 ```rust

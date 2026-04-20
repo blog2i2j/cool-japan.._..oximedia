@@ -250,7 +250,11 @@ pub fn compute_calibration_metrics(
             });
             continue;
         }
-        let items = entries.expect("should succeed in test");
+        // Safe: count > 0 was checked above, so entries is Some.
+        let items = match entries {
+            Some(v) => v,
+            None => continue,
+        };
         let avg_pred: f64 = items.iter().map(|s| s.predicted).sum::<f64>() / count as f64;
         let actual_rate: f64 = items.iter().map(|s| s.actual).sum::<f64>() / count as f64;
         let gap = (avg_pred - actual_rate).abs();

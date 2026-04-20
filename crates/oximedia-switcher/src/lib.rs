@@ -1,25 +1,37 @@
 //! Professional live production video switcher for OxiMedia.
 //!
-//! This crate provides a comprehensive video switcher implementation with:
-//! - Multi-source input management (SDI, NDI, files)
-//! - Program/Preview bus architecture
-//! - Transitions (cut, mix, wipe, DVE)
-//! - Keying (luma, chroma, linear, pattern)
-//! - Upstream and downstream keyers
-//! - Multi-viewer monitoring
-//! - Tally system
-//! - Macro recording and playback
-//! - Media pool for still frames
-//! - Audio follow video (AFV)
-//! - Frame synchronization and genlock
+//! Provides a full broadcast video switcher with M/E rows, program/preview bus architecture,
+//! transitions, keyers, multi-viewer, tally, macro recording, and frame buffer management.
+//!
+//! # Features
+//!
+//! - **M/E architecture** — `SwitcherConfig::basic()` (1 M/E, 8 in), `professional()` (2 M/E,
+//!   20 in), `broadcast()` (4 M/E, 40 in); or `SwitcherConfig::new(me, inputs, aux)`.
+//! - **Program/Preview buses** — `set_program(me, src)`, `set_preview(me, src)`, `cut(me)`
+//! - **Transitions** — cut, mix, wipe (`WipePattern`), DVE; `TransitionConfig::mix(frames)`
+//! - **Keyers** — luma, chroma, linear, pattern; upstream and downstream keyers
+//! - **Fade-to-black** — `FtbControl` state machine: Normal→FadingToBlack→Black→FadingFromBlack;
+//!   curves: Linear, SCurve, EaseOut, EaseIn
+//! - **Tally** — `TallyManager` / `TallyState`; protocol support for external tally lights
+//! - **Macros** — `MacroEngine` records and plays back `MacroCommand` sequences
+//!   (SelectProgram, SelectPreview, Cut, Auto, SetTransition, SetKeyerOnAir, Wait, RunMacro …)
+//! - **Frame buffers** — `FrameBufferPool` free-list allocator; `SharedFrame(Arc<…>)` zero-copy
+//!   cloning; `SharedFrameBuffer` per-source slot ring
+//! - **Output routing** — `AsyncOutputRouter` backed by `Arc<RwLock<OutputMatrix>>`; clonable
+//! - **Audio follow video** — `AudioFollowManager` with configurable `AudioFollowMode`
+//! - **Frame sync / genlock** — `FrameSynchronizer`, `FrameRate`, `GenlockSource`
+//! - **Multi-viewer** — `Multiviewer` / `MultiviewerLayout` / `MultiviewerConfig`
+//! - **AUX buses** — independent auxiliary output buses
+//! - **Media pool** — `MediaPool` / `MediaSlot` for stills and clips
+//! - **DVE** — position, scale, and rotation digital video effects
 //!
 //! # Example
 //!
 //! ```rust,no_run
 //! use oximedia_switcher::{Switcher, SwitcherConfig};
+//! use oximedia_switcher::transition::TransitionConfig;
 //!
 //! # fn main() -> Result<(), Box<dyn std::error::Error>> {
-//! // Create a professional switcher with 2 M/E rows
 //! let config = SwitcherConfig::new(2, 8, 4);
 //! let mut switcher = Switcher::new(config)?;
 //!
@@ -27,8 +39,13 @@
 //! switcher.set_program(0, 1)?;
 //! switcher.set_preview(0, 2)?;
 //!
-//! // Perform a cut
+//! // Instant cut transition
 //! switcher.cut(0)?;
+//!
+//! // Configure and trigger a mix transition
+//! let tc = TransitionConfig::mix(30); // 30 frames
+//! switcher.set_transition_config(0, tc)?;
+//! switcher.auto_transition(0)?;
 //! # Ok(())
 //! # }
 //! ```

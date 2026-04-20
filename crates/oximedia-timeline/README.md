@@ -6,7 +6,7 @@ Multi-track timeline editor for OxiMedia. Provides a professional-grade timeline
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.3 — 2026-04-15
+Version: 0.1.4 — 2026-04-20 — 832 tests
 
 ## Features
 
@@ -48,7 +48,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-timeline = "0.1.3"
+oximedia-timeline = "0.1.4"
 ```
 
 ```rust

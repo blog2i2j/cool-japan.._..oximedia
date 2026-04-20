@@ -416,9 +416,9 @@ mod tests {
     fn test_create_and_add_members() {
         let mut mgr = VcaGroupManager::new();
         let id = mgr.create_group("Drums");
-        let group = mgr.group_mut(id).unwrap();
-        group.add_channel(0).unwrap();
-        group.add_channel(1).unwrap();
+        let group = mgr.group_mut(id).expect("group should exist after create_group");
+        group.add_channel(0).expect("add_channel 0 should succeed");
+        group.add_channel(1).expect("add_channel 1 should succeed");
         assert_eq!(group.members().len(), 2);
     }
 
@@ -426,8 +426,8 @@ mod tests {
     fn test_duplicate_member_rejected() {
         let mut mgr = VcaGroupManager::new();
         let id = mgr.create_group("Brass");
-        let group = mgr.group_mut(id).unwrap();
-        group.add_channel(5).unwrap();
+        let group = mgr.group_mut(id).expect("group should exist after create_group");
+        group.add_channel(5).expect("first add_channel should succeed");
         assert!(group.add_channel(5).is_err());
     }
 
@@ -435,7 +435,7 @@ mod tests {
     fn test_trim_out_of_range_rejected() {
         let mut mgr = VcaGroupManager::new();
         let id = mgr.create_group("Strings");
-        let group = mgr.group_mut(id).unwrap();
+        let group = mgr.group_mut(id).expect("group should exist after create_group");
         assert!(group.set_trim_db(100.0).is_err());
         assert!(group.set_trim_db(-200.0).is_err());
         assert!(group.set_trim_db(6.0).is_ok());
@@ -445,7 +445,7 @@ mod tests {
     fn test_mute_returns_zero_gain() {
         let mut mgr = VcaGroupManager::new();
         let id = mgr.create_group("Keys");
-        let group = mgr.group_mut(id).unwrap();
+        let group = mgr.group_mut(id).expect("group should exist after create_group");
         group.muted = true;
         assert_eq!(group.multiplier(), 0.0);
         assert_eq!(group.effective_gain(0.8), 0.0);
@@ -455,7 +455,7 @@ mod tests {
     fn test_unity_trim_preserves_channel_gain() {
         let mut mgr = VcaGroupManager::new();
         let id = mgr.create_group("Guitars");
-        let group = mgr.group(id).unwrap();
+        let group = mgr.group(id).expect("group should exist after create_group");
         let result = group.effective_gain(0.5);
         assert!(approx_eq(result, 0.5, 1e-5));
     }
@@ -465,12 +465,12 @@ mod tests {
         let mut mgr = VcaGroupManager::new();
         let g1 = mgr.create_group("Group1");
         let g2 = mgr.create_group("Group2");
-        mgr.group_mut(g1).unwrap().add_channel(3).unwrap();
-        mgr.group_mut(g2).unwrap().add_channel(3).unwrap();
+        mgr.group_mut(g1).expect("group1 should exist").add_channel(3).expect("add_channel to group1 should succeed");
+        mgr.group_mut(g2).expect("group2 should exist").add_channel(3).expect("add_channel to group2 should succeed");
         // Both at unity → combined = 1.0
         assert!(approx_eq(mgr.combined_multiplier(3), 1.0, 1e-5));
         // g1 muted → combined = 0.0
-        mgr.group_mut(g1).unwrap().muted = true;
+        mgr.group_mut(g1).expect("group1 should still exist").muted = true;
         assert_eq!(mgr.combined_multiplier(3), 0.0);
     }
 
@@ -479,15 +479,15 @@ mod tests {
         let mut mgr = VcaGroupManager::new();
         let id = mgr.create_group("Automation");
         {
-            let g = mgr.group_mut(id).unwrap();
-            g.set_trim_db(-6.0).unwrap();
+            let g = mgr.group_mut(id).expect("automation group should exist");
+            g.set_trim_db(-6.0).expect("set_trim_db -6 should succeed");
             g.record_automation(0);
-            g.set_trim_db(0.0).unwrap();
+            g.set_trim_db(0.0).expect("set_trim_db 0 should succeed");
             g.record_automation(1000);
         }
         // At midpoint trim should be ~-3 dB
         mgr.advance_automation(500);
-        let trim = mgr.group(id).unwrap().trim_db;
+        let trim = mgr.group(id).expect("automation group should still exist").trim_db;
         assert!(approx_eq(trim, -3.0, 0.1));
     }
 
@@ -496,24 +496,24 @@ mod tests {
         let mut mgr = VcaGroupManager::new();
         let id = mgr.create_group("Snapshot");
         {
-            let g = mgr.group_mut(id).unwrap();
-            g.add_channel(10).unwrap();
-            g.set_trim_db(-3.0).unwrap();
+            let g = mgr.group_mut(id).expect("snapshot group should exist");
+            g.add_channel(10).expect("add_channel 10 should succeed");
+            g.set_trim_db(-3.0).expect("set_trim_db -3 should succeed");
         }
         let snaps = mgr.snapshot_all();
         // Mutate state
-        mgr.group_mut(id).unwrap().set_trim_db(0.0).unwrap();
+        mgr.group_mut(id).expect("snapshot group should still exist").set_trim_db(0.0).expect("set_trim_db 0 should succeed");
         // Restore
         mgr.restore_all(&snaps);
-        assert!(approx_eq(mgr.group(id).unwrap().trim_db, -3.0, 1e-5));
+        assert!(approx_eq(mgr.group(id).expect("snapshot group should still exist after restore").trim_db, -3.0, 1e-5));
     }
 
     #[test]
     fn test_remove_channel() {
         let mut mgr = VcaGroupManager::new();
         let id = mgr.create_group("Remove");
-        let g = mgr.group_mut(id).unwrap();
-        g.add_channel(7).unwrap();
+        let g = mgr.group_mut(id).expect("remove group should exist");
+        g.add_channel(7).expect("add_channel 7 should succeed");
         g.remove_channel(7);
         assert!(g.members().is_empty());
     }

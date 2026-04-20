@@ -592,7 +592,7 @@ pub enum ParsedPlaylist {
 ///
 /// let text = "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:10\n\
 ///             #EXTINF:10.0,\nsegment0.ts\n#EXT-X-ENDLIST\n";
-/// let result = PlaylistParser::new().parse(text, None).unwrap();
+/// let result = PlaylistParser::new().parse(text, None).expect("valid HLS media playlist");
 /// match result {
 ///     ParsedPlaylist::HlsMedia(m) => assert_eq!(m.segments.len(), 1),
 ///     _ => panic!("expected HLS media playlist"),
@@ -1363,7 +1363,8 @@ mod tests {
     fn test_url_resolver_absolute() {
         let r = UrlResolver::new("https://a.example.com/path/manifest.m3u8");
         assert_eq!(
-            r.resolve("https://b.example.com/seg.ts").unwrap(),
+            r.resolve("https://b.example.com/seg.ts")
+                .expect("absolute URL resolution should not fail"),
             "https://b.example.com/seg.ts"
         );
     }
@@ -1371,7 +1372,9 @@ mod tests {
     #[test]
     fn test_url_resolver_relative() {
         let r = UrlResolver::new("https://cdn.example.com/live/hls/manifest.m3u8");
-        let resolved = r.resolve("seg0.ts").unwrap();
+        let resolved = r
+            .resolve("seg0.ts")
+            .expect("relative URL resolution should not fail");
         assert!(resolved.contains("cdn.example.com"), "got: {resolved}");
         assert!(resolved.ends_with("seg0.ts"), "got: {resolved}");
     }
@@ -1379,7 +1382,9 @@ mod tests {
     #[test]
     fn test_url_resolver_abs_path() {
         let r = UrlResolver::new("https://cdn.example.com/live/manifest.m3u8");
-        let resolved = r.resolve("/segments/seg0.ts").unwrap();
+        let resolved = r
+            .resolve("/segments/seg0.ts")
+            .expect("absolute-path URL resolution should not fail");
         assert_eq!(resolved, "https://cdn.example.com/segments/seg0.ts");
     }
 
@@ -1430,13 +1435,19 @@ mod tests {
             timescale: 1000,
         };
 
-        let media = template.expand_media("1080p", 42).unwrap();
+        let media = template
+            .expand_media("1080p", 42)
+            .expect("media template is set");
         assert_eq!(media, "video/1080p/42.m4s");
 
-        let init = template.expand_init("1080p").unwrap();
+        let init = template
+            .expand_init("1080p")
+            .expect("initialization template is set");
         assert_eq!(init, "video/1080p/init.mp4");
 
-        let dur = template.segment_duration().unwrap();
+        let dur = template
+            .segment_duration()
+            .expect("duration and timescale are non-zero");
         assert_eq!(dur, Duration::from_secs(4));
     }
 
@@ -1461,7 +1472,9 @@ mod tests {
     #[test]
     fn test_parse_unknown_format_returns_error() {
         let parser = PlaylistParser::new();
-        let err = parser.parse("not a playlist", None).unwrap_err();
+        let err = parser
+            .parse("not a playlist", None)
+            .expect_err("unknown format must fail");
         assert!(
             matches!(err, crate::error::NetError::Playlist(_)),
             "expected Playlist error, got {err:?}"

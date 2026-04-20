@@ -204,7 +204,7 @@ impl StreamIndex {
         match self.points.binary_search_by_key(&pts, |p| p.pts) {
             Ok(i) => Ok(&self.points[i]),
             Err(0) => Ok(&self.points[0]),
-            Err(i) if i >= self.points.len() => Ok(self.points.last().expect("non-empty")),
+            Err(i) if i >= self.points.len() => self.points.last().ok_or(StreamIndexError::Empty),
             Err(i) => {
                 let before = &self.points[i - 1];
                 let after = &self.points[i];

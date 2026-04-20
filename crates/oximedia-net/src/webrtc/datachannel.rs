@@ -205,7 +205,7 @@ impl DataChannel {
             tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
         }
 
-        *self.state.lock().expect("state mutex poisoned") = DataChannelState::Open;
+        *self.state.lock().unwrap_or_else(|e| e.into_inner()) = DataChannelState::Open;
         Ok(())
     }
 
@@ -221,7 +221,7 @@ impl DataChannel {
 
     /// Sends a message.
     pub async fn send_message(&self, message: Message) -> NetResult<()> {
-        let state = *self.state.lock().expect("state mutex poisoned");
+        let state = *self.state.lock().unwrap_or_else(|e| e.into_inner());
         if state != DataChannelState::Open {
             return Err(NetError::invalid_state("Data channel not open"));
         }
@@ -241,7 +241,7 @@ impl DataChannel {
 
     /// Receives a message.
     pub async fn recv_message(&self) -> NetResult<Message> {
-        let mut rx = self.rx.lock().expect("rx mutex poisoned");
+        let mut rx = self.rx.lock().unwrap_or_else(|e| e.into_inner());
         rx.recv()
             .await
             .ok_or_else(|| NetError::connection("Channel closed"))
@@ -262,7 +262,7 @@ impl DataChannel {
     /// Sends a zero-length data chunk on the stream to signal closure, then
     /// transitions to the Closed state.
     pub async fn close(&self) -> NetResult<()> {
-        *self.state.lock().expect("state mutex poisoned") = DataChannelState::Closing;
+        *self.state.lock().unwrap_or_else(|e| e.into_inner()) = DataChannelState::Closing;
 
         // Send a zero-length SCTP data chunk to signal stream closure to the peer.
         // The packet is routed through DTLS as with normal data messages.
@@ -273,14 +273,14 @@ impl DataChannel {
         // Send the close signal; ignore errors since we transition to Closed regardless.
         let _ = self.dtls.send(&encoded).await;
 
-        *self.state.lock().expect("state mutex poisoned") = DataChannelState::Closed;
+        *self.state.lock().unwrap_or_else(|e| e.into_inner()) = DataChannelState::Closed;
         Ok(())
     }
 
     /// Gets the channel state.
     #[must_use]
     pub fn state(&self) -> DataChannelState {
-        *self.state.lock().expect("state mutex poisoned")
+        *self.state.lock().unwrap_or_else(|e| e.into_inner())
     }
 
     /// Gets the channel label.
@@ -340,7 +340,7 @@ impl DataChannelManager {
             let mut next_id = self
                 .next_stream_id
                 .lock()
-                .expect("next_stream_id mutex poisoned");
+                .unwrap_or_else(|e| e.into_inner());
             let id = *next_id;
             *next_id += 2; // Increment by 2 (odd for client, even for server)
             id
@@ -355,7 +355,7 @@ impl DataChannelManager {
 
         self.channels
             .lock()
-            .expect("channels mutex poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .push(channel.clone());
 
         channel.open().await?;
@@ -368,7 +368,7 @@ impl DataChannelManager {
     pub fn channels(&self) -> Vec<Arc<DataChannel>> {
         self.channels
             .lock()
-            .expect("channels mutex poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
     }
 
@@ -377,7 +377,7 @@ impl DataChannelManager {
     pub fn find_channel(&self, stream_id: u16) -> Option<Arc<DataChannel>> {
         self.channels
             .lock()
-            .expect("channels mutex poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .find(|ch| ch.stream_id() == stream_id)
             .cloned()

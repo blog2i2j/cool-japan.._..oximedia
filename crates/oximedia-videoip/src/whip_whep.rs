@@ -458,7 +458,9 @@ mod tests {
     #[test]
     fn test_whip_offer_creates_session() {
         let mut server = WhipWhepServer::new(0);
-        let (sid, answer) = server.handle_whip_offer("sess1".into(), MINIMAL_OFFER).unwrap();
+        let (sid, answer) = server
+            .handle_whip_offer("sess1".into(), MINIMAL_OFFER)
+            .expect("valid WHIP offer");
         assert_eq!(sid, "sess1");
         assert_eq!(answer.sdp_type, SdpType::Answer);
         assert!(answer.sdp.contains("v=0"));
@@ -467,7 +469,9 @@ mod tests {
     #[test]
     fn test_whep_offer_creates_session() {
         let mut server = WhipWhepServer::new(0);
-        let (sid, answer) = server.handle_whep_offer("sess2".into(), MINIMAL_OFFER).unwrap();
+        let (sid, answer) = server
+            .handle_whep_offer("sess2".into(), MINIMAL_OFFER)
+            .expect("valid WHEP offer");
         assert_eq!(sid, "sess2");
         assert!(answer.sdp.contains("m=video"));
     }
@@ -475,7 +479,9 @@ mod tests {
     #[test]
     fn test_duplicate_session_rejected() {
         let mut server = WhipWhepServer::new(0);
-        server.handle_whip_offer("dup".into(), MINIMAL_OFFER).unwrap();
+        server
+            .handle_whip_offer("dup".into(), MINIMAL_OFFER)
+            .expect("first offer succeeds");
         let result = server.handle_whip_offer("dup".into(), MINIMAL_OFFER);
         assert!(matches!(result, Err(WhipWhepError::SessionExists(_))));
     }
@@ -483,7 +489,9 @@ mod tests {
     #[test]
     fn test_session_limit_enforced() {
         let mut server = WhipWhepServer::new(1);
-        server.handle_whip_offer("s1".into(), MINIMAL_OFFER).unwrap();
+        server
+            .handle_whip_offer("s1".into(), MINIMAL_OFFER)
+            .expect("within limit");
         let result = server.handle_whip_offer("s2".into(), MINIMAL_OFFER);
         assert!(matches!(result, Err(WhipWhepError::ResourceLimit(_))));
     }
@@ -491,17 +499,21 @@ mod tests {
     #[test]
     fn test_delete_session() {
         let mut server = WhipWhepServer::new(0);
-        server.handle_whip_offer("s1".into(), MINIMAL_OFFER).unwrap();
-        server.handle_delete("s1").unwrap();
-        let sess = server.get_session("s1").unwrap();
+        server
+            .handle_whip_offer("s1".into(), MINIMAL_OFFER)
+            .expect("valid offer");
+        server.handle_delete("s1").expect("session s1 exists");
+        let sess = server.get_session("s1").expect("session s1 still exists (Closed state)");
         assert_eq!(sess.state, SessionState::Closed);
     }
 
     #[test]
     fn test_gc_closed_sessions() {
         let mut server = WhipWhepServer::new(0);
-        server.handle_whip_offer("s1".into(), MINIMAL_OFFER).unwrap();
-        server.handle_delete("s1").unwrap();
+        server
+            .handle_whip_offer("s1".into(), MINIMAL_OFFER)
+            .expect("valid offer");
+        server.handle_delete("s1").expect("session s1 exists");
         assert_eq!(server.session_count(), 1);
         server.gc_closed_sessions();
         assert_eq!(server.session_count(), 0);
@@ -510,23 +522,31 @@ mod tests {
     #[test]
     fn test_ice_candidate_added() {
         let mut server = WhipWhepServer::new(0);
-        server.handle_whip_offer("s1".into(), MINIMAL_OFFER).unwrap();
+        server
+            .handle_whip_offer("s1".into(), MINIMAL_OFFER)
+            .expect("valid offer");
         let cand = IceCandidate {
             candidate: "candidate:1 1 UDP 2122252543 192.168.1.2 55000 typ host".to_owned(),
             sdp_mid: Some("0".to_owned()),
             sdp_mline_index: Some(0),
         };
-        server.handle_ice_candidate("s1", cand).unwrap();
-        let sess = server.get_session("s1").unwrap();
+        server
+            .handle_ice_candidate("s1", cand)
+            .expect("session s1 exists");
+        let sess = server
+            .get_session("s1")
+            .expect("session s1 exists");
         assert_eq!(sess.pending_candidates.len(), 1);
     }
 
     #[test]
     fn test_mark_connected() {
         let mut server = WhipWhepServer::new(0);
-        server.handle_whip_offer("s1".into(), MINIMAL_OFFER).unwrap();
-        server.mark_connected("s1").unwrap();
-        let sess = server.get_session("s1").unwrap();
+        server
+            .handle_whip_offer("s1".into(), MINIMAL_OFFER)
+            .expect("valid offer");
+        server.mark_connected("s1").expect("session s1 exists");
+        let sess = server.get_session("s1").expect("session s1 exists");
         assert_eq!(sess.state, SessionState::Connected);
     }
 
@@ -547,8 +567,12 @@ mod tests {
     #[test]
     fn test_active_sessions_listing() {
         let mut server = WhipWhepServer::new(0);
-        server.handle_whip_offer("s1".into(), MINIMAL_OFFER).unwrap();
-        server.handle_whep_offer("s2".into(), MINIMAL_OFFER).unwrap();
+        server
+            .handle_whip_offer("s1".into(), MINIMAL_OFFER)
+            .expect("valid offer");
+        server
+            .handle_whep_offer("s2".into(), MINIMAL_OFFER)
+            .expect("valid offer");
         let active = server.active_sessions();
         assert_eq!(active.len(), 2);
     }

@@ -321,7 +321,7 @@ impl TimecodeScheduler {
             if top.trigger_frame > current_frame {
                 break;
             }
-            let entry = self.heap.pop().expect("peek succeeded so pop must succeed");
+            let Some(entry) = self.heap.pop() else { break };
             let action = &mut self.actions[entry.index];
             if action.fired {
                 // Already cancelled or fired — skip silently.
@@ -366,7 +366,7 @@ impl TimecodeScheduler {
             if top.trigger_frame > frame {
                 break;
             }
-            let entry = self.heap.pop().expect("peek succeeded so pop must succeed");
+            let Some(entry) = self.heap.pop() else { break };
             let action = &mut self.actions[entry.index];
             if !action.fired {
                 action.fired = true;

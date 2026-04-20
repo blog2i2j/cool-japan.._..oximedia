@@ -183,9 +183,9 @@ impl AdBreakManager {
     /// 3. Otherwise returns [`BreakEvent::None`].
     pub fn tick(&mut self, now_ms: u64) -> BreakEvent {
         // ── Check for break end ───────────────────────────────────────────────
-        if let Some(ref active) = self.active {
-            if active.should_end(now_ms) {
-                let active = self.active.take().expect("checked above");
+        let should_end = self.active.as_ref().map_or(false, |a| a.should_end(now_ms));
+        if should_end {
+            if let Some(active) = self.active.take() {
                 let splice_out = generate_splice_return(active.avail.event_id);
                 let completed = CompletedBreak {
                     event_id: active.avail.event_id,

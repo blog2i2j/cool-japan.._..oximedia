@@ -841,18 +841,19 @@ mod tests {
         let mut watcher = WatchTranscoder::new(config);
 
         // Manually add jobs for testing.
-        let source1 = PathBuf::from("/tmp/a.mp4");
-        let source2 = PathBuf::from("/tmp/b.mp4");
+        let tmp = std::env::temp_dir();
+        let source1 = tmp.join("oximedia-transcode-watch-a.mp4");
+        let source2 = tmp.join("oximedia-transcode-watch-b.mp4");
         watcher.jobs.push(WatchJob {
             source: source1.clone(),
-            output: PathBuf::from("/tmp/a.webm"),
+            output: tmp.join("oximedia-transcode-watch-a.webm"),
             status: WatchJobStatus::Transcoding,
             detected_at: Instant::now(),
             config: None,
         });
         watcher.jobs.push(WatchJob {
             source: source2.clone(),
-            output: PathBuf::from("/tmp/b.webm"),
+            output: tmp.join("oximedia-transcode-watch-b.webm"),
             status: WatchJobStatus::Transcoding,
             detected_at: Instant::now(),
             config: None,

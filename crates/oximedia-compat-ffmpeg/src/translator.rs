@@ -11,7 +11,9 @@ use std::collections::HashMap;
 use crate::arg_parser::{FfmpegArgs, MapSpec, OutputSpec, StreamOptions, StreamType};
 use crate::codec_map::{CodecCategory, CodecMap};
 use crate::diagnostics::{unknown_codec_diagnostic, Diagnostic, DiagnosticSink};
+use crate::encoder_options::EncoderQualityOptions;
 use crate::filter_lex::{parse_filter_graph, parse_filters, ParsedFilter};
+use crate::pass::PassPhase;
 
 /// A single transcode job derived from one FFmpeg output specification.
 #[derive(Debug, Clone)]
@@ -56,10 +58,14 @@ pub struct TranscodeJob {
     pub tune: Option<String>,
     /// Encoding profile.
     pub profile: Option<String>,
+    /// Parsed encoder quality options.
+    pub encoder_quality: EncoderQualityOptions,
     /// Two-pass encoding pass number (1 or 2), if set.
     pub pass: Option<u8>,
     /// Passlogfile prefix for two-pass encoding.
     pub passlogfile: Option<String>,
+    /// Parsed two-pass phase details.
+    pub pass_phase: Option<PassPhase>,
     /// Translated muxer options.
     pub muxer_options: Vec<MuxerOption>,
 }
@@ -301,8 +307,10 @@ fn translate_output(
         preset: output.preset.clone(),
         tune: output.tune.clone(),
         profile: output.profile.clone(),
+        encoder_quality: output.encoder_quality.clone(),
         pass: output.pass,
         passlogfile: output.passlogfile.clone(),
+        pass_phase: output.pass_phase.clone(),
         muxer_options,
     }
 }

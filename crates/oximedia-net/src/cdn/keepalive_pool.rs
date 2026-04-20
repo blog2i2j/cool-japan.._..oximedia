@@ -395,8 +395,8 @@ impl PoolInner {
 /// use oximedia_net::cdn::keepalive_pool::{CdnKeepalivePool, KeepalivePoolConfig, HostKey};
 ///
 /// let pool = CdnKeepalivePool::new(KeepalivePoolConfig::default());
-/// let key = HostKey::from_url("https://cdn.example.com/segments/seg1.ts").unwrap();
-/// let desc = pool.acquire(key.clone()).unwrap();
+/// let key = HostKey::from_url("https://cdn.example.com/segments/seg1.ts").expect("valid URL literal");
+/// let desc = pool.acquire(key.clone()).expect("pool is not exhausted");
 /// // … use the connection …
 /// pool.release(desc);
 ///
@@ -515,7 +515,8 @@ mod tests {
 
     #[test]
     fn test_host_key_from_url_https() {
-        let key = HostKey::from_url("https://cdn.example.com/path/seg.ts").unwrap();
+        let key = HostKey::from_url("https://cdn.example.com/path/seg.ts")
+            .expect("valid HTTPS URL literal");
         assert_eq!(key.scheme, "https");
         assert_eq!(key.host, "cdn.example.com");
         assert_eq!(key.port, 443);
@@ -523,28 +524,32 @@ mod tests {
 
     #[test]
     fn test_host_key_from_url_http_custom_port() {
-        let key = HostKey::from_url("http://origin.example.com:8080/live/").unwrap();
+        let key = HostKey::from_url("http://origin.example.com:8080/live/")
+            .expect("valid HTTP URL with custom port");
         assert_eq!(key.scheme, "http");
         assert_eq!(key.port, 8080);
     }
 
     #[test]
     fn test_host_key_from_url_invalid_scheme() {
-        let err = HostKey::from_url("ftp://files.example.com/data").unwrap_err();
+        let err = HostKey::from_url("ftp://files.example.com/data")
+            .expect_err("ftp scheme is not supported");
         assert!(matches!(err, NetError::InvalidUrl(_)));
     }
 
     #[test]
     fn test_host_key_from_url_missing_scheme() {
-        let err = HostKey::from_url("no-scheme-here").unwrap_err();
+        let err = HostKey::from_url("no-scheme-here")
+            .expect_err("URL with no scheme must fail");
         assert!(matches!(err, NetError::InvalidUrl(_)));
     }
 
     #[test]
     fn test_acquire_creates_new_descriptor() {
         let pool = make_pool();
-        let key = HostKey::from_url("https://cdn1.example.com/seg.ts").unwrap();
-        let desc = pool.acquire(key).unwrap();
+        let key = HostKey::from_url("https://cdn1.example.com/seg.ts")
+            .expect("valid URL literal");
+        let desc = pool.acquire(key).expect("pool is not exhausted");
         assert_eq!(desc.request_count, 1);
         assert_eq!(pool.active_count(), 1);
         assert_eq!(pool.idle_count(), 0);
@@ -553,9 +558,10 @@ mod tests {
     #[test]
     fn test_release_and_reuse() {
         let pool = make_pool();
-        let key = HostKey::from_url("https://cdn1.example.com/seg.ts").unwrap();
+        let key = HostKey::from_url("https://cdn1.example.com/seg.ts")
+            .expect("valid URL literal");
 
-        let desc = pool.acquire(key.clone()).unwrap();
+        let desc = pool.acquire(key.clone()).expect("pool is not exhausted");
         let id = desc.id;
         pool.release(desc);
 
@@ -563,7 +569,7 @@ mod tests {
         assert_eq!(pool.active_count(), 0);
 
         // Acquiring again should reuse the same descriptor.
-        let desc2 = pool.acquire(key).unwrap();
+        let desc2 = pool.acquire(key).expect("pool is not exhausted");
         assert_eq!(desc2.id, id, "should reuse the same descriptor");
         assert_eq!(desc2.request_count, 2);
 
@@ -582,19 +588,21 @@ mod tests {
             prefer_reuse: true,
         });
 
-        let key = HostKey::from_url("https://cdn.example.com/seg.ts").unwrap();
-        let _d1 = pool.acquire(key.clone()).unwrap();
-        let _d2 = pool.acquire(key.clone()).unwrap();
+        let key = HostKey::from_url("https://cdn.example.com/seg.ts")
+            .expect("valid URL literal");
+        let _d1 = pool.acquire(key.clone()).expect("pool limit is 2, first acquire succeeds");
+        let _d2 = pool.acquire(key.clone()).expect("pool limit is 2, second acquire succeeds");
         // Third acquire should fail.
-        let err = pool.acquire(key).unwrap_err();
+        let err = pool.acquire(key).expect_err("pool is exhausted at limit 2");
         assert!(matches!(err, NetError::Buffer(_)));
     }
 
     #[test]
     fn test_peer_close_not_returned_to_pool() {
         let pool = make_pool();
-        let key = HostKey::from_url("https://cdn.example.com/seg.ts").unwrap();
-        let mut desc = pool.acquire(key).unwrap();
+        let key = HostKey::from_url("https://cdn.example.com/seg.ts")
+            .expect("valid URL literal");
+        let mut desc = pool.acquire(key).expect("pool is not exhausted");
         desc.peer_close_requested = true;
         pool.release(desc);
 
@@ -607,8 +615,9 @@ mod tests {
     #[test]
     fn test_evict_host_clears_idle() {
         let pool = make_pool();
-        let key = HostKey::from_url("https://cdn.example.com/seg.ts").unwrap();
-        let desc = pool.acquire(key.clone()).unwrap();
+        let key = HostKey::from_url("https://cdn.example.com/seg.ts")
+            .expect("valid URL literal");
+        let desc = pool.acquire(key.clone()).expect("pool is not exhausted");
         pool.release(desc);
         assert_eq!(pool.idle_count(), 1);
 
@@ -626,10 +635,11 @@ mod tests {
             prefer_reuse: false, // force new connections
         });
 
-        let key = HostKey::from_url("https://cdn.example.com/seg.ts").unwrap();
-        let d1 = pool.acquire(key.clone()).unwrap();
-        let d2 = pool.acquire(key.clone()).unwrap();
-        let d3 = pool.acquire(key.clone()).unwrap();
+        let key = HostKey::from_url("https://cdn.example.com/seg.ts")
+            .expect("valid URL literal");
+        let d1 = pool.acquire(key.clone()).expect("pool limit is 20");
+        let d2 = pool.acquire(key.clone()).expect("pool limit is 20");
+        let d3 = pool.acquire(key.clone()).expect("pool limit is 20");
 
         // Return all three; only 2 (max_idle_per_host) should remain.
         pool.release(d1);
@@ -652,8 +662,9 @@ mod tests {
             prefer_reuse: true,
         });
 
-        let key = HostKey::from_url("https://cdn.example.com/seg.ts").unwrap();
-        let desc = pool.acquire(key).unwrap();
+        let key = HostKey::from_url("https://cdn.example.com/seg.ts")
+            .expect("valid URL literal");
+        let desc = pool.acquire(key).expect("pool is not exhausted");
         pool.release(desc);
 
         // After purge the idle slot should be gone.
@@ -664,12 +675,13 @@ mod tests {
     #[test]
     fn test_stats_reuse_ratio() {
         let pool = make_pool();
-        let key = HostKey::from_url("https://cdn.example.com/seg.ts").unwrap();
+        let key = HostKey::from_url("https://cdn.example.com/seg.ts")
+            .expect("valid URL literal");
 
         // Create, release, reuse.
-        let d = pool.acquire(key.clone()).unwrap();
+        let d = pool.acquire(key.clone()).expect("pool is not exhausted");
         pool.release(d);
-        let _d2 = pool.acquire(key).unwrap();
+        let _d2 = pool.acquire(key).expect("pool is not exhausted");
 
         let stats = pool.stats();
         // 1 created + 1 reused → 50 % reuse ratio.
@@ -679,7 +691,8 @@ mod tests {
 
     #[test]
     fn test_conn_descriptor_is_reusable() {
-        let key = HostKey::from_url("https://cdn.example.com").unwrap();
+        let key = HostKey::from_url("https://cdn.example.com")
+            .expect("valid URL literal");
         let mut desc = ConnDescriptor::new(1, key, 10);
         desc.record_request();
 
@@ -692,7 +705,8 @@ mod tests {
 
     #[test]
     fn test_host_key_display() {
-        let key = HostKey::from_url("https://cdn.example.com/path").unwrap();
+        let key = HostKey::from_url("https://cdn.example.com/path")
+            .expect("valid URL literal");
         assert_eq!(key.display(), "https://cdn.example.com:443");
     }
 }

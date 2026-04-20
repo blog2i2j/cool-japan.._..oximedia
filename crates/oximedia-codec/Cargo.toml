@@ -270,6 +270,8 @@ h263 = []
 opus = []
 ffv1 = []
 jpegxl = []
+mjpeg = ["oximedia-image"]
+apv = []
 image-io = ["png", "jpeg-decoder"]
 
 [dependencies]
@@ -280,6 +282,9 @@ thiserror.workspace = true
 tracing.workspace = true
 rayon.workspace = true
 oxiarc-deflate.workspace = true
+
+# MJPEG support (wraps oximedia-image JPEG codec)
+oximedia-image = { workspace = true, optional = true }
 
 # Image I/O support (patent-free codecs only)
 png = { version = "0.18", optional = true }

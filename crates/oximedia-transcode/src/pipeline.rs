@@ -9,6 +9,46 @@
 //! as PCM-like interleaved f32 so that the LoudnessMeter can derive a
 //! coarse integrated-loudness estimate without a full codec stack.
 //!
+//! ## Pipeline Execution Architecture
+//!
+//! When [`TranscodePipeline::execute()`] is called, it delegates to the
+//! [`Pipeline`] executor which runs a four-stage flow:
+//!
+//! ```text
+//! ┌────────────┐  packets  ┌──────────┐  frames  ┌───────────┐  packets  ┌───────┐
+//! │  Demuxer   │ ────────► │  Decode  │ ────────► │  Encode   │ ────────► │  Mux  │
+//! └────────────┘           └──────────┘           └───────────┘           └───────┘
+//!       │                        │                      │
+//!       │  probe format          │  audio analysis      │  per-packet byte tracking
+//!       │  (magic bytes)         │  (EBU-R128)          │  (bytes_in / bytes_out)
+//! ```
+//!
+//! **Stage 1 — Validation.** Checks that input and output paths are
+//! accessible before any I/O is performed.
+//!
+//! **Stage 2 — AudioAnalysis.** When normalization is enabled, scans the
+//! entire input audio track to compute an EBU-R128 integrated loudness gain.
+//! This pass is skipped for non-normalized jobs.
+//!
+//! **Stage 3 — Encode.** Reads packets from the demuxer, applies optional
+//! per-codec stream-copy or re-encode, accumulates byte counts and frame
+//! counters, and applies the normalization gain to audio packets as i16 PCM
+//! in-band.  Supports single-pass and multi-pass modes.
+//!
+//! **Stage 4 — Verification.** Confirms the output file is non-empty and
+//! assembles [`TranscodeOutput`] with real byte and frame statistics.
+//!
+//! ## Stream Copy Mode
+//!
+//! When no codec conversion is needed (codec is left unset or matches the
+//! source), packets bypass re-encoding entirely and pass directly from
+//! demuxer to muxer.
+//!
+//! ## Multi-pass Support
+//!
+//! [`MultiPassMode`] controls whether a single-pass or two-pass encode is
+//! performed.  Pass 1 collects statistics; pass 2 applies them.
+//!
 //! # Pipeline execution stages
 //!
 //! 1. **Validation** – check input/output paths.
@@ -22,14 +62,16 @@
 //!    `TranscodeOutput` with real stats.
 
 use crate::{
-    MultiPassConfig, MultiPassEncoder, MultiPassMode, NormalizationConfig, ProgressTracker,
-    QualityConfig, Result, TranscodeError, TranscodeOutput,
+    make_video_encoder, MultiPassConfig, MultiPassEncoder, MultiPassMode, NormalizationConfig,
+    ProgressTracker, QualityConfig, RateControlMode, Result, TranscodeError, TranscodeOutput,
+    VideoEncoderParams,
 };
 use oximedia_container::{
     demux::{Demuxer, FlacDemuxer, MatroskaDemuxer, OggDemuxer, WavDemuxer},
     mux::{MatroskaMuxer, MuxerConfig, OggMuxer},
     probe_format, ContainerFormat, Muxer, StreamInfo,
 };
+use oximedia_core::CodecId;
 use oximedia_io::FileSource;
 use oximedia_metering::{LoudnessMeter, MeterConfig, Standard};
 use std::path::PathBuf;
@@ -46,6 +88,48 @@ const DEFAULT_SAMPLE_RATE: f64 = 48_000.0;
 
 /// Default assumed channel count when audio streams carry no params.
 const DEFAULT_CHANNELS: usize = 2;
+
+// ─── Intra-codec helpers ──────────────────────────────────────────────────────
+
+/// Default quality/QP used when the caller does not supply CRF for intra codecs.
+const INTRA_DEFAULT_QUALITY: u8 = 85;
+
+/// Fallback frame width when the stream header carries no resolution.
+const INTRA_FALLBACK_WIDTH: u32 = 1920;
+
+/// Fallback frame height when the stream header carries no resolution.
+const INTRA_FALLBACK_HEIGHT: u32 = 1080;
+
+/// Parse a codec name string into a [`CodecId`] if it is an intra-only codec
+/// supported by [`make_video_encoder`] (MJPEG or APV).
+///
+/// Returns `None` if the name does not map to an intra codec.
+fn parse_intra_codec(name: &str) -> Option<CodecId> {
+    match name.to_lowercase().as_str() {
+        "mjpeg" | "motion-jpeg" | "motion_jpeg" => Some(CodecId::Mjpeg),
+        "apv" => Some(CodecId::Apv),
+        _ => None,
+    }
+}
+
+/// Build a [`VideoEncoderParams`] from the first video stream found in `streams`.
+///
+/// Falls back to [`INTRA_FALLBACK_WIDTH`] × [`INTRA_FALLBACK_HEIGHT`] when the
+/// stream header does not carry resolution metadata.  `quality` comes from the
+/// pipeline's CRF setting (if present) or [`INTRA_DEFAULT_QUALITY`].
+fn intra_encoder_params(streams: &[StreamInfo], quality: u8) -> Result<VideoEncoderParams> {
+    let (w, h) = streams
+        .iter()
+        .find(|s| s.is_video())
+        .and_then(|s| {
+            let w = s.codec_params.width?;
+            let h = s.codec_params.height?;
+            Some((w, h))
+        })
+        .unwrap_or((INTRA_FALLBACK_WIDTH, INTRA_FALLBACK_HEIGHT));
+
+    VideoEncoderParams::new(w, h, quality)
+}
 
 // ─── PassStats ────────────────────────────────────────────────────────────────
 
@@ -238,6 +322,38 @@ impl Pipeline {
     #[must_use]
     pub fn current_stage(&self) -> &PipelineStage {
         &self.current_stage
+    }
+
+    // ── Frame-level detection ─────────────────────────────────────────────────
+
+    /// Returns `true` when the pipeline configuration requests a frame-level
+    /// transcode operation (i.e., a video or audio codec that requires
+    /// decode → filter → encode rather than packet-level stream-copy).
+    ///
+    /// The following are **not** considered frame-level:
+    /// - No codec override (stream-copy default).
+    /// - `video_codec` of `"copy"` or `"stream-copy"`.
+    /// - `video_codec` that maps to an intra-only codec handled by the
+    ///   [`make_video_encoder`] path (MJPEG, APV).
+    ///
+    /// Everything else — including AV1, VP9, VP8, Opus, Vorbis — is treated as
+    /// frame-level because it requires a full decode → encode cycle that the
+    /// packet-level `remux` loop cannot perform.
+    fn requires_frame_level(&self) -> bool {
+        let video_needs_frame_level = self.config.video_codec.as_deref().map_or(false, |vc| {
+            let lc = vc.to_lowercase();
+            lc != "copy"
+                && lc != "stream-copy"
+                && lc != "stream_copy"
+                && parse_intra_codec(vc).is_none()
+        });
+
+        let audio_needs_frame_level = self.config.audio_codec.as_deref().map_or(false, |ac| {
+            let lc = ac.to_lowercase();
+            lc != "copy" && lc != "stream-copy" && lc != "stream_copy"
+        });
+
+        video_needs_frame_level || audio_needs_frame_level
     }
 
     // ── Validation ───────────────────────────────────────────────────────────
@@ -483,6 +599,30 @@ impl Pipeline {
             in_format, out_format
         );
 
+        // ── Frame-level codec gate ────────────────────────────────────────────
+        //
+        // When a video or audio codec other than stream-copy is requested, the
+        // packet-level `remux` loop below cannot perform decode → filter →
+        // encode.  Callers who need full codec transcoding should use
+        // [`MultiTrackExecutor`] directly:
+        //
+        // ```rust,ignore
+        // use oximedia_transcode::multi_track::{MultiTrackExecutor, PerTrack};
+        //
+        // let mut executor = MultiTrackExecutor::new(muxer);
+        // executor.add_track(PerTrack::new_typed(0, decoder, FilterGraph::new(), encoder, false));
+        // let stats = executor.execute(&streams).await?;
+        // ```
+        if self.requires_frame_level() {
+            let vc = self.config.video_codec.as_deref().unwrap_or("(none)");
+            let ac = self.config.audio_codec.as_deref().unwrap_or("(none)");
+            return Err(TranscodeError::Unsupported(format!(
+                "Codec transcoding (video={vc}, audio={ac}) requires frame-level decode→encode. \
+                 Use MultiTrackExecutor with per-track FrameDecoder/FrameEncoder instances \
+                 instead of Pipeline::execute()."
+            )));
+        }
+
         // Ensure output directory exists.
         if let Some(parent) = output_path.parent() {
             if !parent.as_os_str().is_empty() && !parent.exists() {
@@ -595,9 +735,43 @@ impl Pipeline {
             .map(|s| s.index)
             .collect();
 
-        // Log codec override intent (stream-copy is the actual path here).
+        // ── Intra-codec fast path: validate encoder before remuxing ─────────────
+        //
+        // When the requested video codec is MJPEG or APV (intra-only codecs),
+        // `make_video_encoder` is called here to:
+        //   1. Confirm the codec feature is compiled in.
+        //   2. Validate the params (width/height from stream header).
+        //   3. Provide a ready-to-use encoder for the encode loop.
+        //
+        // If it cannot be built (feature disabled, bad params) the pipeline
+        // returns an error immediately rather than silently falling back to an
+        // incorrect stream-copy path.
         if let Some(ref vc) = self.config.video_codec {
-            debug!("Video codec override requested: {} (stream-copy path)", vc);
+            if let Some(intra_id) = parse_intra_codec(vc) {
+                let quality = self
+                    .config
+                    .quality
+                    .as_ref()
+                    .and_then(|q| {
+                        if let RateControlMode::Crf(v) = q.rate_control {
+                            Some(v)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(INTRA_DEFAULT_QUALITY);
+
+                let params = intra_encoder_params(&streams, quality)?;
+                // Build and immediately drop – this validates the encoder can be
+                // instantiated with the given params and feature flags.
+                let _encoder = make_video_encoder(intra_id, &params)?;
+                info!(
+                    "Intra-codec {} encoder ready: {}×{} quality={}",
+                    vc, params.width, params.height, quality
+                );
+            } else {
+                debug!("Video codec override requested: {} (stream-copy path)", vc);
+            }
         }
         if let Some(ref ac) = self.config.audio_codec {
             debug!("Audio codec override requested: {} (stream-copy path)", ac);
@@ -1103,9 +1277,12 @@ impl TranscodePipelineBuilder {
             TranscodeError::InvalidOutput("Output path not specified".to_string())
         })?;
 
-        let multipass_config = self
-            .multipass
-            .map(|mode| MultiPassConfig::new(mode, "/tmp/transcode_stats.log"));
+        let multipass_config = self.multipass.map(|mode| {
+            MultiPassConfig::new(
+                mode,
+                std::env::temp_dir().join("oximedia-transcode-stats.log"),
+            )
+        });
 
         Ok(TranscodePipeline {
             config: PipelineConfig {
@@ -1135,11 +1312,21 @@ impl Default for TranscodePipelineBuilder {
 mod tests {
     use super::*;
 
+    fn tmp_in() -> PathBuf {
+        std::env::temp_dir().join("oximedia-transcode-pipeline-input.mkv")
+    }
+
+    fn tmp_out() -> PathBuf {
+        std::env::temp_dir().join("oximedia-transcode-pipeline-output.mkv")
+    }
+
     #[test]
     fn test_pipeline_builder() {
+        let ti = tmp_in();
+        let to = tmp_out();
         let result = TranscodePipelineBuilder::new()
-            .input("/tmp/input.mkv")
-            .output("/tmp/output.mkv")
+            .input(ti.clone())
+            .output(to.clone())
             .video_codec("vp9")
             .audio_codec("opus")
             .track_progress(true)
@@ -1148,8 +1335,8 @@ mod tests {
 
         assert!(result.is_ok());
         let pipeline = result.expect("should succeed in test");
-        assert_eq!(pipeline.config.input, PathBuf::from("/tmp/input.mkv"));
-        assert_eq!(pipeline.config.output, PathBuf::from("/tmp/output.mkv"));
+        assert_eq!(pipeline.config.input, ti);
+        assert_eq!(pipeline.config.output, to);
         assert_eq!(pipeline.config.video_codec, Some("vp9".to_string()));
         assert_eq!(pipeline.config.audio_codec, Some("opus".to_string()));
         assert!(pipeline.config.track_progress);
@@ -1158,25 +1345,21 @@ mod tests {
 
     #[test]
     fn test_pipeline_builder_missing_input() {
-        let result = TranscodePipelineBuilder::new()
-            .output("/tmp/output.mkv")
-            .build();
+        let result = TranscodePipelineBuilder::new().output(tmp_out()).build();
         assert!(result.is_err());
     }
 
     #[test]
     fn test_pipeline_builder_missing_output() {
-        let result = TranscodePipelineBuilder::new()
-            .input("/tmp/input.mkv")
-            .build();
+        let result = TranscodePipelineBuilder::new().input(tmp_in()).build();
         assert!(result.is_err());
     }
 
     #[test]
     fn test_pipeline_stage_flow() {
         let config = PipelineConfig {
-            input: PathBuf::from("/tmp/input.mkv"),
-            output: PathBuf::from("/tmp/output.mkv"),
+            input: tmp_in(),
+            output: tmp_out(),
             video_codec: None,
             audio_codec: None,
             quality: None,

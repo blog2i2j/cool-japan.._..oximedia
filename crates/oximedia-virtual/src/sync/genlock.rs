@@ -387,9 +387,7 @@ impl GenlockSync {
             self.status = SyncStatus::Locking;
         }
 
-        let reference = self
-            .reference_time
-            .expect("invariant: reference_time set just above in is_none() branch");
+        let reference = *self.reference_time.get_or_insert(now);
         let frame_duration = Duration::from_secs_f64(1.0 / self.config.frame_rate);
 
         // Calculate target time for this frame

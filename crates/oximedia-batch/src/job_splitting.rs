@@ -703,11 +703,19 @@ mod tests {
     }
 
     fn large_single_file(size: u64) -> SplitInput {
-        make_input(vec![InputFile::new("/tmp/big.mp4", size)])
+        let tmp_path = std::env::temp_dir()
+            .join("oximedia-batch-big.mp4")
+            .to_string_lossy()
+            .into_owned();
+        make_input(vec![InputFile::new(tmp_path, size)])
     }
 
     fn large_single_file_with_duration(size: u64, dur: f64) -> SplitInput {
-        make_input(vec![InputFile::new("/tmp/big.mp4", size).with_duration(dur)])
+        let tmp_path = std::env::temp_dir()
+            .join("oximedia-batch-big.mp4")
+            .to_string_lossy()
+            .into_owned();
+        make_input(vec![InputFile::new(tmp_path, size).with_duration(dur)])
     }
 
     // ── Strategy display ────────────────────────────────────────────────
@@ -778,8 +786,17 @@ mod tests {
     #[test]
     fn test_split_by_size_multiple_files() {
         let splitter = JobSplitter::new().with_min_threshold(0);
+        let tmp_base = std::env::temp_dir();
         let files: Vec<InputFile> = (0..10)
-            .map(|i| InputFile::new(format!("/tmp/file{i}.mp4"), 10 * 1024 * 1024))
+            .map(|i| {
+                InputFile::new(
+                    tmp_base
+                        .join(format!("oximedia-batch-file{i}.mp4"))
+                        .to_string_lossy()
+                        .into_owned(),
+                    10 * 1024 * 1024,
+                )
+            })
             .collect();
         let input = make_input(files);
         let strategy = SplitStrategy::BySize {
@@ -835,8 +852,17 @@ mod tests {
     #[test]
     fn test_split_by_count() {
         let splitter = JobSplitter::new().with_min_threshold(0);
+        let tmp_base = std::env::temp_dir();
         let files: Vec<InputFile> = (0..12)
-            .map(|i| InputFile::new(format!("/tmp/f{i}.mp4"), 10 * 1024 * 1024))
+            .map(|i| {
+                InputFile::new(
+                    tmp_base
+                        .join(format!("oximedia-batch-f{i}.mp4"))
+                        .to_string_lossy()
+                        .into_owned(),
+                    10 * 1024 * 1024,
+                )
+            })
             .collect();
         let input = make_input(files);
         let strategy = SplitStrategy::ByCount { n: 4 };
@@ -853,9 +879,22 @@ mod tests {
     #[test]
     fn test_split_by_count_more_chunks_than_files() {
         let splitter = JobSplitter::new().with_min_threshold(0);
+        let tmp_base = std::env::temp_dir();
         let files = vec![
-            InputFile::new("/tmp/a.mp4", 1024),
-            InputFile::new("/tmp/b.mp4", 1024),
+            InputFile::new(
+                tmp_base
+                    .join("oximedia-batch-a.mp4")
+                    .to_string_lossy()
+                    .into_owned(),
+                1024,
+            ),
+            InputFile::new(
+                tmp_base
+                    .join("oximedia-batch-b.mp4")
+                    .to_string_lossy()
+                    .into_owned(),
+                1024,
+            ),
         ];
         let input = make_input(files);
         let strategy = SplitStrategy::ByCount { n: 10 };
@@ -1013,7 +1052,11 @@ mod tests {
     // ── InputFile builder ───────────────────────────────────────────────
     #[test]
     fn test_input_file_with_duration() {
-        let f = InputFile::new("/tmp/test.mp4", 1024).with_duration(120.5);
+        let tmp_path = std::env::temp_dir()
+            .join("oximedia-batch-test.mp4")
+            .to_string_lossy()
+            .into_owned();
+        let f = InputFile::new(tmp_path, 1024).with_duration(120.5);
         assert_eq!(f.duration_secs, Some(120.5));
     }
 

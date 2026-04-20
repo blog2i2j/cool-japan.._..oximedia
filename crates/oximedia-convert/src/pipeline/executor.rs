@@ -9,6 +9,8 @@ use dashmap::DashMap;
 use parking_lot::RwLock;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+
+#[cfg(not(target_arch = "wasm32"))]
 use tokio::sync::Semaphore;
 
 /// Pipeline executor for managing and running conversion jobs.
@@ -17,6 +19,7 @@ use tokio::sync::Semaphore;
 pub struct PipelineExecutor {
     config: Arc<PipelineConfig>,
     jobs: Arc<DashMap<String, ConversionJob>>,
+    #[cfg(not(target_arch = "wasm32"))]
     semaphore: Arc<Semaphore>,
     stats: Arc<RwLock<ExecutorStats>>,
 }
@@ -40,10 +43,12 @@ impl PipelineExecutor {
     /// Create a new pipeline executor.
     #[must_use]
     pub fn new(config: PipelineConfig) -> Self {
+        #[cfg(not(target_arch = "wasm32"))]
         let workers = config.workers;
         Self {
             config: Arc::new(config),
             jobs: Arc::new(DashMap::new()),
+            #[cfg(not(target_arch = "wasm32"))]
             semaphore: Arc::new(Semaphore::new(workers)),
             stats: Arc::new(RwLock::new(ExecutorStats::default())),
         }
@@ -64,6 +69,7 @@ impl PipelineExecutor {
 
     /// Execute a job by ID.
     pub async fn execute(&self, job_id: &str) -> Result<PipelineStats> {
+        #[cfg(not(target_arch = "wasm32"))]
         let _permit = self.semaphore.acquire().await.map_err(|e| {
             ConversionError::InvalidInput(format!("Failed to acquire semaphore: {e}"))
         })?;

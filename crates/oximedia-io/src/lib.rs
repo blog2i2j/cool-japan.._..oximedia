@@ -1,33 +1,108 @@
-//! `OxiMedia` I/O Layer
+//! I/O layer for the OxiMedia multimedia framework.
 //!
-//! This crate provides the I/O foundation for the `OxiMedia` framework:
+//! `oximedia-io` provides the full I/O stack used by OxiMedia's demuxers,
+//! muxers, and codec pipeline: async media sources, magic-byte format
+//! detection, bit-level reading, checksumming, buffered and memory-mapped
+//! file I/O, and composable I/O pipeline stages.
 //!
-//! - **Source Module**: Abstractions for reading media from various sources
-//!   - [`MediaSource`] - Unified async media source trait
-//!   - [`FileSource`] - Local file access via tokio
-//!   - [`MemorySource`] - In-memory buffer access
+//! # Format detection
 //!
-//! - **Bits Module**: Bit-level reading utilities
-//!   - [`BitReader`] - Bit-level reader for parsing binary formats
-//!   - Exp-Golomb coding support for H.264-style variable-length integers
+//! [`format_detector::FormatDetector`] identifies over 45 media formats by
+//! inspecting the leading bytes of a buffer (magic numbers).  Detected
+//! categories include video containers (MP4, MKV, AVI, MOV, WebM, MXF, Ogg,
+//! TS, M2TS, FLV), audio formats (FLAC, WAV, MP3, AAC, Opus, Vorbis, AIFF,
+//! AU, CAF), still-image formats (JPEG, PNG, GIF, WebP, BMP, TIFF, HEIC,
+//! AVIF, DPX, EXR, DNG, JPEG-XL), subtitle formats (SRT, VTT, ASS), and
+//! archive formats (ZIP, TAR, GZ, BZ2, XZ, Zstandard).
 //!
-//! # Example
+//! ```
+//! use oximedia_io::format_detector::FormatDetector;
+//!
+//! let mp4_header = b"\x00\x00\x00\x1cftyp";
+//! let result = FormatDetector::detect(mp4_header);
+//! println!("format: {:?}", result.format);
+//! println!("mime:   {}", result.mime_type);
+//! ```
+//!
+//! # Media sources
+//!
+//! The [`source`] module provides the [`MediaSource`] async trait along with
+//! two built-in implementations:
+//!
+//! - [`FileSource`] — Tokio async file reader (non-WASM targets only)
+//! - [`MemorySource`] — zero-copy in-memory reader backed by `bytes::Bytes`
 //!
 //! ```no_run
 //! use oximedia_io::source::{FileSource, MediaSource};
-//! use std::io::SeekFrom;
 //!
 //! #[tokio::main]
 //! async fn main() -> oximedia_core::OxiResult<()> {
 //!     let mut source = FileSource::open("video.webm").await?;
-//!
-//!     let mut buffer = [0u8; 1024];
-//!     let bytes_read = source.read(&mut buffer).await?;
-//!
-//!     println!("Read {} bytes", bytes_read);
+//!     let mut buf = [0u8; 4096];
+//!     let n = source.read(&mut buf).await?;
+//!     println!("read {n} bytes");
 //!     Ok(())
 //! }
 //! ```
+//!
+//! # Bit-level reading
+//!
+//! [`BitReader`] (re-exported from the [`bits`] module) reads individual bits
+//! and multi-bit values from a byte slice in MSB-first order — the standard
+//! ordering used by H.264, HEVC, AV1, VP9, and most other video codecs.
+//! Exp-Golomb coded integers (unsigned `ue(v)` and signed `se(v)`) are
+//! supported via [`bits::BitReader::read_exp_golomb`] /
+//! [`bits::BitReader::read_signed_exp_golomb`].
+//!
+//! ```
+//! use oximedia_io::bits::BitReader;
+//!
+//! // Parse a tiny AVC-style bitfield: profile_idc (8) | constraint flags (6) | level_idc (8)
+//! let sps_bytes = [0x64u8, 0x00, 0x1f];
+//! let mut r = BitReader::new(&sps_bytes);
+//! let profile_idc = r.read_bits(8).unwrap();   // 100 — High Profile
+//! let _constraint = r.read_bits(6).unwrap();
+//! let level_idc   = r.read_bits(8).unwrap();   // 31 — Level 3.1
+//! assert_eq!(profile_idc, 100);
+//! assert_eq!(level_idc,    31);
+//! ```
+//!
+//! # MXF probing
+//!
+//! [`mxf_probe`] provides a lightweight parser for MXF (Material Exchange
+//! Format) containers.  It detects the Header Partition Pack, identifies the
+//! SMPTE Operational Pattern (OP1a, OPAtom, etc.), and enumerates essence
+//! tracks (video, audio, data) without parsing the full KLV body.
+//!
+//! # Other utilities
+//!
+//! | Module | Capability |
+//! |--------|------------|
+//! | [`aligned_io`] | Memory-aligned I/O for DMA-friendly transfers |
+//! | [`async_io`] | Async I/O abstractions |
+//! | [`buffer_pool`] | Pooled byte buffers to reduce allocations |
+//! | [`buffered_io`] | Read-ahead buffering with configurable window |
+//! | [`buffered_reader`] | Buffered synchronous reader |
+//! | [`checksum`] | CRC32, CRC64, SHA-256, BLAKE3 checksums |
+//! | [`chunked_writer`] | Write large outputs in fixed-size chunks |
+//! | [`compression`] | Compress / decompress (zstd, LZ4, gzip, bzip2) |
+//! | [`content_detect`] | Text encoding and binary-vs-text detection |
+//! | [`copy_engine`] | High-throughput async file copy |
+//! | [`file_metadata`] | Extended file metadata (size, timestamps) |
+//! | [`file_watch`] | File system event watching |
+//! | [`io_pipeline`] | Composable I/O pipeline stages |
+//! | [`io_stats`] | Throughput and latency statistics |
+//! | [`mmap`] | Memory-mapped zero-copy file access |
+//! | [`progress_reader`] | Async reader with progress callback |
+//! | [`rate_limiter`] | Bandwidth-limited I/O |
+//! | [`retrying_source`] | Automatic retry on transient I/O errors |
+//! | [`ring_buffer`] | Lock-free ring buffer for streaming pipelines |
+//! | [`scatter_gather`] | Vectorized scatter-gather I/O |
+//! | [`seekable`] | Seekable source utilities |
+//! | [`splice_pipe`] | Zero-copy splice between descriptors (Linux) |
+//! | [`temp_files`] | Secure temporary file management |
+//! | [`verify_io`] | Read-back verification for write integrity |
+//! | [`write_journal`] | Journaled writes for crash-safe I/O |
 
 pub mod aligned_io;
 pub mod async_io;

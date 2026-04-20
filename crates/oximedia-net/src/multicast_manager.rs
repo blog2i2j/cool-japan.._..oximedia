@@ -592,7 +592,10 @@ mod tests {
 
         let msg = mgr.leave("239.1.0.1", 5004, "eth0");
         assert!(msg.is_some());
-        assert!(matches!(msg.unwrap(), MembershipMessage::Leave { .. }));
+        assert!(matches!(
+            msg.expect("msg is Some, checked above"),
+            MembershipMessage::Leave { .. }
+        ));
         assert_eq!(mgr.membership_count(), 0);
     }
 

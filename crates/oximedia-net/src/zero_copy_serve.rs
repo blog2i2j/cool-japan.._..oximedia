@@ -576,7 +576,7 @@ mod tests {
     fn test_segment_source_known_length() {
         let mem = SegmentSource::Memory(Bytes::from_static(b"hello"));
         assert_eq!(mem.known_length(), Some(5));
-        let file = SegmentSource::File(PathBuf::from("/tmp/test.ts"));
+        let file = SegmentSource::File(std::env::temp_dir().join("oximedia-net-zcopy-test.ts"));
         assert!(file.known_length().is_none());
     }
 

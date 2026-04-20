@@ -167,6 +167,13 @@ impl ExportSettings {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-timeline-export-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_h264_hd_preset() {
         let p = ExportCodecPreset::h264_hd();
@@ -235,7 +242,7 @@ mod tests {
         let s = ExportSettings::new(
             ExportCodecPreset::h264_hd(),
             ExportRange::EntireTimeline,
-            "/tmp/out.mp4",
+            tmp_str("out.mp4"),
         );
         assert!(s.is_valid());
     }
@@ -255,7 +262,7 @@ mod tests {
         let s = ExportSettings::new(
             ExportCodecPreset::h264_hd(),
             ExportRange::WorkArea(100, 50),
-            "/tmp/out.mp4",
+            tmp_str("out.mp4"),
         );
         assert!(!s.is_valid());
     }
@@ -265,7 +272,7 @@ mod tests {
         let s = ExportSettings::new(
             ExportCodecPreset::h264_hd(),
             ExportRange::InToOut(50, 50),
-            "/tmp/out.mp4",
+            tmp_str("out.mp4"),
         );
         assert!(!s.is_valid());
     }
@@ -275,7 +282,7 @@ mod tests {
         let s = ExportSettings::new(
             ExportCodecPreset::hevc_4k(),
             ExportRange::InToOut(0, 240),
-            "/tmp/out_4k.mp4",
+            tmp_str("out_4k.mp4"),
         );
         assert!(s.is_valid());
     }
@@ -285,7 +292,7 @@ mod tests {
         let mut s = ExportSettings::new(
             ExportCodecPreset::prores_4444(),
             ExportRange::EntireTimeline,
-            "/tmp/out.mov",
+            tmp_str("out.mov"),
         );
         s.include_subtitles = true;
         s.burn_in_tc = true;

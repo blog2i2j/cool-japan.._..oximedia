@@ -85,26 +85,26 @@ impl ImuData {
     ///
     /// # Errors
     ///
-    /// Returns `Err` if the data slice is shorter than 36 bytes.
-    ///
-    /// # Panics
-    ///
-    /// Panics if byte slice conversion fails (should not happen given the length check).
+    /// Returns `Err` if the data slice is shorter than 36 bytes or if slice conversion fails.
     pub fn from_bytes(data: &[u8]) -> OxiResult<Self> {
         if data.len() < 36 {
             return Err(OxiError::InvalidData("IMU data too short".into()));
         }
 
+        let conv = |s: &[u8]| -> OxiResult<[u8; 4]> {
+            s.try_into()
+                .map_err(|_| OxiError::InvalidData("IMU slice conversion failed".into()))
+        };
         Ok(Self {
-            accel_x: f32::from_be_bytes(data[0..4].try_into().expect("slice length checked")),
-            accel_y: f32::from_be_bytes(data[4..8].try_into().expect("slice length checked")),
-            accel_z: f32::from_be_bytes(data[8..12].try_into().expect("slice length checked")),
-            gyro_x: f32::from_be_bytes(data[12..16].try_into().expect("slice length checked")),
-            gyro_y: f32::from_be_bytes(data[16..20].try_into().expect("slice length checked")),
-            gyro_z: f32::from_be_bytes(data[20..24].try_into().expect("slice length checked")),
-            mag_x: f32::from_be_bytes(data[24..28].try_into().expect("slice length checked")),
-            mag_y: f32::from_be_bytes(data[28..32].try_into().expect("slice length checked")),
-            mag_z: f32::from_be_bytes(data[32..36].try_into().expect("slice length checked")),
+            accel_x: f32::from_be_bytes(conv(&data[0..4])?),
+            accel_y: f32::from_be_bytes(conv(&data[4..8])?),
+            accel_z: f32::from_be_bytes(conv(&data[8..12])?),
+            gyro_x: f32::from_be_bytes(conv(&data[12..16])?),
+            gyro_y: f32::from_be_bytes(conv(&data[16..20])?),
+            gyro_z: f32::from_be_bytes(conv(&data[20..24])?),
+            mag_x: f32::from_be_bytes(conv(&data[24..28])?),
+            mag_y: f32::from_be_bytes(conv(&data[28..32])?),
+            mag_z: f32::from_be_bytes(conv(&data[32..36])?),
         })
     }
 }
@@ -151,21 +151,21 @@ impl ExposureData {
     ///
     /// # Errors
     ///
-    /// Returns `Err` if the data slice is shorter than 8 bytes.
-    ///
-    /// # Panics
-    ///
-    /// Panics if byte slice conversion fails (should not happen given the length check).
+    /// Returns `Err` if the data slice is shorter than 8 bytes or if slice conversion fails.
     pub fn from_bytes(data: &[u8]) -> OxiResult<Self> {
         if data.len() < 8 {
             return Err(OxiError::InvalidData("Exposure data too short".into()));
         }
 
+        let conv = |s: &[u8]| -> OxiResult<[u8; 2]> {
+            s.try_into()
+                .map_err(|_| OxiError::InvalidData("Exposure slice conversion failed".into()))
+        };
         Ok(Self {
-            iso: u16::from_be_bytes(data[0..2].try_into().expect("slice length checked")),
-            shutter_speed: u16::from_be_bytes(data[2..4].try_into().expect("slice length checked")),
-            aperture: u16::from_be_bytes(data[4..6].try_into().expect("slice length checked")),
-            white_balance: u16::from_be_bytes(data[6..8].try_into().expect("slice length checked")),
+            iso: u16::from_be_bytes(conv(&data[0..2])?),
+            shutter_speed: u16::from_be_bytes(conv(&data[2..4])?),
+            aperture: u16::from_be_bytes(conv(&data[4..6])?),
+            white_balance: u16::from_be_bytes(conv(&data[6..8])?),
         })
     }
 }

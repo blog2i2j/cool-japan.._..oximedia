@@ -173,7 +173,11 @@ mod tests {
     // 2. StoryboardFrame::is_empty – has thumbnail path
     #[test]
     fn test_frame_not_empty_thumbnail() {
-        let f = StoryboardFrame::new(0, false, "/tmp/thumb.jpg", "");
+        let thumb = std::env::temp_dir()
+            .join("oximedia-scene-storyboard-thumb.jpg")
+            .to_string_lossy()
+            .into_owned();
+        let f = StoryboardFrame::new(0, false, thumb, "");
         assert!(!f.is_empty());
     }
 

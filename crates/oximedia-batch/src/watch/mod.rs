@@ -182,14 +182,15 @@ mod tests {
 
     #[test]
     fn test_watch_config_creation() {
-        let config = WatchConfig::new(PathBuf::from("/tmp"));
-        assert_eq!(config.folder, PathBuf::from("/tmp"));
+        let tmp = std::env::temp_dir();
+        let config = WatchConfig::new(tmp.clone());
+        assert_eq!(config.folder, tmp);
         assert!(!config.recursive);
     }
 
     #[test]
     fn test_watch_config_builder() {
-        let config = WatchConfig::new(PathBuf::from("/tmp"))
+        let config = WatchConfig::new(std::env::temp_dir())
             .with_pattern("*.mp4".to_string())
             .with_template("transcode".to_string())
             .recursive(true);

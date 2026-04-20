@@ -157,10 +157,7 @@ impl SignalChain {
             .iter()
             .position(|s| s.id == id)
             .ok_or(ChainError::NotFound(id))?;
-        Ok(self
-            .stages
-            .remove(pos)
-            .expect("invariant: pos is valid index (found via position above)"))
+        self.stages.remove(pos).ok_or(ChainError::NotFound(id))
     }
 
     /// Bypass or un-bypass a stage by ID.

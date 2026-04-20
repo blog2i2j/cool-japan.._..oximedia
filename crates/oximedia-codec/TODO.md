@@ -6,6 +6,11 @@
 - Subsystems: rate_control (CBR/VBR/CRF/CQP), multipass encoding, SIMD (x86 AVX2/AVX-512, ARM, scalar), intra prediction, motion estimation, tile encoding, reconstruction (CDEF, deblock, film grain, super-res)
 - Re-exports: VideoFrame, AudioFrame, VideoDecoder/Encoder traits, rate control types, reconstruction pipeline, tile encoder
 
+## Wave 2 Progress (2026-04-17)
+- [x] JPEG encoder+decoder spec-compliance fix: zigzag DQT table ordering, correct AC Huffman symbol ordering — Wave 2 Slice A (2026-04-17).
+- [x] AJXL ISOBMFF animated encoder: finish_isobmff(), jxlp box helpers, JxlAnimation/AnimationHeader types — Wave 2 Slice D (2026-04-17).
+- [x] AJXL streaming decoder iterator: JxlStreamingDecoder<R: Read>, ISOBMFF + native bitstream auto-detect — Wave 2 Slice E (2026-04-17).
+
 ## Enhancements
 - [x] Complete VP9 encoder (Vp9Encoder exists with 28+ tests)
 - [x] Complete VP8 encoder (Vp8Encoder exists with 28+ tests)
@@ -45,6 +50,6 @@
 - [x] Add regression tests for `jpegxl` modular and ANS coding paths
 
 ## Documentation
-- [ ] Document codec feature matrix (encode/decode, bitdepth, chroma support) in crate-level docs
-- [ ] Add rate control tuning guide with examples for each mode (CBR/VBR/CRF/CQP)
-- [ ] Document SIMD dispatch mechanism in `simd/mod.rs`
+- [x] Document codec feature matrix (encode/decode, bitdepth, chroma support) in crate-level docs
+- [x] Add rate control tuning guide with examples for each mode (CBR/VBR/CRF/CQP)
+- [x] Document SIMD dispatch mechanism in `simd/mod.rs`

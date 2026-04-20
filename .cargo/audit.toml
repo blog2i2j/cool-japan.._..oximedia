@@ -1,0 +1,33 @@
+# cargo-audit configuration
+# This file is read by `cargo audit` (rustsec/cargo-audit) automatically.
+# See also: audit.toml (project root) for cargo-deny configuration.
+#
+# All ignored advisories are transitive dependencies; none are directly invoked
+# by OxiMedia code. Rationale for each entry is documented in audit.toml.
+#
+# RUSTSEC-2026-0098, RUSTSEC-2026-0099 (rustls-webpki 0.101.7 CVEs):
+#   Root cause: aws-smithy-runtime/tls-rustls → legacy-rustls-ring → rustls 0.21
+#   → rustls-webpki 0.101.7. No Cargo.toml-only upgrade path exists in the current
+#   aws-smithy-http-client 1.1.12: the only newer-rustls path (default-https-client)
+#   requires aws-lc-sys C dependency (explicitly avoided per oximedia-cloud/Cargo.toml:27).
+#   The workspace already uses rustls-webpki 0.103.12 via reqwest → hyper-rustls → rustls 0.23.
+#   The affected code paths (URI SAN, wildcard name constraints) are not used by
+#   OxiMedia S3/cloud calls (all hosts are standard DNS names).
+#   Will resolve when AWS SDK migrates aws-smithy-runtime to rustls 0.23.
+#
+# RUSTSEC-2023-0071 (rsa 0.9.10 Marvin Attack):
+#   Root cause: sqlx-macros-core always pulls sqlx-mysql which depends on rsa.
+#   OxiMedia uses SQLite only; the MySQL RSA handshake is never executed.
+#   No fixed version of rsa is available upstream.
+
+[advisories]
+ignore = [
+    "RUSTSEC-2023-0071",
+    "RUSTSEC-2024-0384",
+    "RUSTSEC-2024-0436",
+    "RUSTSEC-2025-0124",
+    "RUSTSEC-2025-0134",
+    "RUSTSEC-2026-0097",
+    "RUSTSEC-2026-0098",
+    "RUSTSEC-2026-0099",
+]

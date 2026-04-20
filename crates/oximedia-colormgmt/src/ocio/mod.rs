@@ -347,12 +347,13 @@ impl<'a> OcioParser<'a> {
                     }
                 }
                 ParseSection::ColorSpaceEntry => {
-                    if let Some(cs) = current_cs.as_mut() {
+                    if current_cs.is_some() {
                         if line.starts_with("- ") {
                             // Start a new color space - flush old one
-                            let old = current_cs.take().expect("checked above");
-                            if !old.name.is_empty() {
-                                config.colorspaces.push(old);
+                            if let Some(old) = current_cs.take() {
+                                if !old.name.is_empty() {
+                                    config.colorspaces.push(old);
+                                }
                             }
                             let rest = line.trim_start_matches('-').trim();
                             let mut new_cs = OcioColorSpace::default();
@@ -361,15 +362,17 @@ impl<'a> OcioParser<'a> {
                             }
                             current_cs = Some(new_cs);
                         } else if let Some((k, v)) = split_key_value(line) {
-                            match k {
-                                "from_reference" | "from_scene_reference" => {
-                                    section = ParseSection::FromReference;
-                                }
-                                "to_reference" | "to_scene_reference" => {
-                                    section = ParseSection::ToReference;
-                                }
-                                _ => {
-                                    apply_cs_field(cs, k, v);
+                            if let Some(cs) = current_cs.as_mut() {
+                                match k {
+                                    "from_reference" | "from_scene_reference" => {
+                                        section = ParseSection::FromReference;
+                                    }
+                                    "to_reference" | "to_scene_reference" => {
+                                        section = ParseSection::ToReference;
+                                    }
+                                    _ => {
+                                        apply_cs_field(cs, k, v);
+                                    }
                                 }
                             }
                         }
@@ -439,11 +442,12 @@ impl<'a> OcioParser<'a> {
                     }
                 }
                 ParseSection::LookEntry => {
-                    if let Some(look) = current_look.as_mut() {
+                    if current_look.is_some() {
                         if line.starts_with("- ") {
-                            let old = current_look.take().expect("checked above");
-                            if !old.name.is_empty() {
-                                config.looks.push(old);
+                            if let Some(old) = current_look.take() {
+                                if !old.name.is_empty() {
+                                    config.looks.push(old);
+                                }
                             }
                             let rest = line.trim_start_matches('-').trim();
                             let mut new_look = OcioLook {
@@ -456,7 +460,9 @@ impl<'a> OcioParser<'a> {
                             }
                             current_look = Some(new_look);
                         } else if let Some((k, v)) = split_key_value(line) {
-                            apply_look_field(look, k, v);
+                            if let Some(look) = current_look.as_mut() {
+                                apply_look_field(look, k, v);
+                            }
                         }
                     }
                 }

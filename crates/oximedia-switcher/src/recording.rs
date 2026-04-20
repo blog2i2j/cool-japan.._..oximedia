@@ -270,7 +270,10 @@ impl RecordingTrack {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             name: name.into(),
-            output_path: String::from("/tmp/recording"),
+            output_path: std::env::temp_dir()
+                .join("oximedia-recording")
+                .to_string_lossy()
+                .into_owned(),
             codec: RecordingCodec::ProResHq,
             container: RecordingContainer::Mov,
             preset: RecordingPreset::Broadcast,
@@ -599,8 +602,15 @@ impl RecordingManager {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-switcher-recording-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     fn simple_track(name: &str) -> RecordingTrack {
-        RecordingTrack::new(name).with_output_path("/tmp/test_recording")
+        RecordingTrack::new(name).with_output_path(tmp_str("test_recording"))
     }
 
     #[test]
@@ -777,7 +787,7 @@ mod tests {
 
     #[test]
     fn test_empty_name_validation() {
-        let track = RecordingTrack::new("").with_output_path("/tmp/test");
+        let track = RecordingTrack::new("").with_output_path(tmp_str("test"));
         assert!(matches!(
             track.validate(),
             Err(RecordingError::EmptyTrackName)

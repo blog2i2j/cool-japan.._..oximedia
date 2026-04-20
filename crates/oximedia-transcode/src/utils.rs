@@ -314,7 +314,10 @@ pub fn validate_resolution_constraints(
 /// Creates a temporary file path for statistics.
 #[must_use]
 pub fn temp_stats_file(job_id: &str) -> String {
-    format!("/tmp/transcode_stats_{job_id}.log")
+    std::env::temp_dir()
+        .join(format!("oximedia-transcode-stats-{job_id}.log"))
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// Cleans up temporary files.

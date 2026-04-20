@@ -712,6 +712,23 @@ pub struct SeekResult {
     pub preroll_samples: u32,
 }
 
+/// A shared decode-and-skip cursor for sample-accurate seek planning.
+///
+/// Demuxers can return this when the caller must seek to `byte_offset`,
+/// begin decoding at `sample_index`, and discard `skip_samples` decoded
+/// samples before presenting the first target sample.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DecodeSkipCursor {
+    /// Byte offset of the keyframe/sample where decoding should begin.
+    pub byte_offset: u64,
+    /// 0-based sample index where decoding should begin.
+    pub sample_index: usize,
+    /// Number of decoded samples to discard before presentation.
+    pub skip_samples: u32,
+    /// Requested target presentation timestamp in track timescale units.
+    pub target_pts: i64,
+}
+
 // ─── SampleAccurateSeeker ───────────────────────────────────────────────────
 
 /// Performs sample-accurate seeking on a single media track.

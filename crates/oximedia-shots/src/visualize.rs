@@ -31,11 +31,12 @@ impl TimelineVisualizer {
         let mut output = String::new();
 
         // Calculate timeline scale
-        let max_time = shots
-            .last()
-            .expect("invariant: shots non-empty checked above")
-            .end
-            .to_seconds();
+        // shots is non-empty (early-return guard above); last() is always Some.
+        let max_time = if let Some(last_shot) = shots.last() {
+            last_shot.end.to_seconds()
+        } else {
+            return String::from("No shots to visualize");
+        };
         let time_scale = self.width as f64 / max_time;
 
         output.push_str("TIMELINE VISUALIZATION\n");

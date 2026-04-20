@@ -1,3 +1,4 @@
+#![cfg_attr(target_arch = "wasm32", allow(dead_code))]
 // Copyright 2025 OxiMedia Contributors
 // Licensed under the Apache License, Version 2.0
 
@@ -154,12 +155,19 @@ enum Commands {
     ListPresets,
 }
 
+#[cfg(not(target_arch = "wasm32"))]
 #[tokio::main]
 async fn main() {
     if let Err(e) = run().await {
         eprintln!("Error: {e}");
         process::exit(1);
     }
+}
+
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    eprintln!("oximedia-convert CLI is not supported on wasm32-unknown-unknown");
+    process::exit(1);
 }
 
 async fn run() -> Result<(), ConversionError> {

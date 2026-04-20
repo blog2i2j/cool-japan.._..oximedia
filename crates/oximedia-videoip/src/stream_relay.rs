@@ -326,8 +326,10 @@ mod tests {
     fn test_relay_basic() {
         let mut relay = StreamRelay::new();
         let sink = RelaySink::new("sink1".into(), 10, DropPolicy::DropOldest);
-        relay.add_sink(sink).unwrap();
-        let delivered = relay.relay_frame(make_frame("cam1", 0, 100)).unwrap();
+        relay.add_sink(sink).expect("relay is not shut down");
+        let delivered = relay
+            .relay_frame(make_frame("cam1", 0, 100))
+            .expect("relay is not shut down");
         assert_eq!(delivered, 1);
         assert_eq!(relay.total_relayed(), 1);
     }
@@ -337,9 +339,11 @@ mod tests {
         let mut relay = StreamRelay::new();
         for i in 0..3 {
             let sink = RelaySink::new(format!("sink{i}"), 10, DropPolicy::DropOldest);
-            relay.add_sink(sink).unwrap();
+            relay.add_sink(sink).expect("relay is not shut down");
         }
-        let delivered = relay.relay_frame(make_frame("cam1", 0, 50)).unwrap();
+        let delivered = relay
+            .relay_frame(make_frame("cam1", 0, 50))
+            .expect("relay is not shut down");
         assert_eq!(delivered, 3);
     }
 
@@ -348,14 +352,18 @@ mod tests {
         let mut relay = StreamRelay::new();
         let sink = RelaySink::new("sink1".into(), 10, DropPolicy::DropOldest)
             .subscribe_to(vec!["cam1".to_owned()]);
-        relay.add_sink(sink).unwrap();
+        relay.add_sink(sink).expect("relay is not shut down");
 
         // cam1 → subscribed
-        let d1 = relay.relay_frame(make_frame("cam1", 0, 10)).unwrap();
+        let d1 = relay
+            .relay_frame(make_frame("cam1", 0, 10))
+            .expect("relay is not shut down");
         assert_eq!(d1, 1);
 
         // cam2 → not subscribed
-        let d2 = relay.relay_frame(make_frame("cam2", 0, 10)).unwrap();
+        let d2 = relay
+            .relay_frame(make_frame("cam2", 0, 10))
+            .expect("relay is not shut down");
         assert_eq!(d2, 0);
     }
 
@@ -363,13 +371,19 @@ mod tests {
     fn test_drop_oldest_policy() {
         let sink = RelaySink::new("s".into(), 2, DropPolicy::DropOldest);
         let mut relay = StreamRelay::new();
-        relay.add_sink(sink).unwrap();
+        relay.add_sink(sink).expect("relay is not shut down");
 
-        relay.relay_frame(make_frame("c", 0, 10)).unwrap();
-        relay.relay_frame(make_frame("c", 1, 10)).unwrap();
-        relay.relay_frame(make_frame("c", 2, 10)).unwrap(); // should drop seq=0
+        relay
+            .relay_frame(make_frame("c", 0, 10))
+            .expect("relay is not shut down");
+        relay
+            .relay_frame(make_frame("c", 1, 10))
+            .expect("relay is not shut down");
+        relay
+            .relay_frame(make_frame("c", 2, 10)) // should drop seq=0
+            .expect("relay is not shut down");
 
-        let sink = relay.get_sink("s").unwrap();
+        let sink = relay.get_sink("s").expect("sink 's' was added");
         assert_eq!(sink.buffered_count(), 2);
         assert_eq!(sink.stats.frames_dropped, 1);
     }
@@ -378,14 +392,20 @@ mod tests {
     fn test_drop_newest_policy() {
         let sink = RelaySink::new("s".into(), 2, DropPolicy::DropNewest);
         let mut relay = StreamRelay::new();
-        relay.add_sink(sink).unwrap();
+        relay.add_sink(sink).expect("relay is not shut down");
 
-        relay.relay_frame(make_frame("c", 0, 10)).unwrap();
-        relay.relay_frame(make_frame("c", 1, 10)).unwrap();
-        let delivered = relay.relay_frame(make_frame("c", 2, 10)).unwrap();
+        relay
+            .relay_frame(make_frame("c", 0, 10))
+            .expect("relay is not shut down");
+        relay
+            .relay_frame(make_frame("c", 1, 10))
+            .expect("relay is not shut down");
+        let delivered = relay
+            .relay_frame(make_frame("c", 2, 10))
+            .expect("relay is not shut down");
         assert_eq!(delivered, 0); // new frame dropped
 
-        let sink = relay.get_sink("s").unwrap();
+        let sink = relay.get_sink("s").expect("sink 's' was added");
         assert_eq!(sink.buffered_count(), 2);
         assert_eq!(sink.stats.frames_dropped, 1);
     }
@@ -393,17 +413,27 @@ mod tests {
     #[test]
     fn test_pop_from_sink() {
         let mut relay = StreamRelay::new();
-        relay.add_sink(RelaySink::new("s".into(), 5, DropPolicy::DropOldest)).unwrap();
-        relay.relay_frame(make_frame("c", 42, 20)).unwrap();
-        let frame = relay.get_sink_mut("s").unwrap().pop().unwrap();
+        relay
+            .add_sink(RelaySink::new("s".into(), 5, DropPolicy::DropOldest))
+            .expect("relay is not shut down");
+        relay
+            .relay_frame(make_frame("c", 42, 20))
+            .expect("relay is not shut down");
+        let frame = relay
+            .get_sink_mut("s")
+            .expect("sink 's' was added")
+            .pop()
+            .expect("one frame was relayed");
         assert_eq!(frame.seq, 42);
     }
 
     #[test]
     fn test_remove_sink() {
         let mut relay = StreamRelay::new();
-        relay.add_sink(RelaySink::new("s".into(), 5, DropPolicy::DropOldest)).unwrap();
-        relay.remove_sink("s").unwrap();
+        relay
+            .add_sink(RelaySink::new("s".into(), 5, DropPolicy::DropOldest))
+            .expect("relay is not shut down");
+        relay.remove_sink("s").expect("sink 's' was added");
         assert_eq!(relay.sink_count(), 0);
     }
 
@@ -418,7 +448,9 @@ mod tests {
     #[test]
     fn test_duplicate_sink_rejected() {
         let mut relay = StreamRelay::new();
-        relay.add_sink(RelaySink::new("s".into(), 5, DropPolicy::DropOldest)).unwrap();
+        relay
+            .add_sink(RelaySink::new("s".into(), 5, DropPolicy::DropOldest))
+            .expect("relay is not shut down");
         let result = relay.add_sink(RelaySink::new("s".into(), 5, DropPolicy::DropOldest));
         assert!(matches!(result, Err(RelayError::SinkAlreadyExists(_))));
     }
@@ -426,9 +458,15 @@ mod tests {
     #[test]
     fn test_source_stats_updated() {
         let mut relay = StreamRelay::new();
-        relay.add_sink(RelaySink::new("s".into(), 5, DropPolicy::DropOldest)).unwrap();
-        relay.relay_frame(make_frame("cam", 0, 500)).unwrap();
-        let stats = relay.source_stats("cam").unwrap();
+        relay
+            .add_sink(RelaySink::new("s".into(), 5, DropPolicy::DropOldest))
+            .expect("relay is not shut down");
+        relay
+            .relay_frame(make_frame("cam", 0, 500))
+            .expect("relay is not shut down");
+        let stats = relay
+            .source_stats("cam")
+            .expect("source 'cam' has frames relayed");
         assert_eq!(stats.frames_received, 1);
         assert_eq!(stats.bytes_received, 500);
     }

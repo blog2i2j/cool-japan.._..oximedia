@@ -354,7 +354,10 @@ mod tests {
 
     fn sample_output() -> OutputSpec {
         OutputSpec {
-            path: "/tmp/out.mp4".into(),
+            path: std::env::temp_dir()
+                .join("oximedia-py-rq-out.mp4")
+                .to_string_lossy()
+                .into_owned(),
             container: "mp4".into(),
             video_codec: Some("av1".into()),
             audio_codec: Some("opus".into()),

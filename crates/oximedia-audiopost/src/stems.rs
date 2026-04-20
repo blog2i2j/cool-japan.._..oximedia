@@ -437,14 +437,14 @@ mod tests {
     #[test]
     fn test_stem_export_settings() {
         let settings =
-            StemExportSettings::new(PathBuf::from("/tmp"), 48000, 24).expect("failed to create");
+            StemExportSettings::new(std::env::temp_dir(), 48000, 24).expect("failed to create");
         assert_eq!(settings.sample_rate, 48000);
         assert_eq!(settings.bit_depth, 24);
     }
 
     #[test]
     fn test_invalid_bit_depth() {
-        assert!(StemExportSettings::new(PathBuf::from("/tmp"), 48000, 8).is_err());
+        assert!(StemExportSettings::new(std::env::temp_dir(), 48000, 8).is_err());
     }
 
     #[test]

@@ -149,10 +149,18 @@ mod tests {
         IngestCandidate::new(path, size, "video/x-matroska")
     }
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-archive-pro-ingest-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_ingest_candidate_new() {
-        let c = candidate("/tmp/a.mkv", 1024);
-        assert_eq!(c.path, "/tmp/a.mkv");
+        let path = tmp_str("a.mkv");
+        let c = candidate(&path, 1024);
+        assert_eq!(c.path, path);
         assert_eq!(c.size_bytes, 1024);
         assert!(c.checksum.is_none());
     }
@@ -160,14 +168,14 @@ mod tests {
     #[test]
     fn test_estimated_processing_time_minimum() {
         // File smaller than 100 MB → at least 1 second
-        let c = candidate("/tmp/small.mkv", 1024);
+        let c = candidate(&tmp_str("small.mkv"), 1024);
         assert_eq!(c.estimated_processing_time_s(), 1);
     }
 
     #[test]
     fn test_estimated_processing_time_large() {
         // 200 MB file → ~2 seconds
-        let c = candidate("/tmp/large.mkv", 200 * 1024 * 1024);
+        let c = candidate(&tmp_str("large.mkv"), 200 * 1024 * 1024);
         assert_eq!(c.estimated_processing_time_s(), 2);
     }
 

@@ -656,7 +656,8 @@ mod on_demand_tests {
     use super::*;
 
     fn make_gen(total: u64) -> OnDemandProxyGenerator {
-        OnDemandProxyGenerator::new("/src/clip.mov", "/tmp/proxy", "clip", total)
+        let out = std::env::temp_dir().join("oximedia-proxy-inc-proxy");
+        OnDemandProxyGenerator::new("/src/clip.mov", out, "clip", total)
     }
 
     #[test]

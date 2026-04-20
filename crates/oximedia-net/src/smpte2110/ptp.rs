@@ -107,7 +107,7 @@ impl PtpTimestamp {
         let system_time = SystemTime::now();
         let duration = system_time
             .duration_since(UNIX_EPOCH)
-            .expect("invariant: system time is after UNIX_EPOCH");
+            .unwrap_or(std::time::Duration::ZERO);
 
         // TAI is currently 37 seconds ahead of UTC (as of 2024)
         let tai_offset_seconds = 37;

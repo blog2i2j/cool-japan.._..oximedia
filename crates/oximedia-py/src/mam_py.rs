@@ -749,6 +749,13 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-py-mam-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_generate_id() {
         let id = generate_id();
@@ -758,8 +765,8 @@ mod tests {
 
     #[test]
     fn test_detect_format() {
-        assert_eq!(detect_format("/tmp/video.mkv"), "mkv");
-        assert_eq!(detect_format("/tmp/audio.FLAC"), "flac");
+        assert_eq!(detect_format(&tmp_str("video.mkv")), "mkv");
+        assert_eq!(detect_format(&tmp_str("audio.FLAC")), "flac");
         assert_eq!(detect_format("noext"), "unknown");
     }
 
@@ -767,7 +774,7 @@ mod tests {
     fn test_asset_has_tag() {
         let asset = PyAsset {
             id: "test".to_string(),
-            path: "/tmp/test.mkv".to_string(),
+            path: tmp_str("test.mkv"),
             filename: "test.mkv".to_string(),
             format: "mkv".to_string(),
             size_bytes: 1024,

@@ -314,9 +314,7 @@ impl Default for NtsClientConfig {
     fn default() -> Self {
         Self {
             // Use a placeholder; callers must set the real server address.
-            ke_server: "127.0.0.1:4460"
-                .parse()
-                .expect("infallible: static address literal"),
+            ke_server: SocketAddr::from(([127, 0, 0, 1], 4460)),
             algorithm: NtsAeadAlgorithm::AesSivCmac256,
             max_cookies: 8,
         }

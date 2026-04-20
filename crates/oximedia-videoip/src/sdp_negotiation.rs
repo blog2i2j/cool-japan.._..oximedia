@@ -674,7 +674,12 @@ mod tests {
         let parsed = SdpParser::parse(&text).expect("should parse round-trip");
         let attr = parsed.media[0].find_attribute("rtpmap");
         assert!(attr.is_some());
-        assert_eq!(attr.unwrap().value.as_deref(), Some("96 raw/90000"));
+        assert_eq!(
+            attr.expect("attr is Some, checked above")
+                .value
+                .as_deref(),
+            Some("96 raw/90000")
+        );
     }
 
     // 7. Error: missing version field
@@ -712,7 +717,11 @@ mod tests {
         let parsed = SdpParser::parse(&text).expect("should parse");
         let attr = parsed.find_attribute("recvonly");
         assert!(attr.is_some());
-        assert!(attr.unwrap().value.is_none());
+        assert!(
+            attr.expect("attr is Some, checked above")
+                .value
+                .is_none()
+        );
     }
 
     // 11. Ancillary data section

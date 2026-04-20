@@ -325,6 +325,13 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-py-aaf-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_aaf_track_repr() {
         let track = PyAafTrack {
@@ -345,19 +352,19 @@ mod tests {
 
     #[test]
     fn test_read_nonexistent_aaf() {
-        let result = PyAafReader::new("/tmp/nonexistent_test_aaf_12345.aaf");
+        let result = PyAafReader::new(&tmp_str("nonexistent_test_12345.aaf"));
         assert!(result.is_err());
     }
 
     #[test]
     fn test_validate_nonexistent_aaf() {
-        let result = validate_aaf("/tmp/nonexistent_test_aaf_12345.aaf");
+        let result = validate_aaf(&tmp_str("nonexistent_test_12345.aaf"));
         assert!(result.is_err());
     }
 
     #[test]
     fn test_convert_nonexistent_aaf() {
-        let result = convert_aaf_to_edl("/tmp/nonexistent_test_aaf_12345.aaf");
+        let result = convert_aaf_to_edl(&tmp_str("nonexistent_test_12345.aaf"));
         assert!(result.is_err());
     }
 }

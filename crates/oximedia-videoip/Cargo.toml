@@ -35,7 +35,7 @@ dashmap = { workspace = true }
 socket2 = "0.6"
 
 # mDNS/DNS-SD for service discovery
-mdns-sd = "0.19"
+mdns-sd = { workspace = true }
 
 # Forward Error Correction
 reed-solomon-erasure = "6.0"
@@ -50,7 +50,7 @@ flume = "0.12"
 [dev-dependencies]
 tokio-test = "0.4"
 tempfile.workspace = true
-criterion = "0.8"
+criterion = { workspace = true }
 
 [features]
 default = []

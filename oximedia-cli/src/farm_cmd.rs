@@ -639,8 +639,8 @@ mod tests {
     #[test]
     fn test_submit_command_construction() {
         let cmd = FarmCommand::Submit {
-            input: PathBuf::from("/tmp/test.mkv"),
-            output: PathBuf::from("/tmp/out.webm"),
+            input: std::env::temp_dir().join("test.mkv"),
+            output: std::env::temp_dir().join("out.webm"),
             farm: "127.0.0.1:9100".to_string(),
             preset: Some("fast".to_string()),
             priority: "high".to_string(),

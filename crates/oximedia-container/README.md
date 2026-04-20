@@ -6,6 +6,8 @@ Container format mux/demux for the OxiMedia multimedia framework — MP4, MKV, M
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
+Version: 0.1.4 — 2026-04-20 — 1,183 tests
+
 ## Overview
 
 `oximedia-container` provides demuxers and muxers for media container formats:
@@ -40,7 +42,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-container = "0.1.3"
+oximedia-container = "0.1.4"
 ```
 
 ### Format Detection
@@ -115,6 +117,49 @@ editor.save().await?;
 | `CodecParams` | Codec-specific parameters |
 | `Demuxer` | Trait for container demuxers |
 | `Muxer` | Trait for container muxers |
+| `Mp4FragmentMode` | Progressive vs. fragmented (CMAF/DASH) MP4 mux mode |
+| `DecodeSkipCursor` | Sample-accurate seek result (keyframe offset + skip count) |
+| `CmafChunkMode` | Standard / Chunked / LowLatencyChunked CMAF delivery mode |
+| `CmafChunkedConfig` | Full configuration for CMAF chunked transfer |
+| `BlockAdditionMapping` | Matroska v4 per-track auxiliary data channel descriptor |
+
+## Wave 4 Additions (0.1.4)
+
+### `Mp4FragmentMode` — Progressive and Fragmented MP4
+
+`mux::mp4::Mp4FragmentMode` selects how the MP4 muxer lays out sample data:
+
+- **`Progressive`** (default) — classic single-`moov` + `mdat` file, best for file download.
+- **`Fragmented { fragment_duration_ms }`** — ISOBMFF fragmented MP4 (fMP4); each fragment is
+  an independent `moof` + `mdat` pair suitable for DASH and CMAF delivery.
+
+`Mp4Mode` is a backward-compatible type alias for `Mp4FragmentMode`.
+
+### `DecodeSkipCursor` — Sample-Accurate Seeking
+
+`seek_sample_accurate()` on the Matroska, MP4, and AVI demuxers returns a `DecodeSkipCursor`
+that pinpoints where to start decoding (`byte_offset`, `sample_index`) and how many decoded
+samples to discard (`skip_samples`) before the requested `target_pts` is reached.
+
+### `CmafChunkMode` / `CmafChunkedConfig` — CMAF Low-Latency Delivery
+
+`streaming::mux::CmafChunkMode` implements ISO/IEC 23000-19 chunked CMAF transfer:
+
+| Mode | Description |
+|------|-------------|
+| `Standard` | Whole segments (no chunking; default) |
+| `Chunked` | Multiple `moof`+`mdat` pairs per segment, governed by `chunk_duration_ms` |
+| `LowLatencyChunked` | One sample per chunk — minimum end-to-end latency |
+
+`CmafChunkedConfig::signal_low_latency` causes the muxer to write `cmfl` in the `styp` box
+compatible-brands list, signalling LL-CMAF compliance to players.
+
+### `BlockAdditionMapping` — Matroska v4 HDR/DV Track Metadata
+
+`demux::matroska::matroska_v4::BlockAdditionMapping` (EBML ID `0x41CB`) carries auxiliary
+per-block data channels on a Matroska track — used for HDR10+ dynamic metadata, Dolby Vision
+RPU payloads, depth maps, and similar extensions.  Accessible via
+`StreamInfo::block_addition_mappings` after probing.
 
 ## Module Structure (95 source files, 951 public items)
 

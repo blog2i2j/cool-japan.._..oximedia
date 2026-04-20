@@ -157,6 +157,7 @@ pub mod iso_sync;
 pub mod manual;
 pub mod metadata;
 pub mod multicam_export;
+pub mod proxy;
 pub mod replay_buffer;
 pub mod spatial;
 pub mod switch_list;

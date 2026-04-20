@@ -661,10 +661,19 @@ mod tests {
         ColourPrimaries, ContentLightLevel, HdrMetadata, MasteringDisplay, TransferFunction,
     };
 
+    fn tmp_in() -> PathBuf {
+        std::env::temp_dir().join("oximedia-transcode-frame-in.mkv")
+    }
+
+    fn tmp_out() -> PathBuf {
+        std::env::temp_dir().join("oximedia-transcode-frame-out.mkv")
+    }
+
     #[test]
     fn test_frame_pipeline_config_remux() {
-        let cfg = FramePipelineConfig::remux("/tmp/in.mkv", "/tmp/out.mkv");
-        assert_eq!(cfg.input, PathBuf::from("/tmp/in.mkv"));
+        let ti = tmp_in();
+        let cfg = FramePipelineConfig::remux(ti.clone(), tmp_out());
+        assert_eq!(cfg.input, ti);
         assert!(cfg.video_codec.is_none());
         assert!(cfg.audio_codec.is_none());
         assert!(cfg.video_ops.is_empty());
@@ -672,7 +681,7 @@ mod tests {
 
     #[test]
     fn test_wire_hdr_passthrough() {
-        let mut cfg = FramePipelineConfig::remux("/tmp/in.mkv", "/tmp/out.mkv");
+        let mut cfg = FramePipelineConfig::remux(tmp_in(), tmp_out());
         let hdr = HdrMetadata::hdr10(
             MasteringDisplay::p3_d65_1000nit(),
             ContentLightLevel::hdr10_default(),
@@ -689,14 +698,14 @@ mod tests {
 
     #[test]
     fn test_wire_hdr_strip() {
-        let mut cfg = FramePipelineConfig::remux("/tmp/in.mkv", "/tmp/out.mkv");
+        let mut cfg = FramePipelineConfig::remux(tmp_in(), tmp_out());
         let hdr = HdrMetadata::hlg();
         assert!(wire_hdr_into_pipeline(&mut cfg, Some(hdr), HdrPassthroughMode::Strip).is_ok());
     }
 
     #[test]
     fn test_wire_hdr_convert() {
-        let mut cfg = FramePipelineConfig::remux("/tmp/in.mkv", "/tmp/out.mkv");
+        let mut cfg = FramePipelineConfig::remux(tmp_in(), tmp_out());
         let hdr = HdrMetadata::hdr10(
             MasteringDisplay::p3_d65_1000nit(),
             ContentLightLevel::hdr10_default(),
@@ -710,7 +719,7 @@ mod tests {
 
     #[test]
     fn test_resolve_output_hdr_passthrough() {
-        let mut cfg = FramePipelineConfig::remux("/tmp/in.mkv", "/tmp/out.mkv");
+        let mut cfg = FramePipelineConfig::remux(tmp_in(), tmp_out());
         let hdr = HdrMetadata::hlg();
         wire_hdr_into_pipeline(&mut cfg, Some(hdr.clone()), HdrPassthroughMode::Passthrough)
             .expect("wire ok");
@@ -725,7 +734,7 @@ mod tests {
 
     #[test]
     fn test_resolve_output_hdr_strip() {
-        let mut cfg = FramePipelineConfig::remux("/tmp/in.mkv", "/tmp/out.mkv");
+        let mut cfg = FramePipelineConfig::remux(tmp_in(), tmp_out());
         let hdr = HdrMetadata::hdr10(
             MasteringDisplay::p3_d65_1000nit(),
             ContentLightLevel::hdr10_default(),
@@ -738,7 +747,7 @@ mod tests {
 
     #[test]
     fn test_resolve_output_hdr_convert_pq_to_hlg() {
-        let mut cfg = FramePipelineConfig::remux("/tmp/in.mkv", "/tmp/out.mkv");
+        let mut cfg = FramePipelineConfig::remux(tmp_in(), tmp_out());
         let hdr = HdrMetadata::hdr10(
             MasteringDisplay::p3_d65_1000nit(),
             ContentLightLevel::hdr10_default(),
@@ -758,7 +767,7 @@ mod tests {
 
     #[test]
     fn test_resolve_output_hdr_none_source() {
-        let cfg = FramePipelineConfig::remux("/tmp/in.mkv", "/tmp/out.mkv");
+        let cfg = FramePipelineConfig::remux(tmp_in(), tmp_out());
         let exec = FramePipelineExecutor::new(cfg);
         let out = exec.resolve_output_hdr().expect("resolve ok");
         assert!(out.is_none()); // no source HDR → no output HDR
@@ -884,20 +893,16 @@ mod tests {
             wall_time_secs: 5.0,
             output_hdr: None,
         };
-        let out = pipeline_result_to_output(
-            &result,
-            std::path::Path::new("/tmp/out.mkv"),
-            1_000_000,
-            30.0,
-        );
+        let to = tmp_out();
+        let out = pipeline_result_to_output(&result, &to, 1_000_000, 30.0);
         assert_eq!(out.file_size, 1_000_000);
         assert!((out.speed_factor - 6.0).abs() < 1e-9);
-        assert_eq!(out.output_path, "/tmp/out.mkv");
+        assert_eq!(out.output_path, to.to_string_lossy().as_ref());
     }
 
     #[test]
     fn test_wire_hdr_inject() {
-        let mut cfg = FramePipelineConfig::remux("/tmp/in.mkv", "/tmp/out.mkv");
+        let mut cfg = FramePipelineConfig::remux(tmp_in(), tmp_out());
         let injected = HdrMetadata::hlg();
         let mode = HdrPassthroughMode::Inject(injected.clone());
         assert!(wire_hdr_into_pipeline(&mut cfg, None, mode).is_ok());

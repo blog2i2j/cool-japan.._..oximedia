@@ -1,3 +1,7 @@
+// The library crate is named `oximedia_bitstream`; use the alias that
+// all downstream test code expects so files need not be rewritten.
+extern crate oximedia_bitstream as bitstream_io;
+
 #[test]
 fn test_huffman_values() {
     use bitstream_io::{define_huffman_tree, BigEndian, BitRead, BitReader};

@@ -101,7 +101,9 @@ impl VideoEffect for Bloom {
                             let falloff = (1.0 - dist / radius as f32).max(0.0);
                             let bloom_amount = bloom_strength * falloff;
 
-                            let current = output.get_pixel(nx, ny).expect("should succeed in test");
+                            let Some(current) = output.get_pixel(nx, ny) else {
+                                continue;
+                            };
                             let bloomed = [
                                 current[0]
                                     .saturating_add((f32::from(pixel[0]) * bloom_amount) as u8),

@@ -133,6 +133,8 @@
 //! | `vr360` | `oximedia-360` | 360° VR video: equirectangular/cubemap projections, fisheye, stereo 3D |
 //! | `analytics` | `oximedia-analytics` | Media engagement analytics: sessions, retention curves, A/B testing, scoring |
 //! | `caption-gen` | `oximedia-caption-gen` | Advanced caption generation: speech alignment, WCAG compliance, diarization |
+//! | `mjpeg` | `oximedia-codec` (mjpeg) | Motion JPEG intra-frame video codec |
+//! | `apv` | `oximedia-codec` (apv) | APV (Advanced Professional Video) intra-frame codec (ISO/IEC 23009-13) |
 //! | `full` | all of the above | Everything enabled |
 
 #![forbid(unsafe_code)]
@@ -1443,6 +1445,34 @@ pub mod caption_gen {
 pub mod image_transform {
     //! Image transformation operations: resize, crop, rotate, flip, and color conversion.
     pub use oximedia_image_transform::*;
+}
+
+/// Motion JPEG (MJPEG) intra-frame video codec.
+///
+/// Enable with `features = ["mjpeg"]`.
+#[cfg(feature = "mjpeg")]
+pub mod mjpeg {
+    //! Motion JPEG video codec.
+    //!
+    //! MJPEG encodes each video frame independently as a baseline JPEG image.
+    //! All frames are keyframes, providing random access, simple editing, and
+    //! low encoding latency.  Commonly used in digital cameras, webcams, and
+    //! AVI/MOV containers.
+    pub use oximedia_codec::mjpeg::*;
+}
+
+/// APV (Advanced Professional Video) intra-frame codec (ISO/IEC 23009-13).
+///
+/// Enable with `features = ["apv"]`.
+#[cfg(feature = "apv")]
+pub mod apv {
+    //! APV (Advanced Professional Video) codec.
+    //!
+    //! APV is a royalty-free, intra-frame professional video codec for high quality,
+    //! low latency, and random-access editing workflows.  Supports 8/10/12-bit
+    //! depth, 4:2:0/4:2:2/4:4:4 chroma, QP-based quantization, and tile
+    //! parallelism.
+    pub use oximedia_codec::apv::*;
 }
 
 // ── Prelude ──────────────────────────────────────────────────────────────────

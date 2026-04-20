@@ -179,6 +179,13 @@ mod tests {
         }
     }
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-repair-integrity-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_integrity_result_is_ok() {
         assert!(IntegrityResult::Ok.is_ok());
@@ -244,21 +251,21 @@ mod tests {
 
     #[test]
     fn test_verify_check_ok() {
-        let check = make_check("/tmp/video.mp4", Some(1000));
+        let check = make_check(&tmp_str("video.mp4"), Some(1000));
         let result = verify_check(&check, 1000, true);
         assert_eq!(result, IntegrityResult::Ok);
     }
 
     #[test]
     fn test_verify_check_missing() {
-        let check = make_check("/tmp/missing.mp4", Some(1000));
+        let check = make_check(&tmp_str("missing.mp4"), Some(1000));
         let result = verify_check(&check, 0, false);
         assert_eq!(result, IntegrityResult::Missing);
     }
 
     #[test]
     fn test_verify_check_truncated() {
-        let check = make_check("/tmp/truncated.mp4", Some(1000));
+        let check = make_check(&tmp_str("truncated.mp4"), Some(1000));
         let result = verify_check(&check, 500, true);
         assert_eq!(
             result,
@@ -271,7 +278,7 @@ mod tests {
 
     #[test]
     fn test_verify_check_size_mismatch_larger() {
-        let check = make_check("/tmp/large.mp4", Some(1000));
+        let check = make_check(&tmp_str("large.mp4"), Some(1000));
         let result = verify_check(&check, 1200, true);
         assert_eq!(
             result,

@@ -462,6 +462,8 @@ fn rgb_to_lab_approx(rgb: Rgb) -> Lab {
 mod tests {
     use super::*;
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
     fn make_identity_patches(n: usize) -> (Vec<Rgb>, Vec<Lab>) {
         // Use perfectly uniform grey ramp as synthetic patches
         let patches: Vec<Rgb> = (0..n)
@@ -478,11 +480,11 @@ mod tests {
     }
 
     #[test]
-    fn test_camera_measurement_new_valid() {
+    fn test_camera_measurement_new_valid() -> TestResult {
         let (patches, labs) = make_identity_patches(6);
-        let m = CameraMeasurement::new("CamA", patches, labs);
-        assert!(m.is_ok());
-        assert_eq!(m.unwrap().patch_count(), 6);
+        let m = CameraMeasurement::new("CamA", patches, labs)?;
+        assert_eq!(m.patch_count(), 6);
+        Ok(())
     }
 
     #[test]
@@ -499,87 +501,89 @@ mod tests {
     }
 
     #[test]
-    fn test_mean_delta_e_identical_patches() {
+    fn test_mean_delta_e_identical_patches() -> TestResult {
         // If patches exactly match reference, mean ΔE should be 0
         let (patches, labs) = make_identity_patches(8);
-        let m = CameraMeasurement::new("Cam", patches.clone(), labs.clone()).unwrap();
+        let m = CameraMeasurement::new("Cam", patches.clone(), labs.clone())?;
         // Mean dE should be near zero (patches are already Lab-matched)
         // We can only verify it is non-negative
         assert!(m.mean_delta_e() >= 0.0);
+        Ok(())
     }
 
     #[test]
-    fn test_batch_calibrator_requires_two_cameras() {
+    fn test_batch_calibrator_requires_two_cameras() -> TestResult {
         let mut cal = BatchCalibrator::new("session1");
         let (p, l) = make_identity_patches(6);
-        cal.add_measurement(CameraMeasurement::new("A", p, l).unwrap())
-            .unwrap();
+        cal.add_measurement(CameraMeasurement::new("A", p, l)?)?;
         assert!(cal.calibrate().is_err());
+        Ok(())
     }
 
     #[test]
-    fn test_batch_calibrator_duplicate_camera() {
+    fn test_batch_calibrator_duplicate_camera() -> TestResult {
         let mut cal = BatchCalibrator::new("session1");
         let (p, l) = make_identity_patches(6);
-        cal.add_measurement(CameraMeasurement::new("A", p.clone(), l.clone()).unwrap())
-            .unwrap();
-        let result = cal.add_measurement(CameraMeasurement::new("A", p, l).unwrap());
+        cal.add_measurement(CameraMeasurement::new("A", p.clone(), l.clone())?)?;
+        let result = cal.add_measurement(CameraMeasurement::new("A", p, l)?);
         assert!(result.is_err());
+        Ok(())
     }
 
     #[test]
-    fn test_batch_calibrator_two_identical_cameras() {
+    fn test_batch_calibrator_two_identical_cameras() -> TestResult {
         let mut cal = BatchCalibrator::new("s");
         let (p, l) = make_identity_patches(8);
         cal.set_reference("Ref");
-        cal.add_measurement(CameraMeasurement::new("Ref", p.clone(), l.clone()).unwrap())
-            .unwrap();
-        cal.add_measurement(CameraMeasurement::new("B", p, l).unwrap())
-            .unwrap();
-        let result = cal.calibrate().unwrap();
+        cal.add_measurement(CameraMeasurement::new("Ref", p.clone(), l.clone())?)?;
+        cal.add_measurement(CameraMeasurement::new("B", p, l)?)?;
+        let result = cal.calibrate()?;
         assert_eq!(result.reference_camera_id, "Ref");
         assert_eq!(result.camera_count(), 2);
-        let b = result.camera_calibration("B").unwrap();
+        let b = result
+            .camera_calibration("B")
+            .ok_or("camera B not found in result")?;
         // Two identical cameras should have near-identity matrix
         for i in 0..3 {
             assert!((b.correction_matrix[i][i] - 1.0).abs() < 0.1);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_batch_calibrator_first_camera_as_reference() {
+    fn test_batch_calibrator_first_camera_as_reference() -> TestResult {
         let mut cal = BatchCalibrator::new("s");
         let (p, l) = make_identity_patches(6);
-        cal.add_measurement(CameraMeasurement::new("First", p.clone(), l.clone()).unwrap())
-            .unwrap();
-        cal.add_measurement(CameraMeasurement::new("Second", p, l).unwrap())
-            .unwrap();
-        let result = cal.calibrate().unwrap();
+        cal.add_measurement(CameraMeasurement::new("First", p.clone(), l.clone())?)?;
+        cal.add_measurement(CameraMeasurement::new("Second", p, l)?)?;
+        let result = cal.calibrate()?;
         assert_eq!(result.reference_camera_id, "First");
+        Ok(())
     }
 
     #[test]
-    fn test_batch_result_camera_count() {
+    fn test_batch_result_camera_count() -> TestResult {
         let mut cal = BatchCalibrator::new("s");
         for i in 0..4 {
             let (p, l) = make_identity_patches(6);
-            cal.add_measurement(CameraMeasurement::new(format!("Cam{i}"), p, l).unwrap())
-                .unwrap();
+            cal.add_measurement(CameraMeasurement::new(format!("Cam{i}"), p, l)?)?;
         }
-        let result = cal.calibrate().unwrap();
+        let result = cal.calibrate()?;
         assert_eq!(result.camera_count(), 4);
+        Ok(())
     }
 
     #[test]
-    fn test_invert_identity() {
+    fn test_invert_identity() -> TestResult {
         let id = identity_3x3();
-        let inv = invert_3x3(id).unwrap();
+        let inv = invert_3x3(id).ok_or("invert_3x3 returned None for identity matrix")?;
         for i in 0..3 {
             for j in 0..3 {
                 let expected = if i == j { 1.0 } else { 0.0 };
                 assert!((inv[i][j] - expected).abs() < 1e-9);
             }
         }
+        Ok(())
     }
 
     #[test]

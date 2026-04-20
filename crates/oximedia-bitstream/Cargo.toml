@@ -24,3 +24,23 @@ doctest = false
 default = ["std"]
 std = ["alloc"]
 alloc = []
+
+[[test]]
+name = "write"
+path = "tests/write.rs"
+
+[[test]]
+name = "read"
+path = "tests/read.rs"
+
+[[test]]
+name = "huffman"
+path = "tests/huffman.rs"
+
+[[test]]
+name = "roundtrip"
+path = "tests/roundtrip.rs"
+
+[[test]]
+name = "read_seek"
+path = "tests/read_seek.rs"

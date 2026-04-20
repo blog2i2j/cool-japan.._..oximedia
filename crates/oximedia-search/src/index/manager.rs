@@ -183,8 +183,9 @@ mod tests {
 
     #[test]
     fn test_index_manager_new() {
-        let manager = IndexManager::new(Path::new("/tmp/test_index"));
-        assert_eq!(manager.index_path, PathBuf::from("/tmp/test_index"));
+        let index_path = std::env::temp_dir().join("oximedia-search-index-manager-test_index");
+        let manager = IndexManager::new(&index_path);
+        assert_eq!(manager.index_path, index_path);
     }
 
     #[test]

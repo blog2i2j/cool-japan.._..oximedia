@@ -3,7 +3,7 @@
 //! Provides `PyRightsManager`, `PyLicense`, `PyRightsReport` for managing
 //! content rights from Python.
 
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use std::collections::HashMap;
 
@@ -57,46 +57,54 @@ impl PyLicense {
     }
 
     /// Convert to a Python dict.
-    fn to_dict(&self) -> HashMap<String, Py<PyAny>> {
-        Python::attach(|py| {
+    fn to_dict(&self) -> PyResult<HashMap<String, Py<PyAny>>> {
+        Python::attach(|py| -> PyResult<HashMap<String, Py<PyAny>>> {
             let mut m: HashMap<String, Py<PyAny>> = HashMap::new();
             m.insert(
                 "license_id".to_string(),
                 self.license_id
                     .clone()
                     .into_pyobject(py)
-                    .expect("str")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
             m.insert(
                 "asset".to_string(),
-                self.asset.clone().into_pyobject(py).expect("str").into(),
+                self.asset
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "license_type".to_string(),
                 self.license_type
                     .clone()
                     .into_pyobject(py)
-                    .expect("str")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
             m.insert(
                 "licensee".to_string(),
-                self.licensee.clone().into_pyobject(py).expect("str").into(),
+                self.licensee
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "territory".to_string(),
                 self.territory
                     .clone()
                     .into_pyobject(py)
-                    .expect("str")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
             m.insert(
                 "active".to_string(),
                 self.active
                     .into_pyobject(py)
-                    .expect("bool")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .to_owned()
                     .into(),
             );
@@ -105,10 +113,10 @@ impl PyLicense {
                 self.permitted_uses
                     .clone()
                     .into_pyobject(py)
-                    .expect("list")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
-            m
+            Ok(m)
         })
     }
 }
@@ -236,47 +244,56 @@ impl PyRightsManager {
         intended_use: Option<&str>,
         territory: Option<&str>,
     ) -> HashMap<String, Py<PyAny>> {
-        Python::attach(|py| {
+        let matching_count = self
+            .rights
+            .iter()
+            .filter(|r| r.asset == asset && r.active)
+            .count();
+        let cleared = matching_count > 0;
+        let intended = intended_use.unwrap_or("unspecified").to_string();
+        let terr = territory.unwrap_or("worldwide").to_string();
+        let asset_str = asset.to_string();
+
+        Python::attach(|py| -> PyResult<HashMap<String, Py<PyAny>>> {
             let mut result: HashMap<String, Py<PyAny>> = HashMap::new();
-
-            let matching: Vec<&RightsEntry> = self
-                .rights
-                .iter()
-                .filter(|r| r.asset == asset && r.active)
-                .collect();
-
-            let cleared = !matching.is_empty();
-
             result.insert(
                 "asset".to_string(),
-                asset.into_pyobject(py).expect("str").into(),
+                asset_str
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             result.insert(
                 "cleared".to_string(),
-                cleared.into_pyobject(py).expect("bool").to_owned().into(),
+                cleared
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .to_owned()
+                    .into(),
             );
             result.insert(
                 "rights_count".to_string(),
-                matching.len().into_pyobject(py).expect("int").into(),
+                matching_count
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             result.insert(
                 "intended_use".to_string(),
-                intended_use
-                    .unwrap_or("unspecified")
+                intended
                     .into_pyobject(py)
-                    .expect("str")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
             result.insert(
                 "territory".to_string(),
-                territory
-                    .unwrap_or("worldwide")
-                    .into_pyobject(py)
-                    .expect("str")
+                terr.into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
-            result
+            Ok(result)
         })
+        .unwrap_or_default()
     }
 
     /// Create a license for an asset.

@@ -400,9 +400,7 @@ async fn execute_jobs(jobs: Vec<BatchJob>, options: &BatchOptions) -> Result<Vec
             let result = process_job(job);
 
             // Update progress
-            let mut progress_guard = progress
-                .lock()
-                .expect("progress mutex should not be poisoned");
+            let mut progress_guard = progress.lock().unwrap_or_else(|e| e.into_inner());
             match &result {
                 JobResult::Success { .. } => progress_guard.inc_success(),
                 JobResult::Failed { .. } => progress_guard.inc_failed(),
@@ -413,16 +411,13 @@ async fn execute_jobs(jobs: Vec<BatchJob>, options: &BatchOptions) -> Result<Vec
             // Store result
             results
                 .lock()
-                .expect("results mutex should not be poisoned")
+                .unwrap_or_else(|e| e.into_inner())
                 .push(result);
         });
     });
 
     // Finish progress display
-    progress
-        .lock()
-        .expect("progress mutex should not be poisoned")
-        .finish();
+    progress.lock().unwrap_or_else(|e| e.into_inner()).finish();
 
     // Extract results
     let final_results = Arc::try_unwrap(results)

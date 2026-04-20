@@ -95,7 +95,12 @@ impl MelodyContour {
         if self.notes.is_empty() || self.sample_rate == 0 {
             return 0.0;
         }
-        let last = self.notes.last().expect("checked non-empty above");
+        // notes is non-empty: checked by the early return above.
+        let last = if let Some(n) = self.notes.last() {
+            n
+        } else {
+            return 0.0;
+        };
         let end_frame = last.onset_frame + last.duration_frames;
         end_frame as f32 * self.hop_size as f32 / self.sample_rate as f32
     }

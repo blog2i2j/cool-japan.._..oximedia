@@ -6,6 +6,8 @@ Advanced audio analysis and forensics for OxiMedia, providing comprehensive audi
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
+Version: 0.1.4 — 2026-04-20 — 605 tests
+
 ## Features
 
 - **Spectral Analysis** — Advanced frequency-domain analysis with multiple window functions; spectral centroid, flatness, crest factor, bandwidth, and contrast
@@ -30,7 +32,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-audio-analysis = "0.1.3"
+oximedia-audio-analysis = "0.1.4"
 ```
 
 ```rust

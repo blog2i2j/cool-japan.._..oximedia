@@ -5,6 +5,8 @@
 
 use oximedia_core::CodecId;
 
+use super::matroska_v4::BlockAdditionMapping;
+
 // ============================================================================
 // Document Type
 // ============================================================================
@@ -366,6 +368,8 @@ pub struct TrackEntry {
     pub video: Option<VideoSettings>,
     /// Audio settings (if audio track).
     pub audio: Option<AudioSettings>,
+    /// Matroska v4 block addition mappings attached to this track.
+    pub block_addition_mappings: Vec<BlockAdditionMapping>,
     /// Mapped `OxiMedia` codec ID.
     pub oxi_codec: Option<CodecId>,
 }
@@ -394,6 +398,7 @@ impl Default for TrackEntry {
             seek_pre_roll: None,
             video: None,
             audio: None,
+            block_addition_mappings: Vec::new(),
             oxi_codec: None,
         }
     }

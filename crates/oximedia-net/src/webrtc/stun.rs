@@ -399,9 +399,10 @@ impl Message {
         // Encode message
         let encoded = msg.encode();
 
-        // Calculate HMAC-SHA1
-        let mut mac = Hmac::<Sha1>::new_from_slice(password.as_bytes())
-            .expect("HMAC can take key of any size");
+        // Calculate HMAC-SHA1 — new_from_slice accepts any key length, error is unreachable.
+        let Ok(mut mac) = Hmac::<Sha1>::new_from_slice(password.as_bytes()) else {
+            return Bytes::new();
+        };
         mac.update(&encoded);
         let result = mac.finalize();
         let hmac_bytes = result.into_bytes();
@@ -489,9 +490,10 @@ impl Message {
 
             let encoded = msg.encode();
 
-            // Calculate HMAC
-            let mut mac = Hmac::<Sha1>::new_from_slice(password.as_bytes())
-                .expect("HMAC can take key of any size");
+            // Calculate HMAC — new_from_slice accepts any key length, error is unreachable.
+            let Ok(mut mac) = Hmac::<Sha1>::new_from_slice(password.as_bytes()) else {
+                return false;
+            };
             mac.update(&encoded);
 
             mac.verify_slice(&attr.value).is_ok()

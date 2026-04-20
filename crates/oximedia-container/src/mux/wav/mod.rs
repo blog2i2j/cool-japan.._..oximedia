@@ -32,4 +32,4 @@
 
 mod writer;
 
-pub use writer::WavMuxer;
+pub use writer::{WavFormat, WavFormatConfig, WavMuxer};

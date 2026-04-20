@@ -6,6 +6,10 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+// The library crate is named `oximedia_bitstream`; use the alias that
+// all downstream test code expects so files need not be rewritten.
+extern crate oximedia_bitstream as bitstream_io;
+
 use std::io;
 
 #[test]
@@ -813,7 +817,7 @@ fn test_clone() {
     // Can still instantiate a BitReader when the backing std::io::Read is
     // !Clone.
     struct NotCloneRead<'a>(&'a [u8]);
-    impl<'a> io::Read for NotCloneRead<'a> {
+    impl io::Read for NotCloneRead<'_> {
         fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
             self.0.read(buf)
         }

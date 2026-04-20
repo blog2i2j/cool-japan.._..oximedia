@@ -116,7 +116,9 @@ impl VideoEffect for Snow {
                         let px = x.saturating_add(dx).min(output.width - 1);
                         let py = y.saturating_add(dy).min(output.height - 1);
 
-                        let current = output.get_pixel(px, py).expect("should succeed in test");
+                        let Some(current) = output.get_pixel(px, py) else {
+                            continue;
+                        };
                         let blended = Color::from_rgba(current).blend(Color::new(
                             color_value,
                             color_value,

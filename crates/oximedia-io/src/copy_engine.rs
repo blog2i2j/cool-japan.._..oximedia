@@ -307,7 +307,8 @@ mod tests {
     #[test]
     fn test_copy_nonexistent_src_fails() {
         let engine = CopyEngine::new();
-        let job = CopyJob::new("/nonexistent/file.bin", "/tmp/dst_oxi_test.bin");
+        let dst = std::env::temp_dir().join("oximedia-io-copy-engine-dst_oxi_test.bin");
+        let job = CopyJob::new("/nonexistent/file.bin", dst.to_string_lossy().as_ref());
         assert!(engine.run(&job).is_err());
     }
 

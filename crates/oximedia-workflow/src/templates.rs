@@ -288,6 +288,7 @@ impl TemplateLibrary {
     /// Steps: analyze → report → approve/reject.
     #[must_use]
     pub fn qc_review() -> WorkflowTemplate {
+        let tmp = std::env::temp_dir();
         WorkflowTemplate::new(
             "qc-review",
             "Automated QC analysis, report generation, and approve/reject decision",
@@ -306,7 +307,9 @@ impl TemplateLibrary {
         .with_parameter(TemplateParam::optional(
             "report_output",
             ParamType::FilePath,
-            "/tmp/qc_report.json",
+            tmp.join("oximedia-qc-report.json")
+                .to_string_lossy()
+                .into_owned(),
         ))
         .with_parameter(TemplateParam::optional(
             "auto_approve_threshold",

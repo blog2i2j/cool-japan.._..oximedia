@@ -402,27 +402,29 @@ fn derive_phash_from_hash(hash_bytes: &[u8; 32]) -> u64 {
 ///
 /// When `max_threads` is 0, the global rayon pool (which defaults to the
 /// number of logical CPUs) is returned as a thin wrapper.
+///
+/// On failure the function falls back to a single-threaded pool, which is
+/// essentially unconditionally buildable.  If even that fails (a scenario that
+/// is practically impossible on any OS), a default-configuration pool is used.
 fn build_pool(max_threads: usize) -> rayon::ThreadPool {
-    if max_threads == 0 {
-        rayon::ThreadPoolBuilder::new()
-            .build()
-            .unwrap_or_else(|_| {
-                rayon::ThreadPoolBuilder::new()
-                    .num_threads(1)
-                    .build()
-                    .expect("failed to build fallback single-thread rayon pool")
-            })
+    let primary = if max_threads == 0 {
+        rayon::ThreadPoolBuilder::new().build()
     } else {
         rayon::ThreadPoolBuilder::new()
             .num_threads(max_threads)
             .build()
-            .unwrap_or_else(|_| {
-                rayon::ThreadPoolBuilder::new()
-                    .num_threads(1)
-                    .build()
-                    .expect("failed to build fallback single-thread rayon pool")
-            })
-    }
+    };
+
+    // Single-threaded fallback (all platforms: always succeeds).
+    primary.or_else(|_| rayon::ThreadPoolBuilder::new().num_threads(1).build())
+           // Default-configuration fallback as a last resort.
+           .or_else(|_| rayon::ThreadPoolBuilder::new().build())
+           .unwrap_or_else(|e| {
+               // This branch is statistically impossible: rayon cannot build
+               // *any* thread pool, which indicates a severe OS-level failure.
+               // Log descriptively rather than using a bare unwrap.
+               panic!("oximedia-dedup: rayon failed to create any thread pool: {e}")
+           })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -509,7 +511,8 @@ mod tests {
 
     #[test]
     fn test_nonexistent_file_goes_to_errors() {
-        let bad_path = PathBuf::from("/tmp/oximedia_dedup_no_such_file_12345678.tmp");
+        let bad_path =
+            std::env::temp_dir().join("oximedia-dedup-parallel-nonexistent_12345678.tmp");
         let config = IndexConfig::default();
         let indexer = ParallelIndexer::new(config);
         let result = indexer.index_files(&[bad_path]);

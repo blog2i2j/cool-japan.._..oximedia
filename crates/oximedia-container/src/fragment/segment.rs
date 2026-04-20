@@ -362,9 +362,13 @@ impl Default for DashManifestGenerator {
 mod tests {
     use super::*;
 
+    fn tmp_path(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("oximedia-container-fragment-segment-{name}"))
+    }
+
     #[test]
     fn test_segment_writer_config() {
-        let config = SegmentWriterConfig::new("/tmp/segments")
+        let config = SegmentWriterConfig::new(tmp_path("segments"))
             .with_filename_pattern("seg_%d.m4s")
             .with_delete_old_segments(true)
             .with_max_segments(10)
@@ -378,11 +382,14 @@ mod tests {
 
     #[test]
     fn test_segment_info() {
-        let info = SegmentInfo::new(1, PathBuf::from("/tmp/seg1.m4s"), 1024, 2.0);
+        let info = SegmentInfo::new(1, tmp_path("seg1.m4s"), 1024, 2.0);
         assert_eq!(info.sequence, 1);
         assert_eq!(info.size, 1024);
         assert_eq!(info.duration_secs, 2.0);
-        assert_eq!(info.filename(), Some("seg1.m4s"));
+        assert_eq!(
+            info.filename(),
+            Some("oximedia-container-fragment-segment-seg1.m4s")
+        );
     }
 
     #[test]

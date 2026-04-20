@@ -207,7 +207,7 @@ impl TimeSeries {
         self.data
             .iter()
             .map(|p| p.value)
-            .max_by(|a, b| a.partial_cmp(b).expect("invariant: values are finite f64"))
+            .max_by(|a, b| a.total_cmp(b))
             .unwrap_or(0.0)
     }
 
@@ -215,7 +215,7 @@ impl TimeSeries {
         self.data
             .iter()
             .map(|p| p.value)
-            .min_by(|a, b| a.partial_cmp(b).expect("invariant: values are finite f64"))
+            .min_by(|a, b| a.total_cmp(b))
             .unwrap_or(0.0)
     }
 }

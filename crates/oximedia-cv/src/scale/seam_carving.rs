@@ -529,13 +529,13 @@ fn find_min_vertical_seam(energy: &EnergyMap) -> Seam {
 
     // Find minimum in last row
     let last_row_start = (h - 1) * w;
+    // Safety: the slice has width `w` elements and `w` >= 1 (validated by EnergyMap construction)
     let (min_x, min_energy) = cumulative.data[last_row_start..last_row_start + w]
         .iter()
         .enumerate()
         .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
         .map(|(i, &e)| (i, e))
-        // Safety: the slice has width `w` elements and `w` >= 1 (validated by EnergyMap construction)
-        .expect("energy slice is non-empty (width >= 1 guaranteed by EnergyMap)");
+        .unwrap_or((0, 0.0));
 
     // Backtrack to find the seam path
     let mut path = vec![0u32; h];
@@ -576,11 +576,11 @@ fn find_min_horizontal_seam(energy: &EnergyMap) -> Seam {
     let h = energy.height as usize;
 
     // Find minimum in last column
+    // Safety: the iterator produces `h` elements and `h` >= 1 (validated by EnergyMap construction)
     let (min_y, min_energy) = (0..h)
         .map(|y| (y, cumulative.data[y * w + w - 1]))
         .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-        // Safety: the iterator produces `h` elements and `h` >= 1 (validated by EnergyMap construction)
-        .expect("energy column iterator is non-empty (height >= 1 guaranteed by EnergyMap)");
+        .unwrap_or((0, 0.0));
 
     // Backtrack to find the seam path
     let mut path = vec![0u32; w];

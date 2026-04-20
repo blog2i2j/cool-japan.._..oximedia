@@ -38,10 +38,13 @@ pub struct LsbEmbedder {
 
 impl LsbEmbedder {
     /// Create a new LSB embedder.
-    #[must_use]
-    pub fn new(config: LsbConfig) -> Self {
-        let codec = PayloadCodec::new(16, 8).expect("should succeed in test");
-        Self { config, codec }
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the Reed-Solomon codec cannot be initialised.
+    pub fn new(config: LsbConfig) -> WatermarkResult<Self> {
+        let codec = PayloadCodec::new(16, 8)?;
+        Ok(Self { config, codec })
     }
 
     /// Embed data in LSBs of audio samples.
@@ -297,7 +300,7 @@ mod tests {
             key: 0,
         };
 
-        let embedder = LsbEmbedder::new(config);
+        let embedder = LsbEmbedder::new(config).unwrap();
 
         let samples: Vec<f32> = vec![0.5; 100000];
         let payload = b"Secret";
@@ -347,7 +350,7 @@ mod tests {
             ..Default::default()
         };
 
-        let embedder = LsbEmbedder::new(config);
+        let embedder = LsbEmbedder::new(config).unwrap();
         let capacity = embedder.capacity(44100);
 
         assert_eq!(capacity, 44100 * 2);
@@ -362,7 +365,7 @@ mod tests {
             key: 12345,
         };
 
-        let embedder = LsbEmbedder::new(config);
+        let embedder = LsbEmbedder::new(config).unwrap();
         let pos1 = embedder.generate_random_positions(1000, 100);
         let pos2 = embedder.generate_random_positions(1000, 100);
 

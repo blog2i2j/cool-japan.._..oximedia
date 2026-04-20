@@ -480,20 +480,23 @@ mod tests {
 
     #[test]
     fn test_export_settings_new() {
-        let settings = ExportSettings::new(PathBuf::from("/tmp/output.wav"));
+        let settings =
+            ExportSettings::new(std::env::temp_dir().join("oximedia-audiopost-delivery-out.wav"));
         assert_eq!(settings.format, AudioFormat::Wav);
         assert_eq!(settings.sample_rate, SampleRate::Hz48000);
     }
 
     #[test]
     fn test_export_settings_validate() {
-        let settings = ExportSettings::new(PathBuf::from("/tmp/output.wav"));
+        let settings =
+            ExportSettings::new(std::env::temp_dir().join("oximedia-audiopost-delivery-out.wav"));
         assert!(settings.validate().is_ok());
     }
 
     #[test]
     fn test_invalid_lossy_float() {
-        let mut settings = ExportSettings::new(PathBuf::from("/tmp/output.mp3"));
+        let mut settings =
+            ExportSettings::new(std::env::temp_dir().join("oximedia-audiopost-delivery-out.mp3"));
         settings.format = AudioFormat::Mp3;
         settings.bit_depth = BitDepth::Float32;
         assert!(settings.validate().is_err());
@@ -531,14 +534,16 @@ mod tests {
 
     #[test]
     fn test_exporter_creation() {
-        let settings = ExportSettings::new(PathBuf::from("/tmp/output.wav"));
+        let settings =
+            ExportSettings::new(std::env::temp_dir().join("oximedia-audiopost-delivery-out.wav"));
         let exporter = Exporter::new(settings);
         assert!(exporter.validate().is_ok());
     }
 
     #[test]
     fn test_exporter_export() {
-        let settings = ExportSettings::new(PathBuf::from("/tmp/output.wav"));
+        let settings =
+            ExportSettings::new(std::env::temp_dir().join("oximedia-audiopost-delivery-out.wav"));
         let exporter = Exporter::new(settings);
         let audio = vec![0.0_f32; 1000];
         assert!(exporter.export(&audio).is_ok());

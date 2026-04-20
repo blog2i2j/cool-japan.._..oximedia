@@ -83,17 +83,24 @@ pub async fn export_tasks_to_csv(
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-review-csv-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[tokio::test]
     async fn test_export_to_csv() {
         let session_id = SessionId::new();
         let comments: Vec<Comment> = Vec::new();
 
-        let temp_file = "/tmp/test_comments.csv";
-        let result = export_to_csv(session_id, &comments, temp_file).await;
+        let temp_file = tmp_str("test_comments.csv");
+        let result = export_to_csv(session_id, &comments, &temp_file).await;
         assert!(result.is_ok());
 
         // Clean up
-        let _ = std::fs::remove_file(temp_file);
+        let _ = std::fs::remove_file(&temp_file);
     }
 
     #[tokio::test]
@@ -101,11 +108,11 @@ mod tests {
         let session_id = SessionId::new();
         let tasks: Vec<Task> = Vec::new();
 
-        let temp_file = "/tmp/test_tasks.csv";
-        let result = export_tasks_to_csv(session_id, &tasks, temp_file).await;
+        let temp_file = tmp_str("test_tasks.csv");
+        let result = export_tasks_to_csv(session_id, &tasks, &temp_file).await;
         assert!(result.is_ok());
 
         // Clean up
-        let _ = std::fs::remove_file(temp_file);
+        let _ = std::fs::remove_file(&temp_file);
     }
 }

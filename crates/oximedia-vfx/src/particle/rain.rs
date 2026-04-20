@@ -115,9 +115,9 @@ impl VideoEffect for Rain {
                     let opacity = particle.get_opacity() * (1.0 - t) * 0.5;
                     let color_value = (200.0 * opacity) as u8;
 
-                    let current = output
-                        .get_pixel(px as u32, py as u32)
-                        .expect("should succeed in test");
+                    let Some(current) = output.get_pixel(px as u32, py as u32) else {
+                        continue;
+                    };
                     let blended = Color::from_rgba(current).blend(Color::new(
                         color_value,
                         color_value,

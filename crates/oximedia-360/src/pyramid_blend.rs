@@ -50,7 +50,8 @@ impl GaussianPyramid {
         pyramid.push((image.to_vec(), width, height));
 
         for _ in 1..levels {
-            let (prev, pw, ph) = pyramid.last().expect("non-empty pyramid");
+            // SAFETY: pyramid received an initial push before this loop (level 0)
+            let (prev, pw, ph) = &pyramid[pyramid.len() - 1];
             if *pw <= 1 || *ph <= 1 {
                 // Cannot downsample further
                 break;

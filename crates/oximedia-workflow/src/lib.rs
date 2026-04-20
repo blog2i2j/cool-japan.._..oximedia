@@ -60,6 +60,7 @@ pub mod event_bus;
 pub mod execution_trace;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod executor;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod fan_pattern;
 pub mod fanout;
 pub mod monitoring;

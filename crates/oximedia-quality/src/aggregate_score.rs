@@ -360,10 +360,7 @@ impl AggregateScoreBuilder {
                     .iter()
                     .map(|c| c.normalised_score)
                     .collect();
-                scores.sort_by(|a, b| {
-                    a.partial_cmp(b)
-                        .expect("invariant: quality metric values are finite f64")
-                });
+                scores.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
                 let idx = ((f64::from(p) / 100.0) * scores.len() as f64) as usize;
                 scores[idx.min(scores.len() - 1)]
             }

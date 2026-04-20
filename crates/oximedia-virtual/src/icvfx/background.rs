@@ -25,7 +25,7 @@ impl BackgroundRenderer {
 
 impl Default for BackgroundRenderer {
     fn default() -> Self {
-        Self::new().expect("invariant: BackgroundRenderer::new is infallible")
+        Self {}
     }
 }
 

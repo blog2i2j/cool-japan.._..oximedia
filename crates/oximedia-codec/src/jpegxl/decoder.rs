@@ -4,10 +4,20 @@
 //! Currently supports lossless Modular mode for 8-bit and 16-bit images in
 //! grayscale, RGB, and RGBA color spaces.
 
+use std::io::{self, Read};
+
 use super::bitreader::BitReader;
 use super::modular::{ModularDecoder, ModularTransform};
-use super::types::{JxlColorSpace, JxlHeader, JXL_CODESTREAM_SIGNATURE, JXL_CONTAINER_SIGNATURE};
+use super::types::{
+    JxlAnimation, JxlColorSpace, JxlFrame, JxlHeader, JXL_CODESTREAM_SIGNATURE,
+    JXL_CONTAINER_SIGNATURE,
+};
+use crate::container::isobmff::BoxIter;
 use crate::error::{CodecError, CodecResult};
+
+/// Internal reader type: peeked bytes re-prepended to the original reader.
+/// The alias avoids `clippy::type_complexity` on struct fields.
+type PeekedReader<R> = io::Chain<io::Cursor<Vec<u8>>, R>;
 
 /// Decoded JPEG-XL image.
 #[derive(Clone, Debug)]
@@ -240,13 +250,14 @@ impl JxlDecoder {
     /// - bit_depth
     /// - color space
     /// - alpha flag
+    /// - animation header (if present)
     fn parse_image_metadata(
         &self,
         reader: &mut BitReader,
         width: u32,
         height: u32,
     ) -> CodecResult<JxlHeader> {
-        // all_default flag: if true, use default 8-bit sRGB
+        // all_default flag: if true, use default 8-bit sRGB, no animation
         let all_default = reader.read_bool()?;
 
         if all_default {
@@ -259,6 +270,7 @@ impl JxlDecoder {
                 has_alpha: false,
                 color_space: JxlColorSpace::Srgb,
                 orientation: 1,
+                animation: None,
             });
         }
 
@@ -315,6 +327,14 @@ impl JxlDecoder {
             num_color_channels
         };
 
+        // Animation header
+        let has_animation = reader.read_bool()?;
+        let animation = if has_animation {
+            Some(Self::parse_animation_header(reader)?)
+        } else {
+            None
+        };
+
         Ok(JxlHeader {
             width,
             height,
@@ -324,7 +344,43 @@ impl JxlDecoder {
             has_alpha,
             color_space,
             orientation,
+            animation,
         })
+    }
+
+    /// Parse the animation header fields from the bitstream.
+    fn parse_animation_header(reader: &mut BitReader) -> CodecResult<JxlAnimation> {
+        let tps_numerator = reader.read_bits(32)?;
+        let tps_denominator = reader.read_bits(32)?;
+        let num_loops = reader.read_bits(32)?;
+        let have_timecodes = reader.read_bool()?;
+
+        if tps_numerator == 0 {
+            return Err(CodecError::InvalidBitstream(
+                "Animation tps_numerator must be non-zero".into(),
+            ));
+        }
+        if tps_denominator == 0 {
+            return Err(CodecError::InvalidBitstream(
+                "Animation tps_denominator must be non-zero".into(),
+            ));
+        }
+
+        Ok(JxlAnimation {
+            tps_numerator,
+            tps_denominator,
+            num_loops,
+            have_timecodes,
+        })
+    }
+
+    /// Parse a per-frame header from the bitstream.
+    ///
+    /// Returns (duration_ticks, is_last).
+    fn parse_frame_header(reader: &mut BitReader) -> CodecResult<(u32, bool)> {
+        let duration_ticks = reader.read_bits(32)?;
+        let is_last = reader.read_bool()?;
+        Ok((duration_ticks, is_last))
     }
 
     /// Decode the image data using the Modular sub-codec.
@@ -420,11 +476,367 @@ impl JxlDecoder {
 
         Ok(output)
     }
+
+    /// Decode an animated JPEG-XL codestream into a sequence of frames.
+    ///
+    /// If the codestream is not animated, returns a single frame with
+    /// `duration_ticks = 0` and `is_last = true`.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if the codestream is invalid.
+    pub fn decode_animated(&self, data: &[u8]) -> CodecResult<Vec<JxlFrame>> {
+        let codestream = self.extract_codestream(data)?;
+        let mut reader = BitReader::new(codestream);
+
+        // Skip signature (2 bytes = 16 bits)
+        let _ = reader.read_bits(16)?;
+
+        // Parse size header
+        let (width, height) = self.parse_size_header(&mut reader)?;
+
+        // Parse image metadata (including animation header)
+        let header = self.parse_image_metadata(&mut reader, width, height)?;
+        header.validate()?;
+
+        if header.animation.is_none() {
+            // Not animated -- decode as single frame, reuse existing logic
+            let channels_data = self.decode_modular(&mut reader, &header)?;
+            let pixel_data = self.channels_to_interleaved(&channels_data, &header)?;
+
+            return Ok(vec![JxlFrame {
+                data: pixel_data,
+                width: header.width,
+                height: header.height,
+                channels: header.num_channels,
+                bit_depth: header.bits_per_sample,
+                duration_ticks: 0,
+                is_last: true,
+                color_space: header.color_space,
+            }]);
+        }
+
+        // Animated codestream: read frame-by-frame
+        let mut frames = Vec::new();
+
+        loop {
+            // Check if we have enough bits for a frame header
+            if reader.remaining_bits() < 33 {
+                // Need at least 32 bits for duration + 1 bit for is_last
+                break;
+            }
+
+            let (duration_ticks, is_last) = Self::parse_frame_header(&mut reader)?;
+
+            // Align to byte boundary before frame data
+            reader.align_to_byte();
+
+            // Read frame data length
+            if reader.remaining_bits() < 32 {
+                return Err(CodecError::InvalidBitstream(
+                    "Unexpected end of animated codestream before frame data length".into(),
+                ));
+            }
+            let data_len = reader.read_bits(32)? as usize;
+
+            // Read frame data bytes
+            if reader.remaining_bits() < data_len * 8 {
+                return Err(CodecError::InvalidBitstream(format!(
+                    "Animated frame data truncated: expected {data_len} bytes, \
+                     have {} bits remaining",
+                    reader.remaining_bits()
+                )));
+            }
+
+            let mut frame_data_bytes = Vec::with_capacity(data_len);
+            for _ in 0..data_len {
+                frame_data_bytes.push(reader.read_u8(8)?);
+            }
+
+            // Decode this frame's modular data
+            let channels_data = self.decode_frame_modular(&frame_data_bytes, &header)?;
+            let pixel_data = self.channels_to_interleaved(&channels_data, &header)?;
+
+            frames.push(JxlFrame {
+                data: pixel_data,
+                width: header.width,
+                height: header.height,
+                channels: header.num_channels,
+                bit_depth: header.bits_per_sample,
+                duration_ticks,
+                is_last,
+                color_space: header.color_space,
+            });
+
+            if is_last {
+                break;
+            }
+        }
+
+        if frames.is_empty() {
+            return Err(CodecError::InvalidBitstream(
+                "Animated codestream contains no frames".into(),
+            ));
+        }
+
+        Ok(frames)
+    }
+
+    /// Decode a single frame's modular data from its raw bytes.
+    fn decode_frame_modular(&self, data: &[u8], header: &JxlHeader) -> CodecResult<Vec<Vec<i32>>> {
+        let mut decoder = ModularDecoder::new();
+
+        // Add RCT transform for RGB/RGBA images
+        if header.color_channels() >= 3 {
+            decoder.add_transform(ModularTransform::Rct {
+                begin_channel: 0,
+                rct_type: 0,
+            });
+        }
+
+        decoder.decode_image(
+            data,
+            header.width,
+            header.height,
+            header.num_channels as u32,
+            header.bits_per_sample,
+        )
+    }
+
+    /// Check if a codestream is animated by reading just the header.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if the header is invalid.
+    pub fn is_animated(&self, data: &[u8]) -> CodecResult<bool> {
+        let header = self.read_header(data)?;
+        Ok(header.animation.is_some())
+    }
+
+    /// Read the animation header from a JPEG-XL file.
+    ///
+    /// Returns `None` if the file is not animated.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if the header is invalid.
+    pub fn read_animation_header(&self, data: &[u8]) -> CodecResult<Option<JxlAnimation>> {
+        let header = self.read_header(data)?;
+        Ok(header.animation)
+    }
 }
 
 impl Default for JxlDecoder {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+// ── JxlFormat ─────────────────────────────────────────────────────────────────
+
+/// Container format detected from the first 12 bytes of a stream.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+enum JxlFormat {
+    /// ISOBMFF container from `AnimatedJxlEncoder::finish_isobmff()`.
+    /// Detected by `bytes[4..8] == b"ftyp"` and `bytes[8..12] == b"jxl "`.
+    Isobmff,
+    /// OxiMedia native bare codestream from `AnimatedJxlEncoder::finish()`.
+    /// Detected by the JXL codestream signature `0xFF 0x0A`.
+    Native,
+}
+
+// ── JxlStreamingDecoder ───────────────────────────────────────────────────────
+
+/// A streaming decoder that lazily yields [`JxlFrame`]s one at a time.
+///
+/// Supports two input formats — auto-detected from the first 12 bytes:
+///
+/// | Format  | Detection | Producer |
+/// |---------|-----------|----------|
+/// | ISOBMFF | `bytes[4..8] == b"ftyp"` and `bytes[8..12] == b"jxl "` | `AnimatedJxlEncoder::finish_isobmff()` |
+/// | Native  | `bytes[0..2] == [0xFF, 0x0A]` | `AnimatedJxlEncoder::finish()` |
+///
+/// ## Example
+///
+/// ```ignore
+/// use oximedia_codec::jpegxl::{AnimatedJxlEncoder, JxlAnimation, JxlStreamingDecoder};
+/// use std::io::Cursor;
+///
+/// let bytes = encoder.finish_isobmff()?;
+/// for frame_result in JxlStreamingDecoder::new(Cursor::new(bytes))? {
+///     let frame = frame_result?;
+///     println!("frame {}x{} ticks={}", frame.width, frame.height, frame.duration_ticks);
+/// }
+/// ```
+pub struct JxlStreamingDecoder<R: Read> {
+    format: JxlFormat,
+    /// ISOBMFF path: box iterator over the stream.
+    /// Set to `None` after the last jxlp has been decoded.
+    box_iter: Option<BoxIter<PeekedReader<R>>>,
+    /// Accumulated bare-codestream bytes from `jxlp` boxes (ISOBMFF path).
+    codestream_buf: Vec<u8>,
+    /// Frames decoded from a jxlp batch, pending yield on subsequent calls.
+    pending_frames: std::vec::IntoIter<JxlFrame>,
+    /// True once this iterator has reached a terminal state.
+    done: bool,
+}
+
+impl<R: Read> JxlStreamingDecoder<R> {
+    /// Create a new streaming decoder, auto-detecting the format from `reader`.
+    ///
+    /// Reads at most 12 bytes for detection, then re-prepends them so no
+    /// input is skipped before the first `next()` call.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the initial peek read fails, or (for the native
+    /// format) if the codestream cannot be decoded.
+    pub fn new(mut reader: R) -> CodecResult<Self> {
+        // Peek the first 12 bytes to detect the format.
+        let mut peek = [0u8; 12];
+        let n = reader.read(&mut peek)?;
+        let peek_bytes = peek[..n].to_vec();
+
+        // ISOBMFF: bytes[4..8] == b"ftyp"  and  bytes[8..12] == b"jxl "
+        let format = if n >= 12 && peek_bytes[4..8] == *b"ftyp" && peek_bytes[8..12] == *b"jxl " {
+            JxlFormat::Isobmff
+        } else {
+            JxlFormat::Native
+        };
+
+        // Re-prepend peeked bytes so downstream reads start from byte 0.
+        let mut chained: PeekedReader<R> = io::Cursor::new(peek_bytes).chain(reader);
+
+        match format {
+            JxlFormat::Isobmff => Ok(Self {
+                format,
+                box_iter: Some(BoxIter::new(chained)),
+                codestream_buf: Vec::new(),
+                pending_frames: Vec::new().into_iter(),
+                done: false,
+            }),
+            JxlFormat::Native => {
+                // Native: read everything and decode all frames eagerly.
+                let mut all_bytes = Vec::new();
+                chained
+                    .read_to_end(&mut all_bytes)
+                    .map_err(CodecError::Io)?;
+
+                let frames = JxlDecoder::new().decode_animated(&all_bytes)?;
+                Ok(Self {
+                    format,
+                    box_iter: None,
+                    codestream_buf: Vec::new(),
+                    pending_frames: frames.into_iter(),
+                    done: false,
+                })
+            }
+        }
+    }
+}
+
+impl<R: Read> Iterator for JxlStreamingDecoder<R> {
+    type Item = CodecResult<JxlFrame>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.done {
+            return None;
+        }
+
+        // Yield any frames that were decoded in a prior iteration step.
+        if let Some(frame) = self.pending_frames.next() {
+            return Some(Ok(frame));
+        }
+
+        match self.format {
+            // ── Native path ───────────────────────────────────────────────────
+            // All frames were decoded eagerly in the constructor and yielded
+            // via `pending_frames`; reaching here means exhaustion.
+            JxlFormat::Native => {
+                self.done = true;
+                None
+            }
+
+            // ── ISOBMFF path ──────────────────────────────────────────────────
+            // Parse `jxlp` boxes; accumulate codestream; decode on last-box flag.
+            JxlFormat::Isobmff => {
+                let box_iter = match self.box_iter.as_mut() {
+                    Some(bi) => bi,
+                    None => {
+                        self.done = true;
+                        return None;
+                    }
+                };
+
+                loop {
+                    match box_iter.next() {
+                        // Stream ended.
+                        None => {
+                            self.done = true;
+                            if !self.codestream_buf.is_empty() {
+                                let buf = std::mem::take(&mut self.codestream_buf);
+                                return Some(Self::flush_codestream(buf, &mut self.pending_frames));
+                            }
+                            return None;
+                        }
+
+                        // I/O error.
+                        Some(Err(e)) => {
+                            self.done = true;
+                            return Some(Err(CodecError::Io(e)));
+                        }
+
+                        // Box parsed.
+                        Some(Ok((fourcc, payload))) => {
+                            if fourcc != *b"jxlp" {
+                                // Skip ftyp, jxll, etc.
+                                continue;
+                            }
+
+                            // jxlp layout: [4 bytes: index/flags][codestream bytes...]
+                            if payload.len() < 4 {
+                                self.done = true;
+                                return Some(Err(CodecError::InvalidBitstream(
+                                    "jxlp box payload too short (< 4 bytes)".into(),
+                                )));
+                            }
+
+                            let mut idx_buf = [0u8; 4];
+                            idx_buf.copy_from_slice(&payload[0..4]);
+                            let is_last = (u32::from_be_bytes(idx_buf) & 0x8000_0000) != 0;
+
+                            self.codestream_buf.extend_from_slice(&payload[4..]);
+
+                            if is_last {
+                                let buf = std::mem::take(&mut self.codestream_buf);
+                                self.box_iter = None;
+                                return Some(Self::flush_codestream(buf, &mut self.pending_frames));
+                            }
+                            // Not last yet — keep accumulating.
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl<R: Read> JxlStreamingDecoder<R> {
+    /// Decode a complete accumulated bare codestream, yield the first frame,
+    /// and stash remaining frames in `pending`.
+    fn flush_codestream(
+        buf: Vec<u8>,
+        pending: &mut std::vec::IntoIter<JxlFrame>,
+    ) -> CodecResult<JxlFrame> {
+        let mut frames = JxlDecoder::new().decode_animated(&buf)?;
+        if frames.is_empty() {
+            return Err(CodecError::InvalidBitstream(
+                "jxlp codestream contained no frames".into(),
+            ));
+        }
+        let first = frames.remove(0);
+        *pending = frames.into_iter();
+        Ok(first)
     }
 }
 

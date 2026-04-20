@@ -227,7 +227,10 @@ fn handle_drx_element(
         _ if state.current_node.is_some() => {
             // The element name becomes the prefix for each attribute key
             let prefix = local.clone();
-            let builder = state.current_node.as_mut().expect("checked above");
+            let Some(builder) = state.current_node.as_mut() else {
+                // Guard arm ensures current_node.is_some() — this branch is unreachable
+                return Ok(());
+            };
 
             for attr_result in e.attributes() {
                 let attr = attr_result

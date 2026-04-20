@@ -6,7 +6,7 @@ Professional live production video switcher for OxiMedia. Provides a comprehensi
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.3 — 2026-04-15
+Version: 0.1.4 — 2026-04-20 — 1,015 tests
 
 ## Features
 
@@ -22,15 +22,18 @@ Version: 0.1.3 — 2026-04-15
 - **Still Store** - Still image storage for graphics
 - **Super Source** - Super source compositing
 - **Audio Follow Video (AFV)** - Automatic audio routing with video
-- **Frame Synchronization** - Input frame sync and genlock support
+- **Frame Synchronization** - Input frame sync and genlock support (`FrameSynchronizer`, `GenlockSource`)
 - **AUX Buses** - Independent auxiliary output buses
 - **Audio Mixing** - Integrated audio mixer
 - **Clip Delay** - Configurable clip delay for playout
-- **Output Routing** - Flexible output routing matrix
+- **Output Routing** - `AsyncOutputRouter` backed by `Arc<RwLock<OutputMatrix>>`; clonable handle
 - **Pattern Generator** - Built-in test pattern generator
 - **DVE** - Digital video effects with position, scale, and rotation
 - **Switcher Presets** - Save and recall switcher configurations
 - **Preview Bus** - Dedicated preview bus management
+- **SharedFrame** - Zero-copy `Arc`-based frame sharing; `SharedFrameBuffer` per-source slot ring
+- **FrameBufferPool** - Free-list allocator; acquire by capacity swap, cold alloc fallback
+- **Fade-to-Black** - `FtbControl` state machine with Linear/SCurve/EaseOut/EaseIn curves
 
 ## Usage
 
@@ -38,14 +41,15 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-switcher = "0.1.3"
+oximedia-switcher = "0.1.4"
 ```
 
 ```rust
-use oximedia_switcher::{Switcher, SwitcherConfig, TransitionConfig};
+use oximedia_switcher::{Switcher, SwitcherConfig};
+use oximedia_switcher::transition::TransitionConfig;
 
-// Create a professional switcher with 2 M/E rows
-let config = SwitcherConfig::professional(); // 2 M/E, 20 inputs
+// Create a professional switcher with 2 M/E rows and 20 inputs
+let config = SwitcherConfig::professional();
 let mut switcher = Switcher::new(config)?;
 
 // Set program and preview sources
@@ -55,8 +59,8 @@ switcher.set_preview(0, 2)?;
 // Perform a cut (instant transition)
 switcher.cut(0)?;
 
-// Configure and trigger a mix transition
-let transition_config = TransitionConfig::mix(30); // 30 frames
+// Configure and trigger a mix transition (30 frames)
+let transition_config = TransitionConfig::mix(30);
 switcher.set_transition_config(0, transition_config)?;
 switcher.auto_transition(0)?;
 ```

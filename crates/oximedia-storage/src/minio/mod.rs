@@ -297,7 +297,7 @@ struct StoreEntry {
 ///
 /// When the `minio` feature is **not** enabled, this is an in-memory stub
 /// useful for testing without a real MinIO server.  When `minio` is enabled,
-/// the real implementation delegates to [`crate::s3::S3Storage`].
+/// the real implementation delegates to `S3Storage` (requires the `s3` feature).
 #[cfg(not(feature = "minio"))]
 pub struct MinioStorage {
     config: MinioConfig,

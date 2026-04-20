@@ -638,15 +638,12 @@ impl ConditionalDependencyGraph {
         self.add_job(to_id.clone());
 
         // Temporarily add the edge then check for cycles.
-        self.edges.push((from_id, to_id, condition));
+        self.edges.push((from_id.clone(), to_id.clone(), condition));
 
         if self.has_cycle() {
-            let (last_from, last_to, _) = self
-                .edges
-                .pop()
-                .expect("edge was just pushed; cannot be empty");
+            self.edges.pop();
             return Err(format!(
-                "Cycle detected: adding edge {last_from} -> {last_to} would create a cycle"
+                "Cycle detected: adding edge {from_id} -> {to_id} would create a cycle"
             ));
         }
 

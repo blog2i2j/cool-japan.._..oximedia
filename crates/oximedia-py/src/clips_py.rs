@@ -340,9 +340,16 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-py-clips-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_clip_creation() {
-        let clip = PyClip::new("/tmp/video.mov", "Take 1", None, None, 3);
+        let clip = PyClip::new(&tmp_str("video.mov"), "Take 1", None, None, 3);
         assert!(clip.is_ok());
         let c = clip.expect("should create");
         assert_eq!(c.name, "Take 1");
@@ -351,13 +358,14 @@ mod tests {
 
     #[test]
     fn test_clip_invalid_rating() {
-        let clip = PyClip::new("/tmp/video.mov", "Test", None, None, 10);
+        let clip = PyClip::new(&tmp_str("video.mov"), "Test", None, None, 10);
         assert!(clip.is_err());
     }
 
     #[test]
     fn test_clip_keywords() {
-        let mut clip = PyClip::new("/tmp/video.mov", "Test", None, None, 0).expect("should create");
+        let mut clip =
+            PyClip::new(&tmp_str("video.mov"), "Test", None, None, 0).expect("should create");
         clip.add_keyword("interview");
         clip.add_keyword("raw");
         assert!(clip.has_keyword("interview"));
@@ -369,10 +377,11 @@ mod tests {
     #[test]
     fn test_clip_manager_search() {
         let mut mgr = PyClipManager::new();
-        let mut c1 =
-            PyClip::new("/tmp/a.mov", "Interview Take 1", None, None, 4).expect("should create");
+        let mut c1 = PyClip::new(&tmp_str("a.mov"), "Interview Take 1", None, None, 4)
+            .expect("should create");
         c1.add_keyword("interview");
-        let c2 = PyClip::new("/tmp/b.mov", "B-Roll Sunset", None, None, 2).expect("should create");
+        let c2 =
+            PyClip::new(&tmp_str("b.mov"), "B-Roll Sunset", None, None, 2).expect("should create");
         mgr.add_clip(c1);
         mgr.add_clip(c2);
 

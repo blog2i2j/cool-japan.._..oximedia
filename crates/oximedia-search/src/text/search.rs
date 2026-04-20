@@ -89,27 +89,13 @@ impl TextSearchIndex {
         let query_parser = QueryParser::for_index(
             &index,
             vec![
-                schema
-                    .get_field("title")
-                    .expect("hardcoded schema field is valid"),
-                schema
-                    .get_field("description")
-                    .expect("hardcoded schema field is valid"),
-                schema
-                    .get_field("keywords")
-                    .expect("hardcoded schema field is valid"),
-                schema
-                    .get_field("categories")
-                    .expect("hardcoded schema field is valid"),
-                schema
-                    .get_field("transcript")
-                    .expect("hardcoded schema field is valid"),
-                schema
-                    .get_field("scene_tags")
-                    .expect("hardcoded schema field is valid"),
-                schema
-                    .get_field("detected_objects")
-                    .expect("hardcoded schema field is valid"),
+                schema.get_field("title")?,
+                schema.get_field("description")?,
+                schema.get_field("keywords")?,
+                schema.get_field("categories")?,
+                schema.get_field("transcript")?,
+                schema.get_field("scene_tags")?,
+                schema.get_field("detected_objects")?,
             ],
         );
 
@@ -131,199 +117,100 @@ impl TextSearchIndex {
         let mut tantivy_doc = TantivyDocument::new();
 
         // Add ID
-        tantivy_doc.add_text(
-            self.schema
-                .get_field("asset_id")
-                .expect("hardcoded schema field is valid"),
-            doc.asset_id.to_string(),
-        );
+        tantivy_doc.add_text(self.schema.get_field("asset_id")?, doc.asset_id.to_string());
 
         // Add text fields
-        tantivy_doc.add_text(
-            self.schema
-                .get_field("file_path")
-                .expect("hardcoded schema field is valid"),
-            &doc.file_path,
-        );
+        tantivy_doc.add_text(self.schema.get_field("file_path")?, &doc.file_path);
 
         if let Some(ref title) = doc.title {
-            tantivy_doc.add_text(
-                self.schema
-                    .get_field("title")
-                    .expect("hardcoded schema field is valid"),
-                title,
-            );
+            tantivy_doc.add_text(self.schema.get_field("title")?, title);
         }
 
         if let Some(ref description) = doc.description {
-            tantivy_doc.add_text(
-                self.schema
-                    .get_field("description")
-                    .expect("hardcoded schema field is valid"),
-                description,
-            );
+            tantivy_doc.add_text(self.schema.get_field("description")?, description);
         }
 
         // Add keywords
+        let keywords_field = self.schema.get_field("keywords")?;
         for keyword in &doc.keywords {
-            tantivy_doc.add_text(
-                self.schema
-                    .get_field("keywords")
-                    .expect("hardcoded schema field is valid"),
-                keyword,
-            );
+            tantivy_doc.add_text(keywords_field, keyword);
         }
 
         // Add categories
+        let categories_field = self.schema.get_field("categories")?;
         for category in &doc.categories {
-            tantivy_doc.add_text(
-                self.schema
-                    .get_field("categories")
-                    .expect("hardcoded schema field is valid"),
-                category,
-            );
+            tantivy_doc.add_text(categories_field, category);
         }
 
         // Add transcript
         if let Some(ref transcript) = doc.transcript {
-            tantivy_doc.add_text(
-                self.schema
-                    .get_field("transcript")
-                    .expect("hardcoded schema field is valid"),
-                transcript,
-            );
+            tantivy_doc.add_text(self.schema.get_field("transcript")?, transcript);
         }
 
         // Add scene tags
+        let scene_tags_field = self.schema.get_field("scene_tags")?;
         for tag in &doc.scene_tags {
-            tantivy_doc.add_text(
-                self.schema
-                    .get_field("scene_tags")
-                    .expect("hardcoded schema field is valid"),
-                tag,
-            );
+            tantivy_doc.add_text(scene_tags_field, tag);
         }
 
         // Add detected objects
+        let detected_objects_field = self.schema.get_field("detected_objects")?;
         for obj in &doc.detected_objects {
-            tantivy_doc.add_text(
-                self.schema
-                    .get_field("detected_objects")
-                    .expect("hardcoded schema field is valid"),
-                obj,
-            );
+            tantivy_doc.add_text(detected_objects_field, obj);
         }
 
         // Add metadata fields
         if let Some(ref mime_type) = doc.mime_type {
-            tantivy_doc.add_text(
-                self.schema
-                    .get_field("mime_type")
-                    .expect("hardcoded schema field is valid"),
-                mime_type,
-            );
+            tantivy_doc.add_text(self.schema.get_field("mime_type")?, mime_type);
             tantivy_doc.add_facet(
-                self.schema
-                    .get_field("mime_type_facet")
-                    .expect("hardcoded schema field is valid"),
+                self.schema.get_field("mime_type_facet")?,
                 Facet::from(&format!("/mime/{mime_type}")),
             );
         }
 
         if let Some(ref format) = doc.format {
-            tantivy_doc.add_text(
-                self.schema
-                    .get_field("format")
-                    .expect("hardcoded schema field is valid"),
-                format,
-            );
+            tantivy_doc.add_text(self.schema.get_field("format")?, format);
             tantivy_doc.add_facet(
-                self.schema
-                    .get_field("format_facet")
-                    .expect("hardcoded schema field is valid"),
+                self.schema.get_field("format_facet")?,
                 Facet::from(&format!("/format/{format}")),
             );
         }
 
         if let Some(ref codec) = doc.codec {
-            tantivy_doc.add_text(
-                self.schema
-                    .get_field("codec")
-                    .expect("hardcoded schema field is valid"),
-                codec,
-            );
+            tantivy_doc.add_text(self.schema.get_field("codec")?, codec);
             tantivy_doc.add_facet(
-                self.schema
-                    .get_field("codec_facet")
-                    .expect("hardcoded schema field is valid"),
+                self.schema.get_field("codec_facet")?,
                 Facet::from(&format!("/codec/{codec}")),
             );
         }
 
         if let Some(ref resolution) = doc.resolution {
-            tantivy_doc.add_text(
-                self.schema
-                    .get_field("resolution")
-                    .expect("hardcoded schema field is valid"),
-                resolution,
-            );
+            tantivy_doc.add_text(self.schema.get_field("resolution")?, resolution);
             tantivy_doc.add_facet(
-                self.schema
-                    .get_field("resolution_facet")
-                    .expect("hardcoded schema field is valid"),
+                self.schema.get_field("resolution_facet")?,
                 Facet::from(&format!("/resolution/{resolution}")),
             );
         }
 
         // Add numeric fields
         if let Some(duration_ms) = doc.duration_ms {
-            tantivy_doc.add_i64(
-                self.schema
-                    .get_field("duration_ms")
-                    .expect("hardcoded schema field is valid"),
-                duration_ms,
-            );
+            tantivy_doc.add_i64(self.schema.get_field("duration_ms")?, duration_ms);
         }
 
         if let Some(file_size) = doc.file_size {
-            tantivy_doc.add_i64(
-                self.schema
-                    .get_field("file_size")
-                    .expect("hardcoded schema field is valid"),
-                file_size,
-            );
+            tantivy_doc.add_i64(self.schema.get_field("file_size")?, file_size);
         }
 
         if let Some(bitrate) = doc.bitrate {
-            tantivy_doc.add_i64(
-                self.schema
-                    .get_field("bitrate")
-                    .expect("hardcoded schema field is valid"),
-                bitrate,
-            );
+            tantivy_doc.add_i64(self.schema.get_field("bitrate")?, bitrate);
         }
 
         if let Some(framerate) = doc.framerate {
-            tantivy_doc.add_f64(
-                self.schema
-                    .get_field("framerate")
-                    .expect("hardcoded schema field is valid"),
-                framerate,
-            );
+            tantivy_doc.add_f64(self.schema.get_field("framerate")?, framerate);
         }
 
-        tantivy_doc.add_i64(
-            self.schema
-                .get_field("created_at")
-                .expect("hardcoded schema field is valid"),
-            doc.created_at,
-        );
-        tantivy_doc.add_i64(
-            self.schema
-                .get_field("modified_at")
-                .expect("hardcoded schema field is valid"),
-            doc.modified_at,
-        );
+        tantivy_doc.add_i64(self.schema.get_field("created_at")?, doc.created_at);
+        tantivy_doc.add_i64(self.schema.get_field("modified_at")?, doc.modified_at);
 
         // Add to index
         let writer = self
@@ -350,17 +237,22 @@ impl TextSearchIndex {
         // Execute search
         let top_docs = searcher.search(&query, &TopDocs::with_limit(limit).order_by_score())?;
 
+        // Pre-resolve fields before the loop to avoid repeated lookups
+        let field_asset_id = self.schema.get_field("asset_id")?;
+        let field_title = self.schema.get_field("title")?;
+        let field_description = self.schema.get_field("description")?;
+        let field_file_path = self.schema.get_field("file_path")?;
+        let field_mime_type = self.schema.get_field("mime_type")?;
+        let field_duration_ms = self.schema.get_field("duration_ms")?;
+        let field_created_at = self.schema.get_field("created_at")?;
+
         // Convert results
         let mut results = Vec::new();
         for (score, doc_address) in top_docs {
             let retrieved_doc: TantivyDocument = searcher.doc(doc_address)?;
 
             let asset_id_str = retrieved_doc
-                .get_first(
-                    self.schema
-                        .get_field("asset_id")
-                        .expect("hardcoded schema field is valid"),
-                )
+                .get_first(field_asset_id)
                 .and_then(|v| v.as_str())
                 .unwrap_or("");
 
@@ -368,56 +260,32 @@ impl TextSearchIndex {
                 .map_err(|_| SearchError::Other("Invalid asset ID in index".to_string()))?;
 
             let title = retrieved_doc
-                .get_first(
-                    self.schema
-                        .get_field("title")
-                        .expect("hardcoded schema field is valid"),
-                )
+                .get_first(field_title)
                 .and_then(|v| v.as_str())
                 .map(String::from);
 
             let description = retrieved_doc
-                .get_first(
-                    self.schema
-                        .get_field("description")
-                        .expect("hardcoded schema field is valid"),
-                )
+                .get_first(field_description)
                 .and_then(|v| v.as_str())
                 .map(String::from);
 
             let file_path = retrieved_doc
-                .get_first(
-                    self.schema
-                        .get_field("file_path")
-                        .expect("hardcoded schema field is valid"),
-                )
+                .get_first(field_file_path)
                 .and_then(|v| v.as_str())
                 .unwrap_or("")
                 .to_string();
 
             let mime_type = retrieved_doc
-                .get_first(
-                    self.schema
-                        .get_field("mime_type")
-                        .expect("hardcoded schema field is valid"),
-                )
+                .get_first(field_mime_type)
                 .and_then(|v| v.as_str())
                 .map(String::from);
 
             let duration_ms = retrieved_doc
-                .get_first(
-                    self.schema
-                        .get_field("duration_ms")
-                        .expect("hardcoded schema field is valid"),
-                )
+                .get_first(field_duration_ms)
                 .and_then(|v| v.as_i64());
 
             let created_at = retrieved_doc
-                .get_first(
-                    self.schema
-                        .get_field("created_at")
-                        .expect("hardcoded schema field is valid"),
-                )
+                .get_first(field_created_at)
                 .and_then(|v| v.as_i64())
                 .unwrap_or(0);
 
@@ -462,12 +330,7 @@ impl TextSearchIndex {
     ///
     /// Returns an error if deletion fails
     pub fn delete(&self, asset_id: Uuid) -> SearchResult<()> {
-        let term = Term::from_field_text(
-            self.schema
-                .get_field("asset_id")
-                .expect("hardcoded schema field is valid"),
-            &asset_id.to_string(),
-        );
+        let term = Term::from_field_text(self.schema.get_field("asset_id")?, &asset_id.to_string());
 
         let writer = self
             .writer

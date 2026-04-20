@@ -447,6 +447,14 @@ pub struct TrakBox {
     pub ctts_entries: Vec<CttsEntry>,
     /// Codec-specific extradata (e.g., AV1 config).
     pub extradata: Option<Vec<u8>>,
+    /// Number of encoder pre-roll (padding) samples to discard at the start
+    /// of playback.  Populated from the `elst` (Edit List) box when the first
+    /// edit entry has `media_time > 0`.  Zero means "no gapless info".
+    pub preroll_samples: u32,
+    /// Number of encoder padding samples to discard at the *end* of playback.
+    /// Populated from the `elst` box or from an `iTunSMPB` tag when present.
+    /// Zero means "no gapless info".
+    pub padding_samples: u32,
 }
 
 impl TrakBox {
@@ -527,11 +535,114 @@ impl TrakBox {
                 BoxType::CTTS => {
                     Self::parse_ctts(content, trak)?;
                 }
+                BoxType::ELST => {
+                    Self::parse_elst(content, trak)?;
+                }
                 _ => {}
             }
 
             offset += box_total;
         }
+
+        Ok(())
+    }
+
+    /// Parses an `elst` (Edit List) box to extract gapless-audio pre-roll and
+    /// padding sample counts.
+    ///
+    /// # Format
+    ///
+    /// ```text
+    /// version (1 byte) | flags (3 bytes) | entry_count (u32)
+    /// For each entry:
+    ///   version 0: segment_duration (u32) | media_time (i32) | media_rate (u32)
+    ///   version 1: segment_duration (u64) | media_time (i64) | media_rate (u32)
+    /// ```
+    ///
+    /// An entry with `media_time == -1` is an *empty edit* representing
+    /// pre-roll silence; the entry that follows gives the actual start offset
+    /// (`media_time` is the first sample PTS to play).  When such a pattern is
+    /// detected we populate `preroll_samples` from the second entry's
+    /// `media_time`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the data is malformed.
+    fn parse_elst(data: &[u8], trak: &mut TrakBox) -> OxiResult<()> {
+        let mut atom = Mp4Atom::new(data);
+        let version = atom.read_u8()?;
+        atom.skip(3)?; // flags
+
+        let entry_count = atom.read_u32()? as usize;
+        if entry_count == 0 {
+            return Ok(());
+        }
+
+        // Collect all entries first, then interpret them.
+        #[derive(Debug)]
+        struct ElstEntry {
+            /// Total duration of this edit in movie-timescale units.
+            /// Retained for completeness; used by higher-level gapless-padding
+            /// calculations (e.g. via `iTunSMPB`).
+            #[allow(dead_code)]
+            segment_duration: u64,
+            media_time: i64,
+        }
+
+        let mut entries: Vec<ElstEntry> = Vec::with_capacity(entry_count.min(64));
+        for _ in 0..entry_count {
+            let (seg_dur, med_time) = if version == 1 {
+                let sd = atom.read_u64()?;
+                let mt = atom.read_i64()?;
+                atom.skip(4)?; // media_rate (16.16 fixed-point)
+                (sd, mt)
+            } else {
+                let sd = u64::from(atom.read_u32()?);
+                let mt = i64::from(atom.read_i32()?);
+                atom.skip(4)?; // media_rate (16.16 fixed-point)
+                (sd, mt)
+            };
+            entries.push(ElstEntry {
+                segment_duration: seg_dur,
+                media_time: med_time,
+            });
+        }
+
+        // Interpret the edit list for gapless audio info:
+        //
+        // Pattern A (empty-edit prefix):
+        //   Entry[0]: media_time == -1  (empty edit, silence before media)
+        //   Entry[1]: media_time >= 0   (actual start offset = pre-roll)
+        //
+        // Pattern B (single entry, media_time > 0):
+        //   Entry[0]: media_time > 0    (pre-roll = media_time)
+        //
+        // In both cases the media_time of the first non-empty entry gives the
+        // number of encoder pre-roll samples to discard.
+        let first_media_entry = if entries.first().map_or(false, |e| e.media_time == -1) {
+            // Skip the empty-edit prefix.
+            entries.get(1)
+        } else {
+            entries.first()
+        };
+
+        if let Some(entry) = first_media_entry {
+            if entry.media_time > 0 {
+                // media_time is in the track's media timescale; treat it
+                // directly as a sample count (valid when timescale == sample
+                // rate, which is the common case for gapless AAC/Opus/FLAC).
+                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+                {
+                    trak.preroll_samples = entry.media_time as u32;
+                }
+            }
+        }
+
+        // Padding: the last entry's segment_duration relative to the total
+        // track duration can encode trailing padding.  We leave padding_samples
+        // at 0 here and let the iTunSMPB path (or higher-level decoder) fill
+        // it in; the field is available for callers who wish to populate it.
+        let _ = trak.padding_samples; // suppress unused warning
 
         Ok(())
     }

@@ -52,40 +52,75 @@
 //! # }
 //! ```
 
+#[cfg(not(target_arch = "wasm32"))]
 pub mod auto_scaler;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod capacity_planner;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod chaos_testing;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod checkpoint;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod cloud_storage;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod communication;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod coordinator;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod dependency;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod farm_config;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod fault_tolerance;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod health;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod heartbeat_batch;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod job_cache;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod job_queue;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod job_state_cache;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod job_template;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod metrics;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod node_affinity;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod node_monitor;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod notification;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod output_validator;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod persistence;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod priority_queue;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod progress_stream;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod render_stats;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod resource_manager;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod scheduler;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod shutdown;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod task_allocator;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod task_preemption;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod tenant;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod worker;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod worker_health;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod worker_health_check;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod worker_pool;
 
 use std::fmt;
@@ -94,6 +129,7 @@ use thiserror::Error;
 use uuid::Uuid;
 
 /// Re-export protobuf generated code
+#[cfg(not(target_arch = "wasm32"))]
 pub mod pb {
     tonic::include_proto!("oximedia.farm");
 }
@@ -116,9 +152,11 @@ pub enum FarmError {
     #[error("Task error: {0}")]
     Task(String),
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[error("Network error: {0}")]
     Network(#[from] tonic::transport::Error),
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[error("gRPC status error: {0}")]
     Status(#[from] tonic::Status),
 
@@ -128,6 +166,7 @@ pub enum FarmError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
 
+    #[cfg(not(target_arch = "wasm32"))]
     #[error("Database error: {0}")]
     Database(#[from] rusqlite::Error),
 
@@ -534,14 +573,22 @@ pub struct WorkerConfig {
 
 impl Default for WorkerConfig {
     fn default() -> Self {
+        #[cfg(not(target_arch = "wasm32"))]
+        let max_concurrent_tasks = num_cpus::get() as u32;
+        #[cfg(target_arch = "wasm32")]
+        let max_concurrent_tasks = 1u32;
+
         Self {
             worker_id: None,
             coordinator_address: "http://127.0.0.1:50051".to_string(),
             heartbeat_interval: Duration::from_secs(30),
-            max_concurrent_tasks: num_cpus::get() as u32,
+            max_concurrent_tasks,
             enable_tls: false,
             tls_ca_cert_path: None,
-            work_directory: "/tmp/oximedia-farm".to_string(),
+            work_directory: std::env::temp_dir()
+                .join("oximedia-farm")
+                .to_string_lossy()
+                .into_owned(),
             supported_codecs: vec![
                 "h264".to_string(),
                 "h265".to_string(),
@@ -560,8 +607,10 @@ impl Default for WorkerConfig {
     }
 }
 
-// Re-export main types
+// Re-export main types (only available on non-wasm targets)
+#[cfg(not(target_arch = "wasm32"))]
 pub use coordinator::Coordinator;
+#[cfg(not(target_arch = "wasm32"))]
 pub use worker::Worker;
 
 #[cfg(test)]

@@ -554,16 +554,20 @@ mod tests {
 
     #[test]
     fn test_watch_config_builder() {
-        let config = WatchConfig::new("/tmp/watch", "/tmp/out")
-            .with_format(ContainerFormat::Mp4)
-            .with_recursive(true)
-            .with_delete_after_convert(true)
-            .with_max_concurrent(4)
-            .with_preset("youtube-1080p")
-            .with_preserve_structure(true)
-            .with_min_file_age(Duration::from_secs(5))
-            .with_poll_interval(Duration::from_secs(10))
-            .with_extensions(vec!["mp4".to_string(), "mov".to_string()]);
+        let tmp = std::env::temp_dir();
+        let config = WatchConfig::new(
+            tmp.join("oximedia-convert-watch"),
+            tmp.join("oximedia-convert-out"),
+        )
+        .with_format(ContainerFormat::Mp4)
+        .with_recursive(true)
+        .with_delete_after_convert(true)
+        .with_max_concurrent(4)
+        .with_preset("youtube-1080p")
+        .with_preserve_structure(true)
+        .with_min_file_age(Duration::from_secs(5))
+        .with_poll_interval(Duration::from_secs(10))
+        .with_extensions(vec!["mp4".to_string(), "mov".to_string()]);
 
         assert_eq!(config.target_format, ContainerFormat::Mp4);
         assert!(config.recursive);
@@ -593,14 +597,19 @@ mod tests {
 
     #[test]
     fn test_validate_nonexistent_dir() {
-        let config = WatchConfig::new("/nonexistent/watch/dir", "/tmp/out");
+        let config = WatchConfig::new(
+            PathBuf::from("/nonexistent/watch/dir"),
+            std::env::temp_dir().join("oximedia-convert-out"),
+        );
         let wf = WatchFolder::new(config);
         assert!(wf.validate().is_err());
     }
 
     #[test]
     fn test_validate_empty_extensions() {
-        let config = WatchConfig::new("/tmp", "/tmp/out").with_extensions(vec![]);
+        let tmp = std::env::temp_dir();
+        let config =
+            WatchConfig::new(tmp.clone(), tmp.join("oximedia-convert-out")).with_extensions(vec![]);
         let wf = WatchFolder::new(config);
         assert!(wf.validate().is_err());
     }
@@ -855,24 +864,31 @@ mod tests {
 
     #[test]
     fn test_compute_output_path_basic() {
-        let config = WatchConfig::new("/tmp/watch", "/tmp/out").with_format(ContainerFormat::Webm);
+        let tmp = std::env::temp_dir();
+        let watch_dir = tmp.join("oximedia-convert-watch-basic");
+        let output_dir = tmp.join("oximedia-convert-out-basic");
+        let config = WatchConfig::new(watch_dir.clone(), output_dir.clone())
+            .with_format(ContainerFormat::Webm);
         let wf = WatchFolder::new(config);
 
-        let input = Path::new("/tmp/watch/video.mp4");
-        let output = wf.compute_output_path(input);
-        assert_eq!(output, PathBuf::from("/tmp/out/video.webm"));
+        let input = watch_dir.join("video.mp4");
+        let output = wf.compute_output_path(&input);
+        assert_eq!(output, output_dir.join("video.webm"));
     }
 
     #[test]
     fn test_compute_output_path_preserve_structure() {
-        let config = WatchConfig::new("/tmp/watch", "/tmp/out")
+        let tmp = std::env::temp_dir();
+        let watch_dir = tmp.join("oximedia-convert-watch-preserve");
+        let output_dir = tmp.join("oximedia-convert-out-preserve");
+        let config = WatchConfig::new(watch_dir.clone(), output_dir.clone())
             .with_format(ContainerFormat::Mp4)
             .with_preserve_structure(true);
         let wf = WatchFolder::new(config);
 
-        let input = Path::new("/tmp/watch/subdir/video.mkv");
-        let output = wf.compute_output_path(input);
-        assert_eq!(output, PathBuf::from("/tmp/out/subdir/video.mp4"));
+        let input = watch_dir.join("subdir/video.mkv");
+        let output = wf.compute_output_path(&input);
+        assert_eq!(output, output_dir.join("subdir/video.mp4"));
     }
 
     #[test]

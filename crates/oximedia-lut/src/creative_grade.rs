@@ -101,7 +101,8 @@ fn apply_tone_curve(v: f64, curve: &[(f64, f64)]) -> f64 {
         return v;
     }
     let first = curve[0];
-    let last = *curve.last().expect("curve has entries");
+    // SAFETY: curve.is_empty() returns early above, so len >= 1
+    let last = curve[curve.len() - 1];
     if v <= first.0 {
         return first.1;
     }

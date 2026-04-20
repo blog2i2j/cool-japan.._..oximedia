@@ -18,6 +18,14 @@
 
 use std::collections::HashMap;
 
+use crate::diagnostics::TranslationError;
+use crate::encoder_options::{
+    EncoderProfile, EncoderQualityOptions, EncoderQualityPreset, EncoderTune,
+};
+use crate::filter_graph::FilterGraph as AdvancedFilterGraph;
+use crate::filter_shorthand::{parse_af, parse_vf};
+use crate::pass::{phase_from_parts, PassPhase};
+
 /// Global FFmpeg options (apply to the whole session, not a specific stream).
 #[derive(Debug, Clone, Default)]
 pub struct GlobalOptions {
@@ -120,8 +128,12 @@ pub struct OutputSpec {
     pub stream_options: Vec<StreamOptions>,
     /// Video filtergraph string (`-vf`/`-filter:v`).
     pub video_filter: Option<String>,
+    /// Parsed `-vf` shorthand graph wrapped as a single `[in]...[out]` chain.
+    pub video_filter_graph: Option<crate::filter_complex::FilterGraph>,
     /// Audio filtergraph string (`-af`/`-filter:a`).
     pub audio_filter: Option<String>,
+    /// Parsed `-af` shorthand graph wrapped as a single `[in]...[out]` chain.
+    pub audio_filter_graph: Option<crate::filter_complex::FilterGraph>,
     /// Complex filtergraph string (`-filter_complex`).
     pub filter_complex: Option<String>,
     /// Stream mappings for this output.
@@ -146,10 +158,14 @@ pub struct OutputSpec {
     pub tune: Option<String>,
     /// Encoding profile (e.g. `"baseline"`, `"main"`, `"high"`).
     pub profile: Option<String>,
+    /// Parsed encoder quality options.
+    pub encoder_quality: EncoderQualityOptions,
     /// Two-pass encoding pass number (1 or 2).
     pub pass: Option<u8>,
     /// Passlogfile prefix for two-pass encoding.
     pub passlogfile: Option<String>,
+    /// Parsed two-pass phase details.
+    pub pass_phase: Option<PassPhase>,
     /// Muxer options (e.g. `movflags`, `fflags`).
     pub muxer_options: Vec<(String, String)>,
     /// Unrecognised option key/value pairs.
@@ -479,10 +495,12 @@ impl FfmpegArgs {
                 // ── Filter options ────────────────────────────────────────────
                 "-vf" | "-filter:v" => {
                     let val = next_arg!(arg).clone();
+                    pending_output.video_filter_graph = Some(parse_vf(&val)?);
                     pending_output.video_filter = Some(val);
                 }
                 "-af" | "-filter:a" => {
                     let val = next_arg!(arg).clone();
+                    pending_output.audio_filter_graph = Some(parse_af(&val)?);
                     pending_output.audio_filter = Some(val);
                 }
                 "-filter_complex" | "-lavfi" => {
@@ -512,14 +530,18 @@ impl FfmpegArgs {
                 // ── Preset / Tune / Profile ───────────────────────────────────
                 "-preset" => {
                     let val = next_arg!("-preset").clone();
+                    pending_output.encoder_quality.preset =
+                        Some(val.parse::<EncoderQualityPreset>()?);
                     pending_output.preset = Some(val);
                 }
                 "-tune" => {
                     let val = next_arg!("-tune").clone();
+                    pending_output.encoder_quality.tune = Some(val.parse::<EncoderTune>()?);
                     pending_output.tune = Some(val);
                 }
                 "-profile" | "-profile:v" => {
                     let val = next_arg!(arg).clone();
+                    pending_output.encoder_quality.profile = Some(val.parse::<EncoderProfile>()?);
                     pending_output.profile = Some(val);
                 }
 
@@ -638,8 +660,38 @@ impl FfmpegArgs {
             i += 1;
         }
 
+        for output in &mut result.outputs {
+            output.pass_phase = phase_from_parts(output.pass, output.passlogfile.as_deref())?;
+            validate_filter_conflicts(output)?;
+        }
+
         Ok(result)
     }
+}
+
+fn validate_filter_conflicts(output: &OutputSpec) -> Result<(), TranslationError> {
+    let Some(filter_complex) = output.filter_complex.as_deref() else {
+        return Ok(());
+    };
+
+    let graph = match AdvancedFilterGraph::parse(filter_complex) {
+        Ok(graph) => graph,
+        Err(_) => return Ok(()),
+    };
+
+    if output.video_filter.is_some() && graph.has_video_filters() {
+        return Err(TranslationError::ParseError(
+            "cannot combine -vf with -filter_complex for video".to_string(),
+        ));
+    }
+
+    if output.audio_filter.is_some() && graph.has_audio_filters() {
+        return Err(TranslationError::ParseError(
+            "cannot combine -af with -filter_complex for audio".to_string(),
+        ));
+    }
+
+    Ok(())
 }
 
 /// Push a stream option onto the correct pending collection depending on parse state.
@@ -714,6 +766,13 @@ mod tests {
 
     fn s(v: &str) -> String {
         v.to_string()
+    }
+
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-compat-ffmpeg-argparse-{name}"))
+            .to_string_lossy()
+            .into_owned()
     }
 
     #[test]
@@ -1212,13 +1271,14 @@ mod tests {
             s("-pass"),
             s("1"),
             s("-passlogfile"),
-            s("/tmp/ffpass"),
+            tmp_str("ffpass"),
             s("out.webm"),
         ];
         let parsed = FfmpegArgs::parse(&args).expect("parse");
         let out = &parsed.outputs[0];
         assert_eq!(out.pass, Some(1));
-        assert_eq!(out.passlogfile.as_deref(), Some("/tmp/ffpass"));
+        let expected = tmp_str("ffpass");
+        assert_eq!(out.passlogfile.as_deref(), Some(expected.as_str()));
     }
 
     #[test]

@@ -52,6 +52,10 @@ parking_lot = { workspace = true }
 # CLI
 clap = { workspace = true, features = ["derive"] }
 
+# getrandom v0.2 (via cron -> phf -> rand 0.8) requires "js" feature on wasm32
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom02 = { workspace = true }
+
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { workspace = true, features = ["full"] }
 rusqlite = { workspace = true, optional = true }

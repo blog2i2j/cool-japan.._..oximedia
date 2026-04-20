@@ -629,7 +629,8 @@ mod tests {
     #[test]
     fn test_splice_file_nonexistent() {
         let splicer = StreamSplicer::new();
-        let result = splicer.splice_file(Path::new("/tmp/nonexistent_splice_test.bin"));
+        let missing = std::env::temp_dir().join("oximedia-repair-splice-nonexistent.bin");
+        let result = splicer.splice_file(&missing);
         assert!(result.is_err());
     }
 

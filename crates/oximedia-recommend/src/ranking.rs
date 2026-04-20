@@ -174,17 +174,16 @@ pub fn mmr_rerank(items: &[RankItem], k: usize, lambda: f32) -> Vec<Uuid> {
     let mut remaining: Vec<usize> = (0..items.len()).collect();
 
     while selected.len() < k && !remaining.is_empty() {
-        let best_idx = remaining
-            .iter()
-            .copied()
-            .max_by(|&i, &j| {
-                let mmr_i = mmr_score(items, i, &selected, lambda);
-                let mmr_j = mmr_score(items, j, &selected, lambda);
-                mmr_i
-                    .partial_cmp(&mmr_j)
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
-            .expect("remaining is non-empty");
+        // remaining is non-empty (loop guard), so max_by always returns Some.
+        let Some(best_idx) = remaining.iter().copied().max_by(|&i, &j| {
+            let mmr_i = mmr_score(items, i, &selected, lambda);
+            let mmr_j = mmr_score(items, j, &selected, lambda);
+            mmr_i
+                .partial_cmp(&mmr_j)
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }) else {
+            break;
+        };
 
         selected.push(best_idx);
         remaining.retain(|&x| x != best_idx);

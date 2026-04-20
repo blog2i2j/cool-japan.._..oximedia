@@ -401,8 +401,12 @@ mod tests {
 
     #[test]
     fn test_batch_export_item_full_output_path() {
-        let item = BatchExportItem::new("Seq1", ExportFormat::Csv, "/tmp/exports", 24.0);
-        assert_eq!(item.full_output_path(), "/tmp/exports/Seq1.csv");
+        let out_dir = std::env::temp_dir()
+            .join("oximedia-edl-batch-exports")
+            .to_string_lossy()
+            .into_owned();
+        let item = BatchExportItem::new("Seq1", ExportFormat::Csv, &out_dir, 24.0);
+        assert_eq!(item.full_output_path(), format!("{out_dir}/Seq1.csv"));
     }
 
     #[test]

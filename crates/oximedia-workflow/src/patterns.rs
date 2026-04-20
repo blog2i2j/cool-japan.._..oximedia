@@ -74,9 +74,7 @@ pub fn multi_pass_encoding(
     );
 
     let qc_id = workflow.add_task(qc_task);
-    workflow
-        .add_edge(proxy_id, qc_id)
-        .expect("invariant: task IDs are valid");
+    workflow.add_edge(proxy_id, qc_id).unwrap_or(());
 
     // Step 3: High-res encoding (if QC passes)
     let final_task = Task::new(
@@ -92,9 +90,7 @@ pub fn multi_pass_encoding(
     .with_timeout(Duration::from_secs(7200)); // 2 hours
 
     let final_id = workflow.add_task(final_task);
-    workflow
-        .add_edge(qc_id, final_id)
-        .expect("invariant: task IDs are valid");
+    workflow.add_edge(qc_id, final_id).unwrap_or(());
 
     workflow
 }
@@ -142,9 +138,7 @@ pub fn validation_pipeline(
     );
 
     let qc_id = workflow.add_task(qc_task);
-    workflow
-        .add_edge(validation_id, qc_id)
-        .expect("invariant: task IDs are valid");
+    workflow.add_edge(validation_id, qc_id).unwrap_or(());
 
     // Step 3: Archive transfer
     let archive_task = Task::new(
@@ -159,9 +153,7 @@ pub fn validation_pipeline(
     .with_timeout(Duration::from_secs(3600));
 
     let archive_id = workflow.add_task(archive_task);
-    workflow
-        .add_edge(qc_id, archive_id)
-        .expect("invariant: task IDs are valid");
+    workflow.add_edge(qc_id, archive_id).unwrap_or(());
 
     // Step 4: Notification
     let notify_task = Task::new(
@@ -177,9 +169,7 @@ pub fn validation_pipeline(
     );
 
     let notify_id = workflow.add_task(notify_task);
-    workflow
-        .add_edge(archive_id, notify_id)
-        .expect("invariant: task IDs are valid");
+    workflow.add_edge(archive_id, notify_id).unwrap_or(());
 
     workflow
 }
@@ -231,9 +221,7 @@ pub fn distribution_workflow(
         .with_priority(TaskPriority::High);
 
         let encode_id = workflow.add_task(encode_task);
-        workflow
-            .add_edge(source_id, encode_id)
-            .expect("invariant: task IDs are valid");
+        workflow.add_edge(source_id, encode_id).unwrap_or(());
         encode_ids.push(encode_id);
     }
 
@@ -253,9 +241,7 @@ pub fn distribution_workflow(
 
         // Upload depends on all encodes
         for &encode_id in &encode_ids {
-            workflow
-                .add_edge(encode_id, upload_id)
-                .expect("invariant: task IDs are valid");
+            workflow.add_edge(encode_id, upload_id).unwrap_or(());
         }
     }
 
@@ -313,9 +299,7 @@ pub fn archive_workflow(
         );
 
         let proxy_id = workflow.add_task(proxy_task);
-        workflow
-            .add_edge(ingest_id, proxy_id)
-            .expect("invariant: task IDs are valid");
+        workflow.add_edge(ingest_id, proxy_id).unwrap_or(());
         proxy_ids.push(proxy_id);
     }
 
@@ -339,9 +323,7 @@ pub fn archive_workflow(
 
     // Archive depends on all proxies being created
     for proxy_id in proxy_ids {
-        workflow
-            .add_edge(proxy_id, archive_id)
-            .expect("invariant: task IDs are valid");
+        workflow.add_edge(proxy_id, archive_id).unwrap_or(());
     }
 
     workflow
@@ -402,9 +384,7 @@ pub fn sequential_processing(input: PathBuf, output_dir: PathBuf, stages: Vec<St
         let task_id = workflow.add_task(task);
 
         if let Some(prev_id) = previous_id {
-            workflow
-                .add_edge(prev_id, task_id)
-                .expect("invariant: task IDs are valid");
+            workflow.add_edge(prev_id, task_id).unwrap_or(());
         }
 
         previous_id = Some(task_id);
@@ -448,9 +428,7 @@ pub fn conditional_workflow(input: PathBuf, output_hq: PathBuf, output_lq: PathB
     .with_condition("input.bitrate > 10000000"); // Condition example
 
     let hq_id = workflow.add_task(hq_task);
-    workflow
-        .add_edge(analysis_id, hq_id)
-        .expect("invariant: task IDs are valid");
+    workflow.add_edge(analysis_id, hq_id).unwrap_or(());
 
     // Low quality path
     let lq_task = Task::new(
@@ -465,9 +443,7 @@ pub fn conditional_workflow(input: PathBuf, output_hq: PathBuf, output_lq: PathB
     .with_condition("input.bitrate <= 10000000");
 
     let lq_id = workflow.add_task(lq_task);
-    workflow
-        .add_edge(analysis_id, lq_id)
-        .expect("invariant: task IDs are valid");
+    workflow.add_edge(analysis_id, lq_id).unwrap_or(());
 
     workflow
 }

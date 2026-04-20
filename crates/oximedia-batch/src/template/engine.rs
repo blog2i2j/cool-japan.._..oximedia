@@ -21,12 +21,12 @@ impl TemplateEngine {
     /// Create a new template engine
     #[must_use]
     pub fn new() -> Self {
-        // These patterns are compile-time constants — the expect() calls are
-        // unreachable in practice and the panic message is intentionally clear.
+        // These patterns are compile-time constants and are always valid.
         let var_re = Regex::new(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
-            .expect("var_re pattern is a compile-time constant and must be valid");
-        let func_re = Regex::new(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\(([^)]*)\)\}")
-            .expect("func_re pattern is a compile-time constant and must be valid");
+            .unwrap_or_else(|_| unreachable!("var_re is a compile-time constant and always valid"));
+        let func_re = Regex::new(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\(([^)]*)\)\}").unwrap_or_else(|_| {
+            unreachable!("func_re is a compile-time constant and always valid")
+        });
         Self {
             functions: TemplateFunctions::new(),
             var_re,

@@ -462,15 +462,18 @@ mod tests {
             pass_stats.add_frame(frame_stats);
         }
 
-        let temp_file = "/tmp/oximedia_test_stats.txt";
-        pass_stats.save_to_file(temp_file)?;
+        let temp_file = std::env::temp_dir()
+            .join("oximedia-codec-multipass-stats.txt")
+            .to_string_lossy()
+            .into_owned();
+        pass_stats.save_to_file(&temp_file)?;
 
-        let loaded = PassStatistics::load_from_file(temp_file)?;
+        let loaded = PassStatistics::load_from_file(&temp_file)?;
         assert_eq!(loaded.width, 1920);
         assert_eq!(loaded.height, 1080);
         assert_eq!(loaded.total_frames, 5);
 
-        std::fs::remove_file(temp_file)?;
+        std::fs::remove_file(&temp_file)?;
         Ok(())
     }
 }

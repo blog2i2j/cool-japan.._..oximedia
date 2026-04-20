@@ -412,10 +412,17 @@ impl RenderQueue {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-edit-rq-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     fn make_job(priority: i32) -> RenderJob {
         RenderJob::new(
             TimelineSnapshot::new("test", 5000, 2, 4),
-            ExportConfig::new("/tmp/out.mkv"),
+            ExportConfig::new(tmp_str("out.mkv")),
             priority,
         )
     }
@@ -659,8 +666,9 @@ mod tests {
 
     #[test]
     fn test_export_config_new_sets_path() {
-        let cfg = ExportConfig::new("/tmp/test_output.webm");
-        assert_eq!(cfg.output_path, "/tmp/test_output.webm");
+        let p = tmp_str("test_output.webm");
+        let cfg = ExportConfig::new(&p);
+        assert_eq!(cfg.output_path, p);
         assert!(cfg.export_video);
         assert!(cfg.export_audio);
     }

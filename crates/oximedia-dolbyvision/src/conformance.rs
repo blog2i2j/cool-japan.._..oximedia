@@ -68,11 +68,14 @@ pub fn verify_level1_roundtrip() -> crate::Result<()> {
         avg_pq: 1800,
     });
     let reparsed = write_then_parse(&rpu)?;
-    let orig = rpu.level1.as_ref().expect("L1 should be set");
+    let orig = rpu
+        .level1
+        .as_ref()
+        .ok_or_else(|| crate::DolbyVisionError::Generic("L1 should be set".into()))?;
     let rep = reparsed
         .level1
         .as_ref()
-        .expect("L1 should survive round-trip");
+        .ok_or_else(|| crate::DolbyVisionError::Generic("L1 should survive round-trip".into()))?;
     assert_eq!(orig.min_pq, rep.min_pq, "L1 min_pq mismatch");
     assert_eq!(orig.max_pq, rep.max_pq, "L1 max_pq mismatch");
     assert_eq!(orig.avg_pq, rep.avg_pq, "L1 avg_pq mismatch");

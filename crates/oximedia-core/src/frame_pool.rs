@@ -192,20 +192,25 @@ pub struct AcquiredFrame {
 
 impl AcquiredFrame {
     /// Runs `f` with a shared reference to the inner [`PooledFrame`].
+    ///
+    /// Returns `None` if the frame mutex is poisoned.
     pub fn with<R, F: FnOnce(&PooledFrame) -> R>(&self, f: F) -> R {
-        let guard = self.frame.lock().expect("frame mutex poisoned");
+        // Frame mutex is never poisoned in normal operation; recover if needed.
+        let guard = self.frame.lock().unwrap_or_else(|e| e.into_inner());
         f(&guard)
     }
 
     /// Runs `f` with a mutable reference to the inner [`PooledFrame`].
+    ///
+    /// Recovers from a poisoned mutex by clearing the poison.
     pub fn with_mut<R, F: FnOnce(&mut PooledFrame) -> R>(&self, f: F) -> R {
-        let mut guard = self.frame.lock().expect("frame mutex poisoned");
+        let mut guard = self.frame.lock().unwrap_or_else(|e| e.into_inner());
         f(&mut guard)
     }
 
     /// Returns the sequence number of this frame (assigned at acquire time).
     pub fn seq(&self) -> u64 {
-        self.frame.lock().expect("frame mutex poisoned").seq
+        self.frame.lock().unwrap_or_else(|e| e.into_inner()).seq
     }
 }
 
@@ -213,13 +218,14 @@ impl Drop for AcquiredFrame {
     fn drop(&mut self) {
         if let Some(weak) = self.pool.take() {
             if let Some(inner) = weak.upgrade() {
-                let mut state = inner.state.lock().expect("pool mutex poisoned");
-                if state.idle.len() < state.max_pool_size {
-                    inner.release_count.fetch_add(1, Ordering::Relaxed);
-                    state.idle.push(Arc::clone(&self.frame));
+                if let Ok(mut state) = inner.state.lock() {
+                    if state.idle.len() < state.max_pool_size {
+                        inner.release_count.fetch_add(1, Ordering::Relaxed);
+                        state.idle.push(Arc::clone(&self.frame));
+                    }
+                    // If pool is at max_pool_size we just drop the Arc and let the
+                    // frame be freed by the Arc's own Drop.
                 }
-                // If pool is at max_pool_size we just drop the Arc and let the
-                // frame be freed by the Arc's own Drop.
             }
         }
         // For overflow frames (pool = None) the Arc is dropped here, freeing
@@ -326,11 +332,10 @@ impl FramePool {
     ///   returned.
     pub fn acquire(&self) -> Option<AcquiredFrame> {
         let seq = self.seq.fetch_add(1, Ordering::Relaxed);
-        let mut state = self.inner.state.lock().expect("pool mutex poisoned");
+        let mut state = self.inner.state.lock().ok()?;
         if let Some(frame_arc) = state.idle.pop() {
             drop(state);
-            {
-                let mut frame = frame_arc.lock().expect("frame mutex poisoned");
+            if let Ok(mut frame) = frame_arc.lock() {
                 frame.seq = seq;
             }
             self.inner.acquire_count.fetch_add(1, Ordering::Relaxed);
@@ -355,10 +360,10 @@ impl FramePool {
     /// Returns a snapshot of runtime pool statistics.
     #[must_use]
     pub fn stats(&self) -> PoolStats {
-        let state = self.inner.state.lock().expect("pool mutex poisoned");
+        let idle_count = self.inner.state.lock().map(|s| s.idle.len()).unwrap_or(0);
         PoolStats {
             pre_alloc: self.inner.pre_alloc,
-            idle_count: state.idle.len(),
+            idle_count,
             acquire_count: self.inner.acquire_count.load(Ordering::Relaxed),
             release_count: self.inner.release_count.load(Ordering::Relaxed),
             overflow_count: self.inner.overflow_count.load(Ordering::Relaxed),
@@ -367,12 +372,7 @@ impl FramePool {
 
     /// Returns the number of frames currently idle (available for acquisition).
     pub fn idle_count(&self) -> usize {
-        self.inner
-            .state
-            .lock()
-            .expect("pool mutex poisoned")
-            .idle
-            .len()
+        self.inner.state.lock().map(|s| s.idle.len()).unwrap_or(0)
     }
 
     /// Returns the configured maximum pool size.
@@ -380,8 +380,8 @@ impl FramePool {
         self.inner
             .state
             .lock()
-            .expect("pool mutex poisoned")
-            .max_pool_size
+            .map(|s| s.max_pool_size)
+            .unwrap_or(0)
     }
 
     /// Returns the byte size of each frame buffer.
@@ -394,7 +394,9 @@ impl FramePool {
     ///
     /// Returns the number of newly allocated frames.
     pub fn warm(&self, target: usize) -> usize {
-        let mut state = self.inner.state.lock().expect("pool mutex poisoned");
+        let Ok(mut state) = self.inner.state.lock() else {
+            return 0;
+        };
         let current = state.idle.len();
         let to_add = target
             .saturating_sub(current)
@@ -411,7 +413,9 @@ impl FramePool {
     ///
     /// Returns the number of frames released from the pool.
     pub fn shrink_to(&self, target: usize) -> usize {
-        let mut state = self.inner.state.lock().expect("pool mutex poisoned");
+        let Ok(mut state) = self.inner.state.lock() else {
+            return 0;
+        };
         let current = state.idle.len();
         let to_remove = current.saturating_sub(target);
         for _ in 0..to_remove {

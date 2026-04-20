@@ -172,10 +172,10 @@ impl MotionDetector {
             return Ok((vec![0u8; expected_size], Vec::new()));
         }
 
-        let background = self
-            .background
-            .as_mut()
-            .expect("background initialized above");
+        // Safety: we set self.background to Some above, so this will always succeed.
+        let Some(background) = self.background.as_mut() else {
+            return Ok((vec![0u8; expected_size], Vec::new()));
+        };
 
         // Compute difference mask
         let mut mask = vec![0u8; expected_size];

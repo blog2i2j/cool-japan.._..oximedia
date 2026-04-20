@@ -14,7 +14,7 @@
 //! let mut tracker = DeepSortTracker::new(DeepSortConfig::default());
 //! let dets = vec![BoundingBox::new(10.0, 10.0, 50.0, 50.0)];
 //! let feats = vec![AppearanceFeature([0.0f32; 128])];
-//! let tracks = tracker.update(&dets, &feats);
+//! let tracks = tracker.update(&dets, &feats).unwrap();
 //! assert_eq!(tracks.len(), 1);
 //! ```
 
@@ -23,6 +23,7 @@
 use std::collections::VecDeque;
 
 use crate::detect::BoundingBox;
+use crate::error::CvResult;
 use crate::tracking::assignment::{filter_assignments_by_cost, hungarian_algorithm};
 use crate::tracking::kalman::KalmanFilter;
 
@@ -125,12 +126,10 @@ pub struct DeepSortTrack {
 
 impl DeepSortTrack {
     /// Initialise a new track from a detection + appearance feature.
-    fn new(id: u64, bbox: &BoundingBox, feature: &AppearanceFeature) -> Self {
+    fn new(id: u64, bbox: &BoundingBox, feature: &AppearanceFeature) -> CvResult<Self> {
         let mut kalman = build_deep_sort_kalman();
         let state = bbox_to_kalman_state(bbox);
-        kalman
-            .set_state(state)
-            .expect("DeepSORT state dim is always 8");
+        kalman.set_state(state)?;
 
         let ks = KalmanState {
             mean: kalman.state().to_vec(),
@@ -140,7 +139,7 @@ impl DeepSortTrack {
         let mut features = VecDeque::with_capacity(MAX_FEATURE_HISTORY);
         features.push_back(feature.clone());
 
-        Self {
+        Ok(Self {
             id,
             bbox: *bbox,
             kalman_state: ks,
@@ -150,7 +149,7 @@ impl DeepSortTrack {
             hit_streak: 1,
             time_since_update: 0,
             kalman,
-        }
+        })
     }
 
     /// Run the Kalman predict step and return the predicted bounding box.
@@ -260,12 +259,15 @@ impl DeepSortTracker {
     /// is the appearance embedding for `detections[i]`.  If `features` is
     /// shorter than `detections`, the remaining detections are treated as
     /// having a zero-vector embedding.
-    #[must_use]
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if Kalman state initialisation fails for a new track.
     pub fn update(
         &mut self,
         detections: &[BoundingBox],
         features: &[AppearanceFeature],
-    ) -> Vec<DeepSortTrack> {
+    ) -> CvResult<Vec<DeepSortTrack>> {
         // --- 1. Predict ---
         let predicted_bboxes: Vec<BoundingBox> =
             self.tracks.iter_mut().map(|t| t.predict()).collect();
@@ -320,7 +322,7 @@ impl DeepSortTracker {
         for (di, det) in detections.iter().enumerate() {
             if !det_matched[di] {
                 let feat = features.get(di).cloned().unwrap_or_default();
-                let new_track = DeepSortTrack::new(self.next_id, det, &feat);
+                let new_track = DeepSortTrack::new(self.next_id, det, &feat)?;
                 self.next_id += 1;
                 self.tracks.push(new_track);
             }
@@ -331,11 +333,12 @@ impl DeepSortTracker {
             .retain(|t| t.time_since_update <= self.cfg.max_age);
 
         // --- 6. Return confirmed tracks ---
-        self.tracks
+        Ok(self
+            .tracks
             .iter()
             .filter(|t| t.hits >= self.cfg.min_hits || t.time_since_update == 0)
             .cloned()
-            .collect()
+            .collect())
     }
 
     /// Return all tracks regardless of confirmation status (useful for debugging).
@@ -591,7 +594,7 @@ mod tests {
     fn test_track_new() {
         let bbox = make_bbox(10.0, 10.0, 50.0, 50.0);
         let feat = unit_feat(0.5);
-        let track = DeepSortTrack::new(1, &bbox, &feat);
+        let track = DeepSortTrack::new(1, &bbox, &feat).unwrap();
         assert_eq!(track.id, 1);
         assert_eq!(track.hits, 1);
         assert_eq!(track.hit_streak, 1);
@@ -602,7 +605,7 @@ mod tests {
     #[test]
     fn test_track_predict_increases_age() {
         let bbox = make_bbox(0.0, 0.0, 40.0, 40.0);
-        let mut track = DeepSortTrack::new(1, &bbox, &zero_feat());
+        let mut track = DeepSortTrack::new(1, &bbox, &zero_feat()).unwrap();
         track.predict();
         assert_eq!(track.age, 2);
     }
@@ -610,7 +613,7 @@ mod tests {
     #[test]
     fn test_track_update_increments_hits() {
         let bbox = make_bbox(0.0, 0.0, 40.0, 40.0);
-        let mut track = DeepSortTrack::new(1, &bbox, &zero_feat());
+        let mut track = DeepSortTrack::new(1, &bbox, &zero_feat()).unwrap();
         track.update(&bbox, &zero_feat());
         assert_eq!(track.hits, 2);
         assert_eq!(track.time_since_update, 0);
@@ -619,7 +622,7 @@ mod tests {
     #[test]
     fn test_track_feature_history_cap() {
         let bbox = make_bbox(0.0, 0.0, 20.0, 20.0);
-        let mut track = DeepSortTrack::new(1, &bbox, &zero_feat());
+        let mut track = DeepSortTrack::new(1, &bbox, &zero_feat()).unwrap();
         for _ in 0..MAX_FEATURE_HISTORY + 10 {
             track.update(&bbox, &zero_feat());
         }
@@ -630,7 +633,7 @@ mod tests {
     fn test_track_min_appearance_distance() {
         let bbox = make_bbox(0.0, 0.0, 20.0, 20.0);
         let feat_a = unit_feat(1.0);
-        let track = DeepSortTrack::new(1, &bbox, &feat_a);
+        let track = DeepSortTrack::new(1, &bbox, &feat_a).unwrap();
         let d = track.min_appearance_distance(&feat_a);
         assert!(d < 1e-3, "identical feature min dist={d}");
     }
@@ -640,7 +643,7 @@ mod tests {
     #[test]
     fn test_tracker_empty_input() {
         let mut t = DeepSortTracker::new(DeepSortConfig::default());
-        let tracks = t.update(&[], &[]);
+        let tracks = t.update(&[], &[]).unwrap();
         assert!(tracks.is_empty());
     }
 
@@ -651,7 +654,7 @@ mod tests {
         let mut t = DeepSortTracker::new(cfg);
         let det = vec![make_bbox(50.0, 50.0, 60.0, 60.0)];
         let feat = vec![zero_feat()];
-        let tracks = t.update(&det, &feat);
+        let tracks = t.update(&det, &feat).unwrap();
         // With min_hits=1, should be confirmed immediately
         assert_eq!(tracks.len(), 1);
     }
@@ -666,7 +669,7 @@ mod tests {
             make_bbox(200.0, 200.0, 20.0, 20.0),
         ];
         let feats = vec![zero_feat(), zero_feat()];
-        t.update(&dets, &feats);
+        t.update(&dets, &feats).unwrap();
         assert_eq!(t.track_count(), 2);
     }
 
@@ -678,10 +681,10 @@ mod tests {
         let mut t = DeepSortTracker::new(cfg);
         let det = vec![make_bbox(100.0, 100.0, 40.0, 40.0)];
         let feat = vec![zero_feat()];
-        t.update(&det, &feat);
+        t.update(&det, &feat).unwrap();
         let id_first = t.all_tracks()[0].id;
         // Same detection next frame
-        let tracks2 = t.update(&det, &feat);
+        let tracks2 = t.update(&det, &feat).unwrap();
         let id_second = tracks2[0].id;
         assert_eq!(id_first, id_second, "track ID should persist");
     }
@@ -694,11 +697,11 @@ mod tests {
         let mut t = DeepSortTracker::new(cfg);
         let det = vec![make_bbox(50.0, 50.0, 30.0, 30.0)];
         let feat = vec![zero_feat()];
-        t.update(&det, &feat);
+        t.update(&det, &feat).unwrap();
         // 3 frames with no detection
-        t.update(&[], &[]);
-        t.update(&[], &[]);
-        t.update(&[], &[]);
+        t.update(&[], &[]).unwrap();
+        t.update(&[], &[]).unwrap();
+        t.update(&[], &[]).unwrap();
         assert_eq!(t.track_count(), 0, "stale track should be removed");
     }
 
@@ -709,8 +712,8 @@ mod tests {
         let mut t = DeepSortTracker::new(cfg);
         let d1 = vec![make_bbox(10.0, 10.0, 20.0, 20.0)];
         let d2 = vec![make_bbox(500.0, 500.0, 20.0, 20.0)];
-        t.update(&d1, &vec![zero_feat()]);
-        t.update(&d2, &vec![zero_feat()]);
+        t.update(&d1, &vec![zero_feat()]).unwrap();
+        t.update(&d2, &vec![zero_feat()]).unwrap();
         let ids: Vec<u64> = t.all_tracks().iter().map(|tr| tr.id).collect();
         let unique: std::collections::HashSet<u64> = ids.into_iter().collect();
         assert_eq!(unique.len(), t.track_count());

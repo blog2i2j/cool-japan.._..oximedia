@@ -185,15 +185,19 @@ impl TimeSyncClient {
 mod tests {
     use super::*;
 
+    fn tmp_sock(name: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("oximedia-timesync-ipc-{name}"))
+    }
+
     #[test]
     fn test_server_creation() {
-        let server = TimeSyncServer::new("/tmp/test_timesync.sock");
+        let server = TimeSyncServer::new(tmp_sock("server.sock"));
         assert!(server.listener.is_none());
     }
 
     #[test]
     fn test_client_creation() {
-        let client = TimeSyncClient::new("/tmp/test_timesync.sock");
+        let client = TimeSyncClient::new(tmp_sock("client.sock"));
         assert!(client.stream.is_none());
     }
 }

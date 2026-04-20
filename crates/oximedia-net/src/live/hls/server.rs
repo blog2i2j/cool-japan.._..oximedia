@@ -51,7 +51,9 @@ impl HlsServer {
             return Ok(response
                 .status(400)
                 .body(Full::new(Bytes::from("Invalid path")))
-                .expect("invariant: HTTP response builder is valid"));
+                .unwrap_or_else(|_| {
+                    hyper::Response::new(Full::new(Bytes::from("Internal Server Error")))
+                }));
         }
 
         let app_name = parts[1];
@@ -64,7 +66,9 @@ impl HlsServer {
                 return Ok(response
                     .status(404)
                     .body(Full::new(Bytes::from("Stream not found")))
-                    .expect("invariant: HTTP response builder is valid"));
+                    .unwrap_or_else(|_| {
+                        hyper::Response::new(Full::new(Bytes::from("Internal Server Error")))
+                    }));
             }
         };
 
@@ -86,7 +90,9 @@ impl HlsServer {
             Ok(response
                 .status(400)
                 .body(Full::new(Bytes::from("Invalid file type")))
-                .expect("invariant: HTTP response builder is valid"))
+                .unwrap_or_else(|_| {
+                    hyper::Response::new(Full::new(Bytes::from("Internal Server Error")))
+                }))
         }
     }
 
@@ -134,7 +140,9 @@ impl HlsServer {
             .header("Content-Type", "application/vnd.apple.mpegurl")
             .header("Cache-Control", "no-cache")
             .body(Full::new(Bytes::from(m3u8)))
-            .expect("invariant: HTTP response builder is valid"))
+            .unwrap_or_else(|_| {
+                hyper::Response::new(Full::new(Bytes::from("Internal Server Error")))
+            }))
     }
 
     /// Serves media playlist.
@@ -156,7 +164,9 @@ impl HlsServer {
                         .header("Content-Type", "application/vnd.apple.mpegurl")
                         .header("Cache-Control", "max-age=1")
                         .body(Full::new(cached.clone()))
-                        .expect("invariant: HTTP response builder is valid"));
+                        .unwrap_or_else(|_| {
+                            hyper::Response::new(Full::new(Bytes::from("Internal Server Error")))
+                        }));
                 }
             }
         }
@@ -208,7 +218,9 @@ impl HlsServer {
             .header("Content-Type", "application/vnd.apple.mpegurl")
             .header("Cache-Control", "max-age=1")
             .body(Full::new(bytes))
-            .expect("invariant: HTTP response builder is valid"))
+            .unwrap_or_else(|_| {
+                hyper::Response::new(Full::new(Bytes::from("Internal Server Error")))
+            }))
     }
 
     /// Serves media segment.
@@ -229,7 +241,9 @@ impl HlsServer {
                     .header("Content-Type", "video/mp4")
                     .header("Cache-Control", "max-age=31536000") // Cache init segments
                     .body(Full::new(init_segment.data.clone()))
-                    .expect("invariant: HTTP response builder is valid"));
+                    .unwrap_or_else(|_| {
+                        hyper::Response::new(Full::new(Bytes::from("Internal Server Error")))
+                    }));
             }
         } else if filename.starts_with("seg_") {
             // Media segment
@@ -249,7 +263,11 @@ impl HlsServer {
                             .header("Content-Type", "video/mp4")
                             .header("Cache-Control", "max-age=31536000")
                             .body(Full::new(segment.data.clone()))
-                            .expect("invariant: HTTP response builder is valid"));
+                            .unwrap_or_else(|_| {
+                                hyper::Response::new(Full::new(Bytes::from(
+                                    "Internal Server Error",
+                                )))
+                            }));
                     }
                 }
             }
@@ -258,7 +276,9 @@ impl HlsServer {
         Ok(response
             .status(404)
             .body(Full::new(Bytes::from("Segment not found")))
-            .expect("invariant: HTTP response builder is valid"))
+            .unwrap_or_else(|_| {
+                hyper::Response::new(Full::new(Bytes::from("Internal Server Error")))
+            }))
     }
 
     /// Clears playlist cache.

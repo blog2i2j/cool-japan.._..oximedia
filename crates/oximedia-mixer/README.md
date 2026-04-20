@@ -1,6 +1,6 @@
 # oximedia-mixer
 
-**Status: [Stable]** | Version: 0.1.3 | Updated: 2026-04-15
+**Status: [Stable]** | Version: 0.1.4 | Tests: 689 | Updated: 2026-04-20
 
 Professional audio mixer with automation for OxiMedia, providing a full digital audio mixing console with 100+ channels, comprehensive effects, and full parameter automation.
 
@@ -30,7 +30,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-mixer = "0.1.3"
+oximedia-mixer = "0.1.4"
 ```
 
 ```rust

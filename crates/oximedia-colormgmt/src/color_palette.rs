@@ -539,8 +539,11 @@ impl Octree {
         if node.children[idx].is_none() {
             node.children[idx] = Some(Box::new(OctreeNode::new()));
         }
-        let child = node.children[idx].as_mut().expect("just set");
-        Self::insert_node(child, r, g, b, depth + 1, max_depth)
+        if let Some(child) = node.children[idx].as_mut() {
+            Self::insert_node(child, r, g, b, depth + 1, max_depth)
+        } else {
+            0
+        }
     }
 
     /// Reduce the tree by merging leaf siblings until leaf count ≤ n_colors.

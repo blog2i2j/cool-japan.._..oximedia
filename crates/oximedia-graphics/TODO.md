@@ -52,3 +52,6 @@
 - [ ] Add visual examples (rendered PNGs) for each broadcast element in module docs
 - [ ] Document the tera template variable schema used by `graphic_template.rs`
 - [ ] Add a guide for creating custom broadcast graphics presets using `presets.rs`
+
+## Wave 4 Progress (2026-04-18)
+- [x] wasm-gpu-compute-fix: cfg-gate gpu_compute.rs Send+Sync assumptions for wasm32 — Wave 4 Slice B

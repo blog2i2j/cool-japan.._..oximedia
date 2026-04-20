@@ -376,7 +376,7 @@ mod tests {
             Path::new("/archive")
         ));
         assert!(!is_preferred_path(
-            Path::new("/tmp/a.mp4"),
+            Path::new("/other/a.mp4"),
             Path::new("/archive")
         ));
     }

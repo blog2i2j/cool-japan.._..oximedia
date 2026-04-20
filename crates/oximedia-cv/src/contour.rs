@@ -170,30 +170,10 @@ impl Contour {
         if self.points.is_empty() {
             return None;
         }
-        let min_x = self
-            .points
-            .iter()
-            .map(|p| p.x)
-            .min()
-            .expect("checked non-empty");
-        let min_y = self
-            .points
-            .iter()
-            .map(|p| p.y)
-            .min()
-            .expect("checked non-empty");
-        let max_x = self
-            .points
-            .iter()
-            .map(|p| p.x)
-            .max()
-            .expect("checked non-empty");
-        let max_y = self
-            .points
-            .iter()
-            .map(|p| p.y)
-            .max()
-            .expect("checked non-empty");
+        let min_x = self.points.iter().map(|p| p.x).min()?;
+        let min_y = self.points.iter().map(|p| p.y).min()?;
+        let max_x = self.points.iter().map(|p| p.x).max()?;
+        let max_y = self.points.iter().map(|p| p.y).max()?;
         Some((min_x, min_y, max_x, max_y))
     }
 }

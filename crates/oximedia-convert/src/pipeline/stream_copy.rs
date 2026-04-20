@@ -708,7 +708,7 @@ mod tests {
 
         let result = execute_stream_copy(
             Path::new("/nonexistent/file.webm"),
-            Path::new("/tmp/out.mkv"),
+            &std::env::temp_dir().join("oximedia-convert-stream-copy-out.mkv"),
             &source,
             &output_req,
         );

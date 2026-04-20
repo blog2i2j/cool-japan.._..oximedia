@@ -43,19 +43,19 @@ impl SignalFlowGraph {
         let mut dot = String::new();
 
         // Graph header
-        writeln!(&mut dot, "digraph SignalFlow {{")
-            .expect("infallible: writing to String never fails");
+        let _ = writeln!(&mut dot, "digraph SignalFlow {{");
 
         // Graph attributes
         match options.direction {
-            GraphDirection::LeftToRight => writeln!(&mut dot, "  rankdir=LR;")
-                .expect("infallible: writing to String never fails"),
-            GraphDirection::TopToBottom => writeln!(&mut dot, "  rankdir=TB;")
-                .expect("infallible: writing to String never fails"),
+            GraphDirection::LeftToRight => {
+                let _ = writeln!(&mut dot, "  rankdir=LR;");
+            }
+            GraphDirection::TopToBottom => {
+                let _ = writeln!(&mut dot, "  rankdir=TB;");
+            }
         }
 
-        writeln!(&mut dot, "  node [shape=box, style=rounded];")
-            .expect("infallible: writing to String never fails");
+        let _ = writeln!(&mut dot, "  node [shape=box, style=rounded];");
 
         // Add nodes
         for (idx, node_type) in self.get_all_nodes() {
@@ -93,15 +93,14 @@ impl SignalFlowGraph {
                 }
             };
 
-            writeln!(
+            let _ = writeln!(
                 &mut dot,
                 "  n{} [label=\"{}\", fillcolor={}, style=filled, shape={}];",
                 idx.index(),
                 label,
                 color,
                 shape
-            )
-            .expect("infallible: writing to String never fails");
+            );
         }
 
         // Add edges
@@ -128,18 +127,17 @@ impl SignalFlowGraph {
                     format!(" [{}]", edge_attrs.join(", "))
                 };
 
-                writeln!(
+                let _ = writeln!(
                     &mut dot,
                     "  n{} -> n{}{};",
                     node.index(),
                     target.index(),
                     attrs
-                )
-                .expect("infallible: writing to String never fails");
+                );
             }
         }
 
-        writeln!(&mut dot, "}}").expect("infallible: writing to String never fails");
+        let _ = writeln!(&mut dot, "}}");
         dot
     }
 
@@ -172,14 +170,12 @@ impl SignalFlowGraph {
     pub fn to_ascii(&self) -> String {
         let mut output = String::new();
 
-        writeln!(&mut output, "Signal Flow Graph:")
-            .expect("infallible: writing to String never fails");
-        writeln!(&mut output, "==================")
-            .expect("infallible: writing to String never fails");
-        writeln!(&mut output).expect("infallible: writing to String never fails");
+        let _ = writeln!(&mut output, "Signal Flow Graph:");
+        let _ = writeln!(&mut output, "==================");
+        let _ = writeln!(&mut output);
 
         // List all nodes
-        writeln!(&mut output, "Nodes:").expect("infallible: writing to String never fails");
+        let _ = writeln!(&mut output, "Nodes:");
         for (idx, node_type) in self.get_all_nodes() {
             let node_str = match node_type {
                 NodeType::Input { label, channels } => {
@@ -198,12 +194,11 @@ impl SignalFlowGraph {
                     format!("[BUS] {label} ({channels} ch)")
                 }
             };
-            writeln!(&mut output, "  {}: {}", idx.index(), node_str)
-                .expect("infallible: writing to String never fails");
+            let _ = writeln!(&mut output, "  {}: {}", idx.index(), node_str);
         }
 
-        writeln!(&mut output).expect("infallible: writing to String never fails");
-        writeln!(&mut output, "Connections:").expect("infallible: writing to String never fails");
+        let _ = writeln!(&mut output);
+        let _ = writeln!(&mut output, "Connections:");
 
         // List all connections
         for node in self.graph().node_indices() {
@@ -215,15 +210,14 @@ impl SignalFlowGraph {
                     String::new()
                 };
 
-                writeln!(
+                let _ = writeln!(
                     &mut output,
                     "  {} -> {} [{}{}]",
                     node.index(),
                     target.index(),
                     status,
                     gain_str
-                )
-                .expect("infallible: writing to String never fails");
+                );
             }
         }
 

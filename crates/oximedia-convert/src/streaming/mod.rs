@@ -386,23 +386,26 @@ mod tests {
 
     #[test]
     fn test_hls_config() {
-        let config = StreamingConfig::hls(PathBuf::from("/tmp/output"));
+        let config =
+            StreamingConfig::hls(std::env::temp_dir().join("oximedia-convert-streaming-output"));
         assert_eq!(config.format, StreamingFormat::Hls);
         assert_eq!(config.playlist_name, "playlist.m3u8");
     }
 
     #[test]
     fn test_dash_config() {
-        let config = StreamingConfig::dash(PathBuf::from("/tmp/output"));
+        let config =
+            StreamingConfig::dash(std::env::temp_dir().join("oximedia-convert-streaming-output"));
         assert_eq!(config.format, StreamingFormat::Dash);
         assert_eq!(config.playlist_name, "manifest.mpd");
     }
 
     #[test]
     fn test_streaming_config_builder() {
-        let config = StreamingConfig::hls(PathBuf::from("/tmp/output"))
-            .with_segment_duration(10.0)
-            .with_playlist_size(10);
+        let config =
+            StreamingConfig::hls(std::env::temp_dir().join("oximedia-convert-streaming-output"))
+                .with_segment_duration(10.0)
+                .with_playlist_size(10);
 
         assert_eq!(config.segment_duration, 10.0);
         assert_eq!(config.playlist_size, 10);
@@ -604,7 +607,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_package_hls_writes_manifest() {
-        let dir = std::path::PathBuf::from("/tmp/oximedia_test_hls_package");
+        let dir = std::env::temp_dir().join("oximedia_test_hls_package");
         let config = StreamingConfig::hls(dir.clone());
         let packager = StreamingPackager::new(config);
         let result = packager
@@ -624,7 +627,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_package_abr_hls_writes_master_playlist() {
-        let dir = std::path::PathBuf::from("/tmp/oximedia_test_hls_abr");
+        let dir = std::env::temp_dir().join("oximedia_test_hls_abr");
         let config = StreamingConfig::hls(dir.clone());
         let packager = StreamingPackager::new(config);
         let ladder = AbrLadder::standard();
@@ -646,7 +649,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_package_dash_writes_mpd() {
-        let dir = std::path::PathBuf::from("/tmp/oximedia_test_dash_package");
+        let dir = std::env::temp_dir().join("oximedia_test_dash_package");
         let config = StreamingConfig::dash(dir.clone());
         let packager = StreamingPackager::new(config);
         let result = packager
@@ -666,7 +669,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_package_abr_dash_writes_mpd() {
-        let dir = std::path::PathBuf::from("/tmp/oximedia_test_dash_abr");
+        let dir = std::env::temp_dir().join("oximedia_test_dash_abr");
         let config = StreamingConfig::dash(dir.clone());
         let packager = StreamingPackager::new(config);
         let ladder = AbrLadder::standard();

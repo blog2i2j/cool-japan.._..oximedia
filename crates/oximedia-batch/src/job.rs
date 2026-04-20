@@ -355,14 +355,15 @@ mod tests {
 
     #[test]
     fn test_input_spec_builder() {
+        let tmp = std::env::temp_dir();
         let input = InputSpec::new("*.mp4".to_string())
             .recursive(true)
             .with_filter(FileFilter::Extension("mp4".to_string()))
-            .with_base_dir(PathBuf::from("/tmp"));
+            .with_base_dir(tmp.clone());
 
         assert!(input.recursive);
         assert_eq!(input.filters.len(), 1);
-        assert_eq!(input.base_dir, Some(PathBuf::from("/tmp")));
+        assert_eq!(input.base_dir, Some(tmp));
     }
 
     #[test]

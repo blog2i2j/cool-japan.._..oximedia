@@ -10,6 +10,7 @@ use oximedia_io::MediaSource;
 use std::io::SeekFrom;
 
 use crate::demux::matroska::ebml::element_id;
+use crate::demux::matroska::matroska_v4::{self, BlockAdditionMapping};
 use crate::mux::traits::{Muxer, MuxerConfig};
 use crate::{ContainerFormat, Packet, StreamInfo};
 
@@ -169,6 +170,8 @@ impl<W> MatroskaMuxer<W> {
             CodecId::Vp9 => "V_VP9",
             CodecId::Vp8 => "V_VP8",
             CodecId::Theora => "V_THEORA",
+            CodecId::Mjpeg => "V_MJPEG",
+            CodecId::Apv => "V_MS/VFW/FOURCC",
             CodecId::Opus => "A_OPUS",
             CodecId::Vorbis => "A_VORBIS",
             CodecId::Flac => "A_FLAC",
@@ -179,6 +182,37 @@ impl<W> MatroskaMuxer<W> {
             CodecId::Srt => "S_TEXT/UTF8",
             _ => "V_UNCOMPRESSED", // Fallback for future codecs
         }
+    }
+
+    /// Synthesizes a BITMAPINFOHEADER CodecPrivate blob for APV.
+    ///
+    /// The 40-byte BITMAPINFOHEADER is the standard Windows codec private data
+    /// used with the `V_MS/VFW/FOURCC` Matroska codec ID.
+    fn build_apv_bitmapinfoheader(width: u32, height: u32) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(40);
+        // biSize (4 bytes LE)
+        buf.extend_from_slice(&40u32.to_le_bytes());
+        // biWidth (4 bytes LE)
+        buf.extend_from_slice(&width.to_le_bytes());
+        // biHeight (4 bytes LE) — positive = bottom-up
+        buf.extend_from_slice(&height.to_le_bytes());
+        // biPlanes (2 bytes LE)
+        buf.extend_from_slice(&1u16.to_le_bytes());
+        // biBitCount (2 bytes LE)
+        buf.extend_from_slice(&24u16.to_le_bytes());
+        // biCompression: the 'apv1' fourcc (4 bytes, raw ASCII)
+        buf.extend_from_slice(b"apv1");
+        // biSizeImage (4 bytes LE) — 0 means unspecified
+        buf.extend_from_slice(&0u32.to_le_bytes());
+        // biXPelsPerMeter (4 bytes LE)
+        buf.extend_from_slice(&0u32.to_le_bytes());
+        // biYPelsPerMeter (4 bytes LE)
+        buf.extend_from_slice(&0u32.to_le_bytes());
+        // biClrUsed (4 bytes LE)
+        buf.extend_from_slice(&0u32.to_le_bytes());
+        // biClrImportant (4 bytes LE)
+        buf.extend_from_slice(&0u32.to_le_bytes());
+        buf
     }
 
     /// Converts a timestamp to timecode scale units.
@@ -410,11 +444,19 @@ impl<W: MediaSource> MatroskaMuxer<W> {
         content.extend(encode_vint_size(codec_id.len() as u64));
         content.extend_from_slice(codec_id.as_bytes());
 
-        // CodecPrivate (if available)
+        // CodecPrivate: explicit extradata takes precedence; APV synthesizes
+        // a BITMAPINFOHEADER when none is supplied (required by V_MS/VFW/FOURCC).
         if let Some(ref extradata) = stream.codec_params.extradata {
             content.extend(encode_element_id(element_id::CODEC_PRIVATE));
             content.extend(encode_vint_size(extradata.len() as u64));
             content.extend_from_slice(extradata);
+        } else if stream.codec == CodecId::Apv {
+            let width = stream.codec_params.width.unwrap_or(0);
+            let height = stream.codec_params.height.unwrap_or(0);
+            let bih = Self::build_apv_bitmapinfoheader(u32::from(width), u32::from(height));
+            content.extend(encode_element_id(element_id::CODEC_PRIVATE));
+            content.extend(encode_vint_size(bih.len() as u64));
+            content.extend(bih);
         }
 
         // Video-specific settings
@@ -480,6 +522,48 @@ impl<W: MediaSource> MatroskaMuxer<W> {
             content.extend(encode_element_id(element_id::NAME));
             content.extend(encode_vint_size(title.len() as u64));
             content.extend_from_slice(title.as_bytes());
+        }
+
+        for mapping in &stream.codec_params.block_addition_mappings {
+            let mapping_bytes = Self::build_block_addition_mapping(mapping);
+            if !mapping_bytes.is_empty() {
+                content.extend(encode_element_id(
+                    matroska_v4::v4_element_id::BLOCK_ADDITION_MAPPING,
+                ));
+                content.extend(encode_vint_size(mapping_bytes.len() as u64));
+                content.extend(mapping_bytes);
+            }
+        }
+
+        content
+    }
+
+    fn build_block_addition_mapping(mapping: &BlockAdditionMapping) -> Vec<u8> {
+        let mut content = Vec::new();
+
+        if let Some(id_type) = mapping.id_type {
+            content.extend(encode_element_id(
+                matroska_v4::v4_element_id::BLOCK_ADD_ID_TYPE,
+            ));
+            let id_type_bytes = encode_uint(id_type);
+            content.extend(encode_vint_size(id_type_bytes.len() as u64));
+            content.extend(id_type_bytes);
+        }
+
+        if let Some(id_name) = &mapping.id_name {
+            content.extend(encode_element_id(
+                matroska_v4::v4_element_id::BLOCK_ADD_ID_NAME,
+            ));
+            content.extend(encode_vint_size(id_name.len() as u64));
+            content.extend_from_slice(id_name.as_bytes());
+        }
+
+        if !mapping.id_extra_data.is_empty() {
+            content.extend(encode_element_id(
+                matroska_v4::v4_element_id::BLOCK_ADD_ID_EXTRA_DATA,
+            ));
+            content.extend(encode_vint_size(mapping.id_extra_data.len() as u64));
+            content.extend_from_slice(&mapping.id_extra_data);
         }
 
         content

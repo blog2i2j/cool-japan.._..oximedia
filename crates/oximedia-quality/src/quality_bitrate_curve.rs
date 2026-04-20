@@ -245,7 +245,9 @@ impl QualityBitrateCurve {
         if bitrate_kbps <= self.points[0].bitrate_kbps {
             return Ok(self.points[0].quality);
         }
-        let last = self.points.last().expect("non-empty checked above");
+        let Some(last) = self.points.last() else {
+            return Err(CurveError::Empty);
+        };
         if bitrate_kbps >= last.bitrate_kbps {
             return Ok(last.quality);
         }
@@ -302,16 +304,14 @@ impl QualityBitrateCurve {
         }
 
         // Fallback: return the bitrate of the closest quality point
-        let closest = self
-            .points
-            .iter()
-            .min_by(|a, b| {
-                (a.quality - target_quality)
-                    .abs()
-                    .partial_cmp(&(b.quality - target_quality).abs())
-                    .unwrap_or(std::cmp::Ordering::Equal)
-            })
-            .expect("non-empty checked above");
+        let Some(closest) = self.points.iter().min_by(|a, b| {
+            (a.quality - target_quality)
+                .abs()
+                .partial_cmp(&(b.quality - target_quality).abs())
+                .unwrap_or(std::cmp::Ordering::Equal)
+        }) else {
+            return Err(CurveError::Empty);
+        };
         Ok(closest.bitrate_kbps)
     }
 

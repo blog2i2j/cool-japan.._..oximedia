@@ -128,23 +128,30 @@ mod tests {
         ResolvedAsset::new(Uuid::new_v4(), path, mime, size)
     }
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-imf-compmap-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_resolved_asset_new() {
         let id = Uuid::new_v4();
-        let a = ResolvedAsset::new(id, "/tmp/video.mxf", "application/mxf", 1024);
+        let a = ResolvedAsset::new(id, &tmp_str("video.mxf"), "application/mxf", 1024);
         assert_eq!(a.asset_id, id);
         assert_eq!(a.size_bytes, 1024);
     }
 
     #[test]
     fn test_is_mxf_true() {
-        let a = make_asset("/tmp/x.mxf", "application/mxf", 0);
+        let a = make_asset(&tmp_str("x.mxf"), "application/mxf", 0);
         assert!(a.is_mxf());
     }
 
     #[test]
     fn test_is_mxf_false() {
-        let a = make_asset("/tmp/x.xml", "text/xml", 0);
+        let a = make_asset(&tmp_str("x.xml"), "text/xml", 0);
         assert!(!a.is_mxf());
     }
 
@@ -158,14 +165,12 @@ mod tests {
     #[test]
     fn test_insert_and_get() {
         let mut map = CompositionMap::new();
-        let a = make_asset("/tmp/a.mxf", "application/mxf", 500);
+        let a_path = tmp_str("a.mxf");
+        let a = make_asset(&a_path, "application/mxf", 500);
         let id = a.asset_id;
         map.insert(a);
         assert_eq!(map.len(), 1);
-        assert_eq!(
-            map.get(&id).expect("get should succeed").file_path,
-            "/tmp/a.mxf"
-        );
+        assert_eq!(map.get(&id).expect("get should succeed").file_path, a_path);
     }
 
     #[test]

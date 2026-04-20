@@ -246,7 +246,7 @@ mod tests {
 
     #[test]
     fn test_missing_file_fails() {
-        let path = std::path::PathBuf::from("/tmp/oximedia_nonexistent_output_xyz.mp4");
+        let path = std::env::temp_dir().join("oximedia-farm-output-nonexistent_xyz.mp4");
         let validator = OutputValidator::new(OutputValidationRules::default());
         let err = validator.validate(&path).unwrap_err();
         assert!(matches!(err, ValidationError::FileMissing(_)));

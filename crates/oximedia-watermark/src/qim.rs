@@ -45,10 +45,13 @@ pub struct QimEmbedder {
 
 impl QimEmbedder {
     /// Create a new QIM embedder.
-    #[must_use]
-    pub fn new(config: QimConfig) -> Self {
-        let codec = PayloadCodec::new(16, 8).expect("should succeed in test");
-        Self { config, codec }
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the Reed-Solomon codec cannot be initialised.
+    pub fn new(config: QimConfig) -> WatermarkResult<Self> {
+        let codec = PayloadCodec::new(16, 8)?;
+        Ok(Self { config, codec })
     }
 
     /// Embed watermark using QIM.
@@ -236,10 +239,13 @@ pub struct QimDetector {
 
 impl QimDetector {
     /// Create a new QIM detector.
-    #[must_use]
-    pub fn new(config: QimConfig) -> Self {
-        let codec = PayloadCodec::new(16, 8).expect("should succeed in test");
-        Self { config, codec }
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the Reed-Solomon codec cannot be initialised.
+    pub fn new(config: QimConfig) -> WatermarkResult<Self> {
+        let codec = PayloadCodec::new(16, 8)?;
+        Ok(Self { config, codec })
     }
 
     /// Detect and extract watermark.
@@ -405,8 +411,8 @@ mod tests {
             ..Default::default()
         };
 
-        let embedder = QimEmbedder::new(config.clone());
-        let detector = QimDetector::new(config);
+        let embedder = QimEmbedder::new(config.clone()).unwrap();
+        let detector = QimDetector::new(config).unwrap();
 
         let samples: Vec<f32> = vec![0.1; 50000];
         let payload = b"QIM";
@@ -438,8 +444,8 @@ mod tests {
             ..Default::default()
         };
 
-        let embedder = QimEmbedder::new(config.clone());
-        let detector = QimDetector::new(config);
+        let embedder = QimEmbedder::new(config.clone()).unwrap();
+        let detector = QimDetector::new(config).unwrap();
 
         // Use pseudo-random noise for broadband FFT energy across all bins
         // (especially bins 50-499 used for QIM embedding with this config).
@@ -471,7 +477,7 @@ mod tests {
             ..Default::default()
         };
 
-        let embedder = QimEmbedder::new(config);
+        let embedder = QimEmbedder::new(config).unwrap();
 
         let value = 0.55f32;
         let q0 = embedder.quantize(value, false);
@@ -497,7 +503,7 @@ mod tests {
     #[test]
     fn test_capacity() {
         let config = QimConfig::default();
-        let embedder = QimEmbedder::new(config);
+        let embedder = QimEmbedder::new(config).unwrap();
 
         let capacity = embedder.capacity(44100);
         assert!(capacity > 0);

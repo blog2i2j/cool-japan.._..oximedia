@@ -238,8 +238,10 @@ impl DvrBuffer {
         // Remove old segments by time
         while let Some(segment) = self.segments.front() {
             if segment.pts + segment.duration <= cutoff_time {
-                let removed = self.segments.pop_front().expect("segment exists");
-                self.total_size = self.total_size.saturating_sub(removed.data.len() as u64);
+                // Front was confirmed by `while let Some(segment)`.
+                if let Some(removed) = self.segments.pop_front() {
+                    self.total_size = self.total_size.saturating_sub(removed.data.len() as u64);
+                }
             } else {
                 break;
             }

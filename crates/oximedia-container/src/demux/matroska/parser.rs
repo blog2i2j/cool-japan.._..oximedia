@@ -7,6 +7,7 @@
 #![allow(clippy::wildcard_imports)]
 
 use super::ebml::{self, element_id, EbmlElement};
+use super::matroska_v4;
 use super::types::*;
 use oximedia_core::{CodecId, OxiError, OxiResult};
 
@@ -376,6 +377,11 @@ pub fn parse_track_entry(data: &[u8], size: u64) -> OxiResult<TrackEntry> {
             element_id::AUDIO => {
                 let audio_data = parser.read_data(elem_size)?;
                 track.audio = Some(parse_audio_settings(audio_data, element.size)?);
+            }
+            matroska_v4::v4_element_id::BLOCK_ADDITION_MAPPING => {
+                let mapping_data = parser.read_data(elem_size)?;
+                let mapping = matroska_v4::parse_block_addition_mapping(mapping_data)?;
+                track.block_addition_mappings.push(mapping);
             }
             element_id::CONTENT_ENCODINGS => {
                 // Skip content encodings for now (compression/encryption)

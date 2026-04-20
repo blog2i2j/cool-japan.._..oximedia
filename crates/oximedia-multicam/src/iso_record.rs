@@ -160,12 +160,19 @@ mod tests {
 
     // --- IsoChannel ---
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-multicam-iso-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     fn make_channel(state: IsoRecordState) -> IsoChannel {
         IsoChannel {
             angle_id: 1,
             state,
             duration_frames: 300,
-            file_path: "/tmp/iso_cam1.mov".into(),
+            file_path: tmp_str("cam1.mov"),
         }
     }
 
@@ -213,8 +220,8 @@ mod tests {
 
     fn make_manager() -> IsoRecordManager {
         let mut mgr = IsoRecordManager::default();
-        mgr.add_channel(0, "/tmp/cam0.mov");
-        mgr.add_channel(1, "/tmp/cam1.mov");
+        mgr.add_channel(0, &tmp_str("cam0.mov"));
+        mgr.add_channel(1, &tmp_str("mgr_cam1.mov"));
         mgr
     }
 

@@ -4,21 +4,125 @@
 //!
 //! ## Video Codecs
 //!
-//! - **AV1** - Alliance for Open Media codec (primary)
-//! - **VP9** - Google's royalty-free codec
-//! - **VP8** - Google's earlier royalty-free codec
-//! - **Theora** - Xiph.Org Foundation codec (VP3-based)
+//! - **AV1** — Alliance for Open Media codec (primary, feature `av1`)
+//! - **VP9** — Google's royalty-free codec (feature `vp9`)
+//! - **VP8** — Google's earlier royalty-free codec (feature `vp8`)
+//! - **Theora** — Xiph.Org Foundation codec, VP3-based (feature `theora`)
+//! - **MJPEG** — Motion JPEG, one JPEG baseline frame per video frame (feature `mjpeg`)
+//! - **APV** — Advanced Professional Video, ISO/IEC 23009-13 (feature `apv`)
+//! - **FFV1** — Lossless video codec, RFC 9043 (feature `ffv1`)
 //!
 //! ## Audio Codecs
 //!
-//! - **Opus** - Modern low-latency audio codec
+//! - **Opus** — Modern low-latency audio codec (feature `opus`)
+//! - **Vorbis** — Xiph.Org audio codec (always available)
+//! - **FLAC** — Lossless audio (always available)
+//! - **PCM** — Uncompressed audio (always available)
+//!
+//! ## Image Codecs
+//!
+//! - **JPEG-XL** — ISO/IEC 18181, royalty-free (feature `jpegxl`)
+//! - **WebP** — Google royalty-free (always available)
+//! - **GIF** — Patents expired 2004 (always available)
+//! - **PNG** / **APNG** — W3C royalty-free (always available)
+//! - **AVIF** — AV1-based still image format (always available)
+//!
+//! ## Codec Feature Matrix
+//!
+//! Full encode/decode support, bit-depth, and chroma subsampling per codec:
+//!
+//! | Codec | Encode | Decode | Bit Depths | Chroma |
+//! |-------|--------|--------|------------|--------|
+//! | AV1 | ✓ | ✓ | 8, 10, 12 | 4:2:0, 4:4:4 |
+//! | VP9 | ✓ | ✓ | 8, 10 | 4:2:0 |
+//! | VP8 | ✓ | ✓ | 8 | 4:2:0 |
+//! | Theora | ✓ | ✓ | 8 | 4:2:0 |
+//! | MJPEG | ✓ | ✓ | 8 | 4:2:0, 4:2:2, 4:4:4 |
+//! | APV | ✓ | ✓ | 8, 10, 12 | 4:2:0, 4:2:2, 4:4:4 |
+//! | FFV1 | ✓ | ✓ | 8 | 4:2:0, 4:2:2, 4:4:4 |
+//! | H.263 | ✓ | ✓ | 8 | 4:2:0 |
+//! | JPEG-XL | ✓ | ✓ | 8, 10, 12 | 4:2:0, 4:2:2, 4:4:4 |
+//! | AVIF/AV1 | ✓ | ✓ | 8, 10, 12 | 4:2:0, 4:4:4 |
+//! | APNG/PNG | ✓ | ✓ | 8, 16 | RGBA, Grayscale |
+//! | GIF | ✓ | ✓ | 8 | Paletted |
+//! | WebP | ✓ | ✓ | 8 | 4:2:0 (lossy), lossless |
+//! | Opus | ✓ | ✓ | — | Mono/Stereo/Surround |
+//! | Vorbis | ✓ | ✓ | — | Mono/Stereo/Surround |
+//! | FLAC | ✓ | ✓ | 16, 24 | Mono/Stereo/Multi |
+//! | PCM | ✓ | ✓ | 8, 16, 24, 32, f32 | Any |
+//!
+//! Enable optional codecs via Cargo features:
+//!
+//! ```toml
+//! [dependencies]
+//! oximedia-codec = { version = "0.1.4", features = ["av1", "vp9", "opus", "jpegxl"] }
+//! ```
+//!
+//! Available features: `av1` (default), `vp9`, `vp8`, `theora`, `h263`, `opus`,
+//! `ffv1` (default), `jpegxl` (default), `mjpeg`, `apv`, `image-io` (default).
 //!
 //! # Architecture
 //!
 //! All codecs implement unified traits:
 //!
-//! - [`VideoDecoder`] - Decode compressed packets to frames
-//! - [`VideoEncoder`] - Encode frames to compressed packets
+//! - [`VideoDecoder`] — Decode compressed packets to frames
+//! - [`VideoEncoder`] — Encode frames to compressed packets
+//!
+//! ## JPEG-XL: ISOBMFF Container and Streaming Decode
+//!
+//! The `jpegxl` module provides two output paths for animated JXL sequences:
+//!
+//! ### `AnimatedJxlEncoder::finish_isobmff()`
+//!
+//! Wraps the bare JXL codestream in an ISOBMFF container (ISO Base Media File Format):
+//!
+//! - `ftyp` box — major brand `jxl `, compatible brands `jxl ` + `isom`
+//! - `jxll` box — JXL level 5
+//! - `jxlp` box — the bare codestream with the `is_last` bit set
+//!
+//! ```ignore
+//! use oximedia_codec::jpegxl::{AnimatedJxlEncoder, JxlAnimation};
+//!
+//! let anim = JxlAnimation { ticks_per_second: 30, ..Default::default() };
+//! let mut encoder = AnimatedJxlEncoder::new(640, 480, 3, 8, 7, anim);
+//! encoder.add_frame(&frame_rgb, 1)?;
+//!
+//! // Produces ftyp + jxll + jxlp bytes, decodable by JxlStreamingDecoder
+//! let isobmff_bytes: Vec<u8> = encoder.finish_isobmff()?;
+//! ```
+//!
+//! ### `JxlStreamingDecoder<R: Read>` — Streaming Frame Iterator
+//!
+//! `JxlStreamingDecoder` is a lazy frame iterator that auto-detects whether its
+//! source is an ISOBMFF container or a bare native codestream:
+//!
+//! | Format  | Detection | Producer |
+//! |---------|-----------|----------|
+//! | ISOBMFF | `bytes[4..8] == b"ftyp"` and `bytes[8..12] == b"jxl "` | `finish_isobmff()` |
+//! | Native  | `bytes[0..2] == [0xFF, 0x0A]` | `finish()` |
+//!
+//! ```ignore
+//! use oximedia_codec::jpegxl::{AnimatedJxlEncoder, JxlAnimation, JxlStreamingDecoder};
+//! use std::io::Cursor;
+//!
+//! // Encode
+//! let anim = JxlAnimation { ticks_per_second: 30, ..Default::default() };
+//! let mut encoder = AnimatedJxlEncoder::new(640, 480, 3, 8, 7, anim);
+//! encoder.add_frame(&frame_rgb, 1)?;
+//! let bytes = encoder.finish_isobmff()?;
+//!
+//! // Stream-decode frame by frame
+//! for frame_result in JxlStreamingDecoder::new(Cursor::new(bytes))? {
+//!     let frame = frame_result?;
+//!     println!("frame {}x{}", frame.width, frame.height);
+//! }
+//! ```
+//!
+//! ## MJPEG: Baseline JPEG Compliance
+//!
+//! The `mjpeg` module wraps `oximedia-image`'s pure-Rust JPEG baseline encoder and decoder.
+//! The JPEG encoder emits DQT segments with quantization tables in the correct zigzag scan
+//! order and achieves ≥28 dB PSNR at quality 85 for typical natural images.
 //!
 //! # Example
 //!
@@ -159,6 +263,8 @@ pub mod codec_probe;
 pub mod codec_profile;
 pub mod codec_registry;
 pub mod color_range;
+/// ISOBMFF (ISO Base Media File Format) box utilities for container formats.
+pub mod container;
 pub mod entropy_coding;
 pub mod entropy_tables;
 pub mod error;
@@ -259,6 +365,12 @@ pub mod opus;
 #[cfg(feature = "ffv1")]
 pub mod ffv1;
 
+#[cfg(feature = "mjpeg")]
+pub mod mjpeg;
+
+#[cfg(feature = "apv")]
+pub mod apv;
+
 // Re-exports
 pub use audio::{AudioFrame, ChannelLayout, SampleFormat};
 pub use error::{CodecError, CodecResult};
@@ -326,6 +438,12 @@ pub use opus::{OpusDecoder, OpusEncoder, OpusEncoderConfig};
 #[cfg(feature = "ffv1")]
 pub use ffv1::{Ffv1Decoder, Ffv1Encoder};
 
+#[cfg(feature = "mjpeg")]
+pub use mjpeg::{MjpegConfig, MjpegDecoder, MjpegEncoder, MjpegError};
+
+#[cfg(feature = "apv")]
+pub use apv::{ApvConfig, ApvDecoder, ApvEncoder, ApvError};
+
 #[cfg(feature = "image-io")]
 pub use image::{
     convert_rgb_to_yuv420p, convert_yuv420p_to_rgb, rgb_to_yuv, yuv_to_rgb,
@@ -355,7 +473,7 @@ pub use gif::{
 pub use jpegxl::{
     AnsDecoder, AnsDistribution, AnsEncoder, BitReader as JxlBitReader, BitWriter as JxlBitWriter,
     DecodedImage as JxlImage, JxlColorSpace, JxlConfig, JxlDecoder, JxlEncoder, JxlFrameEncoding,
-    JxlHeader, ModularDecoder, ModularEncoder,
+    JxlHeader, JxlStreamingDecoder, ModularDecoder, ModularEncoder,
 };
 
 pub use avif::{AvifConfig, AvifDecoder, AvifEncoder, AvifImage, AvifProbeResult, YuvFormat};

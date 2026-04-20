@@ -47,7 +47,7 @@ whatlang = "0.18"
 
 [dev-dependencies]
 tempfile.workspace = true
-criterion = "0.8"
+criterion = { workspace = true }
 
 [features]
 default = ["all-formats"]

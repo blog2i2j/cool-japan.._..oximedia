@@ -276,10 +276,7 @@ fn median_f32(values: &[f32]) -> f32 {
         return 0.0;
     }
     let mut sorted = values.to_vec();
-    sorted.sort_by(|a, b| {
-        a.partial_cmp(b)
-            .expect("invariant: quality metric values are finite f32")
-    });
+    sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let mid = sorted.len() / 2;
     if sorted.len() % 2 == 0 {
         (sorted[mid - 1] + sorted[mid]) * 0.5

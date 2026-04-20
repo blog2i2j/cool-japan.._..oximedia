@@ -152,16 +152,15 @@ impl<T: std::fmt::Debug + Send + 'static> BatchQueue<T> {
         self.max_concurrent
     }
 
-    /// Acquire a concurrency slot (blocks until one is available)
+    /// Acquire a concurrency slot (blocks until one is available).
     ///
-    /// # Panics
-    ///
-    /// Panics if the semaphore has been closed.
+    /// The internal semaphore is never explicitly closed, so this can only fail
+    /// in the event of programmer error (e.g. closing the semaphore manually).
     pub async fn acquire_slot(&self) -> tokio::sync::OwnedSemaphorePermit {
         Arc::clone(&self.semaphore)
             .acquire_owned()
             .await
-            .expect("semaphore closed")
+            .unwrap_or_else(|_| unreachable!("BatchQueue semaphore is never closed"))
     }
 }
 
@@ -380,7 +379,7 @@ impl BatchProcessor {
             let permit = Arc::clone(&semaphore)
                 .acquire_owned()
                 .await
-                .expect("semaphore closed");
+                .unwrap_or_else(|_| unreachable!("local semaphore is never closed"));
             let completed = Arc::clone(&completed);
             let succeeded = Arc::clone(&succeeded);
             let failed = Arc::clone(&failed);

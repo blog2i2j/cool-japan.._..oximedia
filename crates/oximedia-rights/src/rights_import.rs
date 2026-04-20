@@ -198,10 +198,18 @@ impl RightsImporter {
             }
         }
 
-        let idx_record_id = idx_record_id.expect("required");
-        let idx_asset_id = idx_asset_id.expect("required");
-        let idx_holder = idx_holder.expect("required");
-        let idx_granted_at = idx_granted_at.expect("required");
+        let idx_record_id = idx_record_id.ok_or_else(|| {
+            RightsError::Serialization("Missing required CSV column: record_id".into())
+        })?;
+        let idx_asset_id = idx_asset_id.ok_or_else(|| {
+            RightsError::Serialization("Missing required CSV column: asset_id".into())
+        })?;
+        let idx_holder = idx_holder.ok_or_else(|| {
+            RightsError::Serialization("Missing required CSV column: holder".into())
+        })?;
+        let idx_granted_at = idx_granted_at.ok_or_else(|| {
+            RightsError::Serialization("Missing required CSV column: granted_at".into())
+        })?;
 
         let mut records = Vec::new();
         let mut errors = Vec::new();

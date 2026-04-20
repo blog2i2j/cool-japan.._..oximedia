@@ -248,7 +248,14 @@ mod tests {
     #[test]
     fn test_remove_entry() {
         let mut idx = build_index();
-        let id_to_remove = idx.add("/tmp/extra", 42, "application/octet-stream");
+        let id_to_remove = idx.add(
+            std::env::temp_dir()
+                .join("oximedia-archive-extra")
+                .to_string_lossy()
+                .as_ref(),
+            42,
+            "application/octet-stream",
+        );
         assert!(idx.remove(id_to_remove));
         assert!(idx.get(id_to_remove).is_none());
     }

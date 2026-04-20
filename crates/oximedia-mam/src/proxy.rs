@@ -1333,6 +1333,13 @@ impl ManifestBuilder {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-mam-proxy-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_proxy_resolution_dimensions() {
         assert_eq!(ProxyResolution::P360.dimensions(), (640, 360));
@@ -1440,14 +1447,14 @@ mod tests {
         let config = AbrProxyConfig::builder(asset_id)
             .protocol(StreamingProtocol::Dash)
             .segment_duration(4)
-            .output_dir("/tmp/abr_test")
+            .output_dir(tmp_str("abr_test"))
             .select_labels(vec!["720p".to_string()])
             .build();
 
         assert_eq!(config.asset_id, asset_id);
         assert_eq!(config.protocol, StreamingProtocol::Dash);
         assert_eq!(config.segment_duration_secs, 4);
-        assert_eq!(config.output_dir, "/tmp/abr_test");
+        assert_eq!(config.output_dir, tmp_str("abr_test"));
         assert_eq!(config.selected_labels, vec!["720p".to_string()]);
     }
 
@@ -1456,7 +1463,7 @@ mod tests {
         let asset_id = uuid::Uuid::new_v4();
         let config = AbrProxyConfig::builder(asset_id)
             .protocol(StreamingProtocol::Hls)
-            .output_dir("/tmp/hls_out")
+            .output_dir(tmp_str("hls_out"))
             .build();
         let ladder = AbrLadder::broadcast();
         let set = AbrProxySet::new(config, &ladder);
@@ -1472,7 +1479,7 @@ mod tests {
         let asset_id = uuid::Uuid::new_v4();
         let config = AbrProxyConfig::builder(asset_id)
             .protocol(StreamingProtocol::Dash)
-            .output_dir("/tmp/dash_out")
+            .output_dir(tmp_str("dash_out"))
             .build();
         let ladder = AbrLadder::broadcast();
         let set = AbrProxySet::new(config, &ladder);
@@ -1484,7 +1491,7 @@ mod tests {
     fn test_abr_proxy_set_selected_labels() {
         let asset_id = uuid::Uuid::new_v4();
         let config = AbrProxyConfig::builder(asset_id)
-            .output_dir("/tmp/sel_out")
+            .output_dir(tmp_str("sel_out"))
             .select_labels(vec!["720p".to_string()])
             .build();
         let ladder = AbrLadder::broadcast();
@@ -1498,7 +1505,7 @@ mod tests {
     fn test_abr_proxy_set_mark_ready() {
         let asset_id = uuid::Uuid::new_v4();
         let config = AbrProxyConfig::builder(asset_id)
-            .output_dir("/tmp/rdy_out")
+            .output_dir(tmp_str("rdy_out"))
             .build();
         let ladder = AbrLadder::broadcast();
         let mut set = AbrProxySet::new(config, &ladder);
@@ -1518,7 +1525,7 @@ mod tests {
     fn test_abr_proxy_set_mark_failed() {
         let asset_id = uuid::Uuid::new_v4();
         let config = AbrProxyConfig::builder(asset_id)
-            .output_dir("/tmp/fail_out")
+            .output_dir(tmp_str("fail_out"))
             .build();
         let ladder = AbrLadder::broadcast();
         let mut set = AbrProxySet::new(config, &ladder);

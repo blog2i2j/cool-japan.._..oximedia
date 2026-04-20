@@ -476,15 +476,19 @@ fn laplacian_pyramid_blend(
     alpha_pyr.push((alpha.to_vec(), w, h));
 
     for _ in 0..levels {
-        let (prev_a, pw, ph) = gauss_a.last().expect("non-empty");
-        let (down_a, dw, dh) = downsample_half(prev_a, *pw, *ph);
-        let (prev_b, _, _) = gauss_b.last().expect("non-empty");
-        let (down_b, _, _) = downsample_half(prev_b, *pw, *ph);
+        // SAFETY: gauss_a/gauss_b/alpha_pyr all received an initial push before this loop
+        let (prev_a, pw, ph) = &gauss_a[gauss_a.len() - 1];
+        let (pw, ph) = (*pw, *ph);
+        let (down_a, dw, dh) = downsample_half(prev_a, pw, ph);
+        let (prev_b, _, _) = &gauss_b[gauss_b.len() - 1];
+        let (down_b, _, _) = downsample_half(prev_b, pw, ph);
 
         // Downsample alpha by averaging 2×2 blocks.
         // downsample_half expects 3-channel RGB, so expand alpha to 3 channels,
         // downsample, then extract every 3rd value (all channels are equal).
-        let (prev_alpha, aw, ah) = alpha_pyr.last().expect("non-empty");
+        // SAFETY: alpha_pyr received an initial push before this loop
+        let (prev_alpha, aw, ah) = &alpha_pyr[alpha_pyr.len() - 1];
+        let (aw, ah) = (*aw, *ah);
         let alpha_rgb: Vec<u8> = prev_alpha
             .iter()
             .flat_map(|&v| {
@@ -492,7 +496,7 @@ fn laplacian_pyramid_blend(
                 [byte, byte, byte]
             })
             .collect();
-        let (tmp_u8, _, _) = downsample_half(&alpha_rgb, *aw, *ah);
+        let (tmp_u8, _, _) = downsample_half(&alpha_rgb, aw, ah);
         let down_alpha: Vec<f32> = tmp_u8
             .chunks_exact(3)
             .map(|c| c[0] as f32 / 255.0)

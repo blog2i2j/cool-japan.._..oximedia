@@ -336,8 +336,8 @@ impl DedupWindow {
 /// };
 /// let mut mgr = SrtGroupManager::new(config);
 ///
-/// let addr: SocketAddr = "192.168.1.10:9000".parse().unwrap();
-/// mgr.add_member(addr, MemberRole::Active, 0).unwrap();
+/// let addr: SocketAddr = "192.168.1.10:9000".parse().expect("valid socket address literal");
+/// mgr.add_member(addr, MemberRole::Active, 0).expect("group is empty, add_member should succeed");
 ///
 /// // Determine which members should receive a packet with seq 42.
 /// let targets = mgr.send_targets(42);
@@ -614,7 +614,9 @@ mod tests {
     use super::*;
 
     fn addr(port: u16) -> SocketAddr {
-        format!("127.0.0.1:{port}").parse().unwrap()
+        format!("127.0.0.1:{port}")
+            .parse()
+            .expect("test address literal is always valid")
     }
 
     fn broadcast_mgr() -> SrtGroupManager {
@@ -624,7 +626,9 @@ mod tests {
     #[test]
     fn test_add_member_and_count() {
         let mut mgr = broadcast_mgr();
-        let id = mgr.add_member(addr(9000), MemberRole::Active, 0).unwrap();
+        let id = mgr
+            .add_member(addr(9000), MemberRole::Active, 0)
+            .expect("group is not full");
         assert_eq!(id, 1);
         assert_eq!(mgr.member_count_with_role(MemberRole::Active), 1);
     }
@@ -632,24 +636,29 @@ mod tests {
     #[test]
     fn test_remove_member() {
         let mut mgr = broadcast_mgr();
-        let id = mgr.add_member(addr(9000), MemberRole::Active, 0).unwrap();
-        mgr.remove_member(id).unwrap();
+        let id = mgr
+            .add_member(addr(9000), MemberRole::Active, 0)
+            .expect("group is not full");
+        mgr.remove_member(id).expect("member was just added");
         assert_eq!(mgr.member_count_with_role(MemberRole::Active), 0);
     }
 
     #[test]
     fn test_remove_unknown_member_returns_error() {
         let mut mgr = broadcast_mgr();
-        let err = mgr.remove_member(99).unwrap_err();
+        let err = mgr.remove_member(99).expect_err("member 99 does not exist");
         assert!(matches!(err, NetError::NotFound(_)));
     }
 
     #[test]
     fn test_broadcast_targets_all_active() {
         let mut mgr = broadcast_mgr();
-        mgr.add_member(addr(9001), MemberRole::Active, 0).unwrap();
-        mgr.add_member(addr(9002), MemberRole::Active, 1).unwrap();
-        mgr.add_member(addr(9003), MemberRole::Standby, 2).unwrap();
+        mgr.add_member(addr(9001), MemberRole::Active, 0)
+            .expect("group is not full");
+        mgr.add_member(addr(9002), MemberRole::Active, 1)
+            .expect("group is not full");
+        mgr.add_member(addr(9003), MemberRole::Standby, 2)
+            .expect("group is not full");
 
         let targets = mgr.send_targets(1);
         assert_eq!(targets.len(), 2, "only Active members are targeted");
@@ -658,8 +667,11 @@ mod tests {
     #[test]
     fn test_main_backup_targets_lowest_priority_active() {
         let mut mgr = SrtGroupManager::new(GroupConfig::main_backup());
-        mgr.add_member(addr(9001), MemberRole::Active, 10).unwrap();
-        let hi_prio = mgr.add_member(addr(9002), MemberRole::Active, 1).unwrap();
+        mgr.add_member(addr(9001), MemberRole::Active, 10)
+            .expect("group is not full");
+        let hi_prio = mgr
+            .add_member(addr(9002), MemberRole::Active, 1)
+            .expect("group is not full");
 
         let targets = mgr.send_targets(1);
         assert_eq!(
@@ -672,7 +684,9 @@ mod tests {
     #[test]
     fn test_main_backup_fallback_to_standby() {
         let mut mgr = SrtGroupManager::new(GroupConfig::main_backup());
-        let sb = mgr.add_member(addr(9001), MemberRole::Standby, 0).unwrap();
+        let sb = mgr
+            .add_member(addr(9001), MemberRole::Standby, 0)
+            .expect("group is not full");
 
         let targets = mgr.send_targets(1);
         assert_eq!(targets, vec![sb], "should fall back to standby");
@@ -681,10 +695,12 @@ mod tests {
     #[test]
     fn test_dedup_window_rejects_duplicate_seq() {
         let mut mgr = broadcast_mgr();
-        let id = mgr.add_member(addr(9001), MemberRole::Active, 0).unwrap();
+        let id = mgr
+            .add_member(addr(9001), MemberRole::Active, 0)
+            .expect("group is not full");
 
-        let first = mgr.receive(id, 100, 1316).unwrap();
-        let dup = mgr.receive(id, 100, 1316).unwrap();
+        let first = mgr.receive(id, 100, 1316).expect("member exists");
+        let dup = mgr.receive(id, 100, 1316).expect("member exists");
 
         assert!(first, "first packet should be accepted");
         assert!(!dup, "duplicate should be rejected");
@@ -694,17 +710,26 @@ mod tests {
     #[test]
     fn test_receive_unknown_member_returns_error() {
         let mut mgr = broadcast_mgr();
-        let err = mgr.receive(999, 1, 100).unwrap_err();
+        let err = mgr
+            .receive(999, 1, 100)
+            .expect_err("member 999 does not exist");
         assert!(matches!(err, NetError::NotFound(_)));
     }
 
     #[test]
     fn test_health_update_and_score() {
         let mut mgr = broadcast_mgr();
-        let id = mgr.add_member(addr(9001), MemberRole::Active, 0).unwrap();
-        mgr.update_health(id, 20.0, 0.0, 10_000_000).unwrap();
+        let id = mgr
+            .add_member(addr(9001), MemberRole::Active, 0)
+            .expect("group is not full");
+        mgr.update_health(id, 20.0, 0.0, 10_000_000)
+            .expect("member was just added");
 
-        let score = mgr.member(id).unwrap().health.score();
+        let score = mgr
+            .member(id)
+            .expect("member was just added")
+            .health
+            .score();
         assert!(
             score > 0.9,
             "healthy member should score > 0.9, got {score}"
@@ -721,20 +746,27 @@ mod tests {
         };
         let mut mgr = SrtGroupManager::new(config);
 
-        let main = mgr.add_member(addr(9001), MemberRole::Active, 0).unwrap();
-        let backup = mgr.add_member(addr(9002), MemberRole::Standby, 1).unwrap();
+        let main = mgr
+            .add_member(addr(9001), MemberRole::Active, 0)
+            .expect("group is not full");
+        let backup = mgr
+            .add_member(addr(9002), MemberRole::Standby, 1)
+            .expect("group is not full");
 
         // Inject bad health into main.
-        mgr.update_health(main, 200.0, 0.5, 1_000_000).unwrap();
+        mgr.update_health(main, 200.0, 0.5, 1_000_000)
+            .expect("member was just added");
 
         // Main should now be standby, backup should be active.
         assert_eq!(
-            mgr.member(main).unwrap().role,
+            mgr.member(main).expect("member was just added").role,
             MemberRole::Standby,
             "degraded main should become standby"
         );
         assert_eq!(
-            mgr.member(backup).unwrap().role,
+            mgr.member(backup)
+                .expect("backup member was just added")
+                .role,
             MemberRole::Active,
             "backup should be promoted"
         );
@@ -748,11 +780,13 @@ mod tests {
             ..GroupConfig::default()
         };
         let mut mgr = SrtGroupManager::new(config);
-        mgr.add_member(addr(9001), MemberRole::Active, 0).unwrap();
-        mgr.add_member(addr(9002), MemberRole::Active, 1).unwrap();
+        mgr.add_member(addr(9001), MemberRole::Active, 0)
+            .expect("group limit is 2, first add succeeds");
+        mgr.add_member(addr(9002), MemberRole::Active, 1)
+            .expect("group limit is 2, second add succeeds");
         let err = mgr
             .add_member(addr(9003), MemberRole::Active, 2)
-            .unwrap_err();
+            .expect_err("group is full, third add must fail");
         assert!(matches!(err, NetError::InvalidState(_)));
     }
 
@@ -766,10 +800,12 @@ mod tests {
     #[test]
     fn test_stats_after_successful_receives() {
         let mut mgr = broadcast_mgr();
-        let id = mgr.add_member(addr(9001), MemberRole::Active, 0).unwrap();
+        let id = mgr
+            .add_member(addr(9001), MemberRole::Active, 0)
+            .expect("group is not full");
 
         for seq in 1..=5u32 {
-            mgr.receive(id, seq, 1316).unwrap();
+            mgr.receive(id, seq, 1316).expect("member exists");
         }
 
         assert_eq!(mgr.stats().packets_delivered, 5);

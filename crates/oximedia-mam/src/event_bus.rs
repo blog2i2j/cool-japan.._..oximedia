@@ -166,7 +166,7 @@ impl EventBus {
         };
         self.subscriptions
             .lock()
-            .expect("subscriptions lock poisoned")
+            .unwrap_or_else(|p| p.into_inner())
             .insert(id.clone(), (sub, handler));
         id
     }
@@ -177,7 +177,7 @@ impl EventBus {
     pub fn unsubscribe(&self, sub_id: &str) -> bool {
         self.subscriptions
             .lock()
-            .expect("subscriptions lock poisoned")
+            .unwrap_or_else(|p| p.into_inner())
             .remove(sub_id)
             .is_some()
     }
@@ -190,10 +190,7 @@ impl EventBus {
         // Collect matching handlers — clone Arc refs so we can call them
         // without holding the lock.
         let handlers: Vec<Arc<dyn Fn(&MamEvent) + Send + Sync>> = {
-            let guard = self
-                .subscriptions
-                .lock()
-                .expect("subscriptions lock poisoned");
+            let guard = self.subscriptions.lock().unwrap_or_else(|p| p.into_inner());
             guard
                 .values()
                 .filter(|(sub, _)| Self::matches_pattern(&sub.event_pattern, event_type))
@@ -214,10 +211,7 @@ impl EventBus {
         // Call handlers while holding the lock (handlers are Send+Sync, and we
         // don't re-enter the bus from within a handler in production usage).
         {
-            let guard = self
-                .subscriptions
-                .lock()
-                .expect("subscriptions lock poisoned");
+            let guard = self.subscriptions.lock().unwrap_or_else(|p| p.into_inner());
             for (sub, handler) in guard.values() {
                 if Self::matches_pattern(&sub.event_pattern, event_type) {
                     handler(&event);
@@ -227,10 +221,7 @@ impl EventBus {
 
         // Append to history, respecting max_history.
         {
-            let mut hist = self
-                .event_history
-                .lock()
-                .expect("event_history lock poisoned");
+            let mut hist = self.event_history.lock().unwrap_or_else(|p| p.into_inner());
             hist.push((SystemTime::now(), event));
             if hist.len() > self.max_history {
                 let overflow = hist.len() - self.max_history;
@@ -244,7 +235,7 @@ impl EventBus {
     pub fn history(&self) -> Vec<(SystemTime, MamEvent)> {
         self.event_history
             .lock()
-            .expect("event_history lock poisoned")
+            .unwrap_or_else(|p| p.into_inner())
             .clone()
     }
 
@@ -253,7 +244,7 @@ impl EventBus {
     pub fn subscription_count(&self) -> usize {
         self.subscriptions
             .lock()
-            .expect("subscriptions lock poisoned")
+            .unwrap_or_else(|p| p.into_inner())
             .len()
     }
 

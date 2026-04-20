@@ -351,7 +351,9 @@ impl EnhancedRtmpNegotiator {
         let session = self.negotiate_session(server_connect);
         self.state = NegotiatorState::Connected;
         self.session = Some(session);
-        Ok(self.session.as_ref().expect("just set"))
+        self.session
+            .as_ref()
+            .ok_or_else(|| NetError::invalid_state("session failed to initialise"))
     }
 
     /// **Server side**: Processes the client's `connect` command.

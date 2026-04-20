@@ -39,6 +39,8 @@ impl CodecMatrix {
             CodecId::H263 => matches!(container.as_str(), "3gp" | "mkv"),
             CodecId::Ffv1 => matches!(container.as_str(), "mkv" | "nut"),
             CodecId::RawVideo => matches!(container.as_str(), "y4m" | "mkv" | "avi"),
+            CodecId::Mjpeg => matches!(container.as_str(), "mov" | "mkv" | "avi" | "mp4"),
+            CodecId::Apv => matches!(container.as_str(), "mp4" | "isobmff" | "mkv"),
             CodecId::Opus => matches!(container.as_str(), "webm" | "mkv" | "ogg" | "opus"),
             CodecId::Vorbis => matches!(container.as_str(), "webm" | "mkv" | "ogg"),
             CodecId::Flac => matches!(
@@ -74,6 +76,8 @@ impl CodecMatrix {
             CodecId::H263 => &["3gp", "mkv"],
             CodecId::Ffv1 => &["mkv", "nut"],
             CodecId::RawVideo => &["y4m", "mkv"],
+            CodecId::Mjpeg => &["mov", "mkv", "avi", "mp4"],
+            CodecId::Apv => &["mp4", "isobmff", "mkv"],
             CodecId::Opus => &["webm", "mkv", "ogg", "opus"],
             CodecId::Vorbis => &["webm", "mkv", "ogg"],
             CodecId::Flac => &["flac", "mkv", "ogg"],

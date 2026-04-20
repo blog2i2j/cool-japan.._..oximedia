@@ -129,7 +129,7 @@ impl SimpleMetricsCollector {
     /// In a production implementation this would query `sysinfo` or similar;
     /// here callers supply values directly (useful in tests and simulations).
     pub fn poll(&self, cpu_percent: f64, memory_mb: f64, disk_io_mbps: f64) {
-        let mut state = self.inner.lock().expect("collector lock poisoned");
+        let mut state = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         state.cpu_percent = cpu_percent;
         state.memory_mb = memory_mb;
         state.disk_io_mbps = disk_io_mbps;
@@ -138,14 +138,14 @@ impl SimpleMetricsCollector {
 
     /// Record metrics for a specific codec.
     pub fn poll_codec(&self, metrics: CodecMetrics) {
-        let mut state = self.inner.lock().expect("collector lock poisoned");
+        let mut state = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         state.codecs.insert(metrics.codec_name.clone(), metrics);
     }
 
     /// Return a snapshot of the current metrics.
     #[must_use]
     pub fn snapshot(&self) -> SimpleMetricsSnapshot {
-        let state = self.inner.lock().expect("collector lock poisoned");
+        let state = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         SimpleMetricsSnapshot {
             timestamp: Utc::now(),
             cpu_percent: state.cpu_percent,
@@ -160,7 +160,7 @@ impl SimpleMetricsCollector {
     pub fn poll_count(&self) -> u64 {
         self.inner
             .lock()
-            .expect("collector lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .poll_count
     }
 }
@@ -292,7 +292,10 @@ impl SimpleAlertManager {
 
     /// Register a rule.
     pub fn add_rule(&self, rule: SimpleAlertRule) {
-        self.rules.lock().expect("rules lock poisoned").push(rule);
+        self.rules
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .push(rule);
     }
 
     /// Evaluate all rules against a named metric value.
@@ -301,8 +304,8 @@ impl SimpleAlertManager {
     /// Returns the number of rules that fired.
     #[must_use]
     pub fn evaluate(&self, metric_key: &str, value: f64) -> usize {
-        let rules = self.rules.lock().expect("rules lock poisoned");
-        let mut history = self.history.lock().expect("history lock poisoned");
+        let rules = self.rules.lock().unwrap_or_else(|e| e.into_inner());
+        let mut history = self.history.lock().unwrap_or_else(|e| e.into_inner());
         let mut fired = 0usize;
 
         for rule in rules.iter() {
@@ -331,18 +334,24 @@ impl SimpleAlertManager {
     /// Return the full firing history.
     #[must_use]
     pub fn history(&self) -> Vec<FiredAlert> {
-        self.history.lock().expect("history lock poisoned").clone()
+        self.history
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// Clear the history.
     pub fn clear_history(&self) {
-        self.history.lock().expect("history lock poisoned").clear();
+        self.history
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clear();
     }
 
     /// Number of registered rules.
     #[must_use]
     pub fn rule_count(&self) -> usize {
-        self.rules.lock().expect("rules lock poisoned").len()
+        self.rules.lock().unwrap_or_else(|e| e.into_inner()).len()
     }
 }
 

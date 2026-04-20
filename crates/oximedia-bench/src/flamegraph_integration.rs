@@ -789,14 +789,12 @@ mod tests {
 
     #[test]
     fn test_config_paths() {
+        let dir = std::env::temp_dir().join("oximedia-bench-flamegraph-fg");
         let cfg = FlamegraphConfig::new()
-            .with_output_dir("/tmp/fg")
+            .with_output_dir(dir.clone())
             .with_output_basename("codec_bench");
-        assert_eq!(
-            cfg.folded_stack_path(),
-            PathBuf::from("/tmp/fg/codec_bench.folded")
-        );
-        assert_eq!(cfg.svg_path(), PathBuf::from("/tmp/fg/codec_bench.svg"));
+        assert_eq!(cfg.folded_stack_path(), dir.join("codec_bench.folded"));
+        assert_eq!(cfg.svg_path(), dir.join("codec_bench.svg"));
     }
 
     #[test]

@@ -499,7 +499,9 @@ impl<R: Read + Seek> CafDemuxer<R> {
         self.read_position = data_offset;
         self.source.seek(SeekFrom::Start(data_offset))?;
 
-        Ok(self.info.as_ref().expect("just set"))
+        self.info
+            .as_ref()
+            .ok_or_else(|| CafError::MalformedChunk("info failed to populate".to_string()))
     }
 
     /// Return parsed file info.

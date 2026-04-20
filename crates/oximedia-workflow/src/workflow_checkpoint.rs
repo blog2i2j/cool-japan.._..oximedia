@@ -277,10 +277,14 @@ mod tests {
     #[test]
     fn test_checkpoint_state() {
         let mut cp = Checkpoint::new(1, "wf-001");
-        cp.set_state("output_path", "/tmp/out.mp4");
+        let out = std::env::temp_dir()
+            .join("oximedia-workflow-cp-out.mp4")
+            .to_string_lossy()
+            .into_owned();
+        cp.set_state("output_path", &out);
         assert_eq!(
             cp.get_state("output_path").expect("should succeed in test"),
-            "/tmp/out.mp4"
+            &out
         );
         assert!(cp.get_state("missing").is_none());
     }

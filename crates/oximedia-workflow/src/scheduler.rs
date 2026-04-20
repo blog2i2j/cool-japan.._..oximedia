@@ -440,7 +440,7 @@ mod tests {
     #[tokio::test]
     async fn test_file_watcher() {
         let watcher = FileWatcher::new();
-        let path = PathBuf::from("/tmp/test");
+        let path = std::env::temp_dir().join("oximedia-workflow-scheduler-test");
         let workflow_id = WorkflowId::new();
 
         watcher

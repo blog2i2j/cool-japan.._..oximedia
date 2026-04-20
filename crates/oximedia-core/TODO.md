@@ -11,19 +11,30 @@
 - WASM support via feature gate
 
 ## Enhancements
-- [ ] Add Timestamp arithmetic operations (add, sub, multiply by Rational) with overflow protection
-- [ ] Extend `PixelFormat` in `types/pixel_format.rs` with NV12, NV21, P010, P016 for hardware interop
-- [ ] Add `SampleFormat` support for 24-bit and 64-bit float in `types/sample_format.rs`
-- [ ] Extend `codec_negotiation.rs` with automatic format negotiation between encoder and decoder
-- [ ] Improve `error_context.rs` with structured error context chain (file, function, line info)
-- [ ] Add `ChannelLayout` presets for Atmos and surround configurations in `channel_layout.rs`
+- [x] Add Timestamp arithmetic operations (add, sub, multiply by Rational) with overflow protection
+- [x] Extend `PixelFormat` in `types/pixel_format.rs` with NV12, NV21, P010, P016 for hardware interop
+- [x] Add `SampleFormat` support for 24-bit and 64-bit float in `types/sample_format.rs`
+- [x] Extend `codec_negotiation.rs` with automatic format negotiation between encoder and decoder
+- [x] Improve `error_context.rs` with structured error context chain (file, function, line info)
+- [x] Add `ChannelLayout` presets for Atmos and surround configurations in `channel_layout.rs`
 - [ ] Extend `buffer_pool.rs` with memory pressure callbacks and automatic pool shrinking
-- [ ] Add `CodecId` variants for all supported codecs (currently missing some like WebP, GIF, JPEG-XL)
+- [x] Add `CodecId` variants for all supported codecs (currently missing some like WebP, GIF, JPEG-XL)
+
+## Wave 3 Progress (2026-04-17)
+- [x] PixelFormat HW interop variants: NV12, NV21, P010, P016 — Slice E of /ultra Wave 3 (2026-04-17)
+- [x] SampleFormat extensions: S24 (3-byte packed LE), F64 (IEEE-754 double) — Slice E of /ultra Wave 3 (2026-04-17)
+- [x] CodecId new variants: WebP, Gif, Jxl (still-image JXL) — Slice E of /ultra Wave 3 (2026-04-17)
+- [x] Typed FourCc struct + ~30 codec fourcc constants — Slice E of /ultra Wave 3 (2026-04-17)
+
+## Wave 4 Progress (2026-04-18)
+- [x] timestamp-arith: duration_add/duration_sub/scale_by with saturating arithmetic — Wave 4 Slice C
+- [x] channel-layout-atmos: Surround714, Surround916, DolbyAtmosBed9_1_6 variants — Wave 4 Slice C
+- [x] pixfmt-color-meta: ColorPrimaries, TransferCharacteristics, MatrixCoefficients enums + ColorSpace integration — Wave 4 Slice C
 
 ## New Features
 - [ ] Implement zero-copy frame sharing between crates using `resource_handle.rs` with ref-counted buffers
 - [ ] Add media duration/bitrate estimation utilities in `media_time.rs`
-- [ ] Implement typed FourCC constants for all supported codecs in `fourcc.rs`
+- [x] Implement typed FourCC constants for all supported codecs in `fourcc.rs`
 - [ ] Add `sync.rs` inter-thread synchronization primitives optimized for media pipelines (bounded channel with backpressure)
 - [ ] Implement frame pool with configurable pre-allocation for low-latency pipelines in `alloc/`
 - [ ] Add color primaries and matrix coefficients to `PixelFormat` metadata

@@ -125,25 +125,24 @@ impl GpsDataPoint {
     ///
     /// # Errors
     ///
-    /// Returns `Err` if the data is too short or contains invalid coordinate values.
-    ///
-    /// # Panics
-    ///
-    /// Panics if byte slice conversion fails (should not happen given the length check).
+    /// Returns `Err` if the data is too short, if slice conversion fails, or contains invalid coordinate values.
     pub fn from_bytes(data: &[u8]) -> OxiResult<Self> {
         if data.len() < 57 {
             return Err(OxiError::InvalidData("GPS data too short".into()));
         }
 
-        let latitude = f64::from_be_bytes(data[0..8].try_into().expect("slice length checked"));
-        let longitude = f64::from_be_bytes(data[8..16].try_into().expect("slice length checked"));
-        let altitude = f64::from_be_bytes(data[16..24].try_into().expect("slice length checked"));
-        let speed = f64::from_be_bytes(data[24..32].try_into().expect("slice length checked"));
-        let heading = f64::from_be_bytes(data[32..40].try_into().expect("slice length checked"));
-        let horizontal_accuracy =
-            f64::from_be_bytes(data[40..48].try_into().expect("slice length checked"));
-        let vertical_accuracy =
-            f64::from_be_bytes(data[48..56].try_into().expect("slice length checked"));
+        let conv = |s: &[u8]| -> OxiResult<[u8; 8]> {
+            s.try_into()
+                .map_err(|_| OxiError::InvalidData("GPS slice conversion failed".into()))
+        };
+
+        let latitude = f64::from_be_bytes(conv(&data[0..8])?);
+        let longitude = f64::from_be_bytes(conv(&data[8..16])?);
+        let altitude = f64::from_be_bytes(conv(&data[16..24])?);
+        let speed = f64::from_be_bytes(conv(&data[24..32])?);
+        let heading = f64::from_be_bytes(conv(&data[32..40])?);
+        let horizontal_accuracy = f64::from_be_bytes(conv(&data[40..48])?);
+        let vertical_accuracy = f64::from_be_bytes(conv(&data[48..56])?);
         let satellites = data[56];
 
         let coordinate = GpsCoordinate::new(latitude, longitude, altitude)?;

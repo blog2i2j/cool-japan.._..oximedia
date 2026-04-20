@@ -342,9 +342,10 @@ mod tests {
             verify_after_repair: false,
             ..Default::default()
         };
+        let tmp = std::env::temp_dir();
         let paths = vec![
-            PathBuf::from("/tmp/nonexistent_repair_test_1.bin"),
-            PathBuf::from("/tmp/nonexistent_repair_test_2.bin"),
+            tmp.join("oximedia-repair-parallel-nonexistent_repair_test_1.bin"),
+            tmp.join("oximedia-repair-parallel-nonexistent_repair_test_2.bin"),
         ];
         let (outcomes, stats) = engine
             .repair_batch(&paths, &options)
@@ -473,9 +474,10 @@ mod tests {
             ..Default::default()
         };
         // First file doesn't exist, second should be skipped
+        let tmp = std::env::temp_dir();
         let paths = vec![
-            PathBuf::from("/tmp/nonexistent_ff_1.bin"),
-            PathBuf::from("/tmp/nonexistent_ff_2.bin"),
+            tmp.join("oximedia-repair-parallel-nonexistent_ff_1.bin"),
+            tmp.join("oximedia-repair-parallel-nonexistent_ff_2.bin"),
         ];
         let (outcomes, stats) = engine
             .repair_batch(&paths, &options)

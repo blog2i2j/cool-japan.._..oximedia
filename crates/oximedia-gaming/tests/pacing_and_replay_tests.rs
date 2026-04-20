@@ -336,8 +336,9 @@ fn test_all_save_formats() {
 #[tokio::test]
 async fn test_save_replay() {
     let saver = ReplaySaver::default();
+    let p = std::env::temp_dir().join("oximedia-gaming-pacing-replay.webm");
     saver
-        .save("/tmp/test_replay.webm")
+        .save(p.to_string_lossy().as_ref())
         .await
         .expect("save should succeed");
 }
@@ -350,10 +351,17 @@ fn test_replay_saver_defaults() {
 
 #[tokio::test]
 async fn test_save_with_different_formats() {
+    let tmp = std::env::temp_dir();
+    let webm = tmp.join("oximedia-gaming-pacing-test.webm");
+    let mkv = tmp.join("oximedia-gaming-pacing-test.mkv");
+    let mp4 = tmp.join("oximedia-gaming-pacing-test.mp4");
+    let webm_s = webm.to_string_lossy().into_owned();
+    let mkv_s = mkv.to_string_lossy().into_owned();
+    let mp4_s = mp4.to_string_lossy().into_owned();
     let formats = [
-        (SaveFormat::WebM, "/tmp/test.webm"),
-        (SaveFormat::Mkv, "/tmp/test.mkv"),
-        (SaveFormat::Mp4, "/tmp/test.mp4"),
+        (SaveFormat::WebM, webm_s.as_str()),
+        (SaveFormat::Mkv, mkv_s.as_str()),
+        (SaveFormat::Mp4, mp4_s.as_str()),
     ];
 
     for (format, path) in formats {

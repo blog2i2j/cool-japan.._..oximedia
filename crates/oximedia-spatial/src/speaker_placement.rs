@@ -333,21 +333,24 @@ impl ValidationReport {
 /// # Usage
 ///
 /// ```rust
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// use oximedia_spatial::speaker_placement::{
 ///     PlacementAdvisor, LayoutFormat, Speaker, ChannelLabel,
 /// };
 ///
 /// let advisor = PlacementAdvisor::new(LayoutFormat::FiveOneZero);
 /// let speakers = vec![
-///     Speaker::new(ChannelLabel::Left,         30.0,    0.0, 3.0).unwrap(),
-///     Speaker::new(ChannelLabel::Right,        -30.0,   0.0, 3.0).unwrap(),
-///     Speaker::new(ChannelLabel::Centre,         0.0,   0.0, 3.0).unwrap(),
-///     Speaker::new(ChannelLabel::LeftSurround,  115.0,  0.0, 2.5).unwrap(),
-///     Speaker::new(ChannelLabel::RightSurround,-110.0,  0.0, 2.5).unwrap(),
-///     Speaker::new(ChannelLabel::Lfe,            0.0, -15.0, 1.5).unwrap(),
+///     Speaker::new(ChannelLabel::Left,         30.0,    0.0, 3.0)?,
+///     Speaker::new(ChannelLabel::Right,        -30.0,   0.0, 3.0)?,
+///     Speaker::new(ChannelLabel::Centre,         0.0,   0.0, 3.0)?,
+///     Speaker::new(ChannelLabel::LeftSurround,  115.0,  0.0, 2.5)?,
+///     Speaker::new(ChannelLabel::RightSurround,-110.0,  0.0, 2.5)?,
+///     Speaker::new(ChannelLabel::Lfe,            0.0, -15.0, 1.5)?,
 /// ];
-/// let report = advisor.validate(&speakers).unwrap();
+/// let report = advisor.validate(&speakers)?;
 /// assert!(report.all_valid || report.invalid_count() <= 1);
+/// # Ok(())
+/// # }
 /// ```
 #[derive(Debug, Clone)]
 pub struct PlacementAdvisor {
@@ -605,33 +608,36 @@ fn great_circle_angle(az1: f32, el1: f32, az2: f32, el2: f32) -> f32 {
 mod tests {
     use super::*;
 
-    fn ideal_5_1_speakers(distance: f32) -> Vec<Speaker> {
-        vec![
-            Speaker::new(ChannelLabel::Left, 30.0, 0.0, distance).unwrap(),
-            Speaker::new(ChannelLabel::Right, -30.0, 0.0, distance).unwrap(),
-            Speaker::new(ChannelLabel::Centre, 0.0, 0.0, distance).unwrap(),
-            Speaker::new(ChannelLabel::LeftSurround, 110.0, 0.0, distance).unwrap(),
-            Speaker::new(ChannelLabel::RightSurround, -110.0, 0.0, distance).unwrap(),
-            Speaker::new(ChannelLabel::Lfe, 0.0, -15.0, distance).unwrap(),
-        ]
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
+    fn ideal_5_1_speakers(distance: f32) -> Result<Vec<Speaker>, SpatialError> {
+        Ok(vec![
+            Speaker::new(ChannelLabel::Left, 30.0, 0.0, distance)?,
+            Speaker::new(ChannelLabel::Right, -30.0, 0.0, distance)?,
+            Speaker::new(ChannelLabel::Centre, 0.0, 0.0, distance)?,
+            Speaker::new(ChannelLabel::LeftSurround, 110.0, 0.0, distance)?,
+            Speaker::new(ChannelLabel::RightSurround, -110.0, 0.0, distance)?,
+            Speaker::new(ChannelLabel::Lfe, 0.0, -15.0, distance)?,
+        ])
     }
 
     #[test]
-    fn test_ideal_5_1_all_valid() {
+    fn test_ideal_5_1_all_valid() -> TestResult {
         let advisor = PlacementAdvisor::new(LayoutFormat::FiveOneZero);
-        let speakers = ideal_5_1_speakers(3.0);
-        let report = advisor.validate(&speakers).expect("validation should succeed");
+        let speakers = ideal_5_1_speakers(3.0)?;
+        let report = advisor.validate(&speakers)?;
         assert!(report.all_valid, "Ideal 5.1 layout should be fully valid");
         assert_eq!(report.invalid_count(), 0);
+        Ok(())
     }
 
     #[test]
-    fn test_left_speaker_misplaced_flags_error() {
+    fn test_left_speaker_misplaced_flags_error() -> TestResult {
         let advisor = PlacementAdvisor::new(LayoutFormat::FiveOneZero);
-        let mut speakers = ideal_5_1_speakers(3.0);
+        let mut speakers = ideal_5_1_speakers(3.0)?;
         // Move left speaker 20° off-nominal (tolerance is ±10°).
-        speakers[0] = Speaker::new(ChannelLabel::Left, 50.0, 0.0, 3.0).unwrap();
-        let report = advisor.validate(&speakers).expect("validation should succeed");
+        speakers[0] = Speaker::new(ChannelLabel::Left, 50.0, 0.0, 3.0)?;
+        let report = advisor.validate(&speakers)?;
         assert!(
             !report.all_valid,
             "Misplaced left speaker should fail validation"
@@ -640,17 +646,16 @@ mod tests {
             .speakers
             .iter()
             .find(|s| s.label == ChannelLabel::Left)
-            .expect("left channel should be in report");
+            .ok_or("left channel should be in report")?;
         assert!(!left.is_valid);
         assert!(left.azimuth_deviation_deg.abs() > 10.0);
+        Ok(())
     }
 
     #[test]
-    fn test_suggested_layout_at_distance() {
+    fn test_suggested_layout_at_distance() -> TestResult {
         let advisor = PlacementAdvisor::new(LayoutFormat::FiveOneZero);
-        let layout = advisor
-            .suggest_layout(2.5)
-            .expect("suggest_layout should succeed");
+        let layout = advisor.suggest_layout(2.5)?;
         assert_eq!(layout.len(), 6, "5.1 layout should have 6 speakers");
         for spk in &layout {
             assert!(
@@ -658,34 +663,35 @@ mod tests {
                 "All speakers should be at reference distance"
             );
         }
+        Ok(())
     }
 
     #[test]
-    fn test_missing_speaker_reported() {
+    fn test_missing_speaker_reported() -> TestResult {
         let advisor = PlacementAdvisor::new(LayoutFormat::FiveOneZero);
         // Provide only 5 speakers, omit LFE.
         let speakers = vec![
-            Speaker::new(ChannelLabel::Left, 30.0, 0.0, 3.0).unwrap(),
-            Speaker::new(ChannelLabel::Right, -30.0, 0.0, 3.0).unwrap(),
-            Speaker::new(ChannelLabel::Centre, 0.0, 0.0, 3.0).unwrap(),
-            Speaker::new(ChannelLabel::LeftSurround, 110.0, 0.0, 3.0).unwrap(),
-            Speaker::new(ChannelLabel::RightSurround, -110.0, 0.0, 3.0).unwrap(),
+            Speaker::new(ChannelLabel::Left, 30.0, 0.0, 3.0)?,
+            Speaker::new(ChannelLabel::Right, -30.0, 0.0, 3.0)?,
+            Speaker::new(ChannelLabel::Centre, 0.0, 0.0, 3.0)?,
+            Speaker::new(ChannelLabel::LeftSurround, 110.0, 0.0, 3.0)?,
+            Speaker::new(ChannelLabel::RightSurround, -110.0, 0.0, 3.0)?,
             // no LFE
         ];
-        let report = advisor.validate(&speakers).expect("validation should succeed");
+        let report = advisor.validate(&speakers)?;
         let lfe = report
             .speakers
             .iter()
             .find(|s| s.label == ChannelLabel::Lfe)
-            .expect("lfe entry should be present");
+            .ok_or("lfe entry should be present")?;
         assert!(!lfe.is_valid, "Missing LFE should be flagged invalid");
+        Ok(())
     }
 
     #[test]
-    fn test_distance_equalisation_equal_distances() {
-        let speakers = ideal_5_1_speakers(3.0);
-        let result =
-            distance_equalisation(&speakers, 48_000).expect("equalisation should succeed");
+    fn test_distance_equalisation_equal_distances() -> TestResult {
+        let speakers = ideal_5_1_speakers(3.0)?;
+        let result = distance_equalisation(&speakers, 48_000)?;
         assert_eq!(result.len(), speakers.len());
         // All at same distance → delay = 0, gain = 1.0 for all.
         for (delay, gain) in &result {
@@ -695,41 +701,44 @@ mod tests {
                 "Equal distances should produce unity gain"
             );
         }
+        Ok(())
     }
 
     #[test]
-    fn test_distance_equalisation_unequal_distances() {
+    fn test_distance_equalisation_unequal_distances() -> TestResult {
         let speakers = vec![
-            Speaker::new(ChannelLabel::Left, 30.0, 0.0, 2.0).unwrap(),
-            Speaker::new(ChannelLabel::Right, -30.0, 0.0, 3.0).unwrap(),
+            Speaker::new(ChannelLabel::Left, 30.0, 0.0, 2.0)?,
+            Speaker::new(ChannelLabel::Right, -30.0, 0.0, 3.0)?,
         ];
-        let result =
-            distance_equalisation(&speakers, 48_000).expect("equalisation should succeed");
+        let result = distance_equalisation(&speakers, 48_000)?;
         // Right is further → Left gets delay, Right gets 0 delay.
         let (left_delay, left_gain) = result[0];
         let (right_delay, right_gain) = result[1];
         assert!(left_delay > 0, "Closer speaker should be delayed");
         assert_eq!(right_delay, 0, "Farther speaker should have zero delay");
         assert!(left_gain < right_gain, "Closer speaker should be attenuated");
+        Ok(())
     }
 
     #[test]
-    fn test_speaker_unit_vector_front() {
-        let spk = Speaker::new(ChannelLabel::Centre, 0.0, 0.0, 3.0).unwrap();
+    fn test_speaker_unit_vector_front() -> TestResult {
+        let spk = Speaker::new(ChannelLabel::Centre, 0.0, 0.0, 3.0)?;
         let v = spk.unit_vector();
         // Centre front = azimuth 0, elevation 0 → y-axis (front)
         assert!(v[0].abs() < 1e-5, "x should be ~0 for centre front");
         assert!((v[1] - 1.0).abs() < 1e-5, "y should be ~1 for centre front");
         assert!(v[2].abs() < 1e-5, "z should be ~0 for centre front");
+        Ok(())
     }
 
     #[test]
-    fn test_speaker_unit_vector_left() {
-        let spk = Speaker::new(ChannelLabel::Left, 90.0, 0.0, 3.0).unwrap();
+    fn test_speaker_unit_vector_left() -> TestResult {
+        let spk = Speaker::new(ChannelLabel::Left, 90.0, 0.0, 3.0)?;
         let v = spk.unit_vector();
         // 90° azimuth (left) → x should be negative (−1), y ≈ 0.
         assert!(v[0] < -0.9, "x should be ≈ −1 for pure left speaker");
         assert!(v[1].abs() < 1e-5, "y should be ≈ 0 for pure left speaker");
+        Ok(())
     }
 
     #[test]
@@ -755,24 +764,29 @@ mod tests {
     }
 
     #[test]
-    fn test_stereo_layout_suggestion() {
+    fn test_stereo_layout_suggestion() -> TestResult {
         let advisor = PlacementAdvisor::new(LayoutFormat::Stereo);
-        let layout = advisor.suggest_layout(2.0).expect("stereo suggest should succeed");
+        let layout = advisor.suggest_layout(2.0)?;
         assert_eq!(layout.len(), 2);
-        let left = layout.iter().find(|s| s.label == ChannelLabel::Left);
-        let right = layout.iter().find(|s| s.label == ChannelLabel::Right);
-        assert!(left.is_some() && right.is_some());
-        assert!((left.unwrap().azimuth_deg - 30.0).abs() < 1e-4);
-        assert!((right.unwrap().azimuth_deg - (-30.0)).abs() < 1e-4);
+        let left = layout
+            .iter()
+            .find(|s| s.label == ChannelLabel::Left)
+            .ok_or("left speaker not found in stereo layout")?;
+        let right = layout
+            .iter()
+            .find(|s| s.label == ChannelLabel::Right)
+            .ok_or("right speaker not found in stereo layout")?;
+        assert!((left.azimuth_deg - 30.0).abs() < 1e-4);
+        assert!((right.azimuth_deg - (-30.0)).abs() < 1e-4);
+        Ok(())
     }
 
     #[test]
-    fn test_seven_one_layout_count() {
+    fn test_seven_one_layout_count() -> TestResult {
         let advisor = PlacementAdvisor::new(LayoutFormat::SevenOneZero);
-        let layout = advisor
-            .suggest_layout(3.0)
-            .expect("7.1 layout suggestion should succeed");
+        let layout = advisor.suggest_layout(3.0)?;
         assert_eq!(layout.len(), 8, "7.1 layout should have 8 speakers");
+        Ok(())
     }
 
     #[test]

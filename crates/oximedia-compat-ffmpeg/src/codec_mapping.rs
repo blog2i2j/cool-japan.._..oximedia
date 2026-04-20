@@ -13,6 +13,9 @@
 //! * Reverse lookup (OxiMedia name → FFmpeg name) returns the first match in
 //!   table order, so keep canonical entries before aliases.
 
+use std::collections::HashMap;
+use std::sync::OnceLock;
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Codec mapping types
 // ─────────────────────────────────────────────────────────────────────────────
@@ -139,8 +142,11 @@ static CODEC_MAPPINGS: &[CodecMapping] = &[
     CodecMapping::video("vc1", "av1", "VC-1 → AV1 substitution"),
     CodecMapping::video("h263", "av1", "H.263 → AV1 substitution"),
     CodecMapping::video("h261", "av1", "H.261 → AV1 substitution"),
-    CodecMapping::video("mjpeg", "av1", "Motion JPEG → AV1 substitution"),
+    CodecMapping::video("mjpeg", "mjpeg", "Motion JPEG — direct match"),
     CodecMapping::video("cfhd", "av1", "CineForm HD → AV1 substitution"),
+    // ── APV — direct match (ISO/IEC 23009-13, royalty-free intra-frame) ──────
+    CodecMapping::video("apv", "apv", "APV intra-frame codec — direct match"),
+    CodecMapping::video("apv1", "apv", "APV alias apv1 — direct match"),
     CodecMapping::video("ffv1", "ffv1", "FFV1 lossless — direct match"),
     // ── VP9 ──────────────────────────────────────────────────────────────────
     CodecMapping::video("libvpx_vp9", "vp9", "libvpx VP9 encoder — direct match"),
@@ -513,6 +519,12 @@ static PROFILE_MAPPINGS: &[ProfileMapping] = &[
     ),
 ];
 
+static CODEC_LOOKUP: OnceLock<HashMap<String, &'static CodecMapping>> = OnceLock::new();
+static FORMAT_LOOKUP: OnceLock<HashMap<String, &'static FormatMapping>> = OnceLock::new();
+static PRESET_LOOKUP: OnceLock<HashMap<String, &'static PresetMapping>> = OnceLock::new();
+static TUNE_LOOKUP: OnceLock<HashMap<String, &'static TuneMapping>> = OnceLock::new();
+static PROFILE_LOOKUP: OnceLock<HashMap<String, &'static ProfileMapping>> = OnceLock::new();
+
 // ─────────────────────────────────────────────────────────────────────────────
 // CodecMapper
 // ─────────────────────────────────────────────────────────────────────────────
@@ -530,9 +542,7 @@ impl CodecMapper {
     /// The lookup is case-insensitive and normalises `-` to `_`.
     pub fn codec(ffmpeg_name: &str) -> Option<&'static CodecMapping> {
         let key = normalise(ffmpeg_name);
-        CODEC_MAPPINGS
-            .iter()
-            .find(|m| m.ffmpeg_name == key.as_str())
+        codec_lookup().get(key.as_str()).copied()
     }
 
     /// Look up the [`FormatMapping`] for an FFmpeg format/container name.
@@ -540,9 +550,7 @@ impl CodecMapper {
     /// The lookup is case-insensitive and normalises `-` to `_`.
     pub fn format(ffmpeg_name: &str) -> Option<&'static FormatMapping> {
         let key = normalise(ffmpeg_name);
-        FORMAT_MAPPINGS
-            .iter()
-            .find(|m| m.ffmpeg_name == key.as_str())
+        format_lookup().get(key.as_str()).copied()
     }
 
     /// Reverse lookup: given an OxiMedia codec name, return the first
@@ -576,9 +584,7 @@ impl CodecMapper {
     /// Case-insensitive lookup.
     pub fn preset(ffmpeg_preset: &str) -> Option<&'static PresetMapping> {
         let key = ffmpeg_preset.to_lowercase();
-        PRESET_MAPPINGS
-            .iter()
-            .find(|m| m.ffmpeg_name == key.as_str())
+        preset_lookup().get(key.as_str()).copied()
     }
 
     /// Look up a [`TuneMapping`] for an FFmpeg tune name.
@@ -586,7 +592,7 @@ impl CodecMapper {
     /// Case-insensitive lookup.
     pub fn tune(ffmpeg_tune: &str) -> Option<&'static TuneMapping> {
         let key = ffmpeg_tune.to_lowercase();
-        TUNE_MAPPINGS.iter().find(|m| m.ffmpeg_name == key.as_str())
+        tune_lookup().get(key.as_str()).copied()
     }
 
     /// Look up a [`ProfileMapping`] for an FFmpeg profile name.
@@ -594,9 +600,7 @@ impl CodecMapper {
     /// Case-insensitive, hyphen/underscore-normalised lookup.
     pub fn profile(ffmpeg_profile: &str) -> Option<&'static ProfileMapping> {
         let key = normalise(ffmpeg_profile);
-        PROFILE_MAPPINGS
-            .iter()
-            .find(|m| normalise(m.ffmpeg_name) == key)
+        profile_lookup().get(key.as_str()).copied()
     }
 
     /// Return all preset mappings.
@@ -618,6 +622,51 @@ impl CodecMapper {
 /// Normalise a codec/format name for table lookup.
 fn normalise(s: &str) -> String {
     s.to_lowercase().replace('-', "_")
+}
+
+fn codec_lookup() -> &'static HashMap<String, &'static CodecMapping> {
+    CODEC_LOOKUP.get_or_init(|| {
+        CODEC_MAPPINGS
+            .iter()
+            .map(|mapping| (mapping.ffmpeg_name.to_string(), mapping))
+            .collect()
+    })
+}
+
+fn format_lookup() -> &'static HashMap<String, &'static FormatMapping> {
+    FORMAT_LOOKUP.get_or_init(|| {
+        FORMAT_MAPPINGS
+            .iter()
+            .map(|mapping| (mapping.ffmpeg_name.to_string(), mapping))
+            .collect()
+    })
+}
+
+fn preset_lookup() -> &'static HashMap<String, &'static PresetMapping> {
+    PRESET_LOOKUP.get_or_init(|| {
+        PRESET_MAPPINGS
+            .iter()
+            .map(|mapping| (mapping.ffmpeg_name.to_string(), mapping))
+            .collect()
+    })
+}
+
+fn tune_lookup() -> &'static HashMap<String, &'static TuneMapping> {
+    TUNE_LOOKUP.get_or_init(|| {
+        TUNE_MAPPINGS
+            .iter()
+            .map(|mapping| (mapping.ffmpeg_name.to_string(), mapping))
+            .collect()
+    })
+}
+
+fn profile_lookup() -> &'static HashMap<String, &'static ProfileMapping> {
+    PROFILE_LOOKUP.get_or_init(|| {
+        PROFILE_MAPPINGS
+            .iter()
+            .map(|mapping| (normalise(mapping.ffmpeg_name), mapping))
+            .collect()
+    })
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

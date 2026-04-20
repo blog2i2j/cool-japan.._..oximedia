@@ -403,13 +403,20 @@ impl Drop for MultipartWriter {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-io-mpart-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_plan_parts_divides_correctly() {
         let config = MultipartConfig {
             part_size: MIN_PART_SIZE,
             ..Default::default()
         };
-        let mut writer = MultipartWriter::new("/tmp/test.bin", config).unwrap();
+        let mut writer = MultipartWriter::new(tmp_str("test.bin"), config).unwrap();
         writer.set_total_size(MIN_PART_SIZE * 3 + 100).unwrap();
         let parts = writer.plan_parts();
         assert_eq!(parts.len(), 4);
@@ -421,7 +428,7 @@ mod tests {
             part_size: MIN_PART_SIZE,
             ..Default::default()
         };
-        let mut writer = MultipartWriter::new("/tmp/test.bin", config).unwrap();
+        let mut writer = MultipartWriter::new(tmp_str("test.bin"), config).unwrap();
         writer.set_total_size(MIN_PART_SIZE * 2).unwrap();
         let parts = writer.plan_parts();
         assert_eq!(parts.len(), 2);
@@ -433,7 +440,7 @@ mod tests {
             part_size: MIN_PART_SIZE,
             ..Default::default()
         };
-        let mut writer = MultipartWriter::new("/tmp/test.bin", config).unwrap();
+        let mut writer = MultipartWriter::new(tmp_str("test.bin"), config).unwrap();
         writer.set_total_size(MIN_PART_SIZE + 1000).unwrap();
         writer.plan_parts();
         let (off1, sz1) = writer.part_range(PartId(1)).unwrap();
@@ -480,12 +487,13 @@ mod tests {
             part_size: 1024, // below minimum
             ..Default::default()
         };
-        assert!(MultipartWriter::new("/tmp/test.bin", config).is_err());
+        assert!(MultipartWriter::new(tmp_str("test.bin"), config).is_err());
     }
 
     #[test]
     fn test_part_out_of_range() {
-        let mut writer = MultipartWriter::new("/tmp/test.bin", MultipartConfig::default()).unwrap();
+        let mut writer =
+            MultipartWriter::new(tmp_str("test.bin"), MultipartConfig::default()).unwrap();
         writer.set_total_size(MIN_PART_SIZE).unwrap();
         writer.plan_parts();
         assert!(writer.part_range(PartId(999)).is_err());

@@ -1,6 +1,6 @@
 # oximedia-proxy
 
-**Status: [Stable]** | Version: 0.1.3 | Updated: 2026-04-15
+**Status: [Stable]** | Version: 0.1.4 | Tests: 567 | Updated: 2026-04-20
 
 Proxy and offline editing workflow system for OxiMedia. Provides comprehensive proxy workflow management including generation, linking, conforming, and complete offline-to-online pipeline support.
 
@@ -43,7 +43,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-proxy = "0.1.3"
+oximedia-proxy = "0.1.4"
 ```
 
 ```rust

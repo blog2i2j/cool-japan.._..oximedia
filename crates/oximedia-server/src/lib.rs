@@ -257,7 +257,6 @@ use std::{collections::VecDeque, sync::Arc};
 use tokio::net::TcpListener;
 use tower::ServiceBuilder;
 use tower_http::{
-    compression::CompressionLayer,
     cors::CorsLayer,
     trace::{DefaultMakeSpan, DefaultOnResponse, TraceLayer},
 };
@@ -613,8 +612,9 @@ impl Server {
                     )
                     // CORS
                     .layer(CorsLayer::permissive())
-                    // Compression
-                    .layer(CompressionLayer::new())
+                    // TODO(oxiarc-gzip): restore compression via oxiarc middleware per COOLJAPAN Pure Rust Policy
+                    // tower-http's compression-gzip feature pulls flate2 (C dep), so the layer was removed.
+                    // .layer(CompressionLayer::new())
                     // Body size limit (configurable, default 5GB for chunked uploads)
                     .layer(DefaultBodyLimit::max(5 * 1024 * 1024 * 1024)),
             )

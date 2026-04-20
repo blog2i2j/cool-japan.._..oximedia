@@ -252,8 +252,15 @@ impl ClipExporter {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-clips-export-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     fn mp4_config(clip_id: &str) -> ClipExportConfig {
-        ClipExportConfig::new(clip_id, "/tmp/export", ExportTarget::Mp4)
+        ClipExportConfig::new(clip_id, tmp_str("export"), ExportTarget::Mp4)
     }
 
     #[test]

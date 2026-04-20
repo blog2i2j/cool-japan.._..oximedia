@@ -514,23 +514,20 @@ impl Monitor {
         }
 
         // Update system status based on alert severity
-        match state
-            .alerts
-            .back()
-            .expect("invariant: alerts non-empty (just pushed above)")
-            .severity
-        {
-            AlertSeverity::Critical | AlertSeverity::Error => {
-                if state.status != SystemStatus::Fallback {
-                    state.status = SystemStatus::Error;
+        if let Some(latest_alert) = state.alerts.back() {
+            match latest_alert.severity {
+                AlertSeverity::Critical | AlertSeverity::Error => {
+                    if state.status != SystemStatus::Fallback {
+                        state.status = SystemStatus::Error;
+                    }
                 }
-            }
-            AlertSeverity::Warning => {
-                if state.status == SystemStatus::Online {
-                    state.status = SystemStatus::Warning;
+                AlertSeverity::Warning => {
+                    if state.status == SystemStatus::Online {
+                        state.status = SystemStatus::Warning;
+                    }
                 }
+                _ => {}
             }
-            _ => {}
         }
 
         alert_id

@@ -96,13 +96,21 @@ mod tests {
         assert!(config.include_toc);
     }
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-review-pdf-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[tokio::test]
     async fn test_export_to_pdf() {
         let session_id = SessionId::new();
         let comments: Vec<Comment> = Vec::new();
         let tasks: Vec<Task> = Vec::new();
 
-        let result = export_to_pdf(session_id, &comments, &tasks, "/tmp/report.pdf").await;
+        let out_path = tmp_str("report.pdf");
+        let result = export_to_pdf(session_id, &comments, &tasks, &out_path).await;
         assert!(result.is_ok());
     }
 
@@ -111,8 +119,8 @@ mod tests {
         let session_id = SessionId::new();
         let config = PdfExportConfig::default();
 
-        let result =
-            generate_pdf_report(session_id, "Review Report", config, "/tmp/report.pdf").await;
+        let out_path = tmp_str("generated_report.pdf");
+        let result = generate_pdf_report(session_id, "Review Report", config, &out_path).await;
         assert!(result.is_ok());
     }
 }

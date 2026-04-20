@@ -19,12 +19,12 @@ use crate::{
 /// let config = examples::youtube_1080p_upload(
 ///     "input.mp4",
 ///     "output.mp4"
-/// );
+/// )?;
 /// # Ok(())
 /// # }
 /// ```
 #[must_use]
-pub fn youtube_1080p_upload(input: &str, output: &str) -> TranscodePipeline {
+pub fn youtube_1080p_upload(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     TranscodePipelineBuilder::new()
         .input(input)
         .output(output)
@@ -32,12 +32,11 @@ pub fn youtube_1080p_upload(input: &str, output: &str) -> TranscodePipeline {
         .audio_codec("aac")
         .quality(QualityMode::High)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// High-quality archival transcode example.
 #[must_use]
-pub fn archival_transcode(input: &str, output: &str) -> TranscodePipeline {
+pub fn archival_transcode(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     TranscodePipelineBuilder::new()
         .input(input)
         .output(output)
@@ -46,12 +45,11 @@ pub fn archival_transcode(input: &str, output: &str) -> TranscodePipeline {
         .quality(QualityMode::VeryHigh)
         .multipass(MultiPassMode::TwoPass)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Social media optimized transcode (Instagram).
 #[must_use]
-pub fn instagram_square(input: &str, output: &str) -> TranscodePipeline {
+pub fn instagram_square(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     let _video_filters = VideoFilter::new().scale(1080, 1080).sharpen(0.5);
 
     TranscodePipelineBuilder::new()
@@ -61,12 +59,11 @@ pub fn instagram_square(input: &str, output: &str) -> TranscodePipeline {
         .audio_codec("aac")
         .quality(QualityMode::High)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Broadcast-ready transcode with loudness normalization.
 #[must_use]
-pub fn broadcast_hd_ebu(input: &str, output: &str) -> TranscodePipeline {
+pub fn broadcast_hd_ebu(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     let normalization = NormalizationConfig::new(LoudnessStandard::EbuR128);
 
     TranscodePipelineBuilder::new()
@@ -77,12 +74,11 @@ pub fn broadcast_hd_ebu(input: &str, output: &str) -> TranscodePipeline {
         .quality(QualityMode::VeryHigh)
         .normalization(normalization)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Low-latency streaming transcode.
 #[must_use]
-pub fn low_latency_stream(input: &str, output: &str) -> TranscodePipeline {
+pub fn low_latency_stream(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     TranscodePipelineBuilder::new()
         .input(input)
         .output(output)
@@ -90,12 +86,11 @@ pub fn low_latency_stream(input: &str, output: &str) -> TranscodePipeline {
         .audio_codec("aac")
         .quality(QualityMode::Medium)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// 4K HDR transcode example.
 #[must_use]
-pub fn hdr_4k_transcode(input: &str, output: &str) -> TranscodePipeline {
+pub fn hdr_4k_transcode(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     TranscodePipelineBuilder::new()
         .input(input)
         .output(output)
@@ -104,7 +99,6 @@ pub fn hdr_4k_transcode(input: &str, output: &str) -> TranscodePipeline {
         .quality(QualityMode::VeryHigh)
         .multipass(MultiPassMode::TwoPass)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Adaptive bitrate ladder for HLS/DASH.
@@ -115,12 +109,11 @@ pub fn create_abr_ladder(input: &str, output_dir: &str) {
     // for each rung in the ladder
     for rung in &ladder.rungs {
         let output = format!("{}/output_{}p.mp4", output_dir, rung.height);
-        let _pipeline = TranscodePipelineBuilder::new()
+        let _ = TranscodePipelineBuilder::new()
             .input(input)
             .output(&output)
             .video_codec(&rung.codec)
-            .build()
-            .expect("Failed to build pipeline");
+            .build();
     }
 }
 
@@ -131,16 +124,16 @@ pub fn batch_transcode_parallel(inputs: Vec<&str>, outputs: Vec<&str>) {
     let mut builder = ParallelEncodeBuilder::new().max_parallel(4);
 
     for (input, output) in inputs.iter().zip(outputs.iter()) {
-        let config = TranscodeBuilder::new()
+        if let Ok(config) = TranscodeBuilder::new()
             .input(*input)
             .output(*output)
             .video_codec("h264")
             .audio_codec("aac")
             .quality(QualityMode::Medium)
             .build()
-            .expect("Failed to build config");
-
-        builder = builder.add_job(config);
+        {
+            builder = builder.add_job(config);
+        }
     }
 
     let _encoder = builder.build();
@@ -148,7 +141,7 @@ pub fn batch_transcode_parallel(inputs: Vec<&str>, outputs: Vec<&str>) {
 
 /// Deinterlace and upscale SD to HD.
 #[must_use]
-pub fn sd_to_hd_upscale(input: &str, output: &str) -> TranscodePipeline {
+pub fn sd_to_hd_upscale(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     let _video_filters = VideoFilter::new()
         .deinterlace()
         .scale(1920, 1080)
@@ -161,12 +154,11 @@ pub fn sd_to_hd_upscale(input: &str, output: &str) -> TranscodePipeline {
         .audio_codec("aac")
         .quality(QualityMode::High)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Crop and resize for different aspect ratios.
 #[must_use]
-pub fn crop_to_widescreen(input: &str, output: &str) -> TranscodePipeline {
+pub fn crop_to_widescreen(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     let _video_filters = VideoFilter::new()
         .crop(1920, 800, 0, 140) // Crop to 2.40:1
         .scale(1920, 1080); // Letterbox to 16:9
@@ -178,12 +170,11 @@ pub fn crop_to_widescreen(input: &str, output: &str) -> TranscodePipeline {
         .audio_codec("aac")
         .quality(QualityMode::High)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Audio ducking and mixing example.
 #[must_use]
-pub fn audio_ducking(input: &str, output: &str) -> TranscodePipeline {
+pub fn audio_ducking(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     let _audio_filters = AudioFilter::new()
         .compress(-20.0, 4.0)
         .normalize(-23.0)
@@ -195,12 +186,11 @@ pub fn audio_ducking(input: &str, output: &str) -> TranscodePipeline {
         .output(output)
         .audio_codec("opus")
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Professional color grading workflow.
 #[must_use]
-pub fn color_grade(input: &str, output: &str) -> TranscodePipeline {
+pub fn color_grade(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     let _video_filters = VideoFilter::new().color_correct(0.05, 1.1, 1.15);
 
     TranscodePipelineBuilder::new()
@@ -211,12 +201,11 @@ pub fn color_grade(input: &str, output: &str) -> TranscodePipeline {
         .quality(QualityMode::VeryHigh)
         .multipass(MultiPassMode::TwoPass)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Film restoration workflow.
 #[must_use]
-pub fn film_restoration(input: &str, output: &str) -> TranscodePipeline {
+pub fn film_restoration(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     let _video_filters = VideoFilter::new()
         .deinterlace()
         .denoise(2.0)
@@ -231,12 +220,11 @@ pub fn film_restoration(input: &str, output: &str) -> TranscodePipeline {
         .quality(QualityMode::VeryHigh)
         .multipass(MultiPassMode::ThreePass)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Podcast audio optimization.
 #[must_use]
-pub fn podcast_audio(input: &str, output: &str) -> TranscodePipeline {
+pub fn podcast_audio(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     let _audio_filters = AudioFilter::new()
         .highpass(80.0) // Remove low-frequency rumble
         .compress(-18.0, 3.0) // Compress dynamic range
@@ -247,12 +235,11 @@ pub fn podcast_audio(input: &str, output: &str) -> TranscodePipeline {
         .output(output)
         .audio_codec("opus")
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Screen recording optimization.
 #[must_use]
-pub fn screen_recording_optimize(input: &str, output: &str) -> TranscodePipeline {
+pub fn screen_recording_optimize(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     TranscodePipelineBuilder::new()
         .input(input)
         .output(output)
@@ -260,12 +247,11 @@ pub fn screen_recording_optimize(input: &str, output: &str) -> TranscodePipeline
         .audio_codec("opus")
         .quality(QualityMode::High)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Anime/animation optimized encoding.
 #[must_use]
-pub fn anime_encode(input: &str, output: &str) -> TranscodePipeline {
+pub fn anime_encode(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     TranscodePipelineBuilder::new()
         .input(input)
         .output(output)
@@ -273,12 +259,11 @@ pub fn anime_encode(input: &str, output: &str) -> TranscodePipeline {
         .audio_codec("opus")
         .quality(QualityMode::VeryHigh)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Gaming video optimization.
 #[must_use]
-pub fn gaming_video(input: &str, output: &str) -> TranscodePipeline {
+pub fn gaming_video(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     TranscodePipelineBuilder::new()
         .input(input)
         .output(output)
@@ -286,12 +271,11 @@ pub fn gaming_video(input: &str, output: &str) -> TranscodePipeline {
         .audio_codec("opus")
         .quality(QualityMode::High)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Music video encoding.
 #[must_use]
-pub fn music_video(input: &str, output: &str) -> TranscodePipeline {
+pub fn music_video(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     let normalization = NormalizationConfig::new(LoudnessStandard::Spotify);
 
     TranscodePipelineBuilder::new()
@@ -303,12 +287,11 @@ pub fn music_video(input: &str, output: &str) -> TranscodePipeline {
         .normalization(normalization)
         .multipass(MultiPassMode::TwoPass)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// News broadcast optimized.
 #[must_use]
-pub fn news_broadcast(input: &str, output: &str) -> TranscodePipeline {
+pub fn news_broadcast(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     let normalization = NormalizationConfig::new(LoudnessStandard::AtscA85);
 
     TranscodePipelineBuilder::new()
@@ -319,12 +302,11 @@ pub fn news_broadcast(input: &str, output: &str) -> TranscodePipeline {
         .quality(QualityMode::VeryHigh)
         .normalization(normalization)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Sports broadcast encoding.
 #[must_use]
-pub fn sports_broadcast(input: &str, output: &str) -> TranscodePipeline {
+pub fn sports_broadcast(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     TranscodePipelineBuilder::new()
         .input(input)
         .output(output)
@@ -332,12 +314,11 @@ pub fn sports_broadcast(input: &str, output: &str) -> TranscodePipeline {
         .audio_codec("aac")
         .quality(QualityMode::VeryHigh)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// E-learning content optimization.
 #[must_use]
-pub fn elearning_content(input: &str, output: &str) -> TranscodePipeline {
+pub fn elearning_content(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     TranscodePipelineBuilder::new()
         .input(input)
         .output(output)
@@ -345,12 +326,11 @@ pub fn elearning_content(input: &str, output: &str) -> TranscodePipeline {
         .audio_codec("aac")
         .quality(QualityMode::Medium)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Security camera footage optimization.
 #[must_use]
-pub fn security_footage(input: &str, output: &str) -> TranscodePipeline {
+pub fn security_footage(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     TranscodePipelineBuilder::new()
         .input(input)
         .output(output)
@@ -358,12 +338,11 @@ pub fn security_footage(input: &str, output: &str) -> TranscodePipeline {
         .audio_codec("opus")
         .quality(QualityMode::Low)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Time-lapse video creation.
 #[must_use]
-pub fn timelapse_create(input: &str, output: &str) -> TranscodePipeline {
+pub fn timelapse_create(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     let _video_filters = VideoFilter::new().framerate(30.0);
 
     TranscodePipelineBuilder::new()
@@ -372,12 +351,11 @@ pub fn timelapse_create(input: &str, output: &str) -> TranscodePipeline {
         .video_codec("h264")
         .quality(QualityMode::High)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Slow motion video creation.
 #[must_use]
-pub fn slow_motion_create(input: &str, output: &str) -> TranscodePipeline {
+pub fn slow_motion_create(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     let _video_filters = VideoFilter::new().framerate(120.0);
 
     TranscodePipelineBuilder::new()
@@ -387,12 +365,11 @@ pub fn slow_motion_create(input: &str, output: &str) -> TranscodePipeline {
         .audio_codec("aac")
         .quality(QualityMode::VeryHigh)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Documentary film encoding.
 #[must_use]
-pub fn documentary_encode(input: &str, output: &str) -> TranscodePipeline {
+pub fn documentary_encode(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     let normalization = NormalizationConfig::new(LoudnessStandard::EbuR128);
 
     TranscodePipelineBuilder::new()
@@ -404,12 +381,11 @@ pub fn documentary_encode(input: &str, output: &str) -> TranscodePipeline {
         .normalization(normalization)
         .multipass(MultiPassMode::TwoPass)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Corporate video production.
 #[must_use]
-pub fn corporate_video(input: &str, output: &str) -> TranscodePipeline {
+pub fn corporate_video(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     TranscodePipelineBuilder::new()
         .input(input)
         .output(output)
@@ -417,12 +393,11 @@ pub fn corporate_video(input: &str, output: &str) -> TranscodePipeline {
         .audio_codec("aac")
         .quality(QualityMode::High)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Wedding video encoding.
 #[must_use]
-pub fn wedding_video(input: &str, output: &str) -> TranscodePipeline {
+pub fn wedding_video(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     let _video_filters = VideoFilter::new().color_correct(0.1, 1.05, 1.1);
 
     TranscodePipelineBuilder::new()
@@ -433,12 +408,11 @@ pub fn wedding_video(input: &str, output: &str) -> TranscodePipeline {
         .quality(QualityMode::VeryHigh)
         .multipass(MultiPassMode::TwoPass)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Real estate video tour.
 #[must_use]
-pub fn real_estate_tour(input: &str, output: &str) -> TranscodePipeline {
+pub fn real_estate_tour(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     TranscodePipelineBuilder::new()
         .input(input)
         .output(output)
@@ -446,12 +420,11 @@ pub fn real_estate_tour(input: &str, output: &str) -> TranscodePipeline {
         .audio_codec("aac")
         .quality(QualityMode::High)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Medical/scientific video encoding.
 #[must_use]
-pub fn medical_video(input: &str, output: &str) -> TranscodePipeline {
+pub fn medical_video(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     TranscodePipelineBuilder::new()
         .input(input)
         .output(output)
@@ -459,12 +432,11 @@ pub fn medical_video(input: &str, output: &str) -> TranscodePipeline {
         .audio_codec("aac")
         .quality(QualityMode::VeryHigh)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Drone footage optimization.
 #[must_use]
-pub fn drone_footage(input: &str, output: &str) -> TranscodePipeline {
+pub fn drone_footage(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     let _video_filters = VideoFilter::new().denoise(1.0).sharpen(0.5);
 
     TranscodePipelineBuilder::new()
@@ -475,12 +447,11 @@ pub fn drone_footage(input: &str, output: &str) -> TranscodePipeline {
         .quality(QualityMode::VeryHigh)
         .multipass(MultiPassMode::TwoPass)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// GoPro/action camera footage.
 #[must_use]
-pub fn action_camera_footage(input: &str, output: &str) -> TranscodePipeline {
+pub fn action_camera_footage(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     let _video_filters = VideoFilter::new().denoise(1.5);
 
     TranscodePipelineBuilder::new()
@@ -490,12 +461,11 @@ pub fn action_camera_footage(input: &str, output: &str) -> TranscodePipeline {
         .audio_codec("aac")
         .quality(QualityMode::High)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Product demo video.
 #[must_use]
-pub fn product_demo(input: &str, output: &str) -> TranscodePipeline {
+pub fn product_demo(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     TranscodePipelineBuilder::new()
         .input(input)
         .output(output)
@@ -503,12 +473,11 @@ pub fn product_demo(input: &str, output: &str) -> TranscodePipeline {
         .audio_codec("aac")
         .quality(QualityMode::High)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Recipe/cooking video.
 #[must_use]
-pub fn cooking_video(input: &str, output: &str) -> TranscodePipeline {
+pub fn cooking_video(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     let _video_filters = VideoFilter::new().color_correct(0.05, 1.1, 1.2); // Enhance food colors
 
     TranscodePipelineBuilder::new()
@@ -518,12 +487,11 @@ pub fn cooking_video(input: &str, output: &str) -> TranscodePipeline {
         .audio_codec("aac")
         .quality(QualityMode::High)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Travel vlog encoding.
 #[must_use]
-pub fn travel_vlog(input: &str, output: &str) -> TranscodePipeline {
+pub fn travel_vlog(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     let _video_filters = VideoFilter::new().color_correct(0.05, 1.05, 1.1);
 
     TranscodePipelineBuilder::new()
@@ -533,12 +501,11 @@ pub fn travel_vlog(input: &str, output: &str) -> TranscodePipeline {
         .audio_codec("aac")
         .quality(QualityMode::High)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Fashion/beauty video.
 #[must_use]
-pub fn fashion_video(input: &str, output: &str) -> TranscodePipeline {
+pub fn fashion_video(input: &str, output: &str) -> crate::Result<TranscodePipeline> {
     let _video_filters = VideoFilter::new()
         .sharpen(0.5)
         .color_correct(0.1, 1.05, 1.05);
@@ -550,7 +517,6 @@ pub fn fashion_video(input: &str, output: &str) -> TranscodePipeline {
         .audio_codec("aac")
         .quality(QualityMode::VeryHigh)
         .build()
-        .expect("Failed to build pipeline")
 }
 
 /// Placeholder builder struct (temporary for examples).
@@ -624,18 +590,31 @@ impl TranscodePipelineBuilder {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-transcode-examples-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_youtube_example() {
-        let _pipeline = youtube_1080p_upload("/tmp/input.mp4", "/tmp/output.mp4");
+        let i = tmp_str("input.mp4");
+        let o = tmp_str("output.mp4");
+        let _pipeline = youtube_1080p_upload(&i, &o);
     }
 
     #[test]
     fn test_archival_example() {
-        let _pipeline = archival_transcode("/tmp/input.mp4", "/tmp/output.mkv");
+        let i = tmp_str("input.mp4");
+        let o = tmp_str("output.mkv");
+        let _pipeline = archival_transcode(&i, &o);
     }
 
     #[test]
     fn test_instagram_example() {
-        let _pipeline = instagram_square("/tmp/input.mp4", "/tmp/output.mp4");
+        let i = tmp_str("input.mp4");
+        let o = tmp_str("output.mp4");
+        let _pipeline = instagram_square(&i, &o);
     }
 }

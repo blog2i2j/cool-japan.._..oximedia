@@ -421,13 +421,15 @@ impl GifEncoderState {
 
         // Split buckets until we have enough colors
         while buckets.len() < target_colors {
-            // Find largest bucket
-            let largest_idx = buckets
+            // Find largest bucket (buckets is non-empty: guarded by while condition)
+            let Some(largest_idx) = buckets
                 .iter()
                 .enumerate()
                 .max_by_key(|(_, b)| b.len())
                 .map(|(i, _)| i)
-                .expect("buckets is non-empty inside the while loop");
+            else {
+                break;
+            };
 
             let bucket = buckets.remove(largest_idx);
             if bucket.is_empty() {

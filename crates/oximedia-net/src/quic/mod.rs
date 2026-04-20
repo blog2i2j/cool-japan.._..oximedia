@@ -330,7 +330,7 @@ impl QuicConnection {
         let stream = self
             .streams
             .get_mut(&stream_id)
-            .expect("stream existence checked above");
+            .ok_or(QuicTransportError::StreamNotFound(stream_id))?;
         stream.bytes_sent += bytes;
         self.stats.bytes_sent += bytes;
         self.stats.packets_sent += 1;

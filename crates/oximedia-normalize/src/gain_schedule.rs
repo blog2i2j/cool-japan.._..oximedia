@@ -79,10 +79,9 @@ impl GainSchedule {
                 if t_s <= self.points[0].time_s {
                     return self.points[0].gain_db;
                 }
-                let last = self
-                    .points
-                    .last()
-                    .expect("invariant: points non-empty (match arm _ guarantees len >= 2)");
+                // SAFETY: match arm `_` is only reached when len >= 2 (arms 0 and 1 handle smaller
+                // cases), so the slice is always non-empty here
+                let last = &self.points[self.points.len() - 1];
                 if t_s >= last.time_s {
                     return last.gain_db;
                 }

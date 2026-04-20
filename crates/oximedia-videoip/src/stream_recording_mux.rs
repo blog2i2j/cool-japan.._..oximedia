@@ -739,8 +739,15 @@ impl StreamRecordingMux {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-videoip-srm-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     fn simple_config() -> RecordingConfig {
-        RecordingConfig::simple_webm("/tmp/test_recording", 1920, 1080, 30.0, 48000, 2)
+        RecordingConfig::simple_webm(tmp_str("test_recording"), 1920, 1080, 30.0, 48000, 2)
     }
 
     fn make_video_frame(track_id: u32, pts_us: i64, keyframe: bool) -> MuxFrame {
@@ -772,7 +779,7 @@ mod tests {
 
     #[test]
     fn test_create_muxer_archival_mkv() {
-        let config = RecordingConfig::archival_mkv("/tmp/archive", 3840, 2160, 25.0, 96000, 8);
+        let config = RecordingConfig::archival_mkv(tmp_str("archive"), 3840, 2160, 25.0, 96000, 8);
         let mux = StreamRecordingMux::new(config);
         assert!(mux.is_ok());
         let mux = mux.expect("should create mux");

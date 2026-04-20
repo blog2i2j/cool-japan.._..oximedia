@@ -64,7 +64,7 @@ impl ClockIdentity {
         use std::time::SystemTime;
         let nanos = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
-            .expect("infallible: system time after epoch")
+            .unwrap_or_default()
             .as_nanos() as u64;
 
         let mut id = [0u8; 8];
@@ -120,7 +120,7 @@ impl PtpTimestamp {
         use std::time::SystemTime;
         let duration = SystemTime::now()
             .duration_since(SystemTime::UNIX_EPOCH)
-            .expect("infallible: system time after epoch");
+            .unwrap_or_default();
         Self {
             seconds: duration.as_secs(),
             nanoseconds: duration.subsec_nanos(),

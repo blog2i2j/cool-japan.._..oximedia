@@ -158,9 +158,10 @@ impl SrtConnectionFactory {
 
         match params.mode {
             ConnectionMode::Caller => {
+                use std::net::{IpAddr, Ipv4Addr, SocketAddr};
                 let peer = params
                     .peer_addr
-                    .unwrap_or_else(|| "0.0.0.0:0".parse().expect("zero addr"));
+                    .unwrap_or_else(|| SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0));
                 let mut caller = CallerState::new(params.config.clone(), peer);
                 caller.set_max_retries(params.max_retries);
                 factory.caller = Some(caller);
@@ -171,9 +172,10 @@ impl SrtConnectionFactory {
                 factory.listener = Some(listener);
             }
             ConnectionMode::Rendezvous => {
+                use std::net::{IpAddr, Ipv4Addr, SocketAddr};
                 let peer = params
                     .peer_addr
-                    .unwrap_or_else(|| "0.0.0.0:0".parse().expect("zero addr"));
+                    .unwrap_or_else(|| SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0));
                 factory.rendezvous = Some(RendezvousState::new(params.config.clone(), peer));
             }
         }

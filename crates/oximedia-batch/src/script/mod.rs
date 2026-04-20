@@ -156,7 +156,11 @@ impl ScriptExecutor {
 
 impl Default for ScriptExecutor {
     fn default() -> Self {
-        Self::new().expect("Lua runtime initialisation with safe stdlib should always succeed")
+        // Lua::new() is infallible; load_std_libs uses ALL_SAFE which never fails
+        // in practice. If it does fail, we fall back to a bare Lua instance.
+        let lua = Lua::new();
+        let _ = lua.load_std_libs(mlua::StdLib::ALL_SAFE);
+        Self { lua }
     }
 }
 

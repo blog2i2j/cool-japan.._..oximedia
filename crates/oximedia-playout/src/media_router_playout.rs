@@ -185,10 +185,9 @@ impl PlayoutRouter {
         if route.is_active() {
             return Err(RouterError::RouteIsActive(name.to_string()));
         }
-        Ok(self
-            .routes
+        self.routes
             .remove(name)
-            .expect("invariant: route exists (checked with get above)"))
+            .ok_or_else(|| RouterError::NotFound(name.to_string()))
     }
 
     /// Activate a route by name.

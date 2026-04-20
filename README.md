@@ -4,10 +4,10 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.85+-orange.svg)](https://www.rust-lang.org)
-[![Version](https://img.shields.io/badge/version-v0.1.3-green.svg)](https://github.com/cool-japan/oximedia)
-[![Released](https://img.shields.io/badge/released-2026--04--15-brightgreen.svg)](https://github.com/cool-japan/oximedia)
-[![Crates](https://img.shields.io/badge/crates-106-blue.svg)](https://github.com/cool-japan/oximedia)
-[![SLOC](https://img.shields.io/badge/SLOC-~2.65M-blueviolet.svg)](https://github.com/cool-japan/oximedia)
+[![Version](https://img.shields.io/badge/version-v0.1.4-green.svg)](https://github.com/cool-japan/oximedia)
+[![Released](https://img.shields.io/badge/released-2026--04--20-brightgreen.svg)](https://github.com/cool-japan/oximedia)
+[![Crates](https://img.shields.io/badge/crates-108-blue.svg)](https://github.com/cool-japan/oximedia)
+[![SLOC](https://img.shields.io/badge/SLOC-~2.67M-blueviolet.svg)](https://github.com/cool-japan/oximedia)
 
 ## Vision
 
@@ -55,18 +55,29 @@ Computer vision (object detection, motion tracking, video enhancement, quality a
 
 ## Project Scale
 
-OxiMedia is a **production-grade** framework at **v0.1.3** (released 2026-04-15):
+OxiMedia is a **production-grade** framework at **v0.1.4** (released 2026-04-20):
 
 | Metric | Value |
 |--------|-------|
-| Total crates | 106 |
-| Total SLOC (Rust) | ~2,650,000 |
-| Tests passing | 80,393 |
-| Stable crates | 106 |
+| Total crates | 108 |
+| Total SLOC (Rust) | ~2,670,000 |
+| Tests passing | 81,150+ |
+| Stable crates | 107 |
 | Alpha crates | 0 |
 | Partial crates | 0 |
 | License | Apache 2.0 |
 | MSRV | Rust 1.85+ |
+
+## What's New in v0.1.4
+
+Released 2026-04-20.
+
+- **MJPEG and APV end-to-end codec support**: Full encode/decode pipelines for MJPEG (Motion JPEG) and APV (Advanced Professional Video), including correct MP4 and Matroska sample-entry wiring.
+- **JPEG encoder/decoder spec compliance**: Rebuilt JPEG encoder/decoder to full JFIF/Exif spec compliance; PSNR improved from 6 dB to 32 dB at quality 85.
+- **AVI container muxer + demuxer**: New `oximedia-avi` crate — pure-Rust AVI muxer and demuxer targeting MJPEG-only streams up to 1 GB (`RIFF` list size constraint).
+- **AJXL ISOBMFF animated encoder + streaming decoder iterator**: Animated JPEG-XL sequences stored in ISOBMFF with a streaming `Iterator`-based decoder for low-memory playback.
+- **CLI MJPEG/APV support**: `oximedia-cli` now accepts `-c:v mjpeg` and `-c:v apv` on all transcode/convert commands.
+- **WASM32 platform support**: 5 additional crates (`oximedia-codec`, `oximedia-container`, `oximedia-audio`, `oximedia-convert`, `oximedia-graphics`) confirmed clean under `wasm32-unknown-unknown`.
 
 ## Architecture
 
@@ -137,6 +148,7 @@ OxiMedia is a **production-grade** framework at **v0.1.3** (released 2026-04-15)
 | `oximedia-drm` | DRM/encryption (CENC, Widevine, PlayReady, FairPlay) | Stable |
 | `oximedia-subtitle` | Subtitle/caption rendering (SRT, WebVTT, CEA-608/708) | Stable |
 | `oximedia-timecode` | LTC and VITC timecode reading/writing | Stable |
+| `oximedia-avi` | AVI container muxer + demuxer (MJPEG-only, ≤1 GB RIFF) | Stable |
 | `oximedia-compat-ffmpeg` | FFmpeg CLI argument compatibility layer (80+ codec mappings) | Stable |
 
 ### Networking & Streaming
@@ -267,6 +279,9 @@ OxiMedia is a **production-grade** framework at **v0.1.3** (released 2026-04-15)
 | Image | WebP | Supported | Google, royalty-free |
 | Image | AVIF | Supported | AOM, royalty-free |
 | Image | PNG/GIF | Supported | Unencumbered |
+| Image/Video | MJPEG | Supported | Motion JPEG, royalty-free |
+| Video | APV | Supported | Advanced Professional Video, royalty-free |
+| Image | JPEG-XL (AJXL) | Supported | Animated JPEG-XL via ISOBMFF, royalty-free |
 
 ## Red List (Rejected Codecs)
 
@@ -369,14 +384,14 @@ cargo install oximedia-cli
 
 | Status | Count | Description |
 |--------|-------|-------------|
-| Stable | 106 | Feature-complete, tested, production-ready |
+| Stable | 107 | Feature-complete, tested, production-ready |
 | Alpha | 0 | Core functionality implemented, API may change |
 | Partial | 0 | Under active development, incomplete |
-| **Total** | **106** | Library crates under `crates/` (top-level `oximedia`, `oximedia-cli`, `oximedia-wasm` counted separately) |
+| **Total** | **107** | Library crates under `crates/` (top-level `oximedia`, `oximedia-cli`, `oximedia-wasm` counted separately) |
 
 ### Detailed Status Breakdown
 
-**Stable (106 crates):**
+**Stable (107 crates):**
 `oximedia-aaf`, `oximedia-accel`, `oximedia-access`, `oximedia-align`, `oximedia-analysis`,
 `oximedia-archive`, `oximedia-archive-pro`, `oximedia-audio`, `oximedia-audio-analysis`,
 `oximedia-audiopost`, `oximedia-auto`, `oximedia-automation`, `oximedia-batch`, `oximedia-bench`,
@@ -396,7 +411,7 @@ cargo install oximedia-cli
 `oximedia-server`, `oximedia-shots`, `oximedia-simd`, `oximedia-stabilize`, `oximedia-storage`,
 `oximedia-subtitle`, `oximedia-switcher`, `oximedia-timecode`, `oximedia-timeline`,
 `oximedia-timesync`, `oximedia-transcode`, `oximedia-vfx`, `oximedia-videoip`, `oximedia-virtual`,
-`oximedia-watermark`, `oximedia-workflow`
+`oximedia-watermark`, `oximedia-workflow`, `oximedia-avi`
 
 ## Building
 
@@ -449,7 +464,7 @@ If you find OxiMedia useful, please consider sponsoring the project to support c
 **[https://github.com/sponsors/cool-japan](https://github.com/sponsors/cool-japan)**
 
 Your sponsorship helps us:
-- Maintain and improve 106 crates (~2.65M SLOC)
+- Maintain and improve 108 crates (~2.67M SLOC)
 - Implement new royalty-free codecs and CV algorithms
 - Keep the entire COOLJAPAN ecosystem (OxiBLAS, OxiFFT, SciRS2, etc.) 100% Pure Rust
 - Provide long-term support and security updates

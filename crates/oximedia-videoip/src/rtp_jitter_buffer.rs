@@ -424,7 +424,7 @@ mod tests {
             playout_delay: Duration::ZERO,
             clock_rate: 90_000,
         })
-        .unwrap()
+        .expect("valid jitter buffer configuration")
     }
 
     // ── Basic insertion and pop ───────────────────────────────────────────────
@@ -497,7 +497,7 @@ mod tests {
             playout_delay: Duration::ZERO,
             clock_rate: 90_000,
         })
-        .unwrap();
+        .expect("valid jitter buffer configuration");
         for i in 0u16..4 {
             buf.insert(make_packet(i, 0));
         }
@@ -518,7 +518,7 @@ mod tests {
             playout_delay: Duration::from_secs(3600), // absurdly large
             clock_rate: 90_000,
         })
-        .unwrap();
+        .expect("valid jitter buffer configuration");
         // Packet received right now (elapsed ≈ 0)
         let fresh = RtpPacket::new(0, 0, 0, 96, vec![]);
         buf.insert(fresh);

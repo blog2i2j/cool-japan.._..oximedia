@@ -237,8 +237,9 @@ impl DownmixMatrix {
     ///
     /// Panics if `input` / `output` are not correctly sized.
     pub fn apply_unchecked(&self, input: &[f32], output: &mut [f32], sample_count: usize) {
-        self.apply(input, output, sample_count)
-            .expect("apply_unchecked: dimension mismatch");
+        if let Err(e) = self.apply(input, output, sample_count) {
+            panic!("apply_unchecked: dimension mismatch — {e}");
+        }
     }
 
     // ── Factory functions ──────────────────────────────────────────────────

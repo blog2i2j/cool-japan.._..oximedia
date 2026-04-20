@@ -130,7 +130,9 @@ impl VideoEffect for Sparks {
                 let x = particle.x as u32;
                 let y = particle.y as u32;
 
-                let current = output.get_pixel(x, y).expect("should succeed in test");
+                let Some(current) = output.get_pixel(x, y) else {
+                    continue;
+                };
                 let blended = Color::from_rgba(current).blend(spark_color);
                 output.set_pixel(x, y, blended.to_rgba());
             }

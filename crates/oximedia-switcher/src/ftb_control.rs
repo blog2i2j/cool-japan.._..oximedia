@@ -137,7 +137,13 @@ impl FtbController {
 
     /// Create with default configuration.
     pub fn with_defaults() -> Self {
-        Self::new(FtbConfig::default()).expect("Default config should be valid")
+        Self {
+            config: FtbConfig::default(),
+            state: FtbState::Normal,
+            frame_position: 0,
+            fade_level: 0.0,
+            activation_count: 0,
+        }
     }
 
     /// Get the current state.

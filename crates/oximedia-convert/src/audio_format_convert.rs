@@ -1164,15 +1164,18 @@ mod tests {
             .codec(PatentFreeAudioCodec::Opus)
             .build()
             .expect("valid config");
-        let path = cfg.suggest_output_path(Path::new("/tmp/video.mkv"));
-        assert_eq!(path, PathBuf::from("/tmp/video.opus"));
+        let tmp = std::env::temp_dir();
+        let in_mkv = tmp.join("oximedia-convert-audio-video.mkv");
+        let path = cfg.suggest_output_path(&in_mkv);
+        assert_eq!(path, tmp.join("oximedia-convert-audio-video.opus"));
 
         let cfg = AudioConvertConfig::builder()
             .codec(PatentFreeAudioCodec::Flac)
             .build()
             .expect("valid config");
-        let path = cfg.suggest_output_path(Path::new("/tmp/song.wav"));
-        assert_eq!(path, PathBuf::from("/tmp/song.flac"));
+        let in_wav = tmp.join("oximedia-convert-audio-song.wav");
+        let path = cfg.suggest_output_path(&in_wav);
+        assert_eq!(path, tmp.join("oximedia-convert-audio-song.flac"));
     }
 
     #[test]
@@ -1199,7 +1202,7 @@ mod tests {
         let result = AudioBatchResult {
             successes: vec![
                 AudioConvertResult {
-                    output_path: PathBuf::from("/tmp/a.opus"),
+                    output_path: std::env::temp_dir().join("oximedia-convert-audio-a.opus"),
                     codec: PatentFreeAudioCodec::Opus,
                     bitrate: Some(128_000),
                     sample_rate: 48_000,
@@ -1209,7 +1212,7 @@ mod tests {
                     compression_ratio: 1.0,
                 },
                 AudioConvertResult {
-                    output_path: PathBuf::from("/tmp/b.opus"),
+                    output_path: std::env::temp_dir().join("oximedia-convert-audio-b.opus"),
                     codec: PatentFreeAudioCodec::Opus,
                     bitrate: Some(128_000),
                     sample_rate: 48_000,
@@ -1219,7 +1222,10 @@ mod tests {
                     compression_ratio: 1.0,
                 },
             ],
-            failures: vec![(PathBuf::from("/tmp/c.mkv"), "not found".into())],
+            failures: vec![(
+                std::env::temp_dir().join("oximedia-convert-audio-c.mkv"),
+                "not found".into(),
+            )],
             elapsed: Duration::from_secs(5),
         };
 
@@ -1245,7 +1251,11 @@ mod tests {
         let converter = AudioFormatConverter::new();
         let config = AudioConvertConfig::default();
         let result = converter
-            .convert("/nonexistent/file.mkv", "/tmp/out.opus", &config)
+            .convert(
+                "/nonexistent/file.mkv",
+                std::env::temp_dir().join("oximedia-convert-audio-out.opus"),
+                &config,
+            )
             .await;
         assert!(result.is_err());
     }

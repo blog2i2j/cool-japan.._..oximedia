@@ -1,6 +1,6 @@
 # oximedia-presets
 
-**Status: [Stable]** | Version: 0.1.3 | Updated: 2026-04-15
+**Status: [Stable]** | Version: 0.1.4 | Tests: 612 | Updated: 2026-04-20
 
 Advanced encoding preset library for OxiMedia. Provides 200+ professional encoding presets covering major platforms, broadcast standards, streaming protocols, and quality tiers, with auto-selection, validation, and import/export.
 
@@ -8,17 +8,19 @@ Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a c
 
 ## Features
 
-- **200+ Professional Presets** - Comprehensive preset library covering major platforms
 - **Platform Presets** - YouTube, Vimeo, Facebook, Instagram, TikTok, Twitter, LinkedIn
 - **Broadcast Standards** - ATSC, DVB, ISDB presets
 - **Streaming Protocols** - HLS, DASH, SmoothStreaming, RTMP, SRT ABR ladders
 - **Archive Formats** - Lossless and mezzanine presets
 - **Mobile Optimization** - iOS and Android specific presets
 - **Quality Tiers** - Low, medium, high, and highest quality options
-- **Auto-selection** - Suggest optimal presets based on target bitrate
+- **Lazy Loading** - `PresetLibrary::global()` cached singleton via `OnceLock`; per-category `LazyPresetCategory` loads on first access
+- **Auto-selection** - `OptimalPresetSelector::select(criteria, library)` picks the best scored preset; falls back to smallest when no match
+- **Text Search** - `InvertedIndex` AND-semantics tokenized search in `PresetRegistry`
+- **Fuzzy Lookup** - Alias map and Levenshtein-based fuzzy name search in `PresetRegistry`
+- **ABR Ladders** - `AbrLadder` / `AbrRung` (height, bitrate, preset)
 - **Validation** - Verify preset correctness and compatibility
 - **Import/Export** - Share presets via JSON
-- **Alias Registry** - Look up presets by name or alias
 - **Preset Chains** - Compose multiple presets in sequence
 - **Preset Versioning** - Track preset version history
 - **Preset Diff** - Compare preset configurations
@@ -37,11 +39,12 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-presets = "0.1.3"
+oximedia-presets = "0.1.4"
 ```
 
 ```rust
-use oximedia_presets::{PresetLibrary, PresetCategory, OptimalPreset};
+use oximedia_presets::{PresetLibrary, PresetCategory};
+use oximedia_presets::{OptimalPresetSelector, SelectionCriteria};
 
 // Load all built-in presets
 let library = PresetLibrary::new();
@@ -52,21 +55,20 @@ let youtube_presets = library.find_by_category(
 );
 
 // Select optimal preset for a target bitrate
-let preset = OptimalPreset::select(&library, 5_000_000);
-
-// Get HLS presets for 4 Mbps
-let hls_preset = OptimalPreset::select_for_protocol(&library, 4_000_000, "hls");
+let criteria = SelectionCriteria::default();
+let scored = OptimalPresetSelector::select(&criteria, &library);
 ```
 
 ## API Overview
 
 **Core types:**
-- `PresetLibrary` — Main preset repository with search and filtering
-- `PresetRegistry` — Alternative registry supporting aliases and fuzzy name lookup
+- `PresetLibrary` — Main preset repository with search, filtering, and `global()` singleton
+- `PresetRegistry` — Registry with alias map, `InvertedIndex` AND-search, and fuzzy lookup
 - `Preset` / `PresetMetadata` — Preset data with category, tags, and encoding config
 - `PresetCategory` — Category enum: Platform, Broadcast, Streaming, Archive, Mobile, Web, Social, Quality, Codec
-- `AbrLadder` / `AbrRung` — ABR ladder configuration
-- `OptimalPreset` — Auto-select best preset for a target bitrate
+- `AbrLadder` / `AbrRung` — ABR ladder configuration (height, bitrate, preset)
+- `OptimalPresetSelector` / `SelectionCriteria` / `ScoredPreset` — scored auto-selection
+- `LazyPresetCategory` — opt-in lazy per-category loading via `OnceLock`
 - `BitrateRange` — Bitrate range for preset matching
 
 **Modules:**

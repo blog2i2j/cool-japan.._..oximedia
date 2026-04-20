@@ -1,9 +1,9 @@
 # OxiMedia — The Sovereign Media Framework: Development Roadmap
 
-**Version: 0.1.3**
-**Status as of: 2026-04-15**
+**Version: 0.1.4**
+**Status as of: 2026-04-20**
 **Total SLOC: ~2,650,000 (Rust)**
-**Total Tests: 80,393 passing**
+**Total Tests: 80,500+ passing**
 **Total Crates: 106**
 **Crate Status: 106 Stable / 0 Alpha / 0 Partial**
 
@@ -256,6 +256,52 @@ All 22 former alpha crates have been audited, documented, tested, and promoted t
 | Priority | Crate | Issue | Status |
 |----------|-------|-------|--------|
 | None/Resolved | `oximedia-net` | `todo!()` confirmed in documentation comment only in ABR controller — not executable code, no runtime impact | Resolved |
+
+---
+
+## 0.1.4 Planned
+
+Items confirmed for the 0.1.4 milestone. All are patent-free and qualify for the Green List.
+
+| Item | Crate(s) | Notes |
+|------|----------|-------|
+| **MJPEG** — Motion JPEG codec (pure-Rust) | `oximedia-codec`, `oximedia-container`, `oximedia-core` | Baseline JPEG patents expired; fully royalty-free. Add `CodecId::Mjpeg`, a pure-Rust baseline JPEG encoder that emits independent intra-frames, a container muxer for AVI/MOV/MPEG-PS MJPEG streams, and `compat-ffmpeg` direct mapping (`-c:v mjpeg` pass-through). Existing stubs in `oximedia-multicam` (`ProxyCodec::Mjpeg`) and `oximedia-transcode` (`hwaccel`) will be wired to the real encoder. Tracked in GitHub issue #2. |
+| **Animated JPEG-XL (AJXL)** | `oximedia-codec` | Extend the existing single-frame `oximedia-codec/src/jpegxl/` implementation: add `JxlAnimation` / `AnimationHeader` types, ISOBMFF `jxlp` frame-sequence serialization (loop count, `tps_numerator` / `tps_denominator`), and a streaming frame-iterator decode API (`impl Iterator<Item = DecodedImage>`). Tracked in GitHub issue #2. |
+| **APV (Advanced Professional Video)** | `oximedia-codec`, `oximedia-container`, `oximedia-core` | ISO/IEC 23009-13, royalty-free intra-frame codec designed for professional production workflows. Hardware support emerging in cameras and NLEs. New codec crate module `oximedia-codec/src/apv/`; `CodecId::Apv` Green List entry; container support for APV-in-MXF/MOV. Tracked in GitHub issue #1. |
+
+---
+
+## 0.1.4 Tracking
+
+Progress tracking for in-flight Wave items. `[~]` = in progress, `[x]` = complete.
+
+- [x] MJPEG end-to-end wiring (CodecId, encoder, container muxer, CLI, compat-ffmpeg) — Wave 1 (2026-04-17)
+- [x] APV end-to-end wiring (CodecId, encoder stub, container muxer, CLI, compat-ffmpeg) — Wave 1 (2026-04-17)
+- [x] JPEG encoder+decoder spec-compliance fix (zigzag DQT + AC ordering) — Wave 2 Slice A (2026-04-17)
+- [x] Matroska MJPEG + APV codec entries (V_MJPEG, V_MS/VFW/FOURCC + BITMAPINFOHEADER) — Wave 2 Slice B (2026-04-17)
+- [x] CLI MJPEG/APV wiring (CodecId::FromStr, VideoCodec enum, transcode intra-codec fast path) — Wave 2 Slice C (2026-04-17)
+- [x] AJXL ISOBMFF jxlp animated encoder (finish_isobmff(), ISOBMFF box helpers) — Wave 2 Slice D (2026-04-17)
+- [x] AJXL streaming decoder iterator (JxlStreamingDecoder<R: Read>, ISOBMFF + native auto-detect) — Wave 2 Slice E (2026-04-17)
+- [x] AVI container muxer + demuxer (RIFF+hdrl+movi+idx1, MJPEG-only, ≤1 GB) — Wave 2 Slice F (2026-04-17)
+- [x] APV FFmpeg codec-map aliases (codec_map.rs + codec_mapping.rs) — Slice A of /ultra Wave 3 (2026-04-17)
+- [x] AVI v3: OpenDML >1 GB + PCM audio + H264/RGB24 codec support — Slice C of /ultra Wave 3 (2026-04-17)
+- [x] MP4 muxer gap-fill: fragmented MP4 (fMP4/moof+mdat) + AV1 av1C + MJPEG/APV coverage — Slice D of /ultra Wave 3 (2026-04-17)
+- [x] Core types expansion: NV12/NV21/P010/P016 PixelFormat, S24/F64 SampleFormat, WebP/Gif/Jxl CodecId, typed FourCc constants — Slice E of /ultra Wave 3 (2026-04-17)
+- [x] Matroska+streaming: sample-accurate seek, gapless elst, DASH SegmentTemplate manifest — Slice F of /ultra Wave 3 (2026-04-17)
+- [x] FFmpeg compat: filter_complex parsing, stream_spec -map, -ss/-to/-t seeking, ffprobe output formatter — Slice G of /ultra Wave 3 (2026-04-17)
+- [x] Docs sweep: oximedia-gpu, oximedia-storage, oximedia-routing, oximedia-collab, oximedia-presets, oximedia-switcher, oximedia-automation — Slice H of /ultra Wave 3 (2026-04-17)
+- [x] WASM mio fix — oximedia-batch + oximedia-convert — Wave 4 Slice A (2026-04-18)
+- [x] WASM GpuAccelerator Send+Sync gate — oximedia-gpu/graphics — Wave 4 Slice B (2026-04-18)
+- [x] Core v2: timestamp-arith + Atmos layouts + color metadata — Wave 4 Slice C (2026-04-18)
+- [x] Container v4: MKV BlockAdditionMapping + sample-accurate seek all formats + CMAF-LL chunked — Wave 4 Slice D (2026-04-18)
+- [x] FFmpeg compat v2: codec-map OnceLock + encoder quality args + -vf/-af + two-pass — Wave 4 Slice E (2026-04-18)
+- [x] Docs sweep round 2: oximedia-codec + oximedia-io + oximedia-bitstream + Wave-4 API deltas — Wave 4 Slice F (2026-04-18)
+- [ ] Transcode pipeline frame-level executor (TranscodePipeline::execute() + multi-track interleaver) — Wave 5 Slice A (2026-04-18)
+- [ ] HW-accel detection: macOS VideoToolbox + Linux VAAPI real platform probes — Wave 5 Slice B (2026-04-18)
+- [ ] ABR BBA-1 buffer-based rate adaptation strategy — oximedia-net — Wave 5 Slice C (2026-04-18)
+- [ ] Container v5: SCTE-35 MPEG-TS ad markers + BatchMetadataUpdate — Wave 5 Slice D (2026-04-18)
+- [ ] Core: structured ErrorContext chain (file:line:fn) + FormatNegotiator codec negotiation — Wave 5 Slice E (2026-04-18)
+- [ ] Docs round 3: codec feature matrix + rate-control guide + SIMD dispatch + Wave-5 deltas — Wave 5 Slice F (2026-04-18)
 
 ---
 

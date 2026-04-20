@@ -83,46 +83,70 @@ impl PyFarmNode {
     }
 
     /// Convert to a Python dict.
-    fn to_dict(&self) -> HashMap<String, Py<PyAny>> {
-        Python::attach(|py| {
+    fn to_dict(&self) -> PyResult<HashMap<String, Py<PyAny>>> {
+        Python::attach(|py| -> PyResult<HashMap<String, Py<PyAny>>> {
             let mut m: HashMap<String, Py<PyAny>> = HashMap::new();
             m.insert(
                 "id".to_string(),
-                self.id.clone().into_pyobject(py).expect("str").into(),
+                self.id
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "hostname".to_string(),
-                self.hostname.clone().into_pyobject(py).expect("str").into(),
+                self.hostname
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "port".to_string(),
-                self.port.into_pyobject(py).expect("int").into(),
+                self.port
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "status".to_string(),
-                self.status.clone().into_pyobject(py).expect("str").into(),
+                self.status
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "cpu_cores".to_string(),
-                self.cpu_cores.into_pyobject(py).expect("int").into(),
+                self.cpu_cores
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "memory_gb".to_string(),
-                self.memory_gb.into_pyobject(py).expect("float").into(),
+                self.memory_gb
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "gpu_available".to_string(),
                 self.gpu_available
                     .into_pyobject(py)
-                    .expect("bool")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .to_owned()
                     .into(),
             );
             m.insert(
                 "load_percent".to_string(),
-                self.load_percent.into_pyobject(py).expect("float").into(),
+                self.load_percent
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
-            m
+            Ok(m)
         })
     }
 }
@@ -198,35 +222,54 @@ impl PyFarmJob {
     }
 
     /// Convert to a Python dict.
-    fn to_dict(&self) -> HashMap<String, Py<PyAny>> {
-        Python::attach(|py| {
+    fn to_dict(&self) -> PyResult<HashMap<String, Py<PyAny>>> {
+        Python::attach(|py| -> PyResult<HashMap<String, Py<PyAny>>> {
             let mut m: HashMap<String, Py<PyAny>> = HashMap::new();
             m.insert(
                 "id".to_string(),
-                self.id.clone().into_pyobject(py).expect("str").into(),
+                self.id
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "name".to_string(),
-                self.name.clone().into_pyobject(py).expect("str").into(),
+                self.name
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "status".to_string(),
-                self.status.clone().into_pyobject(py).expect("str").into(),
+                self.status
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "progress".to_string(),
-                self.progress.into_pyobject(py).expect("float").into(),
+                self.progress
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "priority".to_string(),
-                self.priority.clone().into_pyobject(py).expect("str").into(),
+                self.priority
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "project_path".to_string(),
                 self.project_path
                     .clone()
                     .into_pyobject(py)
-                    .expect("str")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
             m.insert(
@@ -234,10 +277,10 @@ impl PyFarmJob {
                 self.output_dir
                     .clone()
                     .into_pyobject(py)
-                    .expect("str")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
-            m
+            Ok(m)
         })
     }
 }
@@ -572,11 +615,16 @@ mod tests {
     #[test]
     fn test_submit_and_cancel_job() {
         let mut cluster = PyRenderFarmCluster::new("test", None);
+        let tmp = std::env::temp_dir();
+        let proj = tmp.join("oximedia-py-renderfarm-project.blend");
+        let out = tmp.join("oximedia-py-renderfarm-out");
+        let proj_s = proj.to_string_lossy();
+        let out_s = out.to_string_lossy();
         let job_id = cluster
             .submit_job(
                 "Test Render",
-                "/tmp/project.blend",
-                "/tmp/out",
+                &proj_s,
+                &out_s,
                 Some("1-100"),
                 Some("high"),
                 None,

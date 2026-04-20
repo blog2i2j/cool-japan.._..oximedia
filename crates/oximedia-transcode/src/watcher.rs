@@ -170,8 +170,20 @@ impl TranscodeWatcher {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-transcode-watcher-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     fn make_config() -> WatchConfig {
-        WatchConfig::new("/tmp/watch_in", "/tmp/watch_out", "youtube_1080p", 2000)
+        WatchConfig::new(
+            tmp_str("watch_in"),
+            tmp_str("watch_out"),
+            "youtube_1080p",
+            2000,
+        )
     }
 
     #[test]
@@ -183,16 +195,17 @@ mod tests {
     #[test]
     fn test_mark_processed_and_is_known() {
         let mut watcher = TranscodeWatcher::new(make_config());
-        assert!(!watcher.is_known("/tmp/watch_in/video.mp4"));
-        watcher.mark_processed("/tmp/watch_in/video.mp4");
-        assert!(watcher.is_known("/tmp/watch_in/video.mp4"));
+        let path = tmp_str("watch_in/video.mp4");
+        assert!(!watcher.is_known(&path));
+        watcher.mark_processed(&path);
+        assert!(watcher.is_known(&path));
     }
 
     #[test]
     fn test_scan_nonexistent_dir_returns_empty() {
         let config = WatchConfig::new(
             "/nonexistent_oximedia_watch_dir_xyz",
-            "/tmp/out",
+            tmp_str("out"),
             "preset",
             1000,
         );
@@ -213,7 +226,7 @@ mod tests {
 
         let config = WatchConfig::new(
             watch_dir.to_string_lossy().as_ref(),
-            "/tmp/out",
+            tmp_str("out"),
             "preset",
             1000,
         );
@@ -233,7 +246,7 @@ mod tests {
 
     #[test]
     fn test_watched_file_is_stable() {
-        let f = WatchedFile::new("/tmp/video.mp4", 1024, 0);
+        let f = WatchedFile::new(tmp_str("video.mp4"), 1024, 0);
         assert!(!f.is_stable(4999, 5000));
         assert!(f.is_stable(5000, 5000));
         assert!(f.is_stable(9999, 5000));
@@ -241,8 +254,9 @@ mod tests {
 
     #[test]
     fn test_watched_file_fields() {
-        let f = WatchedFile::new("/tmp/a.mkv", 999_000, 42_000);
-        assert_eq!(f.path, "/tmp/a.mkv");
+        let path = tmp_str("a.mkv");
+        let f = WatchedFile::new(&path, 999_000, 42_000);
+        assert_eq!(f.path, path);
         assert_eq!(f.size_bytes, 999_000);
         assert_eq!(f.discovered_at_ms, 42_000);
     }

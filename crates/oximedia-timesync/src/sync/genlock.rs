@@ -87,7 +87,7 @@ impl GenlockGenerator {
         } else {
             ideal_time
                 .checked_sub(Duration::from_nanos((-self.phase_adjust_ns) as u64))
-                .expect("invariant: phase adjustment bounded to ±1 frame")
+                .unwrap_or(ideal_time)
         };
 
         self.frame_number += 1;

@@ -436,11 +436,9 @@ impl<'a> ConfigParser<'a> {
         let line = strip_inline_comment(raw);
 
         // Detect transform type keyword (may appear as `!<MatrixTransform>` or `MatrixTransform:`)
-        let xform_type = detect_transform_type(line);
-        if xform_type.is_none() {
+        let Some(xform_type) = detect_transform_type(line) else {
             return Ok(None);
-        }
-        let xform_type = xform_type.expect("checked above");
+        };
         self.advance();
 
         match xform_type {

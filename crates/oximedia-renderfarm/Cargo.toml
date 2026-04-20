@@ -57,18 +57,17 @@ tokio-util = { version = "0.7", features = ["codec"] }
 blake3 = "1.8"
 sha2 = { workspace = true }
 lz4_flex = { workspace = true }
-# TODO: migrate to oxiarc-zstd (COOLJAPAN Pure Rust Policy)
-# zstd = "0.13"
+oxiarc-zstd = { workspace = true }
 walkdir = "2"
 notify = "8"
-crossbeam-channel = "0.5"
+crossbeam-channel = { workspace = true }
 crossbeam = "0.8"
 num_cpus = "1.17"
 sysinfo = "0.38"
 
 [dev-dependencies]
 tempfile.workspace = true
-criterion = "0.8"
+criterion = { workspace = true }
 
 [[bench]]
 name = "scheduler"

@@ -1,16 +1,80 @@
-//! GPU compute pipeline using WGPU for `OxiMedia`
+//! Cross-platform GPU compute pipeline for OxiMedia using WGPU.
 //!
-//! This crate provides a cross-platform GPU acceleration layer using WGPU,
-//! supporting Vulkan, Metal, DirectX 12, and WebGPU backends.
+//! This crate provides GPU-accelerated media processing via the
+//! [wgpu](https://wgpu.rs/) portability layer, which selects the best
+//! available native backend **at runtime** — no compile-time feature flags
+//! are required:
 //!
-//! # Features
+//! | Platform | Backend selected by wgpu |
+//! |----------|--------------------------|
+//! | Linux    | Vulkan (preferred), then OpenGL ES |
+//! | macOS    | Metal |
+//! | Windows  | DirectX 12, then Vulkan |
+//! | Web      | WebGPU |
+//! | All      | CPU software fallback when no GPU adapter is found |
 //!
-//! - Color space conversions (RGB ↔ YUV with BT.601, BT.709, BT.2020)
-//! - Image scaling (nearest, bilinear, bicubic)
-//! - Convolution filters (blur, sharpen, edge detection)
-//! - Transform operations (DCT, FFT)
-//! - Automatic CPU fallback
-//! - Multi-GPU support
+//! # Compute kernels
+//!
+//! **Color space:**
+//! - RGB ↔ YUV (BT.601, BT.709, BT.2020) — [`ops::ColorSpaceConversion`]
+//! - Chroma subsampling (4:2:0, 4:2:2, 4:4:4) — [`ops::ChromaOps`]
+//! - Tone mapping (Reinhard, Hable, ACES, Drago) — `ops::tonemap`
+//!
+//! **Geometry and scale:**
+//! - Image scaling: Bilinear, Bicubic, Lanczos-3 — [`ops::ScaleOperation`]
+//! - Convolution filters: blur, sharpen, edge-detect — [`ops::FilterOperation`]
+//! - Perspective transform, mipmap generation
+//!
+//! **Signal processing:**
+//! - DCT and FFT transforms — [`ops::TransformOperation`]
+//! - Histogram equalization (CLAHE) — [`HistogramEqualizer`]
+//! - Optical flow estimation — `optical_flow`
+//! - Motion detection — [`MotionDetector`]
+//! - Film grain synthesis — `film_grain`
+//! - Bilateral / NLM denoising — `ops::denoise`
+//!
+//! **Quality metrics:**
+//! - [`compute_psnr`], [`compute_ssim`], [`compute_ms_ssim`]
+//!
+//! # TexturePool — LRU eviction
+//!
+//! [`TexturePool`] maintains a byte-budget and slot-count capacity.  When both
+//! limits are exhausted, [`TexturePool::allocate_with_lru_eviction`] evicts the
+//! least-recently-used texture in a loop until enough space is reclaimed.  LRU
+//! order is tracked with a monotonic `access_clock` counter; the slot with the
+//! smallest timestamp is selected by [`TexturePool::lru_handle`].  Call
+//! [`TexturePool::touch`] after each use to update the timestamp.
+//!
+//! Supported [`TextureFormat`]s: `Rgba8`, `Rgba16f`, `Rgb10A2`, `R8`, `Rg8`,
+//! `Yuv420`, `Nv12`.
+//!
+//! # Shader cache
+//!
+//! [`shader_cache::GpuShaderCache`] maintains two levels of caching:
+//!
+//! - **In-memory**: LRU, LFU, or OldestFirst eviction (configurable via
+//!   [`shader_cache::EvictionPolicy`]).  Hit/miss counters are tracked.
+//! - **Disk-persistent**: Cache entries are stored as
+//!   `<hex_hash>_<backend>_<flags>.shd` (compiled bytecode) plus a
+//!   `<hex_hash>_<backend>_<flags>.meta` sidecar.  The cache key is a
+//!   [`shader_cache::ShaderVersion`] containing `source_hash: u64`,
+//!   `backend: String`, and `feature_flags: u32`.
+//!
+//! # Pipeline system
+//!
+//! [`GpuPipeline`] is a DAG-based processing pipeline with built-in barrier
+//! management.  Stages: `Decode → Colorspace → Filter → Encode → Display`.
+//! [`BarrierBatcher`] supports three strategies — `Eager`, `Batched`, and
+//! `Deferred` — to minimise synchronisation overhead.
+//!
+//! [`BatchedComputePass`] and [`ComputeShaderSimulator`] provide structured
+//! compute dispatch with recorded [`DispatchCommand`] queues.
+//!
+//! # GPU buffer management
+//!
+//! [`SubAllocator`] implements a bump-pointer sub-allocator with defragmentation
+//! for the GPU buffer pool.  [`memory_pool::DefragResult`] reports how many bytes
+//! were compacted per defrag pass.
 //!
 //! # Example
 //!

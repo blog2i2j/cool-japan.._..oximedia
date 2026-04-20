@@ -6,6 +6,8 @@ Real-time CRDT-based multi-user collaboration system for OxiMedia, supporting co
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
+Version: 0.1.4 — 2026-04-20 — 771 tests
+
 ## Overview
 
 `oximedia-collab` provides a comprehensive CRDT-based synchronization system supporting 10+ concurrent editors with sub-second latency. Built on Yjs (via `yrs`) for conflict-free merging, with WebSocket-based communication and offline-first architecture.
@@ -13,23 +15,24 @@ Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a c
 ## Features
 
 ### CRDT Document Synchronization
-- Yjs-based document synchronization via `yrs`
-- Timeline operations: insert, delete, move clips and tracks
-- Operational transformation with conflict resolution
-- Version vector tracking for causality
-- Lamport timestamps and vector clocks
-- Three-way merge strategy
-- Snapshot management for efficient sync
-- Operation batching and causal order tracking
+- Yjs-based document synchronization via `yrs` (`CrdtDocument` backed by `yrs::Doc`)
+- Classic CRDT primitives: GCounter, PNCounter, LWWRegister, MVRegister, GSet, TwoPhaseSet
+- Operational transformation: Insert/Delete/Update/Move/Composite ops with FIFO tiebreak
+- Delete/Delete sentinel (`usize::MAX`) and git-rebase-style `rebase()` for sequential transform
+- `OpDag` with Kahn topological ordering and memoized LCA (`AncestorCache`) for causal ordering
+- `DeltaChangeset`: `delta_from(base, current)` encodes only suffix ops beyond the base version
+- Three-way merge (`ProjectMerger`) with five conflict strategies and heuristic score resolution
+- Snapshot repository with parent-chain, BFS common-ancestor, and branch/fast-forward detection
+- Version vector tracking for causality; Lamport timestamps and vector clocks
 
 ### Real-time Synchronization
 - WebSocket-based communication protocol (tokio-tungstenite)
-- Delta encoding and compression (gzip/lz4)
-- Offline support with change queue management
+- Compact binary frame format: 4-byte header `[type u16 LE][len u16 LE]` + payload
+- `BatchedFramer` auto-flushes buffered frames above a configurable byte threshold
+- Delta encoding and adaptive bandwidth throttling (`bandwidth_throttle`)
+- Offline support with change queue management (up to 10 000 entries)
 - Reconnection strategies with exponential backoff
-- Message batching and throttling
-- Heartbeat/keep-alive mechanism
-- Bandwidth monitoring and connection statistics
+- Heartbeat/keep-alive mechanism and connection statistics
 
 ### Session Management
 - Multi-user session coordination (up to 10 users per session)
@@ -40,12 +43,12 @@ Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a c
 - Session metadata management and garbage collection
 
 ### Optimistic Locking
-- Resource locking: clips, tracks, timeline, project
-- Read/Write lock types
-- Lock stealing with permission checks
-- Timeout-based automatic release
-- Deadlock detection and prevention
-- RAII-style lock guards
+- Resource locking: clips, tracks, timeline, project; region-based and track-based scopes
+- Read/Write lock types with RAII-style lock guards
+- Lock stealing with permission checks (Owner role required)
+- Timeout-based automatic release (configurable, default 5 minutes)
+- Deadlock detection via `WaiterGraph` DFS cycle detection (`detect_cycle_if_added`)
+- Returns full cycle path on deadlock; waiter edges removed on lock release
 
 ### Shared History
 - Per-user undo/redo stack
@@ -67,7 +70,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-collab = "0.1.3"
+oximedia-collab = "0.1.4"
 ```
 
 ```rust
@@ -111,17 +114,24 @@ CollabConfig {
 }
 ```
 
-## Architecture (34 source files, 698 public items)
+## Architecture
 
 | Module | Purpose |
 |--------|---------|
 | `crdt` | CRDT operations, merging, conflict resolution |
+| `crdt_primitives` | GCounter, PNCounter, LWWRegister, MVRegister, GSet, TwoPhaseSet |
+| `operation_log` | OT transform/rebase, OpDag Kahn ordering, AncestorCache LCA |
+| `changeset` | DeltaChangeset suffix encoding and apply |
+| `binary_framer` | Compact binary frame format; BatchedFramer |
+| `edit_lock` | Region/track/hierarchical locking with WaiterGraph deadlock detection |
+| `three_way_merge` | ProjectMerger, ConflictResolution (5 strategies), heuristic scoring |
+| `snapshot_manager` | Git-inspired snapshot repository with BFS common ancestor |
 | `sync` | Network synchronization, WebSocket, reconnection |
-| `lock` | Resource locking, deadlock prevention |
 | `history` | Undo/redo, history management |
 | `session` | Session coordination, user management |
 | `awareness` | Presence tracking, cursor synchronization |
-| `lib` | Public API, server management |
+| `user_presence_map` | Spatial cursor/viewport tracking |
+| `lib` | Public API, CollaborationServer |
 
 ## Conflict Resolution Strategies
 

@@ -14,6 +14,13 @@ mod tests {
         v.iter().map(|s| s.to_string()).collect()
     }
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-compat-ffmpeg-rwtests-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     // ─────────────────────────────────────────────────────────────────────────
     // Codec conversion
     // ─────────────────────────────────────────────────────────────────────────
@@ -159,7 +166,8 @@ mod tests {
 
     #[test]
     fn rw_08_passlogfile_two_pass() {
-        // ffmpeg -i in.mp4 -c:v libvpx-vp9 -pass 1 -passlogfile /tmp/vp9pass out.webm
+        // ffmpeg -i in.mp4 -c:v libvpx-vp9 -pass 1 -passlogfile <tmp>/vp9pass out.webm
+        let pass_log = tmp_str("vp9pass");
         let args = sv(&[
             "-i",
             "in.mp4",
@@ -168,13 +176,13 @@ mod tests {
             "-pass",
             "1",
             "-passlogfile",
-            "/tmp/vp9pass",
+            &pass_log,
             "out.webm",
         ]);
         let parsed = FfmpegArgs::parse(&args).expect("parse");
         let out = &parsed.outputs[0];
         assert_eq!(out.pass, Some(1));
-        assert_eq!(out.passlogfile.as_deref(), Some("/tmp/vp9pass"));
+        assert_eq!(out.passlogfile.as_deref(), Some(pass_log.as_str()));
     }
 
     // ─────────────────────────────────────────────────────────────────────────

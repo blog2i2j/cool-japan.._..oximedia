@@ -344,7 +344,7 @@ impl MultiPassConfigBuilder {
             })?
         } else {
             self.stats_file
-                .unwrap_or_else(|| PathBuf::from("/tmp/stats.log"))
+                .unwrap_or_else(|| std::env::temp_dir().join("oximedia-stats.log"))
         };
 
         let mut config = MultiPassConfig::new(self.mode, stats_file);
@@ -377,27 +377,26 @@ mod tests {
 
     #[test]
     fn test_multipass_config_stats_file() {
-        let config = MultiPassConfig::new(MultiPassMode::TwoPass, "/tmp/stats.log");
-        assert_eq!(
-            config.stats_file_for_pass(1),
-            PathBuf::from("/tmp/stats_pass1.log")
-        );
-        assert_eq!(
-            config.stats_file_for_pass(2),
-            PathBuf::from("/tmp/stats_pass2.log")
-        );
+        let tmp_stats = std::env::temp_dir().join("oximedia-multipass-stats.log");
+        let config = MultiPassConfig::new(MultiPassMode::TwoPass, tmp_stats.clone());
+        let expected_pass1 = std::env::temp_dir().join("oximedia-multipass-stats_pass1.log");
+        let expected_pass2 = std::env::temp_dir().join("oximedia-multipass-stats_pass2.log");
+        assert_eq!(config.stats_file_for_pass(1), expected_pass1);
+        assert_eq!(config.stats_file_for_pass(2), expected_pass2);
     }
 
     #[test]
     fn test_multipass_config_is_analysis_pass() {
-        let config = MultiPassConfig::new(MultiPassMode::TwoPass, "/tmp/stats.log");
+        let tmp_stats = std::env::temp_dir().join("oximedia-multipass-stats.log");
+        let config = MultiPassConfig::new(MultiPassMode::TwoPass, tmp_stats);
         assert!(config.is_analysis_pass(1));
         assert!(!config.is_analysis_pass(2));
     }
 
     #[test]
     fn test_multipass_encoder_flow() {
-        let config = MultiPassConfig::new(MultiPassMode::TwoPass, "/tmp/stats.log");
+        let tmp_stats = std::env::temp_dir().join("oximedia-multipass-stats.log");
+        let config = MultiPassConfig::new(MultiPassMode::TwoPass, tmp_stats);
         let mut encoder = MultiPassEncoder::new(config);
 
         assert_eq!(encoder.current_pass(), 1);
@@ -413,7 +412,8 @@ mod tests {
 
     #[test]
     fn test_multipass_encoder_reset() {
-        let config = MultiPassConfig::new(MultiPassMode::TwoPass, "/tmp/stats.log");
+        let tmp_stats = std::env::temp_dir().join("oximedia-multipass-stats.log");
+        let config = MultiPassConfig::new(MultiPassMode::TwoPass, tmp_stats);
         let mut encoder = MultiPassEncoder::new(config);
 
         encoder.next_pass();
@@ -425,8 +425,9 @@ mod tests {
 
     #[test]
     fn test_multipass_config_builder() {
+        let tmp_stats = std::env::temp_dir().join("oximedia-multipass-test-stats.log");
         let config = MultiPassConfigBuilder::new(MultiPassMode::TwoPass)
-            .stats_file("/tmp/test_stats.log")
+            .stats_file(tmp_stats)
             .target_bitrate(5_000_000)
             .max_bitrate(8_000_000)
             .keep_stats(true)
@@ -441,7 +442,8 @@ mod tests {
 
     #[test]
     fn test_encoder_flags_two_pass() {
-        let config = MultiPassConfig::new(MultiPassMode::TwoPass, "/tmp/stats.log");
+        let tmp_stats = std::env::temp_dir().join("oximedia-multipass-stats.log");
+        let config = MultiPassConfig::new(MultiPassMode::TwoPass, tmp_stats);
 
         let flags1 = config.encoder_flags_for_pass(1);
         assert!(flags1.contains(&"pass=1".to_string()));
@@ -452,7 +454,8 @@ mod tests {
 
     #[test]
     fn test_single_pass_no_stats() {
-        let config = MultiPassConfig::new(MultiPassMode::SinglePass, "/tmp/stats.log");
+        let tmp_stats = std::env::temp_dir().join("oximedia-multipass-stats.log");
+        let config = MultiPassConfig::new(MultiPassMode::SinglePass, tmp_stats);
         assert!(!config.is_analysis_pass(1));
         assert_eq!(config.encoder_flags_for_pass(1).len(), 0);
     }

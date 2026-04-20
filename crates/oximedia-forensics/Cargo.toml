@@ -18,7 +18,7 @@ ndarray = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 thiserror = { workspace = true }
-image = "0.25"
+image = { workspace = true }
 num-traits = "0.2"
 rayon = { workspace = true }
 

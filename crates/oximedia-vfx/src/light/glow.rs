@@ -98,7 +98,9 @@ impl VideoEffect for Glow {
                             let falloff = (1.0 - dist / radius as f32).max(0.0);
                             let glow_amount = falloff * self.intensity;
 
-                            let current = output.get_pixel(nx, ny).expect("should succeed in test");
+                            let Some(current) = output.get_pixel(nx, ny) else {
+                                continue;
+                            };
                             let glowed = [
                                 current[0]
                                     .saturating_add((f32::from(pixel[0]) * glow_amount) as u8),

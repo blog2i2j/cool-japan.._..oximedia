@@ -408,8 +408,12 @@ impl EnergyProfiler {
         }
 
         // Aggregate domain energy from last sample (cumulative delta from baseline).
-        let last = self.samples.last().expect("non-empty checked above");
-        let domain_energy_uj = last.domain_uj.clone();
+        // Safety: we returned early above if samples is empty.
+        let domain_energy_uj = if let Some(last) = self.samples.last() {
+            last.domain_uj.clone()
+        } else {
+            HashMap::new()
+        };
         let total_energy_uj: u64 = domain_energy_uj.values().sum();
 
         // Average power per domain over all samples.

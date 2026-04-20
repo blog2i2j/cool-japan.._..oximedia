@@ -353,32 +353,47 @@ impl Default for AdvancedTranscodeBuilder {
 mod tests {
     use super::*;
 
+    fn tmp_in() -> String {
+        std::env::temp_dir()
+            .join("oximedia-transcode-builder-input.mp4")
+            .to_string_lossy()
+            .into_owned()
+    }
+
+    fn tmp_out() -> String {
+        std::env::temp_dir()
+            .join("oximedia-transcode-builder-output.mp4")
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_builder_basic() {
+        let (ti, to) = (tmp_in(), tmp_out());
         let config = TranscodeBuilder::new()
-            .input("/tmp/input.mp4")
-            .output("/tmp/output.mp4")
+            .input(&ti)
+            .output(&to)
             .video_codec("vp9")
             .audio_codec("opus")
             .build()
             .expect("should succeed in test");
 
-        assert_eq!(config.input, Some("/tmp/input.mp4".to_string()));
-        assert_eq!(config.output, Some("/tmp/output.mp4".to_string()));
+        assert_eq!(config.input, Some(ti));
+        assert_eq!(config.output, Some(to));
         assert_eq!(config.video_codec, Some("vp9".to_string()));
         assert_eq!(config.audio_codec, Some("opus".to_string()));
     }
 
     #[test]
     fn test_builder_missing_input() {
-        let result = TranscodeBuilder::new().output("/tmp/output.mp4").build();
+        let result = TranscodeBuilder::new().output(tmp_out()).build();
 
         assert!(result.is_err());
     }
 
     #[test]
     fn test_builder_missing_output() {
-        let result = TranscodeBuilder::new().input("/tmp/input.mp4").build();
+        let result = TranscodeBuilder::new().input(tmp_in()).build();
 
         assert!(result.is_err());
     }
@@ -386,8 +401,8 @@ mod tests {
     #[test]
     fn test_builder_with_resolution() {
         let config = TranscodeBuilder::new()
-            .input("/tmp/input.mp4")
-            .output("/tmp/output.mp4")
+            .input(tmp_in())
+            .output(tmp_out())
             .resolution(1920, 1080)
             .build()
             .expect("should succeed in test");
@@ -399,8 +414,8 @@ mod tests {
     #[test]
     fn test_builder_with_quality() {
         let config = TranscodeBuilder::new()
-            .input("/tmp/input.mp4")
-            .output("/tmp/output.mp4")
+            .input(tmp_in())
+            .output(tmp_out())
             .quality(QualityMode::High)
             .build()
             .expect("should succeed in test");
@@ -411,8 +426,8 @@ mod tests {
     #[test]
     fn test_builder_with_multipass() {
         let config = TranscodeBuilder::new()
-            .input("/tmp/input.mp4")
-            .output("/tmp/output.mp4")
+            .input(tmp_in())
+            .output(tmp_out())
             .multi_pass(MultiPassMode::TwoPass)
             .build()
             .expect("should succeed in test");
@@ -423,8 +438,8 @@ mod tests {
     #[test]
     fn test_builder_with_normalization() {
         let config = TranscodeBuilder::new()
-            .input("/tmp/input.mp4")
-            .output("/tmp/output.mp4")
+            .input(tmp_in())
+            .output(tmp_out())
             .normalize_audio()
             .build()
             .expect("should succeed in test");
@@ -434,22 +449,23 @@ mod tests {
 
     #[test]
     fn test_advanced_builder_crf() {
+        let (ti, to) = (tmp_in(), tmp_out());
         let config = AdvancedTranscodeBuilder::new()
-            .input("/tmp/input.mp4")
-            .output("/tmp/output.mp4")
+            .input(&ti)
+            .output(&to)
             .crf(23)
             .build()
             .expect("should succeed in test");
 
-        assert_eq!(config.input, Some("/tmp/input.mp4".to_string()));
-        assert_eq!(config.output, Some("/tmp/output.mp4".to_string()));
+        assert_eq!(config.input, Some(ti));
+        assert_eq!(config.output, Some(to));
     }
 
     #[test]
     fn test_advanced_builder_cbr() {
         let config = AdvancedTranscodeBuilder::new()
-            .input("/tmp/input.mp4")
-            .output("/tmp/output.mp4")
+            .input(tmp_in())
+            .output(tmp_out())
             .cbr(5_000_000)
             .build()
             .expect("should succeed in test");
@@ -460,8 +476,8 @@ mod tests {
     #[test]
     fn test_advanced_builder_vbr() {
         let config = AdvancedTranscodeBuilder::new()
-            .input("/tmp/input.mp4")
-            .output("/tmp/output.mp4")
+            .input(tmp_in())
+            .output(tmp_out())
             .vbr(5_000_000, 8_000_000)
             .build()
             .expect("should succeed in test");

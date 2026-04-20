@@ -494,7 +494,7 @@ mod tests {
     #[test]
     fn test_render_validation_report() {
         let report = oximedia_captions::validation::ValidationReport::new();
-        let path = PathBuf::from("/tmp/test.srt");
+        let path = std::env::temp_dir().join("test.srt");
         let text = render_validation_report(&report, &path, "fcc");
         assert!(text.contains("Caption Validation Report"));
         assert!(text.contains("fcc"));

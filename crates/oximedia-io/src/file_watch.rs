@@ -419,7 +419,7 @@ mod tests {
             ..Default::default()
         };
         let mut watcher = FileWatcher::new(cfg);
-        watcher.add_path("/tmp/video.mp4");
+        watcher.add_path(std::env::temp_dir().join("oximedia-io-fwatch-video.mp4"));
         assert_eq!(watcher.watched_count(), 0);
     }
 

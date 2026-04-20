@@ -527,7 +527,7 @@ mod tests {
     #[test]
     fn test_supplemental_package() {
         // Create a dummy base package (would use builder in real code)
-        let root = PathBuf::from("/tmp/test_imp");
+        let root = std::env::temp_dir().join("oximedia-imf-package-test_imp");
         let asset_map = AssetMap::new(Uuid::new_v4());
         let base_package = ImfPackage {
             root_path: root,

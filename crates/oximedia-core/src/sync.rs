@@ -327,9 +327,9 @@ pub struct BoundedSender<T> {
 
 impl<T> Clone for BoundedSender<T> {
     fn clone(&self) -> Self {
-        let mut state = self.inner.queue.lock().expect("channel mutex poisoned");
-        state.sender_count += 1;
-        drop(state);
+        if let Ok(mut state) = self.inner.queue.lock() {
+            state.sender_count += 1;
+        }
         Self {
             inner: Arc::clone(&self.inner),
         }
@@ -338,13 +338,14 @@ impl<T> Clone for BoundedSender<T> {
 
 impl<T> Drop for BoundedSender<T> {
     fn drop(&mut self) {
-        let mut state = self.inner.queue.lock().expect("channel mutex poisoned");
-        state.sender_count -= 1;
-        let was_last = state.sender_count == 0;
-        drop(state);
-        if was_last {
-            // Wake any blocked receivers so they can observe the closed state.
-            self.inner.not_empty.notify_all();
+        if let Ok(mut state) = self.inner.queue.lock() {
+            state.sender_count -= 1;
+            let was_last = state.sender_count == 0;
+            drop(state);
+            if was_last {
+                // Wake any blocked receivers so they can observe the closed state.
+                self.inner.not_empty.notify_all();
+            }
         }
     }
 }
@@ -355,7 +356,11 @@ impl<T: Send> BoundedSender<T> {
     /// Returns `Ok(())` on success, [`ChannelError::Disconnected`] when all
     /// receivers have been dropped.
     pub fn send(&self, item: T) -> Result<(), ChannelError> {
-        let mut state = self.inner.queue.lock().expect("channel mutex poisoned");
+        let mut state = self
+            .inner
+            .queue
+            .lock()
+            .map_err(|_| ChannelError::Disconnected)?;
         loop {
             if state.is_closed_for_send() {
                 return Err(ChannelError::Disconnected);
@@ -371,14 +376,18 @@ impl<T: Send> BoundedSender<T> {
                 .inner
                 .not_full
                 .wait(state)
-                .expect("channel condvar poisoned");
+                .map_err(|_| ChannelError::Disconnected)?;
         }
     }
 
     /// Non-blocking variant; returns [`ChannelError::Full`] immediately if
     /// the channel is at capacity.
     pub fn try_send(&self, item: T) -> Result<(), ChannelError> {
-        let mut state = self.inner.queue.lock().expect("channel mutex poisoned");
+        let mut state = self
+            .inner
+            .queue
+            .lock()
+            .map_err(|_| ChannelError::Disconnected)?;
         if state.is_closed_for_send() {
             return Err(ChannelError::Disconnected);
         }
@@ -393,12 +402,7 @@ impl<T: Send> BoundedSender<T> {
 
     /// Returns the number of items currently in the channel buffer.
     pub fn len(&self) -> usize {
-        self.inner
-            .queue
-            .lock()
-            .expect("channel mutex poisoned")
-            .buf
-            .len()
+        self.inner.queue.lock().map(|g| g.buf.len()).unwrap_or(0)
     }
 
     /// Returns `true` when the channel buffer is empty.
@@ -408,11 +412,7 @@ impl<T: Send> BoundedSender<T> {
 
     /// Returns the channel capacity.
     pub fn capacity(&self) -> usize {
-        self.inner
-            .queue
-            .lock()
-            .expect("channel mutex poisoned")
-            .capacity
+        self.inner.queue.lock().map(|g| g.capacity).unwrap_or(0)
     }
 }
 
@@ -423,9 +423,9 @@ pub struct BoundedReceiver<T> {
 
 impl<T> Clone for BoundedReceiver<T> {
     fn clone(&self) -> Self {
-        let mut state = self.inner.queue.lock().expect("channel mutex poisoned");
-        state.receiver_count += 1;
-        drop(state);
+        if let Ok(mut state) = self.inner.queue.lock() {
+            state.receiver_count += 1;
+        }
         Self {
             inner: Arc::clone(&self.inner),
         }
@@ -434,13 +434,14 @@ impl<T> Clone for BoundedReceiver<T> {
 
 impl<T> Drop for BoundedReceiver<T> {
     fn drop(&mut self) {
-        let mut state = self.inner.queue.lock().expect("channel mutex poisoned");
-        state.receiver_count -= 1;
-        let was_last = state.receiver_count == 0;
-        drop(state);
-        if was_last {
-            // Wake blocked senders so they can observe the closed state.
-            self.inner.not_full.notify_all();
+        if let Ok(mut state) = self.inner.queue.lock() {
+            state.receiver_count -= 1;
+            let was_last = state.receiver_count == 0;
+            drop(state);
+            if was_last {
+                // Wake blocked senders so they can observe the closed state.
+                self.inner.not_full.notify_all();
+            }
         }
     }
 }
@@ -451,7 +452,11 @@ impl<T: Send> BoundedReceiver<T> {
     /// Returns `Ok(item)` on success, [`ChannelError::Disconnected`] when all
     /// senders have been dropped **and** the buffer is empty.
     pub fn recv(&self) -> Result<T, ChannelError> {
-        let mut state = self.inner.queue.lock().expect("channel mutex poisoned");
+        let mut state = self
+            .inner
+            .queue
+            .lock()
+            .map_err(|_| ChannelError::Disconnected)?;
         loop {
             if let Some(item) = state.buf.pop_front() {
                 drop(state);
@@ -465,14 +470,18 @@ impl<T: Send> BoundedReceiver<T> {
                 .inner
                 .not_empty
                 .wait(state)
-                .expect("channel condvar poisoned");
+                .map_err(|_| ChannelError::Disconnected)?;
         }
     }
 
     /// Non-blocking variant; returns [`ChannelError::Empty`] when no item is
     /// immediately available.
     pub fn try_recv(&self) -> Result<T, ChannelError> {
-        let mut state = self.inner.queue.lock().expect("channel mutex poisoned");
+        let mut state = self
+            .inner
+            .queue
+            .lock()
+            .map_err(|_| ChannelError::Disconnected)?;
         if let Some(item) = state.buf.pop_front() {
             drop(state);
             self.inner.not_full.notify_one();
@@ -487,12 +496,7 @@ impl<T: Send> BoundedReceiver<T> {
 
     /// Returns the number of items currently in the channel buffer.
     pub fn len(&self) -> usize {
-        self.inner
-            .queue
-            .lock()
-            .expect("channel mutex poisoned")
-            .buf
-            .len()
+        self.inner.queue.lock().map(|g| g.buf.len()).unwrap_or(0)
     }
 
     /// Returns `true` when the channel buffer is empty.

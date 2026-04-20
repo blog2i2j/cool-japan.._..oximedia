@@ -154,10 +154,8 @@ impl TwoPassEncoder {
     /// Returns a reference to the stored `PassOneResult`.
     pub fn analyze_pass_one(&mut self, complexities: Vec<f64>) -> &PassOneResult {
         let duration = self.config.input_duration_ms;
-        self.pass_one_result = Some(PassOneResult::from_complexities(complexities, duration));
         self.pass_one_result
-            .as_ref()
-            .expect("invariant: pass_one_result set just above")
+            .insert(PassOneResult::from_complexities(complexities, duration))
     }
 
     /// Returns the recommended bitrate in kbps for the frame at `frame_idx` in pass two.

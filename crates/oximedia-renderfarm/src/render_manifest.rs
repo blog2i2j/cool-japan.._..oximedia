@@ -219,21 +219,28 @@ mod tests {
         RenderTarget::new(name, path, OutputFormat::OpenExr, 1920, 1080)
     }
 
+    fn tmp_path(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-renderfarm-manifest-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn render_target_pixel_count() {
-        let t = make_target("beauty", "/tmp/beauty.exr");
+        let t = make_target("beauty", &tmp_path("beauty.exr"));
         assert_eq!(t.pixel_count(), 1920 * 1080);
     }
 
     #[test]
     fn render_target_frame_bytes_without_alpha() {
-        let t = make_target("beauty", "/tmp/beauty.exr");
+        let t = make_target("beauty", &tmp_path("beauty.exr"));
         assert_eq!(t.estimated_frame_bytes(), 1920 * 1080 * 12);
     }
 
     #[test]
     fn render_target_frame_bytes_with_alpha() {
-        let mut t = make_target("beauty", "/tmp/beauty.exr");
+        let mut t = make_target("beauty", &tmp_path("beauty.exr"));
         t.has_alpha = true;
         assert_eq!(t.estimated_frame_bytes(), 1920 * 1080 * 16);
     }
@@ -241,22 +248,22 @@ mod tests {
     #[test]
     fn manifest_add_target_increments_count() {
         let mut m = RenderManifest::new("m1", "proj");
-        m.add_target(make_target("beauty", "/tmp/beauty.exr"));
+        m.add_target(make_target("beauty", &tmp_path("beauty.exr")));
         assert_eq!(m.target_count(), 1);
     }
 
     #[test]
     fn manifest_total_bytes_sums_targets() {
         let mut m = RenderManifest::new("m1", "proj");
-        m.add_target(make_target("beauty", "/tmp/beauty.exr"));
-        m.add_target(make_target("z", "/tmp/z.exr"));
+        m.add_target(make_target("beauty", &tmp_path("beauty.exr")));
+        m.add_target(make_target("z", &tmp_path("z.exr")));
         assert_eq!(m.total_estimated_frame_bytes(), 2 * 1920 * 1080 * 12);
     }
 
     #[test]
     fn validator_accepts_valid_manifest() {
         let mut m = RenderManifest::new("m1", "proj");
-        m.add_target(make_target("beauty", "/tmp/beauty.exr"));
+        m.add_target(make_target("beauty", &tmp_path("beauty.exr")));
         assert!(ManifestValidator::new().validate(&m).is_ok());
     }
 
@@ -270,8 +277,9 @@ mod tests {
     #[test]
     fn validator_rejects_duplicate_paths() {
         let mut m = RenderManifest::new("m1", "proj");
-        m.add_target(make_target("a", "/tmp/out.exr"));
-        m.add_target(make_target("b", "/tmp/out.exr"));
+        let dup = tmp_path("out.exr");
+        m.add_target(make_target("a", &dup));
+        m.add_target(make_target("b", &dup));
         let err = ManifestValidator::new().validate(&m).unwrap_err();
         matches!(err, ManifestError::DuplicatePath(_));
     }
@@ -279,7 +287,7 @@ mod tests {
     #[test]
     fn is_valid_convenience() {
         let mut m = RenderManifest::new("m1", "proj");
-        m.add_target(make_target("beauty", "/tmp/beauty.exr"));
+        m.add_target(make_target("beauty", &tmp_path("beauty.exr")));
         assert!(ManifestValidator::new().is_valid(&m));
     }
 
@@ -303,7 +311,9 @@ mod tests {
 
     #[test]
     fn manifest_error_display_duplicate() {
-        let e = ManifestError::DuplicatePath(PathBuf::from("/tmp/x.exr"));
+        let e = ManifestError::DuplicatePath(
+            std::env::temp_dir().join("oximedia-renderfarm-manifest-x.exr"),
+        );
         assert!(e.to_string().contains("duplicate"));
     }
 }

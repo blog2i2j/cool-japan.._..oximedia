@@ -492,10 +492,17 @@ pub fn register_submodule(parent: &Bound<'_, PyModule>) -> PyResult<()> {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-py-io-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_media_file_info_repr() {
         let info = MediaFileInfo {
-            path: "/tmp/test.mkv".into(),
+            path: tmp_str("test.mkv"),
             duration_seconds: 10.5,
             size_bytes: 1024,
             video_stream_count: 1,
@@ -515,7 +522,7 @@ mod tests {
             success: true,
             frames_written: 100,
             duration_ms: 250.0,
-            output_path: "/tmp/out.webm".into(),
+            output_path: tmp_str("out.webm"),
             errors: vec![],
         };
         assert!(res.__repr__().contains("success=true"));
@@ -538,27 +545,28 @@ mod tests {
 
     #[test]
     fn test_transcode_empty_input() {
-        let result = transcode("", "/tmp/out.mkv", 28.0, 128);
+        let result = transcode("", &tmp_str("out.mkv"), 28.0, 128);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_transcode_empty_output() {
-        let result = transcode("/tmp/in.mkv", "", 28.0, 128);
+        let result = transcode(&tmp_str("in.mkv"), "", 28.0, 128);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_transcode_bad_crf() {
-        let result = transcode("/tmp/in.mkv", "/tmp/out.mkv", 100.0, 128);
+        let result = transcode(&tmp_str("in.mkv"), &tmp_str("out.mkv"), 100.0, 128);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_transcode_success() {
-        let result = transcode("/tmp/in.mkv", "/tmp/out.mkv", 28.0, 128).expect("should succeed");
+        let out = tmp_str("out.mkv");
+        let result = transcode(&tmp_str("in.mkv"), &out, 28.0, 128).expect("should succeed");
         assert!(result.success);
-        assert_eq!(result.output_path, "/tmp/out.mkv");
+        assert_eq!(result.output_path, out);
     }
 
     #[test]
@@ -569,19 +577,19 @@ mod tests {
 
     #[test]
     fn test_media_reader_default_max_frames() {
-        let reader = MediaReader::new("/tmp/test.mkv", 0).expect("should succeed");
+        let reader = MediaReader::new(&tmp_str("test.mkv"), 0).expect("should succeed");
         assert_eq!(reader.max_frames, 300);
     }
 
     #[test]
     fn test_media_reader_custom_max_frames() {
-        let reader = MediaReader::new("/tmp/test.mkv", 50).expect("should succeed");
+        let reader = MediaReader::new(&tmp_str("test.mkv"), 50).expect("should succeed");
         assert_eq!(reader.max_frames, 50);
     }
 
     #[test]
     fn test_media_reader_repr() {
-        let reader = MediaReader::new("/tmp/test.mkv", 10).expect("should succeed");
+        let reader = MediaReader::new(&tmp_str("test.mkv"), 10).expect("should succeed");
         let r = reader.__repr__();
         assert!(r.contains("MediaReader"));
         assert!(r.contains("test.mkv"));

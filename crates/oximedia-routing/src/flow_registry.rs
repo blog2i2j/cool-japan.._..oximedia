@@ -523,6 +523,8 @@ impl From<&FlowFormat> for FlowFormatKind {
 mod tests {
     use super::*;
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
     fn make_video_flow(id: &str, source_id: &str) -> Flow {
         Flow::new(
             id,
@@ -552,26 +554,27 @@ mod tests {
     }
 
     #[test]
-    fn test_register_and_retrieve_flow() {
+    fn test_register_and_retrieve_flow() -> TestResult {
         let mut registry = FlowRegistry::new();
         let flow = make_video_flow("flow-001", "src-001");
-        registry.register_flow(flow).expect("registration failed");
-        let retrieved = registry.get_flow("flow-001");
-        assert!(retrieved.is_some());
-        assert_eq!(retrieved.unwrap().id, "flow-001");
+        registry.register_flow(flow)?;
+        let retrieved = registry
+            .get_flow("flow-001")
+            .ok_or("flow-001 not found in registry")?;
+        assert_eq!(retrieved.id, "flow-001");
+        Ok(())
     }
 
     #[test]
-    fn test_register_duplicate_id_returns_error() {
+    fn test_register_duplicate_id_returns_error() -> TestResult {
         let mut registry = FlowRegistry::new();
-        registry
-            .register_flow(make_video_flow("flow-dup", "src-1"))
-            .expect("first registration failed");
+        registry.register_flow(make_video_flow("flow-dup", "src-1"))?;
         let result = registry.register_flow(make_video_flow("flow-dup", "src-2"));
         assert_eq!(
             result,
             Err(FlowRegistryError::DuplicateFlowId("flow-dup".to_string()))
         );
+        Ok(())
     }
 
     #[test]
@@ -583,14 +586,13 @@ mod tests {
     }
 
     #[test]
-    fn test_remove_flow() {
+    fn test_remove_flow() -> TestResult {
         let mut registry = FlowRegistry::new();
-        registry
-            .register_flow(make_video_flow("flow-rm", "src-1"))
-            .unwrap();
+        registry.register_flow(make_video_flow("flow-rm", "src-1"))?;
         let removed = registry.remove_flow("flow-rm");
         assert!(removed.is_ok());
         assert!(registry.get_flow("flow-rm").is_none());
+        Ok(())
     }
 
     #[test]
@@ -601,65 +603,52 @@ mod tests {
     }
 
     #[test]
-    fn test_flows_for_source() {
+    fn test_flows_for_source() -> TestResult {
         let mut registry = FlowRegistry::new();
-        registry
-            .register_flow(make_video_flow("flow-v", "src-A"))
-            .unwrap();
-        registry
-            .register_flow(make_audio_flow("flow-a", "src-A"))
-            .unwrap();
-        registry
-            .register_flow(make_video_flow("flow-other", "src-B"))
-            .unwrap();
+        registry.register_flow(make_video_flow("flow-v", "src-A"))?;
+        registry.register_flow(make_audio_flow("flow-a", "src-A"))?;
+        registry.register_flow(make_video_flow("flow-other", "src-B"))?;
         let flows = registry.flows_for_source("src-A");
         assert_eq!(flows.len(), 2);
+        Ok(())
     }
 
     #[test]
-    fn test_active_flows_filter() {
+    fn test_active_flows_filter() -> TestResult {
         let mut registry = FlowRegistry::new();
-        registry
-            .register_flow(make_video_flow("flow-act", "src-1"))
-            .unwrap();
-        registry
-            .register_flow(make_audio_flow("flow-inact", "src-1"))
-            .unwrap();
-        registry
-            .set_flow_state("flow-inact", FlowState::Inactive)
-            .unwrap();
+        registry.register_flow(make_video_flow("flow-act", "src-1"))?;
+        registry.register_flow(make_audio_flow("flow-inact", "src-1"))?;
+        registry.set_flow_state("flow-inact", FlowState::Inactive)?;
         let active = registry.active_flows();
         assert_eq!(active.len(), 1);
         assert_eq!(active[0].id, "flow-act");
+        Ok(())
     }
 
     #[test]
-    fn test_set_flow_state() {
+    fn test_set_flow_state() -> TestResult {
         let mut registry = FlowRegistry::new();
-        registry
-            .register_flow(make_video_flow("flow-s", "src-1"))
-            .unwrap();
-        registry
-            .set_flow_state("flow-s", FlowState::Deprecated)
-            .unwrap();
-        assert_eq!(
-            registry.get_flow("flow-s").unwrap().state,
-            FlowState::Deprecated
-        );
+        registry.register_flow(make_video_flow("flow-s", "src-1"))?;
+        registry.set_flow_state("flow-s", FlowState::Deprecated)?;
+        let state = registry
+            .get_flow("flow-s")
+            .ok_or("flow-s not found after state change")?
+            .state;
+        assert_eq!(state, FlowState::Deprecated);
+        Ok(())
     }
 
     #[test]
-    fn test_subscribe_and_unsubscribe() {
+    fn test_subscribe_and_unsubscribe() -> TestResult {
         let mut registry = FlowRegistry::new();
-        registry
-            .register_flow(make_video_flow("flow-sub", "src-1"))
-            .unwrap();
+        registry.register_flow(make_video_flow("flow-sub", "src-1"))?;
         let sub = FlowSubscription::new("sub-001", "flow-sub", "recv-001");
-        registry.subscribe(sub).expect("subscription failed");
+        registry.subscribe(sub)?;
         assert_eq!(registry.subscription_count(), 1);
 
-        registry.unsubscribe("sub-001").expect("unsubscribe failed");
+        registry.unsubscribe("sub-001")?;
         assert_eq!(registry.subscription_count(), 0);
+        Ok(())
     }
 
     #[test]
@@ -671,16 +660,15 @@ mod tests {
     }
 
     #[test]
-    fn test_subscriptions_removed_on_flow_removal() {
+    fn test_subscriptions_removed_on_flow_removal() -> TestResult {
         let mut registry = FlowRegistry::new();
-        registry
-            .register_flow(make_video_flow("flow-cascade", "src-1"))
-            .unwrap();
+        registry.register_flow(make_video_flow("flow-cascade", "src-1"))?;
         let sub = FlowSubscription::new("sub-cascade", "flow-cascade", "recv-1");
-        registry.subscribe(sub).unwrap();
+        registry.subscribe(sub)?;
         assert_eq!(registry.subscription_count(), 1);
-        registry.remove_flow("flow-cascade").unwrap();
+        registry.remove_flow("flow-cascade")?;
         assert_eq!(registry.subscription_count(), 0);
+        Ok(())
     }
 
     #[test]
@@ -719,20 +707,15 @@ mod tests {
     }
 
     #[test]
-    fn test_flows_by_format_kind() {
+    fn test_flows_by_format_kind() -> TestResult {
         let mut registry = FlowRegistry::new();
-        registry
-            .register_flow(make_video_flow("fv1", "src-1"))
-            .unwrap();
-        registry
-            .register_flow(make_video_flow("fv2", "src-1"))
-            .unwrap();
-        registry
-            .register_flow(make_audio_flow("fa1", "src-1"))
-            .unwrap();
+        registry.register_flow(make_video_flow("fv1", "src-1"))?;
+        registry.register_flow(make_video_flow("fv2", "src-1"))?;
+        registry.register_flow(make_audio_flow("fa1", "src-1"))?;
         let videos = registry.flows_by_format_kind(FlowFormatKind::Video);
         assert_eq!(videos.len(), 2);
         let audios = registry.flows_by_format_kind(FlowFormatKind::Audio);
         assert_eq!(audios.len(), 1);
+        Ok(())
     }
 }

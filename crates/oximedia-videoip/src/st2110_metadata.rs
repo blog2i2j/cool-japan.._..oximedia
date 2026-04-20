@@ -853,7 +853,7 @@ mod tests {
             96,
             St2110EssenceType::Video(params),
         )
-        .unwrap();
+        .expect("valid stream descriptor parameters");
         assert!(desc.validate().is_ok());
         let summary = desc.summary();
         assert!(summary.contains("ST2110-20"));
@@ -881,11 +881,11 @@ mod tests {
             "AUD-01",
             2,
             "239.0.0.2",
-            0, // invalid
+            0, // invalid port - construction succeeds, validate() fails
             97,
             St2110EssenceType::Audio(params),
         )
-        .unwrap();
+        .expect("descriptor construction accepts zero port (validation catches it)");
         assert!(desc.validate().is_err());
     }
 }

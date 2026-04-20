@@ -1,6 +1,6 @@
 # oximedia-metering
 
-**Status: [Stable]** | Version: 0.1.3 | Updated: 2026-04-15
+**Status: [Stable]** | Version: 0.1.4 | Tests: 521 | Updated: 2026-04-20
 
 Professional broadcast audio metering for OxiMedia, implementing ITU-R BS.1770-4, EBU R128, and ATSC A/85 loudness standards.
 
@@ -38,7 +38,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-metering = "0.1.3"
+oximedia-metering = "0.1.4"
 ```
 
 ```rust

@@ -13,27 +13,11 @@ description = "Distributed encoding farm coordinator for OxiMedia - production-g
 workspace = true
 
 [dependencies]
-# Core async runtime
-tokio = { workspace = true, features = ["full"] }
-async-trait.workspace = true
-
 # Error handling
 thiserror.workspace = true
 
 # Logging and tracing
 tracing.workspace = true
-tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
-
-# gRPC and serialization
-tonic = { workspace = true }
-tonic-prost = "0.14"
-prost = { workspace = true }
-prost-types = { workspace = true }
-
-# Database
-rusqlite = { workspace = true }
-r2d2 = { workspace = true }
-r2d2_sqlite = { workspace = true }
 
 # Serialization
 serde = { workspace = true, features = ["derive"] }
@@ -54,22 +38,45 @@ uuid = { workspace = true }
 dashmap = { workspace = true }
 parking_lot = { workspace = true }
 
+# Network utilities
+bytes.workspace = true
+
+# Cryptographic hashing (pure Rust, wasm32-compatible)
+sha2.workspace = true
+
+# Internal dependencies (all wasm32-compatible)
+oximedia-core.workspace = true
+oximedia-codec.workspace = true
+oximedia-io.workspace = true
+oximedia-transcode.workspace = true
+oximedia-qc.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+# Core async runtime
+tokio = { workspace = true, features = ["full"] }
+async-trait.workspace = true
+
+# gRPC and serialization
+tonic = { workspace = true }
+tonic-prost = "0.14"
+prost = { workspace = true }
+prost-types = { workspace = true }
+
+# Database
+rusqlite = { workspace = true }
+r2d2 = { workspace = true }
+r2d2_sqlite = { workspace = true }
+
+# Random number generation (getrandom 0.4 on wasm32 needs wasm_js feature; move here)
+rand.workspace = true
+
 # System information
 num_cpus = "1.17"
 hostname = "0.4"
 sysinfo = "0.38"
 
-# Network utilities
-bytes.workspace = true
-
 # Metrics and monitoring
 prometheus = { workspace = true }
-
-# Random number generation
-rand.workspace = true
-
-# Cryptographic hashing
-sha2.workspace = true
 
 # Configuration
 config = "0.15"
@@ -79,12 +86,8 @@ tokio-rustls = { workspace = true }
 rustls = { workspace = true }
 rustls-pemfile = "2.2.0"
 
-# Internal dependencies
-oximedia-core.workspace = true
-oximedia-codec.workspace = true
-oximedia-io.workspace = true
-oximedia-transcode.workspace = true
-oximedia-qc.workspace = true
+# Logging subscriber (uses env-filter, file sinks — not wasm-compatible)
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 
 [build-dependencies]
 tonic-build = "0.14"
@@ -94,5 +97,5 @@ tonic-prost-build = "0.14"
 sqlite = []
 
 [dev-dependencies]
-tempfile = "3.27"
+tempfile = { workspace = true }
 tokio = { workspace = true, features = ["test-util"] }

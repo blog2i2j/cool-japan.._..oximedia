@@ -615,50 +615,50 @@ mod tests {
     }
 
     fn alice() -> Uuid {
-        Uuid::parse_str("00000000-0000-0000-0000-000000000001").unwrap()
+        Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("valid UUID literal")
     }
 
     fn bob() -> Uuid {
-        Uuid::parse_str("00000000-0000-0000-0000-000000000002").unwrap()
+        Uuid::parse_str("00000000-0000-0000-0000-000000000002").expect("valid UUID literal")
     }
 
     #[test]
     fn test_region_overlap_same_track() {
-        let r1 = TimelineRegion::new("video/0", 0, 5000).unwrap();
-        let r2 = TimelineRegion::new("video/0", 3000, 8000).unwrap();
-        let r3 = TimelineRegion::new("video/0", 5000, 10000).unwrap();
+        let r1 = TimelineRegion::new("video/0", 0, 5000).expect("valid region");
+        let r2 = TimelineRegion::new("video/0", 3000, 8000).expect("valid region");
+        let r3 = TimelineRegion::new("video/0", 5000, 10000).expect("valid region");
         assert!(r1.overlaps(&r2));
         assert!(!r1.overlaps(&r3)); // touching but not overlapping
     }
 
     #[test]
     fn test_region_overlap_different_tracks() {
-        let r1 = TimelineRegion::new("video/0", 0, 5000).unwrap();
-        let r2 = TimelineRegion::new("audio/0", 0, 5000).unwrap();
+        let r1 = TimelineRegion::new("video/0", 0, 5000).expect("valid region");
+        let r2 = TimelineRegion::new("audio/0", 0, 5000).expect("valid region");
         assert!(!r1.overlaps(&r2));
     }
 
     #[test]
     fn test_claim_and_release() {
         let mgr = TimelineCollabManager::new();
-        let region = TimelineRegion::new("video/0", 0, 10_000).unwrap();
+        let region = TimelineRegion::new("video/0", 0, 10_000).expect("valid region");
         let claim_id = mgr
             .claim_region(alice(), "Alice", region, EditKind::Trim, now())
-            .unwrap();
+            .expect("claim_region should succeed");
 
         assert_eq!(mgr.claim_count(now()), 1);
-        mgr.release_claim(claim_id, alice()).unwrap();
+        mgr.release_claim(claim_id, alice()).expect("release_claim by owner should succeed");
         assert_eq!(mgr.claim_count(now()), 0);
     }
 
     #[test]
     fn test_overlapping_claim_rejected() {
         let mgr = TimelineCollabManager::new();
-        let r1 = TimelineRegion::new("video/0", 0, 10_000).unwrap();
-        let r2 = TimelineRegion::new("video/0", 5_000, 15_000).unwrap();
+        let r1 = TimelineRegion::new("video/0", 0, 10_000).expect("valid region");
+        let r2 = TimelineRegion::new("video/0", 5_000, 15_000).expect("valid region");
 
         mgr.claim_region(alice(), "Alice", r1, EditKind::Trim, now())
-            .unwrap();
+            .expect("alice's first claim should succeed");
         let err = mgr.claim_region(bob(), "Bob", r2, EditKind::Move, now());
         assert!(err.is_err());
     }
@@ -666,11 +666,11 @@ mod tests {
     #[test]
     fn test_same_user_can_claim_overlapping() {
         let mgr = TimelineCollabManager::new();
-        let r1 = TimelineRegion::new("video/0", 0, 10_000).unwrap();
-        let r2 = TimelineRegion::new("video/0", 5_000, 15_000).unwrap();
+        let r1 = TimelineRegion::new("video/0", 0, 10_000).expect("valid region");
+        let r2 = TimelineRegion::new("video/0", 5_000, 15_000).expect("valid region");
 
         mgr.claim_region(alice(), "Alice", r1, EditKind::Trim, now())
-            .unwrap();
+            .expect("alice's first claim should succeed");
         // Same user claiming overlapping region should succeed.
         let result = mgr.claim_region(alice(), "Alice", r2, EditKind::ColorGrade, now());
         assert!(result.is_ok());
@@ -683,10 +683,10 @@ mod tests {
             ..Default::default()
         };
         let mgr = TimelineCollabManager::with_config(config);
-        let region = TimelineRegion::new("video/0", 0, 5_000).unwrap();
+        let region = TimelineRegion::new("video/0", 0, 5_000).expect("valid region");
         let _claim_id = mgr
             .claim_region(alice(), "Alice", region, EditKind::Trim, now())
-            .unwrap();
+            .expect("claim_region should succeed within ttl");
 
         assert_eq!(mgr.claim_count(now()), 1);
         // Simulate 2 seconds passing.
@@ -706,7 +706,7 @@ mod tests {
     #[test]
     fn test_edit_attribution_recording() {
         let mgr = TimelineCollabManager::new();
-        let region = TimelineRegion::new("audio/L", 1_000, 4_000).unwrap();
+        let region = TimelineRegion::new("audio/L", 1_000, 4_000).expect("valid region");
         let attr_id = mgr.record_edit(
             alice(),
             "Alice",
@@ -720,7 +720,7 @@ mod tests {
         assert_eq!(history[0].id, attr_id);
         assert!(!history[0].reverted);
 
-        mgr.mark_reverted(attr_id).unwrap();
+        mgr.mark_reverted(attr_id).expect("mark_reverted should succeed for existing attribution");
         let history2 = mgr.attribution_history("audio/L", 0, 10_000);
         assert!(history2[0].reverted);
     }
@@ -728,8 +728,8 @@ mod tests {
     #[test]
     fn test_conflict_detection() {
         let mgr = TimelineCollabManager::new();
-        let r1 = TimelineRegion::new("video/0", 0, 10_000).unwrap();
-        let r2 = TimelineRegion::new("video/0", 7_000, 15_000).unwrap();
+        let r1 = TimelineRegion::new("video/0", 0, 10_000).expect("valid region");
+        let r2 = TimelineRegion::new("video/0", 7_000, 15_000).expect("valid region");
 
         // Bob claims first so Alice's overlapping claim on a different region of
         // the same track will succeed (they're in different time ranges).
@@ -738,7 +738,7 @@ mod tests {
         // to get ownership, then we check detection.
         let _c1 = mgr
             .claim_region(alice(), "Alice", r1, EditKind::Trim, now())
-            .unwrap();
+            .expect("alice's claim should succeed");
         // Bob's region overlaps with Alice's — this should fail the claim.
         // So we test detect_conflicts returns empty when there are no actual
         // overlapping active claims (the second claim is rejected).
@@ -753,16 +753,16 @@ mod tests {
     #[test]
     fn test_release_all_claims() {
         let mgr = TimelineCollabManager::new();
-        let r1 = TimelineRegion::new("video/0", 0, 5_000).unwrap();
-        let r2 = TimelineRegion::new("video/0", 5_000, 10_000).unwrap();
-        let r3 = TimelineRegion::new("audio/L", 0, 5_000).unwrap();
+        let r1 = TimelineRegion::new("video/0", 0, 5_000).expect("valid region");
+        let r2 = TimelineRegion::new("video/0", 5_000, 10_000).expect("valid region");
+        let r3 = TimelineRegion::new("audio/L", 0, 5_000).expect("valid region");
 
         mgr.claim_region(alice(), "Alice", r1, EditKind::Trim, now())
-            .unwrap();
+            .expect("alice's first claim should succeed");
         mgr.claim_region(alice(), "Alice", r2, EditKind::Move, now())
-            .unwrap();
+            .expect("alice's second claim (non-overlapping) should succeed");
         mgr.claim_region(bob(), "Bob", r3, EditKind::AudioMix, now())
-            .unwrap();
+            .expect("bob's claim on different track should succeed");
 
         assert_eq!(mgr.claim_count(now()), 3);
         mgr.release_all_claims(alice());
@@ -778,10 +778,10 @@ mod tests {
     #[test]
     fn test_release_claim_wrong_user() {
         let mgr = TimelineCollabManager::new();
-        let region = TimelineRegion::new("video/0", 0, 5_000).unwrap();
+        let region = TimelineRegion::new("video/0", 0, 5_000).expect("valid region");
         let claim_id = mgr
             .claim_region(alice(), "Alice", region, EditKind::Trim, now())
-            .unwrap();
+            .expect("alice's claim should succeed");
 
         let result = mgr.release_claim(claim_id, bob());
         assert!(matches!(result, Err(CollabError::PermissionDenied(_))));

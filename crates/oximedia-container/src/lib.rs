@@ -92,6 +92,95 @@
 //! // Save changes
 //! editor.save().await?;
 //! ```
+//!
+//! # Wave 4 API Additions
+//!
+//! ## MP4 Fragment Mode — `Mp4FragmentMode`
+//!
+//! [`mux::mp4::Mp4FragmentMode`] controls how the MP4 muxer arranges sample data:
+//!
+//! | Variant | Description |
+//! |---------|-------------|
+//! | `Progressive` | Classic MP4: single `moov` + `mdat`, optimal for download |
+//! | `Fragmented { fragment_duration_ms }` | ISOBMFF fragments; each fragment is a self-contained `moof`+`mdat` pair |
+//!
+//! `Mp4Mode` is a backward-compatible type alias for `Mp4FragmentMode`.
+//!
+//! ```ignore
+//! use oximedia_container::mux::mp4::{Mp4Muxer, Mp4Config, Mp4FragmentMode};
+//!
+//! // Progressive (default)
+//! let config = Mp4Config::new().with_mode(Mp4FragmentMode::Progressive);
+//!
+//! // Fragmented — 4-second fragments for DASH/HLS delivery
+//! let config = Mp4Config::new()
+//!     .with_mode(Mp4FragmentMode::Fragmented { fragment_duration_ms: 4000 });
+//! ```
+//!
+//! ## Sample-Accurate Seek Cursor — [`DecodeSkipCursor`]
+//!
+//! [`DecodeSkipCursor`] is returned by the `seek_sample_accurate()` methods on the
+//! Matroska, MP4, and AVI demuxers. It locates the nearest keyframe at or before a
+//! target PTS and records how many decoded samples must be discarded to reach the
+//! precise presentation position.
+//!
+//! | Field | Type | Description |
+//! |-------|------|-------------|
+//! | `byte_offset` | `u64` | File offset where decoding should start |
+//! | `sample_index` | `usize` | 0-based index of the keyframe sample |
+//! | `skip_samples` | `u32` | Samples to decode-and-discard after seeking |
+//! | `target_pts` | `i64` | Requested PTS in track timescale units |
+//!
+//! ```ignore
+//! use oximedia_container::demux::MatroskaDemuxer;
+//! use oximedia_io::FileSource;
+//!
+//! let mut demuxer = MatroskaDemuxer::new(FileSource::open("video.mkv").await?);
+//! demuxer.probe().await?;
+//!
+//! // Seek to exactly 30 seconds (in track timescale units)
+//! let cursor = demuxer.seek_sample_accurate(2_700_000).await?;
+//! println!("Start decode at byte {}, skip {} samples",
+//!          cursor.byte_offset, cursor.skip_samples);
+//! ```
+//!
+//! ## CMAF Chunked Transfer — `CmafChunkMode` / `CmafChunkedConfig`
+//!
+//! [`streaming::mux::CmafChunkMode`] and [`streaming::mux::CmafChunkedConfig`] implement
+//! chunked CMAF delivery as defined in ISO/IEC 23000-19, enabling sub-segment delivery
+//! for LL-HLS and LL-DASH workflows.
+//!
+//! | Mode | Description |
+//! |------|-------------|
+//! | `Standard` | Whole-segment delivery (default, no chunking) |
+//! | `Chunked` | Each chunk is one or more complete `moof`+`mdat` pairs |
+//! | `LowLatencyChunked` | Each chunk is exactly one sample (minimum latency) |
+//!
+//! `CmafChunkedConfig` carries additional settings: `chunk_duration_ms`,
+//! `max_samples_per_chunk`, `include_mfra`, `signal_low_latency` (writes `cmfl`
+//! compatible brand in the `styp` box), and `part_target_duration_ms` for LL-HLS.
+//!
+//! ```ignore
+//! use oximedia_container::streaming::mux::{CmafChunkedConfig, CmafChunkMode};
+//!
+//! let config = CmafChunkedConfig::new()
+//!     .with_mode(CmafChunkMode::LowLatencyChunked)
+//!     .with_low_latency(true);
+//! ```
+//!
+//! ## Matroska v4 Block Addition Mapping — `BlockAdditionMapping`
+//!
+//! `demux::matroska::matroska_v4::BlockAdditionMapping` represents a Matroska v4
+//! `BlockAdditionMapping` element (EBML ID 0x41CB), which carries auxiliary per-block
+//! data channels such as HDR10+ metadata, Dolby Vision RPU data, or depth maps.
+//!
+//! | Field | Description |
+//! |-------|-------------|
+//! | `id_name` | Human-readable channel name (e.g., `"hdr10plus"`, `"dovi_rpu"`) |
+//! | `id_type` | Numeric type per the Matroska Block Addition Mapping Registry |
+//! | `id_extra_data` | Codec-specific configuration payload |
+//!
+//! Access via `StreamInfo::block_addition_mappings` after probing a Matroska track.
 
 pub mod attach;
 pub mod bitrate_stats;
@@ -102,6 +191,7 @@ pub mod chunk_map;
 pub mod container_probe;
 pub(crate) mod container_probe_parsers;
 pub mod cue;
+pub mod dash;
 pub mod data;
 pub mod demux;
 pub mod edit;
@@ -119,6 +209,7 @@ pub mod preroll;
 mod probe;
 pub mod pts_dts;
 pub mod pts_dts_batch;
+pub mod riff;
 pub mod sample_entry;
 pub mod sample_table;
 mod seek;
@@ -134,14 +225,26 @@ pub mod tracks;
 
 // Re-export main types at crate root
 pub use container_probe::{DetailedContainerInfo, DetailedStreamInfo, MultiFormatProber};
+pub use dash::{
+    emit_mpd, DashAdaptationSet, DashManifestConfig, DashRepresentation, DashSegmentTemplate,
+    DashSegmentTimeline, DashSegmentTimelineEntry,
+};
+pub use demux::mpegts::scte35::{
+    parse_splice_info_section, BreakDuration, Scte35Config, Scte35Parser, SpliceCommand,
+    SpliceDescriptor, SpliceInfoSection, SpliceInsert, SpliceTime, SCTE35_DEFAULT_PID,
+};
 pub use demux::Demuxer;
 pub use format::ContainerFormat;
+pub use metadata::batch::{BatchMetadataUpdate, BatchResult};
+pub use mux::mpegts::scte35::{
+    emit_splice_insert, emit_splice_null, emit_time_signal, SpliceInsertConfig,
+};
 pub use mux::{Muxer, MuxerConfig};
 pub use packet::{Packet, PacketFlags};
 pub use probe::{probe_format, ProbeResult};
 pub use seek::{
-    MultiTrackSeeker, MultiTrackSeekerError, PtsSeekResult, SampleAccurateSeeker, SampleIndexEntry,
-    SeekAccuracy, SeekFlags, SeekIndex, SeekIndexEntry, SeekPlan, SeekResult, SeekTarget,
-    TrackIndex,
+    DecodeSkipCursor, MultiTrackSeeker, MultiTrackSeekerError, PtsSeekResult, SampleAccurateSeeker,
+    SampleIndexEntry, SeekAccuracy, SeekFlags, SeekIndex, SeekIndexEntry, SeekPlan, SeekResult,
+    SeekTarget, TrackIndex,
 };
 pub use stream::{CodecParams, Metadata, StreamInfo};

@@ -295,10 +295,15 @@ impl Coordinator {
                     match stream {
                         Ok(mut tcp_stream) => {
                             let coord = coord_for_tcp.clone();
+                            let cloned = match tcp_stream.try_clone() {
+                                Ok(s) => s,
+                                Err(e) => {
+                                    debug!("TCP stream clone error: {}", e);
+                                    continue;
+                                }
+                            };
                             std::thread::spawn(move || {
-                                let reader = BufReader::new(
-                                    tcp_stream.try_clone().expect("clone tcp stream"),
-                                );
+                                let reader = BufReader::new(cloned);
                                 for line in reader.lines() {
                                     let command = match line {
                                         Ok(l) => l.trim().to_lowercase(),

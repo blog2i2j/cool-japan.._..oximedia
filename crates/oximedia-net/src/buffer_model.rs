@@ -660,7 +660,8 @@ mod tests {
     #[test]
     fn test_fill_drain_balance_growing() {
         // 4 Mbps bandwidth, 2 Mbps segment → fill rate 2.0, net +1.0
-        let bal = FillDrainBalance::compute(4_000_000.0, 2_000_000.0, true).unwrap();
+        let bal = FillDrainBalance::compute(4_000_000.0, 2_000_000.0, true)
+            .expect("bandwidth and segment size are valid positive values");
         assert!((bal.fill_rate - 2.0).abs() < 1e-9);
         assert!(bal.is_growing());
         assert!(!bal.is_draining());

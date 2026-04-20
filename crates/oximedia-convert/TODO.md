@@ -47,3 +47,6 @@
 - [ ] Document conversion profile system with examples for custom profile creation
 - [ ] Add quality mode comparison guide (Fast vs Balanced vs Best)
 - [ ] Document streaming packaging workflow (input -> ABR ladder -> HLS/DASH output)
+
+## Wave 4 Progress (2026-04-18)
+- [x] wasm-mio-fix: cfg-gate tokio deps for wasm32 target compatibility — Wave 4 Slice A

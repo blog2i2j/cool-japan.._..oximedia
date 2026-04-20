@@ -1,20 +1,84 @@
-//! Cloud storage abstraction for OxiMedia
+//! Cloud storage abstraction layer for OxiMedia.
 //!
-//! This crate provides a unified interface for working with multiple cloud storage providers:
-//! - Amazon S3
-//! - Azure Blob Storage
-//! - Google Cloud Storage
+//! Provides a unified `CloudStorage` trait backed by Amazon S3, MinIO,
+//! Azure Blob Storage, Google Cloud Storage, and local filesystem.
 //!
-//! # Features
+//! # Cargo features
 //!
-//! - Unified API across all providers
-//! - Streaming uploads and downloads
-//! - Multipart upload support for large files
-//! - Progress tracking
-//! - Resume capability
-//! - Local caching layer
-//! - Rate limiting
-//! - Retry with exponential backoff
+//! | Feature | Provider enabled |
+//! |---------|-----------------|
+//! | `s3`    | Amazon S3 (requires Rust 1.91+) |
+//! | `minio` | MinIO / S3-compatible (alias of `s3`) |
+//! | `azure` | Azure Blob Storage |
+//! | `gcs`   | Google Cloud Storage |
+//! | `mmap`  | Memory-mapped local reads via `MmapLocalReader` |
+//!
+//! Default: no features enabled (core types and local provider always available).
+//!
+//! # Connection options
+//!
+//! Two complementary types control connection behaviour:
+//!
+//! - **`connection_options::ConnectionOptions`** — per-client HTTP tuning:
+//!   TCP keep-alive (default on, 30 s interval), HTTP/2 multiplexing (default on,
+//!   100 concurrent streams), `TCP_NODELAY` (default on), connect/request timeouts
+//!   (10 s / 30 s).  Builder: `.with_keep_alive()`, `.with_http2()`,
+//!   `.with_max_concurrent_streams()`.
+//!
+//! - **`ConnectionPoolConfig`** — idle connection pool management: max 10 idle
+//!   connections, 60 s idle lifetime, 300 s max lifetime, 10 s acquire timeout.
+//!   Managed by `ConnectionManager` (VecDeque idle pool, evicts expired on
+//!   acquire, caps at `max_idle_connections` on release).
+//!
+//! # Retry configuration
+//!
+//! `RetryConfig` provides exponential back-off with deterministic Weyl-sequence
+//! jitter:
+//!
+//! | Parameter | Default |
+//! |-----------|---------|
+//! | max retries | 3 |
+//! | backoff multiplier | 2× |
+//! | initial delay | 500 ms |
+//! | max delay | 30 s |
+//! | jitter factor | 0.2 |
+//!
+//! Non-retryable errors: `NotFound`, `PermissionDenied`, `InvalidKey`,
+//! `QuotaExceeded`, `InvalidConfig`, `AuthenticationError`,
+//! `UnsupportedOperation`.
+//!
+//! # Transparent compression
+//!
+//! The [`compression_store`] module compresses/decompresses objects
+//! transparently using a 4-byte magic header:
+//!
+//! | Algorithm | Status | Magic bytes |
+//! |-----------|--------|-------------|
+//! | LZ4 | Active | `0x4C 0x5A 0x34 0x00` |
+//! | Zstd (level 3) | Active | `0x28 0xB5 0x2F 0xFD` |
+//! | Gzip / Brotli / Snappy | Passthrough — stored uncompressed | — |
+//!
+//! `CompressionPolicy::Auto` selects: None for objects < 4 KiB, LZ4 for
+//! 4 KiB – 1 MiB, Zstd for > 1 MiB.
+//!
+//! # Batch metadata updates
+//!
+//! `BatchMetadataUpdater` validates key length (≤ 1024 bytes, no null bytes,
+//! non-empty) and splits updates into configurable chunks.  It does **not**
+//! perform network calls — callers drive the upload loop via `chunk()`.
+//!
+//! # Example
+//!
+//! ```rust
+//! use oximedia_storage::connection_options::ConnectionOptions;
+//!
+//! let opts = ConnectionOptions::default()
+//!     .with_keep_alive(true)
+//!     .with_http2(true)
+//!     .with_max_concurrent_streams(200);
+//!
+//! assert!(opts.is_high_throughput());
+//! ```
 
 use async_trait::async_trait;
 use bytes::Bytes;

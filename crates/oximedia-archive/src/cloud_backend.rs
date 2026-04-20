@@ -300,14 +300,14 @@ impl MockCloudClient {
             storage_class,
             user_metadata: HashMap::new(),
         };
-        let mut guard = self.objects.write().expect("lock poisoned");
+        let mut guard = self.objects.write().unwrap_or_else(|e| e.into_inner());
         guard.insert(key, (meta, data));
     }
 
     /// Return the number of objects currently stored.
     #[must_use]
     pub fn object_count(&self) -> usize {
-        self.objects.read().expect("lock poisoned").len()
+        self.objects.read().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Return the names of all objects currently stored.
@@ -315,7 +315,7 @@ impl MockCloudClient {
     pub fn all_keys(&self) -> Vec<String> {
         self.objects
             .read()
-            .expect("lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .keys()
             .cloned()
             .collect()

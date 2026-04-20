@@ -114,7 +114,8 @@ mod tests {
 
     #[test]
     fn test_watcher_nonexistent_file_returns_none() {
-        let w = FileWatcher::new("/tmp/oximedia_watcher_nonexistent_xyz.bin");
+        let p = std::env::temp_dir().join("oximedia-io-watcher-nonexistent_xyz.bin");
+        let w = FileWatcher::from_path(&p);
         assert!(w.poll(0).is_none());
         assert!(w.current_mtime().is_none());
         assert!(!w.exists());
@@ -142,8 +143,9 @@ mod tests {
 
     #[test]
     fn test_watcher_path_accessor() {
-        let w = FileWatcher::new("/tmp/test.mp4");
-        assert_eq!(w.path(), &PathBuf::from("/tmp/test.mp4"));
+        let p = std::env::temp_dir().join("oximedia-io-watcher-test.mp4");
+        let w = FileWatcher::from_path(&p);
+        assert_eq!(w.path(), &p);
     }
 
     #[test]

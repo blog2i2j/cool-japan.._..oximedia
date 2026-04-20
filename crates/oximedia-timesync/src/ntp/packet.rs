@@ -29,7 +29,7 @@ impl NtpTimestamp {
     pub fn now() -> Self {
         let duration = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .expect("infallible: system time after epoch");
+            .unwrap_or_default();
 
         let unix_secs = duration.as_secs();
         let ntp_secs = (unix_secs + Self::NTP_EPOCH_OFFSET) as u32;
@@ -50,8 +50,9 @@ impl NtpTimestamp {
     /// Convert to Unix timestamp (seconds since 1970).
     #[must_use]
     pub fn to_unix_timestamp(&self) -> f64 {
-        let secs = i64::from(self.seconds)
-            - i64::try_from(Self::NTP_EPOCH_OFFSET).expect("invariant: NTP_EPOCH_OFFSET fits i64");
+        // NTP_EPOCH_OFFSET (2_208_988_800) always fits in i64, so unwrap_or is unreachable.
+        let epoch_offset = i64::try_from(Self::NTP_EPOCH_OFFSET).unwrap_or(2_208_988_800_i64);
+        let secs = i64::from(self.seconds) - epoch_offset;
         let frac = f64::from(self.fraction) / f64::from(u32::MAX);
         secs as f64 + frac
     }

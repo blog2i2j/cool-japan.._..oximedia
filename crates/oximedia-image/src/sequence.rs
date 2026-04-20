@@ -89,12 +89,9 @@ impl ImageSequence {
 
         frames.sort_unstable();
 
-        let min_frame = *frames
-            .first()
-            .expect("invariant: frames non-empty (checked above)");
-        let max_frame = *frames
-            .last()
-            .expect("invariant: frames non-empty (checked above)");
+        // frames is non-empty: the is_empty() check above would have returned Err.
+        let min_frame = frames[0];
+        let max_frame = frames[frames.len() - 1];
 
         // Detect gaps
         let mut gaps = Vec::new();

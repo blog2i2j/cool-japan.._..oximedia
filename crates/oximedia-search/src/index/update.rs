@@ -120,15 +120,22 @@ impl IndexUpdater {
 mod tests {
     use super::*;
 
+    fn tmp_index() -> String {
+        std::env::temp_dir()
+            .join("oximedia-search-index-update-test_index")
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_index_updater_new() {
-        let updater = IndexUpdater::new("/tmp/test_index");
+        let updater = IndexUpdater::new(&tmp_index());
         assert_eq!(updater.pending_count(), 0);
     }
 
     #[test]
     fn test_add_delete() {
-        let mut updater = IndexUpdater::new("/tmp/test_index");
+        let mut updater = IndexUpdater::new(&tmp_index());
         let id = Uuid::new_v4();
 
         updater.delete(id);

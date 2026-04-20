@@ -359,6 +359,10 @@ mod tests {
     use super::*;
     use crate::clip::Clip;
     use crate::effects::{Effect, EffectType};
+
+    fn tmp_path(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("oximedia-timeline-otio-{name}"))
+    }
     use crate::marker::Marker;
     use crate::transition::Transition;
     use crate::types::{Duration, Position};
@@ -389,7 +393,7 @@ mod tests {
             .expect("should succeed in test");
         let clip = Clip::new(
             "TestClip".to_string(),
-            MediaSource::file(PathBuf::from("/tmp/test.mov")),
+            MediaSource::file(tmp_path("test.mov")),
             Position::new(0),
             Position::new(100),
             Position::new(0),
@@ -548,7 +552,7 @@ mod tests {
         // File source
         let clip1 = Clip::new(
             "FileClip".to_string(),
-            MediaSource::file(PathBuf::from("/tmp/test.mov")),
+            MediaSource::file(tmp_path("test.mov")),
             Position::new(0),
             Position::new(50),
             Position::new(0),

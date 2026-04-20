@@ -44,20 +44,27 @@ pub struct SpreadSpectrumEmbedder {
 
 impl SpreadSpectrumEmbedder {
     /// Create a new spread spectrum embedder.
-    #[must_use]
-    pub fn new(config: SpreadSpectrumConfig, sample_rate: u32, frame_size: usize) -> Self {
-        let codec = PayloadCodec::new(16, 8).expect("should succeed in test");
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the Reed-Solomon codec cannot be initialised.
+    pub fn new(
+        config: SpreadSpectrumConfig,
+        sample_rate: u32,
+        frame_size: usize,
+    ) -> WatermarkResult<Self> {
+        let codec = PayloadCodec::new(16, 8)?;
         let psycho_model = if config.psychoacoustic {
             Some(PsychoacousticModel::new(sample_rate, frame_size))
         } else {
             None
         };
 
-        Self {
+        Ok(Self {
             config,
             codec,
             psycho_model,
-        }
+        })
     }
 
     /// Embed watermark in audio samples.
@@ -240,10 +247,13 @@ pub struct SpreadSpectrumDetector {
 
 impl SpreadSpectrumDetector {
     /// Create a new spread spectrum detector.
-    #[must_use]
-    pub fn new(config: SpreadSpectrumConfig) -> Self {
-        let codec = PayloadCodec::new(16, 8).expect("should succeed in test");
-        Self { config, codec }
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the Reed-Solomon codec cannot be initialised.
+    pub fn new(config: SpreadSpectrumConfig) -> WatermarkResult<Self> {
+        let codec = PayloadCodec::new(16, 8)?;
+        Ok(Self { config, codec })
     }
 
     /// Detect and extract watermark from audio samples.
@@ -361,8 +371,8 @@ mod tests {
             key: 12345,
         };
 
-        let embedder = SpreadSpectrumEmbedder::new(config.clone(), 44100, 2048);
-        let detector = SpreadSpectrumDetector::new(config);
+        let embedder = SpreadSpectrumEmbedder::new(config.clone(), 44100, 2048).unwrap();
+        let detector = SpreadSpectrumDetector::new(config).unwrap();
 
         let samples: Vec<f32> = vec![0.0; 10000];
         let payload = b"Test";
@@ -392,8 +402,8 @@ mod tests {
             key: 54321,
         };
 
-        let embedder = SpreadSpectrumEmbedder::new(config.clone(), 44100, 2048);
-        let detector = SpreadSpectrumDetector::new(config);
+        let embedder = SpreadSpectrumEmbedder::new(config.clone(), 44100, 2048).unwrap();
+        let detector = SpreadSpectrumDetector::new(config).unwrap();
 
         // "WM" encodes to 280 bits, requiring 35 frames * 2048 frame_size = 71680 samples
         // with non-overlapping frames. Use 73728 (36 * 2048) for headroom.
@@ -418,7 +428,7 @@ mod tests {
     #[test]
     fn test_capacity_calculation() {
         let config = SpreadSpectrumConfig::default();
-        let embedder = SpreadSpectrumEmbedder::new(config, 44100, 2048);
+        let embedder = SpreadSpectrumEmbedder::new(config, 44100, 2048).unwrap();
 
         let capacity = embedder.capacity(44100); // 1 second
         assert!(capacity > 0);

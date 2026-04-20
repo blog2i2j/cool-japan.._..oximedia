@@ -262,7 +262,7 @@ impl BandwidthObservation {
 /// ```rust
 /// use oximedia_net::bandwidth_trigger::{BandwidthTrigger, TriggerConfig, BandwidthObservation};
 ///
-/// let mut trigger = BandwidthTrigger::new(TriggerConfig::default()).unwrap();
+/// let mut trigger = BandwidthTrigger::new(TriggerConfig::default()).expect("valid default config");
 /// trigger.add_observation(BandwidthObservation::new(6_000_000.0));
 /// let action = trigger.evaluate();
 /// // inspect action...

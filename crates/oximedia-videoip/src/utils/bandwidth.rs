@@ -30,9 +30,7 @@ impl BandwidthEstimator {
         self.samples.push_back((now, bytes));
 
         // Remove old samples outside the window
-        let cutoff = now
-            .checked_sub(self.window_size)
-            .expect("invariant: window_size fits within Instant range");
+        let cutoff = now.checked_sub(self.window_size).unwrap_or(now);
         while let Some(&(timestamp, _)) = self.samples.front() {
             if timestamp < cutoff {
                 self.samples.pop_front();
@@ -55,16 +53,14 @@ impl BandwidthEstimator {
         }
 
         let total_bytes: usize = self.samples.iter().map(|(_, bytes)| bytes).sum();
-        let first_time = self
-            .samples
-            .front()
-            .expect("invariant: len >= 2 checked above")
-            .0;
-        let last_time = self
-            .samples
-            .back()
-            .expect("invariant: len >= 2 checked above")
-            .0;
+        let Some(first_entry) = self.samples.front() else {
+            return 0;
+        };
+        let Some(last_entry) = self.samples.back() else {
+            return 0;
+        };
+        let first_time = first_entry.0;
+        let last_time = last_entry.0;
 
         let duration = last_time.duration_since(first_time).as_secs_f64();
         if duration < 0.001 {

@@ -432,7 +432,8 @@ mod tests {
 
     #[test]
     fn test_compositor_creation() {
-        let comp = MultiviewCompositor::with_layout(1920, 1080, MosaicLayout::Grid2x2).unwrap();
+        let comp = MultiviewCompositor::with_layout(1920, 1080, MosaicLayout::Grid2x2)
+            .expect("valid canvas size and layout");
         assert_eq!(comp.cell_count(), 4);
         assert_eq!(comp.canvas_size(), (1920, 1080));
     }
@@ -446,16 +447,19 @@ mod tests {
 
     #[test]
     fn test_register_and_update_source() {
-        let mut comp = MultiviewCompositor::with_layout(4, 4, MosaicLayout::Single).unwrap();
+        let mut comp = MultiviewCompositor::with_layout(4, 4, MosaicLayout::Single)
+            .expect("valid canvas size and layout");
         comp.register_source("cam1", 4, 4);
         let frame = vec![255u8; 4 * 4 * 4];
-        comp.update_source_frame("cam1", &frame).unwrap();
+        comp.update_source_frame("cam1", &frame)
+            .expect("source was registered");
         assert_eq!(comp.source_count(), 1);
     }
 
     #[test]
     fn test_update_unknown_source_error() {
-        let mut comp = MultiviewCompositor::with_layout(4, 4, MosaicLayout::Single).unwrap();
+        let mut comp = MultiviewCompositor::with_layout(4, 4, MosaicLayout::Single)
+            .expect("valid canvas size and layout");
         let frame = vec![0u8; 16 * 4];
         let result = comp.update_source_frame("unknown", &frame);
         assert!(matches!(result, Err(MultiviewError::SourceNotFound(_))));
@@ -463,21 +467,26 @@ mod tests {
 
     #[test]
     fn test_composite_all_white() {
-        let mut comp = MultiviewCompositor::with_layout(4, 4, MosaicLayout::Single).unwrap();
+        let mut comp = MultiviewCompositor::with_layout(4, 4, MosaicLayout::Single)
+            .expect("valid canvas size and layout");
         comp.register_source("cam1", 4, 4);
         let mut cells = MosaicLayout::Single.build_cells(4, 4);
         cells[0].source_id = Some("cam1".to_owned());
-        let mut comp2 = MultiviewCompositor::new(4, 4, cells).unwrap();
+        let mut comp2 = MultiviewCompositor::new(4, 4, cells)
+            .expect("valid cells fit within canvas");
         comp2.register_source("cam1", 4, 4);
         let frame = vec![255u8; 4 * 4 * 4];
-        comp2.update_source_frame("cam1", &frame).unwrap();
+        comp2
+            .update_source_frame("cam1", &frame)
+            .expect("source was registered");
         let canvas = comp2.composite();
         assert!(canvas.iter().all(|&v| v == 255));
     }
 
     #[test]
     fn test_composite_blank_cell_uses_background() {
-        let comp = MultiviewCompositor::with_layout(4, 4, MosaicLayout::Single).unwrap();
+        let comp = MultiviewCompositor::with_layout(4, 4, MosaicLayout::Single)
+            .expect("valid canvas size and layout");
         // No source assigned => background colour
         let canvas = comp.composite();
         assert_eq!(canvas.len(), 4 * 4 * 4);
@@ -511,22 +520,26 @@ mod tests {
 
     #[test]
     fn test_assign_source_to_cell() {
-        let mut comp = MultiviewCompositor::with_layout(100, 100, MosaicLayout::Side2).unwrap();
-        comp.assign_source_to_cell("0", Some("cam1".to_owned())).unwrap();
+        let mut comp = MultiviewCompositor::with_layout(100, 100, MosaicLayout::Side2)
+            .expect("valid canvas size and layout");
+        comp.assign_source_to_cell("0", Some("cam1".to_owned()))
+            .expect("cell '0' exists in Side2 layout");
         // verify via source count (source is not registered but assignment works)
         assert_eq!(comp.cell_count(), 2);
     }
 
     #[test]
     fn test_assign_unknown_cell_error() {
-        let mut comp = MultiviewCompositor::with_layout(100, 100, MosaicLayout::Single).unwrap();
+        let mut comp = MultiviewCompositor::with_layout(100, 100, MosaicLayout::Single)
+            .expect("valid canvas size and layout");
         let res = comp.assign_source_to_cell("nonexistent", Some("cam1".to_owned()));
         assert!(matches!(res, Err(MultiviewError::SourceNotFound(_))));
     }
 
     #[test]
     fn test_unregister_source() {
-        let mut comp = MultiviewCompositor::with_layout(4, 4, MosaicLayout::Single).unwrap();
+        let mut comp = MultiviewCompositor::with_layout(4, 4, MosaicLayout::Single)
+            .expect("valid canvas size and layout");
         comp.register_source("cam1", 4, 4);
         assert_eq!(comp.source_count(), 1);
         comp.unregister_source("cam1");
@@ -535,7 +548,8 @@ mod tests {
 
     #[test]
     fn test_set_background_colour() {
-        let mut comp = MultiviewCompositor::with_layout(4, 4, MosaicLayout::Single).unwrap();
+        let mut comp = MultiviewCompositor::with_layout(4, 4, MosaicLayout::Single)
+            .expect("valid canvas size and layout");
         comp.set_background([255, 0, 0, 255]); // red
         let canvas = comp.composite();
         // Canvas should now be red (no source assigned).
@@ -555,7 +569,8 @@ mod tests {
 
     #[test]
     fn test_compositor_canvas_size() {
-        let comp = MultiviewCompositor::with_layout(640, 360, MosaicLayout::Grid2x2).unwrap();
+        let comp = MultiviewCompositor::with_layout(640, 360, MosaicLayout::Grid2x2)
+            .expect("valid canvas size and layout");
         assert_eq!(comp.canvas_size(), (640, 360));
     }
 }

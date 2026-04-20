@@ -514,175 +514,191 @@ mod tests {
     // ── ComputeGraph – construction ───────────────────────────────────────────
 
     #[test]
-    fn test_add_node_and_count() {
+    fn test_add_node_and_count() -> Result<(), GraphError> {
         let mut g = ComputeGraph::new();
-        g.add_node(kernel_node(1, [4, 1, 1])).unwrap();
-        g.add_node(barrier_node(2)).unwrap();
+        g.add_node(kernel_node(1, [4, 1, 1]))?;
+        g.add_node(barrier_node(2))?;
         assert_eq!(g.node_count(), 2);
+        Ok(())
     }
 
     #[test]
-    fn test_add_duplicate_node_error() {
+    fn test_add_duplicate_node_error() -> Result<(), GraphError> {
         let mut g = ComputeGraph::new();
-        g.add_node(kernel_node(1, [1, 1, 1])).unwrap();
+        g.add_node(kernel_node(1, [1, 1, 1]))?;
         let err = g.add_node(kernel_node(1, [2, 2, 2]));
         assert!(matches!(err, Err(GraphError::DuplicateNode(1))));
+        Ok(())
     }
 
     #[test]
-    fn test_add_edge_increments_count() {
+    fn test_add_edge_increments_count() -> Result<(), GraphError> {
         let mut g = ComputeGraph::new();
-        g.add_node(kernel_node(1, [1, 1, 1])).unwrap();
-        g.add_node(kernel_node(2, [1, 1, 1])).unwrap();
-        g.add_edge(1, 2).unwrap();
+        g.add_node(kernel_node(1, [1, 1, 1]))?;
+        g.add_node(kernel_node(2, [1, 1, 1]))?;
+        g.add_edge(1, 2)?;
         assert_eq!(g.edge_count(), 1);
+        Ok(())
     }
 
     #[test]
-    fn test_add_edge_unknown_node_error() {
+    fn test_add_edge_unknown_node_error() -> Result<(), GraphError> {
         let mut g = ComputeGraph::new();
-        g.add_node(kernel_node(1, [1, 1, 1])).unwrap();
+        g.add_node(kernel_node(1, [1, 1, 1]))?;
         assert!(matches!(
             g.add_edge(1, 99),
             Err(GraphError::NodeNotFound(99))
         ));
+        Ok(())
     }
 
     #[test]
-    fn test_add_cyclic_edge_error() {
+    fn test_add_cyclic_edge_error() -> Result<(), GraphError> {
         let mut g = ComputeGraph::new();
-        g.add_node(kernel_node(1, [1, 1, 1])).unwrap();
-        g.add_node(kernel_node(2, [1, 1, 1])).unwrap();
-        g.add_edge(1, 2).unwrap();
+        g.add_node(kernel_node(1, [1, 1, 1]))?;
+        g.add_node(kernel_node(2, [1, 1, 1]))?;
+        g.add_edge(1, 2)?;
         let err = g.add_edge(2, 1);
         assert!(matches!(
             err,
             Err(GraphError::CyclicEdge { from: 2, to: 1 })
         ));
+        Ok(())
     }
 
     // ── execution_order ───────────────────────────────────────────────────────
 
     #[test]
-    fn test_execution_order_single_node() {
+    fn test_execution_order_single_node() -> Result<(), GraphError> {
         let mut g = ComputeGraph::new();
-        g.add_node(kernel_node(5, [8, 1, 1])).unwrap();
-        let plan = g.execution_order().unwrap();
+        g.add_node(kernel_node(5, [8, 1, 1]))?;
+        let plan = g.execution_order()?;
         assert_eq!(plan.order, vec![5]);
         assert_eq!(plan.total_dispatch_groups, 8);
+        Ok(())
     }
 
     #[test]
-    fn test_execution_order_linear_chain() {
+    fn test_execution_order_linear_chain() -> Result<(), GraphError> {
         let mut g = ComputeGraph::new();
         for id in [1, 2, 3] {
-            g.add_node(kernel_node(id, [2, 1, 1])).unwrap();
+            g.add_node(kernel_node(id, [2, 1, 1]))?;
         }
-        g.add_edge(1, 2).unwrap();
-        g.add_edge(2, 3).unwrap();
-        let plan = g.execution_order().unwrap();
+        g.add_edge(1, 2)?;
+        g.add_edge(2, 3)?;
+        let plan = g.execution_order()?;
         assert_eq!(plan.order, vec![1, 2, 3]);
         assert_eq!(plan.total_dispatch_groups, 6);
+        Ok(())
     }
 
     #[test]
-    fn test_execution_order_with_barrier_and_copy() {
+    fn test_execution_order_with_barrier_and_copy() -> Result<(), GraphError> {
         // kernel → barrier → copy
         let mut g = ComputeGraph::new();
-        g.add_node(kernel_node(1, [4, 4, 1])).unwrap();
-        g.add_node(barrier_node(2)).unwrap();
-        g.add_node(copy_node(3, 0, 1, 1024)).unwrap();
-        g.add_edge(1, 2).unwrap();
-        g.add_edge(2, 3).unwrap();
-        let plan = g.execution_order().unwrap();
+        g.add_node(kernel_node(1, [4, 4, 1]))?;
+        g.add_node(barrier_node(2))?;
+        g.add_node(copy_node(3, 0, 1, 1024))?;
+        g.add_edge(1, 2)?;
+        g.add_edge(2, 3)?;
+        let plan = g.execution_order()?;
         assert_eq!(plan.order, vec![1, 2, 3]);
         assert_eq!(plan.barrier_count, 1);
         assert_eq!(plan.copy_count, 1);
         assert_eq!(plan.total_dispatch_groups, 16);
+        Ok(())
     }
 
     #[test]
-    fn test_execution_order_independent_nodes_sorted_by_id() {
+    fn test_execution_order_independent_nodes_sorted_by_id() -> Result<(), GraphError> {
         let mut g = ComputeGraph::new();
         for id in [5, 3, 1] {
-            g.add_node(kernel_node(id, [1, 1, 1])).unwrap();
+            g.add_node(kernel_node(id, [1, 1, 1]))?;
         }
-        let plan = g.execution_order().unwrap();
+        let plan = g.execution_order()?;
         assert_eq!(plan.order, vec![1, 3, 5]);
+        Ok(())
     }
 
     // ── resource bindings ─────────────────────────────────────────────────────
 
     #[test]
-    fn test_bind_resource_to_kernel() {
+    fn test_bind_resource_to_kernel() -> Result<(), GraphError> {
         let mut g = ComputeGraph::new();
-        g.add_node(kernel_node(1, [1, 1, 1])).unwrap();
-        g.bind_resource(1, simple_binding("input", 10)).unwrap();
-        let node = g.node(1).unwrap();
+        g.add_node(kernel_node(1, [1, 1, 1]))?;
+        g.bind_resource(1, simple_binding("input", 10))?;
+        let node = g.node(1).ok_or(GraphError::NodeNotFound(1))?;
         assert_eq!(node.bindings.len(), 1);
+        Ok(())
     }
 
     #[test]
-    fn test_bind_resource_to_barrier_fails() {
+    fn test_bind_resource_to_barrier_fails() -> Result<(), GraphError> {
         let mut g = ComputeGraph::new();
-        g.add_node(barrier_node(1)).unwrap();
+        g.add_node(barrier_node(1))?;
         let err = g.bind_resource(1, simple_binding("buf", 0));
         assert!(matches!(err, Err(GraphError::IncompatibleBinding { .. })));
+        Ok(())
     }
 
     #[test]
-    fn test_bind_resource_unknown_node_fails() {
+    fn test_bind_resource_unknown_node_fails() -> Result<(), GraphError> {
         let mut g = ComputeGraph::new();
         let err = g.bind_resource(99, simple_binding("buf", 0));
         assert!(matches!(err, Err(GraphError::NodeNotFound(99))));
+        Ok(())
     }
 
     // ── validate ─────────────────────────────────────────────────────────────
 
     #[test]
-    fn test_validate_passes_when_all_bound() {
+    fn test_validate_passes_when_all_bound() -> Result<(), GraphError> {
         let mut g = ComputeGraph::new();
         let mut n = kernel_node(1, [1, 1, 1]);
         n.bindings.push(simple_binding("buf", 0));
-        g.add_node(n).unwrap();
-        g.add_node(barrier_node(2)).unwrap();
-        g.add_edge(1, 2).unwrap();
+        g.add_node(n)?;
+        g.add_node(barrier_node(2))?;
+        g.add_edge(1, 2)?;
         assert!(g.validate().is_ok());
+        Ok(())
     }
 
     #[test]
-    fn test_validate_fails_when_kernel_has_no_bindings() {
+    fn test_validate_fails_when_kernel_has_no_bindings() -> Result<(), GraphError> {
         let mut g = ComputeGraph::new();
-        g.add_node(kernel_node(1, [1, 1, 1])).unwrap();
+        g.add_node(kernel_node(1, [1, 1, 1]))?;
         assert!(matches!(
             g.validate(),
             Err(GraphError::MissingBinding { node_id: 1, .. })
         ));
+        Ok(())
     }
 
     // ── predecessors / successors ─────────────────────────────────────────────
 
     #[test]
-    fn test_predecessors_and_successors() {
+    fn test_predecessors_and_successors() -> Result<(), GraphError> {
         let mut g = ComputeGraph::new();
         for id in [1, 2, 3] {
-            g.add_node(kernel_node(id, [1, 1, 1])).unwrap();
+            g.add_node(kernel_node(id, [1, 1, 1]))?;
         }
-        g.add_edge(1, 3).unwrap();
-        g.add_edge(2, 3).unwrap();
-        let mut preds = g.predecessors(3).unwrap();
+        g.add_edge(1, 3)?;
+        g.add_edge(2, 3)?;
+        let mut preds = g.predecessors(3)?;
         preds.sort_unstable();
         assert_eq!(preds, vec![1, 2]);
-        let succs_1 = g.successors(1).unwrap();
+        let succs_1 = g.successors(1)?;
         assert_eq!(succs_1, vec![3]);
+        Ok(())
     }
 
     #[test]
-    fn test_predecessors_unknown_node_error() {
+    fn test_predecessors_unknown_node_error() -> Result<(), GraphError> {
         let g = ComputeGraph::new();
         assert!(matches!(
             g.predecessors(42),
             Err(GraphError::NodeNotFound(42))
         ));
+        Ok(())
     }
 }

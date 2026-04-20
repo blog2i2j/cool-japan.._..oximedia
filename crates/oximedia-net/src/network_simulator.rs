@@ -46,7 +46,7 @@
 //! };
 //! let mut sim = NetworkSimulator::new(config, 42);
 //!
-//! sim.send_packet(b"hello", 1400, Duration::from_millis(0)).unwrap();
+//! sim.send_packet(b"hello", 1400, Duration::from_millis(0)).expect("valid packet within limits");
 //! let ready = sim.receive_ready(Duration::from_millis(200));
 //! assert!(!ready.is_empty());
 //! ```
@@ -503,19 +503,21 @@ impl NetworkSimulator {
         // Drain from front while delivery_time ≤ now
         while let Some(front) = self.in_flight.front() {
             if front.delivery_time <= now {
-                let pkt = self.in_flight.pop_front().expect("front exists");
-                let latency = pkt.delivery_time.saturating_sub(pkt.sent_at);
-                self.stats.packets_delivered += 1;
-                self.stats.bytes_delivered += pkt.size_bytes as u64;
-                self.stats.cumulative_latency_us += latency.as_micros() as u64;
-                ready.push(SimPacket {
-                    id: pkt.id,
-                    payload: pkt.payload,
-                    size_bytes: pkt.size_bytes,
-                    sent_at: pkt.sent_at,
-                    delivered_at: now,
-                    latency,
-                });
+                // We just confirmed front exists via `while let Some(front)`.
+                if let Some(pkt) = self.in_flight.pop_front() {
+                    let latency = pkt.delivery_time.saturating_sub(pkt.sent_at);
+                    self.stats.packets_delivered += 1;
+                    self.stats.bytes_delivered += pkt.size_bytes as u64;
+                    self.stats.cumulative_latency_us += latency.as_micros() as u64;
+                    ready.push(SimPacket {
+                        id: pkt.id,
+                        payload: pkt.payload,
+                        size_bytes: pkt.size_bytes,
+                        sent_at: pkt.sent_at,
+                        delivered_at: now,
+                        latency,
+                    });
+                }
             } else {
                 break;
             }

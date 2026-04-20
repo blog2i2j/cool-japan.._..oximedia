@@ -336,6 +336,49 @@ impl Timestamp {
     pub fn distance_seconds(&self, other: &Self) -> f64 {
         (self.to_seconds() - other.to_seconds()).abs()
     }
+
+    /// Adds a wall-clock duration to this timestamp using saturating arithmetic.
+    ///
+    /// Overflow is clamped to `i64::MAX`.
+    #[must_use]
+    pub fn duration_add(self, duration: std::time::Duration) -> Self {
+        let delta = duration_to_timebase_units(duration, self.timebase, i64::MAX);
+        self.with_saturated_pts(self.pts.saturating_add(delta))
+    }
+
+    /// Subtracts a wall-clock duration from this timestamp using saturating arithmetic.
+    ///
+    /// Underflow is clamped to `0`.
+    #[must_use]
+    pub fn duration_sub(self, duration: std::time::Duration) -> Self {
+        let delta = duration_to_timebase_units(duration, self.timebase, i64::MAX);
+        self.with_saturated_pts(self.pts.saturating_sub(delta).max(0))
+    }
+
+    /// Scales the timestamp by `num / den` using saturating arithmetic.
+    ///
+    /// If `den` is zero, returns `self` unchanged.
+    #[must_use]
+    pub fn scale_by(self, num: i64, den: i64) -> Self {
+        if den == 0 {
+            return self;
+        }
+
+        self.with_saturated_pts(saturating_mul_div_i64(self.pts, num, den))
+    }
+
+    #[must_use]
+    fn with_saturated_pts(self, pts: i64) -> Self {
+        let clamped_pts = pts.max(0);
+        let dts = self.dts.map(|value| value.clamp(0, clamped_pts));
+
+        Self {
+            pts: clamped_pts,
+            dts,
+            timebase: self.timebase,
+            duration: self.duration,
+        }
+    }
 }
 
 impl Default for Timestamp {
@@ -476,6 +519,55 @@ fn checked_mul_rational(value: i64, r: Rational) -> Result<i64, crate::OxiError>
         )));
     }
     Ok(result as i64)
+}
+
+#[allow(clippy::cast_possible_truncation)]
+fn duration_to_timebase_units(
+    duration: std::time::Duration,
+    timebase: Rational,
+    fallback: i64,
+) -> i64 {
+    if timebase.num <= 0 || timebase.den <= 0 {
+        return fallback;
+    }
+
+    let nanos_per_second = 1_000_000_000_i128;
+    let duration_nanos = i128::from(duration.as_secs())
+        .saturating_mul(nanos_per_second)
+        .saturating_add(i128::from(duration.subsec_nanos()));
+    let numerator = duration_nanos
+        .saturating_mul(i128::from(timebase.den))
+        .checked_div(i128::from(timebase.num).saturating_mul(nanos_per_second));
+
+    match numerator {
+        Some(value) => value.clamp(0, i128::from(i64::MAX)) as i64,
+        None => fallback,
+    }
+}
+
+#[allow(clippy::cast_possible_truncation)]
+fn saturating_mul_div_i64(value: i64, num: i64, den: i64) -> i64 {
+    let denominator = i128::from(den);
+    if denominator == 0 {
+        return value;
+    }
+
+    let scaled = i128::from(value)
+        .saturating_mul(i128::from(num))
+        .checked_div(denominator);
+
+    match scaled {
+        Some(result) if result < 0 => 0,
+        Some(result) if result > i128::from(i64::MAX) => i64::MAX,
+        Some(result) => result as i64,
+        None => {
+            if (value > 0 && num > 0 && den > 0) || (value < 0 && num < 0 && den > 0) {
+                i64::MAX
+            } else {
+                0
+            }
+        }
+    }
 }
 
 impl PartialEq for Timestamp {
@@ -904,6 +996,28 @@ mod tests {
         let a = Timestamp::new(1000, Rational::new(1, 1000));
         let b = Timestamp::new(1_000_000, Rational::new(1, 1_000_000));
         assert!(a.distance_seconds(&b) < 1e-9);
+    }
+
+    #[test]
+    fn test_duration_add_saturating() {
+        let ts = Timestamp::new(i64::MAX, Rational::new(1, 1));
+        let result = ts.duration_add(std::time::Duration::from_secs(1));
+        assert_eq!(result.pts, i64::MAX);
+    }
+
+    #[test]
+    fn test_duration_sub_saturating() {
+        let ts = Timestamp::new(0, Rational::new(1, 1));
+        let result = ts.duration_sub(std::time::Duration::from_secs(1));
+        assert!(result.pts >= 0);
+        assert_eq!(result.pts, 0);
+    }
+
+    #[test]
+    fn test_scale_by() {
+        let ts = Timestamp::new(100, Rational::new(1, 1000));
+        assert_eq!(ts.scale_by(3, 2).pts, 150);
+        assert_eq!(ts.scale_by(1, 0), ts);
     }
 
     // ── Timestamp conversion accuracy tests ─────────────────────────

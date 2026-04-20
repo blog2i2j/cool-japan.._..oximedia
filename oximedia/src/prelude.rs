@@ -687,3 +687,13 @@ pub use crate::caption_gen::*;
 
 #[cfg(feature = "image-transform")]
 pub use crate::image_transform::*;
+
+// ── MJPEG ────────────────────────────────────────────────────────────────────
+
+#[cfg(feature = "mjpeg")]
+pub use oximedia_codec::{MjpegConfig, MjpegDecoder, MjpegEncoder, MjpegError};
+
+// ── APV ──────────────────────────────────────────────────────────────────────
+
+#[cfg(feature = "apv")]
+pub use oximedia_codec::{ApvConfig, ApvDecoder, ApvEncoder, ApvError};

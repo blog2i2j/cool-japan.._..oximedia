@@ -159,10 +159,7 @@ impl PlayoutSchedule {
         if slot.locked {
             return Err(ScheduleError::Locked(id));
         }
-        Ok(self
-            .slots
-            .remove(&id)
-            .expect("invariant: slot exists (checked with get above)"))
+        self.slots.remove(&id).ok_or(ScheduleError::NotFound(id))
     }
 
     /// Lock a slot, preventing removal or time edits.

@@ -230,11 +230,12 @@ mod tests {
     #[test]
     fn test_pipeline_config_metadata() {
         let mut p = PipelineConfig::new();
-        p.set_meta("input", "/tmp/video.mkv");
-        assert_eq!(
-            p.metadata.get("input").map(String::as_str),
-            Some("/tmp/video.mkv")
-        );
+        let v = std::env::temp_dir()
+            .join("oximedia-py-pipeline-video.mkv")
+            .to_string_lossy()
+            .into_owned();
+        p.set_meta("input", &v);
+        assert_eq!(p.metadata.get("input").cloned(), Some(v));
     }
 
     #[test]

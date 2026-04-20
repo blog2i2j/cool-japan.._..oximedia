@@ -1,36 +1,47 @@
-//! Broadcast automation and control system for OxiMedia.
+//! Professional broadcast automation and control system for OxiMedia.
 //!
-//! This crate provides comprehensive 24/7 broadcast automation with:
-//!
-//! - **Master Control**: Centralized broadcast orchestration
-//! - **Channel Automation**: Multi-channel automated playout
-//! - **Device Control**: VTR, server, and router control (VDCP, Sony 9-pin, GPI/GPO)
-//! - **Playlist Execution**: Frame-accurate playlist playback
-//! - **Live Switching**: Automated live production workflows
-//! - **Failover**: Automatic redundancy and hot standby
-//! - **Emergency Alert System**: EAS compliance and alert insertion
-//! - **As-run Logging**: Comprehensive broadcast logging
-//! - **System Monitoring**: Proactive health monitoring and metrics
-//! - **Remote Control**: Web-based control and monitoring
-//! - **Lua Scripting**: Custom automation scripting
+//! Provides comprehensive 24/7 broadcast automation: master control orchestration,
+//! frame-accurate multi-channel playout, device control (VDCP, Sony 9-pin, GPI/GPO),
+//! failover, EAS alert insertion, as-run logging, system monitoring, REST/WebSocket
+//! remote control, and Lua 5.4 scripting.
 //!
 //! # Architecture
 //!
-//! The automation system follows a hierarchical architecture:
-//!
 //! ```text
 //! Master Control
-//!     ├── Channel 1 Automation
-//!     │   ├── Playlist Executor
-//!     │   ├── Device Controllers
+//!     ├── Channel Automation (per channel)
+//!     │   ├── Playlist Executor + Pre-roll Manager
+//!     │   ├── Device Controllers (VDCP, Sony 9-pin, GPI, GPO)
 //!     │   └── Live Switcher
-//!     ├── Channel 2 Automation
 //!     └── Shared Services
-//!         ├── Failover Manager
-//!         ├── EAS System
-//!         ├── Logging
-//!         └── Monitoring
+//!         ├── Failover Manager (Health Monitor, Failover Switch)
+//!         ├── EAS System (Alert Manager, Crawl Generator, Audio Insertion)
+//!         ├── Logging (BatchedAsRunLogger, Event Logger)
+//!         ├── Monitoring (SystemMonitor, Metrics Collector)
+//!         ├── Remote Control (REST via axum, WebSocket)
+//!         └── Script Engine (Lua 5.4 via mlua)
 //! ```
+//!
+//! # Device Control Protocols
+//!
+//! - **VDCP** — `[STX=0x02][LEN][CMD][DATA][CHK][ETX=0x03]`; wrapping-add checksum
+//! - **Sony 9-pin** — RS-422 7-byte frame; `SONY_CMD1_TRANSPORT=0x20`; Stop/Play/Record/FF/Rewind
+//! - **GPI/GPO** — General Purpose Interface triggers and outputs
+//!
+//! # Lua Scripting
+//!
+//! `ScriptEngine` embeds Lua 5.4 (mlua, vendored) with a sandbox:
+//! 1 M instructions, 32 MiB memory, 5 s max duration; FIFO script cache of 64 entries.
+//!
+//! # Key Subsystems
+//!
+//! - **`EasPlayoutController`** — simulated-clock `advance_time(delta)`, alerts sorted by
+//!   priority descending, interrupt/restore playout on active alert
+//! - **`PlaylistArena`** — block-based bump allocator (`Vec<Vec<Item>>`); `clear()` resets
+//!   length without deallocating; amortized O(1) enqueue
+//! - **`HttpSessionPool`** — idle `VecDeque`, evict-from-front on capacity; `hit_rate()` =
+//!   reused / (created + reused)
+//! - **`BatchedAsRunLogger`** — batches as-run entries in memory and flushes on demand
 //!
 //! # Example
 //!
@@ -38,36 +49,14 @@
 //! use oximedia_automation::{MasterControl, MasterControlConfig};
 //!
 //! # async fn example() -> Result<(), Box<dyn std::error::Error>> {
-//! // Create master control system
 //! let config = MasterControlConfig::default();
 //! let mut master = MasterControl::new(config).await?;
-//!
-//! // Start automation
 //! master.start().await?;
-//!
-//! // Monitor system status
 //! let status = master.status().await?;
 //! println!("System status: {:?}", status);
 //! # Ok(())
 //! # }
 //! ```
-//!
-//! # Device Control Protocols
-//!
-//! - **VDCP**: Video Disk Control Protocol (IEEE 1394)
-//! - **Sony 9-pin**: RS-422 VTR control
-//! - **GPI/GPO**: General Purpose Interface triggers
-//!
-//! # Features
-//!
-//! - Frame-accurate timing for broadcast operations
-//! - Hot standby failover with automatic switching
-//! - Multi-channel support for simultaneous broadcasts
-//! - EAS compliance with automatic alert insertion
-//! - Comprehensive as-run logging
-//! - Real-time monitoring and alerting
-//! - Web-based remote control interface
-//! - Lua scripting for custom workflows
 
 #![forbid(unsafe_code)]
 #![allow(missing_docs)]

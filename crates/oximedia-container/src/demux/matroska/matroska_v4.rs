@@ -154,7 +154,7 @@ impl MatroskaTrackV4 {
 ///
 /// # Errors
 ///
-/// Returns an [`OxiError::Parse`] if a child element header cannot be decoded.
+/// Returns an `OxiError::Parse` error if a child element header cannot be decoded.
 /// Unknown child elements are silently skipped (forward-compatible).
 pub fn parse_block_addition_mapping(data: &[u8]) -> OxiResult<BlockAdditionMapping> {
     let mut parser = MatroskaParser::new(data);
@@ -430,14 +430,8 @@ mod tests {
         let size = body.len() as u64;
         let v4 = parse_all_block_addition_mappings(&body, size).expect("should parse");
         assert_eq!(v4.mapping_count(), 2);
-        assert_eq!(
-            v4.addition_mappings[0].id_name.as_deref(),
-            Some("first")
-        );
-        assert_eq!(
-            v4.addition_mappings[1].id_name.as_deref(),
-            Some("second")
-        );
+        assert_eq!(v4.addition_mappings[0].id_name.as_deref(), Some("first"));
+        assert_eq!(v4.addition_mappings[1].id_name.as_deref(), Some("second"));
     }
 
     #[test]

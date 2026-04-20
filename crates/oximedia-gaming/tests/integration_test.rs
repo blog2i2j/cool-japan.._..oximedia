@@ -68,8 +68,9 @@ async fn test_replay_buffer_integration() {
     streamer.start().await.expect("start should succeed");
 
     // Save replay
+    let replay_path = std::env::temp_dir().join("oximedia-gaming-int-replay.mp4");
     streamer
-        .save_replay("/tmp/test_replay.mp4")
+        .save_replay(replay_path.to_string_lossy().as_ref())
         .await
         .expect("save replay should succeed");
 

@@ -426,23 +426,23 @@ mod tests {
 
     #[test]
     fn test_open_nonexistent_aaf() {
-        let path = PathBuf::from("/tmp/nonexistent_test_file.aaf");
+        let path = std::env::temp_dir().join("nonexistent_test_file.aaf");
         let result = open_aaf(&path);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_merge_requires_two_inputs() {
-        let inputs = vec![PathBuf::from("/tmp/a.aaf")];
-        let output = PathBuf::from("/tmp/merged.aaf");
+        let inputs = vec![std::env::temp_dir().join("a.aaf")];
+        let output = std::env::temp_dir().join("merged.aaf");
         let result = run_merge(&inputs, &output, false);
         assert!(result.is_err());
     }
 
     #[test]
     fn test_convert_unsupported_format() {
-        let input = PathBuf::from("/tmp/test.aaf");
-        let output = PathBuf::from("/tmp/test.xyz");
+        let input = std::env::temp_dir().join("test.aaf");
+        let output = std::env::temp_dir().join("test.xyz");
         let result = run_convert(&input, &output, "xyz", false);
         assert!(result.is_err());
     }

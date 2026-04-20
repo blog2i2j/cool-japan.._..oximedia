@@ -38,7 +38,9 @@ impl ForegroundProcessor {
 
 impl Default for ForegroundProcessor {
     fn default() -> Self {
-        Self::new().expect("invariant: ForegroundProcessor::new is infallible")
+        Self {
+            edge_refinement: true,
+        }
     }
 }
 

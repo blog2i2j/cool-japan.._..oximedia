@@ -366,7 +366,8 @@ mod tests {
 
     #[test]
     fn test_package_nonexistent_path() {
-        let result = PyImfPackage::new("/tmp/nonexistent_imf_test_dir_12345");
+        let p = std::env::temp_dir().join("oximedia-py-imf-nonexistent_test_dir_12345");
+        let result = PyImfPackage::new(p.to_string_lossy().as_ref());
         assert!(result.is_err());
     }
 }

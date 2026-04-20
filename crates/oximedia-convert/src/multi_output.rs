@@ -13,6 +13,7 @@ use crate::{
     ConversionError, ConversionOptions, ConversionReport, Converter, Profile, QualityMode, Result,
 };
 use std::path::{Path, PathBuf};
+#[cfg(not(target_arch = "wasm32"))]
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -455,7 +456,7 @@ mod tests {
 
     #[test]
     fn test_output_target_new() {
-        let path = PathBuf::from("/tmp/out.mp4");
+        let path = std::env::temp_dir().join("oximedia-convert-multi-out.mp4");
         let opts = ConversionOptions::default();
         let t = OutputTarget::new(path.clone(), opts);
         assert_eq!(t.output_path, path);
@@ -464,15 +465,18 @@ mod tests {
 
     #[test]
     fn test_output_target_with_label() {
-        let t = OutputTarget::new(PathBuf::from("/tmp/out.mp4"), ConversionOptions::default())
-            .with_label("1080p");
+        let t = OutputTarget::new(
+            std::env::temp_dir().join("oximedia-convert-multi-out.mp4"),
+            ConversionOptions::default(),
+        )
+        .with_label("1080p");
         assert_eq!(t.label, Some("1080p".to_string()));
     }
 
     #[test]
     fn test_output_target_from_profile() {
         let t = OutputTarget::from_profile(
-            PathBuf::from("/tmp/out.mp4"),
+            std::env::temp_dir().join("oximedia-convert-multi-out.mp4"),
             Profile::WebOptimized,
             QualityMode::Best,
         );
@@ -482,13 +486,13 @@ mod tests {
 
     #[test]
     fn test_abr_ladder_targets_count() {
-        let targets = MultiOutputConverter::abr_ladder_targets("video", Path::new("/tmp"));
+        let targets = MultiOutputConverter::abr_ladder_targets("video", &std::env::temp_dir());
         assert_eq!(targets.len(), 3, "ABR ladder should have 3 targets");
     }
 
     #[test]
     fn test_abr_ladder_targets_labels() {
-        let targets = MultiOutputConverter::abr_ladder_targets("test", Path::new("/tmp"));
+        let targets = MultiOutputConverter::abr_ladder_targets("test", &std::env::temp_dir());
         let labels: Vec<Option<&str>> = targets.iter().map(|t| t.label.as_deref()).collect();
         assert!(labels.contains(&Some("1080p")));
         assert!(labels.contains(&Some("720p")));
@@ -497,7 +501,8 @@ mod tests {
 
     #[test]
     fn test_abr_ladder_targets_paths() {
-        let dir = Path::new("/tmp/abr_test");
+        let dir_owned = std::env::temp_dir().join("oximedia-convert-abr-test");
+        let dir = dir_owned.as_path();
         let targets = MultiOutputConverter::abr_ladder_targets("clip", dir);
         for t in &targets {
             assert!(
@@ -614,7 +619,7 @@ mod tests {
     #[tokio::test]
     async fn test_multi_output_report_success_rate_zero_targets() {
         let report = MultiOutputReport {
-            input_path: PathBuf::from("/tmp/in.mp4"),
+            input_path: std::env::temp_dir().join("oximedia-convert-multi-in.mp4"),
             total: 0,
             results: vec![],
             total_elapsed: Duration::from_millis(0),
@@ -625,7 +630,7 @@ mod tests {
     #[tokio::test]
     async fn test_multi_output_report_all_succeeded() {
         let report = MultiOutputReport {
-            input_path: PathBuf::from("/tmp/in.mp4"),
+            input_path: std::env::temp_dir().join("oximedia-convert-multi-in.mp4"),
             total: 0,
             results: vec![],
             total_elapsed: Duration::from_millis(0),
@@ -639,7 +644,7 @@ mod tests {
         let err_result = OutputResult {
             target_index: 1,
             label: Some("failed".to_string()),
-            output_path: PathBuf::from("/tmp/fail.mp4"),
+            output_path: std::env::temp_dir().join("oximedia-convert-multi-fail.mp4"),
             outcome: Err("conversion failed".to_string()),
             elapsed: Duration::from_millis(10),
         };
@@ -657,7 +662,7 @@ mod tests {
         let ok_result: OutputResult = OutputResult {
             target_index: 0,
             label: None,
-            output_path: PathBuf::from("/tmp/out.mp4"),
+            output_path: std::env::temp_dir().join("oximedia-convert-multi-out.mp4"),
             outcome: Err("placeholder".to_string()), // will be replaced below
             elapsed: Duration::from_millis(0),
         };

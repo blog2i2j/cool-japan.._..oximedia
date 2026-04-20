@@ -513,12 +513,10 @@ impl ComplianceIngestCoordinator {
             };
 
             if expired {
-                let policy = self
-                    .retention_policies
-                    .get(policy_name)
-                    .expect("checked above");
-                if !policy.archive_path.is_empty() {
-                    result.archived_ids.push(rec.id.clone());
+                if let Some(policy) = self.retention_policies.get(policy_name) {
+                    if !policy.archive_path.is_empty() {
+                        result.archived_ids.push(rec.id.clone());
+                    }
                 }
                 result.expired_ids.push(rec.id.clone());
                 result.bytes_to_reclaim += rec.bytes_written;
@@ -545,6 +543,17 @@ impl ComplianceIngestCoordinator {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-playout-compliance-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
+    fn tmp_dir() -> String {
+        std::env::temp_dir().to_string_lossy().into_owned()
+    }
 
     #[test]
     fn test_signal_status_is_ok() {
@@ -581,7 +590,8 @@ mod tests {
 
     #[test]
     fn test_compliance_recording_arm_start_stop() {
-        let mut rec = ComplianceRecording::new("r1", "ch1", ComplianceFormat::Mpeg2Ts, "/tmp");
+        let dir = tmp_dir();
+        let mut rec = ComplianceRecording::new("r1", "ch1", ComplianceFormat::Mpeg2Ts, &dir);
         assert!(rec.arm());
         assert!(rec.start(SystemTime::UNIX_EPOCH));
         rec.write_bytes(1024 * 1024);
@@ -592,7 +602,8 @@ mod tests {
 
     #[test]
     fn test_compliance_recording_duration() {
-        let mut rec = ComplianceRecording::new("r1", "ch1", ComplianceFormat::Mp4, "/tmp");
+        let dir = tmp_dir();
+        let mut rec = ComplianceRecording::new("r1", "ch1", ComplianceFormat::Mp4, &dir);
         rec.arm();
         rec.start(SystemTime::UNIX_EPOCH);
         rec.stop(SystemTime::UNIX_EPOCH + Duration::from_hours(1));
@@ -602,7 +613,8 @@ mod tests {
 
     #[test]
     fn test_compliance_recording_anomaly_count() {
-        let mut rec = ComplianceRecording::new("r1", "ch1", ComplianceFormat::MxfOp1a, "/tmp");
+        let dir = tmp_dir();
+        let mut rec = ComplianceRecording::new("r1", "ch1", ComplianceFormat::MxfOp1a, &dir);
         rec.record_anomaly();
         rec.record_anomaly();
         assert_eq!(rec.anomaly_count, 2);
@@ -610,9 +622,10 @@ mod tests {
 
     #[test]
     fn test_delivery_job_progress() {
+        let src = tmp_str("r1.ts");
         let mut job = DeliveryJob::new(
             "d1",
-            "/tmp/r1.ts",
+            &src,
             DeliveryDestination::LocalPath("/archive/r1.ts".to_string()),
             1000,
         );
@@ -622,9 +635,10 @@ mod tests {
 
     #[test]
     fn test_delivery_job_complete() {
+        let src = tmp_str("r1.ts");
         let mut job = DeliveryJob::new(
             "d1",
-            "/tmp/r1.ts",
+            &src,
             DeliveryDestination::LocalPath("/archive/r1.ts".to_string()),
             1000,
         );
@@ -635,9 +649,10 @@ mod tests {
 
     #[test]
     fn test_delivery_job_retry_logic() {
+        let src = tmp_str("r1.ts");
         let mut job = DeliveryJob::new(
             "d1",
-            "/tmp/r1.ts",
+            &src,
             DeliveryDestination::LocalPath("/x".to_string()),
             100,
         );
@@ -652,7 +667,8 @@ mod tests {
     #[test]
     fn test_coordinator_register_and_count() {
         let mut coord = ComplianceIngestCoordinator::new();
-        let mut rec = ComplianceRecording::new("r1", "ch1", ComplianceFormat::Mp4, "/tmp");
+        let dir = tmp_dir();
+        let mut rec = ComplianceRecording::new("r1", "ch1", ComplianceFormat::Mp4, &dir);
         rec.arm();
         rec.start(SystemTime::UNIX_EPOCH);
         coord.register(rec);
@@ -665,7 +681,8 @@ mod tests {
     #[test]
     fn test_coordinator_total_bytes() {
         let mut coord = ComplianceIngestCoordinator::new();
-        let mut rec = ComplianceRecording::new("r1", "ch1", ComplianceFormat::Mpeg2Ts, "/tmp");
+        let dir = tmp_dir();
+        let mut rec = ComplianceRecording::new("r1", "ch1", ComplianceFormat::Mpeg2Ts, &dir);
         rec.write_bytes(500_000);
         coord.register(rec);
         assert_eq!(coord.total_bytes_recorded(), 500_000);
@@ -674,9 +691,10 @@ mod tests {
     #[test]
     fn test_coordinator_active_deliveries() {
         let mut coord = ComplianceIngestCoordinator::new();
+        let src = tmp_str("f.ts");
         let job = DeliveryJob::new(
             "d1",
-            "/tmp/f.ts",
+            &src,
             DeliveryDestination::LocalPath("/arch".to_string()),
             100,
         );

@@ -932,8 +932,9 @@ fn build_gaussian_pyramid(
     pyramid.push((image.to_vec(), width, height));
 
     for _ in 1..octaves * scales {
-        let (prev_img, prev_w, prev_h) =
-            pyramid.last().expect("pyramid always has at least one element");
+        let Some((prev_img, prev_w, prev_h)) = pyramid.last() else {
+            break;
+        };
         let blurred = gaussian_blur(prev_img, *prev_w, *prev_h, 1.6);
         pyramid.push((blurred, *prev_w, *prev_h));
     }
@@ -946,8 +947,9 @@ fn build_pyramid(image: &[u8], width: u32, height: u32, levels: usize) -> Vec<(V
     pyramid.push((image.to_vec(), width, height));
 
     for _ in 1..levels {
-        let (prev_img, prev_w, prev_h) =
-            pyramid.last().expect("pyramid always has at least one element");
+        let Some((prev_img, prev_w, prev_h)) = pyramid.last() else {
+            break;
+        };
         if *prev_w < 8 || *prev_h < 8 {
             break;
         }

@@ -961,7 +961,7 @@ mod tests {
     #[test]
     fn test_add_search_path() {
         let mut registry = PluginRegistry::empty();
-        let path = PathBuf::from("/tmp/test-plugins");
+        let path = std::env::temp_dir().join("oximedia-plugin-registry-test-plugins");
         registry.add_search_path(path.clone());
         assert!(registry.search_paths().contains(&path));
 

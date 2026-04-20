@@ -6,6 +6,8 @@ Professional media conforming system for OxiMedia — timeline reconstruction fr
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
+Version: 0.1.4 — 2026-04-20 — 513 tests
+
 ## Features
 
 ### Core Functionality
@@ -42,7 +44,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-conform = "0.1.3"
+oximedia-conform = "0.1.4"
 ```
 
 ```rust

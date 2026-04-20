@@ -260,7 +260,10 @@ impl TheoraTokenDecoder {
 
 impl Default for TheoraTokenDecoder {
     fn default() -> Self {
-        Self::new().expect("Failed to create default token decoder")
+        Self::new().unwrap_or_else(|_| Self {
+            dc_decoders: Vec::new(),
+            ac_decoders: Vec::new(),
+        })
     }
 }
 

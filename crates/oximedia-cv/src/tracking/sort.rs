@@ -44,7 +44,7 @@ pub struct Track {
 
 impl Track {
     /// Create a new track from a detection.
-    fn new(id: u64, bbox: BoundingBox) -> Self {
+    fn new(id: u64, bbox: BoundingBox) -> CvResult<Self> {
         // Initialize Kalman filter with constant velocity model
         // State: [x, y, s, r, vx, vy, vs] where:
         // - (x, y) = center position
@@ -77,11 +77,9 @@ impl Track {
         let s = (bbox.width * bbox.height) as f64;
         let r = (bbox.width / bbox.height) as f64;
 
-        kalman
-            .set_state(vec![cx, cy, s, r, 0.0, 0.0, 0.0])
-            .expect("state vector length matches Kalman filter dimensions");
+        kalman.set_state(vec![cx, cy, s, r, 0.0, 0.0, 0.0])?;
 
-        Self {
+        Ok(Self {
             id,
             kalman,
             bbox,
@@ -90,7 +88,7 @@ impl Track {
             hit_streak: 1,
             age: 1,
             confidence: 1.0,
-        }
+        })
     }
 
     /// Predict next state.
@@ -238,9 +236,10 @@ impl SortTracker {
 
         // Create new tracks for unmatched detections
         for det_idx in unmatched_detections {
-            let track = Track::new(self.next_id, detections[det_idx]);
-            self.tracks.push(track);
-            self.next_id += 1;
+            if let Ok(track) = Track::new(self.next_id, detections[det_idx]) {
+                self.tracks.push(track);
+                self.next_id += 1;
+            }
         }
 
         // Remove dead tracks

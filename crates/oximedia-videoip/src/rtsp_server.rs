@@ -520,7 +520,11 @@ mod tests {
         let resp = server.handle_options(1);
         assert_eq!(resp.status, RtspStatus::Ok);
         assert_eq!(resp.cseq, 1);
-        assert!(resp.headers.get("Public").unwrap().contains("DESCRIBE"));
+        assert!(resp
+            .headers
+            .get("Public")
+            .expect("Public header is always set in OPTIONS response")
+            .contains("DESCRIBE"));
     }
 
     #[test]
@@ -528,7 +532,9 @@ mod tests {
         let server = make_server();
         let resp = server.handle_describe(2, "rtsp://localhost/live");
         assert_eq!(resp.status, RtspStatus::Ok);
-        let sdp = resp.body.unwrap();
+        let sdp = resp
+            .body
+            .expect("DESCRIBE response always has an SDP body");
         assert!(sdp.contains("m=video"));
         assert!(sdp.contains("VP9"));
         assert!(sdp.contains("m=audio"));
@@ -540,8 +546,12 @@ mod tests {
         server.set_time_ms(1000);
         let resp = server.handle_setup(3, "rtsp://localhost/live/track1", None, 50000, 50001);
         assert_eq!(resp.status, RtspStatus::Ok);
-        let sid = resp.session_id.unwrap();
-        let sess = server.get_session(&sid).unwrap();
+        let sid = resp
+            .session_id
+            .expect("SETUP response must include a session ID");
+        let sess = server
+            .get_session(&sid)
+            .expect("session was just created by SETUP");
         assert_eq!(sess.state, RtspSessionState::Ready);
     }
 
@@ -549,10 +559,14 @@ mod tests {
     fn test_play_transitions_to_playing() {
         let mut server = make_server();
         let setup = server.handle_setup(1, "rtsp://localhost/live/track1", None, 50000, 50001);
-        let sid = setup.session_id.unwrap();
+        let sid = setup
+            .session_id
+            .expect("SETUP response must include a session ID");
         let resp = server.handle_play(2, &sid);
         assert_eq!(resp.status, RtspStatus::Ok);
-        let sess = server.get_session(&sid).unwrap();
+        let sess = server
+            .get_session(&sid)
+            .expect("session was created by SETUP");
         assert!(sess.is_playing());
     }
 
@@ -560,11 +574,15 @@ mod tests {
     fn test_teardown() {
         let mut server = make_server();
         let setup = server.handle_setup(1, "rtsp://localhost/live/track1", None, 50000, 50001);
-        let sid = setup.session_id.unwrap();
+        let sid = setup
+            .session_id
+            .expect("SETUP response must include a session ID");
         server.handle_play(2, &sid);
         let resp = server.handle_teardown(3, &sid);
         assert_eq!(resp.status, RtspStatus::Ok);
-        let sess = server.get_session(&sid).unwrap();
+        let sess = server
+            .get_session(&sid)
+            .expect("session was created by SETUP");
         assert_eq!(sess.state, RtspSessionState::TearingDown);
     }
 
@@ -579,7 +597,9 @@ mod tests {
     fn test_playing_count() {
         let mut server = make_server();
         let setup = server.handle_setup(1, "rtsp://localhost/live/track1", None, 50000, 50001);
-        let sid = setup.session_id.unwrap();
+        let sid = setup
+            .session_id
+            .expect("SETUP response must include a session ID");
         assert_eq!(server.playing_count(), 0);
         server.handle_play(2, &sid);
         assert_eq!(server.playing_count(), 1);
@@ -589,7 +609,9 @@ mod tests {
     fn test_gc_sessions() {
         let mut server = make_server();
         let setup = server.handle_setup(1, "rtsp://localhost/live/track1", None, 50000, 50001);
-        let sid = setup.session_id.unwrap();
+        let sid = setup
+            .session_id
+            .expect("SETUP response must include a session ID");
         server.handle_teardown(2, &sid);
         server.gc_sessions();
         assert!(server.get_session(&sid).is_err());
@@ -607,9 +629,13 @@ mod tests {
     fn test_record_sent() {
         let mut server = make_server();
         let setup = server.handle_setup(1, "rtsp://localhost/live/track1", None, 50000, 50001);
-        let sid = setup.session_id.unwrap();
+        let sid = setup
+            .session_id
+            .expect("SETUP response must include a session ID");
         server.record_sent(&sid, 100, 153600);
-        let sess = server.get_session(&sid).unwrap();
+        let sess = server
+            .get_session(&sid)
+            .expect("session was created by SETUP");
         assert_eq!(sess.packets_sent, 100);
         assert_eq!(sess.bytes_sent, 153600);
     }

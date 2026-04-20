@@ -5,7 +5,7 @@ pub mod ltc;
 pub mod mtc;
 pub mod smpte;
 
-use oximedia_timecode::{FrameRate, Timecode};
+use oximedia_timecode::{FrameRate, Timecode, TimecodeError};
 use std::time::Duration;
 
 /// Timecode source.
@@ -38,15 +38,21 @@ pub struct TimecodeState {
 
 impl TimecodeState {
     /// Create a new timecode state.
-    #[must_use]
-    pub fn new(frame_rate: FrameRate) -> Self {
-        Self {
-            current: Timecode::new(0, 0, 0, 0, frame_rate).expect("hardcoded value is valid"),
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the initial zero timecode cannot be created for the
+    /// given frame rate (this should never occur in practice since frame 0 is
+    /// always valid).
+    pub fn new(frame_rate: FrameRate) -> Result<Self, TimecodeError> {
+        let current = Timecode::new(0, 0, 0, 0, frame_rate)?;
+        Ok(Self {
+            current,
             source: TimecodeSource::Internal,
             last_update: std::time::Instant::now(),
             frame_rate,
             locked: false,
-        }
+        })
     }
 
     /// Update with new timecode.
@@ -81,14 +87,14 @@ mod tests {
 
     #[test]
     fn test_timecode_state_creation() {
-        let state = TimecodeState::new(FrameRate::Fps25);
+        let state = TimecodeState::new(FrameRate::Fps25).expect("should succeed in test");
         assert_eq!(state.source, TimecodeSource::Internal);
         assert!(!state.locked);
     }
 
     #[test]
     fn test_timecode_update() {
-        let mut state = TimecodeState::new(FrameRate::Fps25);
+        let mut state = TimecodeState::new(FrameRate::Fps25).expect("should succeed in test");
         let tc = Timecode::new(1, 2, 3, 4, FrameRate::Fps25).expect("should succeed in test");
 
         state.update(tc, TimecodeSource::Ltc);
@@ -98,7 +104,7 @@ mod tests {
 
     #[test]
     fn test_timecode_increment() {
-        let mut state = TimecodeState::new(FrameRate::Fps25);
+        let mut state = TimecodeState::new(FrameRate::Fps25).expect("should succeed in test");
         state.locked = true;
 
         state.increment().expect("should succeed in test");

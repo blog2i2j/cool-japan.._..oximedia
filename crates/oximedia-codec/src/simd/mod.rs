@@ -47,6 +47,61 @@
 //!     // Use scalar fallback
 //! }
 //! ```
+//!
+//! ## SIMD Dispatch Mechanism
+//!
+//! OxiMedia uses a two-tier dispatch strategy to guarantee correctness on every target
+//! while achieving maximum throughput on modern hardware.
+//!
+//! **Tier 1: Compile-time `cfg` selection.**
+//! Target-specific code paths are gated with `#[cfg(target_arch = "...")]`, so only the
+//! code relevant to the current build target is compiled in:
+//!
+//! - `x86_64` — AVX-512 (`avx512f` + `avx512bw` + `avx512dq`), AVX2, SSE4.2 paths
+//! - `aarch64` — ARM NEON path (always present on AArch64)
+//! - `wasm32` — WASM SIMD128 path (`simd/wasm.rs`, `core::arch::wasm32` intrinsics)
+//! - All other targets — scalar fallback only
+//!
+//! **Tier 2: Runtime [`SimdCapabilities`] detection.**
+//! Even on `x86_64`, AVX-512 may not be available at runtime. [`detect_simd`] probes the
+//! CPU at startup using `is_x86_feature_detected!` and fills a [`SimdCapabilities`] struct:
+//!
+//! ```ignore
+//! use oximedia_codec::simd::{SimdCapabilities, detect_simd};
+//!
+//! let caps: SimdCapabilities = detect_simd();
+//! if caps.avx512 {
+//!     // 512-bit vector path — Ice Lake, Skylake-X, Zen 4+
+//! } else if caps.avx2 {
+//!     // 256-bit vector path — Haswell 2013+, Excavator 2015+
+//! } else if caps.neon {
+//!     // ARM NEON path — all ARMv8/AArch64
+//! } else {
+//!     // Pure scalar fallback
+//! }
+//! ```
+//!
+//! The `get_simd()` helper encapsulates the dispatch and returns a `&'static dyn SimdOps`:
+//!
+//! ```ignore
+//! use oximedia_codec::simd::get_simd;
+//!
+//! let ops = get_simd();  // picks AVX-512 → AVX2 → NEON → scalar
+//! ops.sad_8x8(&src, &ref_block); // calls fastest available path
+//! ```
+//!
+//! **Tier 3: Scalar fallback.**
+//! [`ScalarFallback`] provides a 100% pure-Rust implementation of every [`SimdOps`]
+//! operation. It is always compiled in and always selected when no SIMD extension is
+//! detected. This means OxiMedia:
+//!
+//! - compiles on any Rust target (including `wasm32`, `riscv64`, `mips`, etc.)
+//! - runs correctly on any hardware, even without SIMD support
+//! - achieves SIMD acceleration silently when the extension is available
+//!
+//! No unsafe dispatch tables or runtime dynamic linking are used; all dispatch paths are
+//! statically allocated (`static AVX2_INSTANCE: Avx2Simd = Avx2Simd`) and accessed
+//! via a single `&'static dyn SimdOps` fat pointer.
 
 #![allow(unsafe_code)]
 

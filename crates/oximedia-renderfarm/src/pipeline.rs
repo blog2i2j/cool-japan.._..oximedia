@@ -364,6 +364,10 @@ mod tests {
     use super::*;
     use crate::job::{JobSubmission, Priority};
 
+    fn tmp_path(name: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("oximedia-renderfarm-pipeline-{name}"))
+    }
+
     #[tokio::test]
     async fn test_pipeline_creation() {
         let pipeline = Pipeline::new();
@@ -375,7 +379,7 @@ mod tests {
         let mut pipeline = Pipeline::new();
 
         let submission = JobSubmission::builder()
-            .project_file("/tmp/test.blend")
+            .project_file(tmp_path("test.blend"))
             .frame_range(1, 10)
             .priority(Priority::Normal)
             .build()?;
@@ -393,7 +397,7 @@ mod tests {
         let mut pipeline = Pipeline::new();
 
         let submission = JobSubmission::builder()
-            .project_file("/tmp/test.blend")
+            .project_file(tmp_path("test.blend"))
             .frame_range(1, 10)
             .build()?;
 
@@ -417,7 +421,7 @@ mod tests {
         let mut pipeline = Pipeline::new();
 
         let submission = JobSubmission::builder()
-            .project_file("/tmp/test.blend")
+            .project_file(tmp_path("test.blend"))
             .frame_range(1, 10)
             .build()?;
 

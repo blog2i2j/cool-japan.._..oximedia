@@ -384,7 +384,7 @@ mod tests {
     fn test_dash_packager_builder() {
         let packager = DashPackagerBuilder::new()
             .with_segment_duration(Duration::from_secs(4))
-            .with_output_directory(std::path::PathBuf::from("/tmp/dash"))
+            .with_output_directory(std::env::temp_dir().join("oximedia-packager-dash-out"))
             .build();
 
         assert!(packager.is_ok());

@@ -135,10 +135,8 @@ impl NoiseProfile {
             return self.noise_type;
         }
         let first = self.spectral_shape[0];
-        let last = *self
-            .spectral_shape
-            .last()
-            .expect("invariant: spectral_shape has len >= 2 (checked above)");
+        // SAFETY: len >= 2 is guaranteed by the early-return guard above
+        let last = self.spectral_shape[self.spectral_shape.len() - 1];
         let slope = last - first;
         if slope.abs() < 2.0 {
             NoiseType::White
@@ -291,9 +289,8 @@ impl NoiseProfiler {
             return NoiseType::Unknown;
         }
         let first = spectral_shape[0];
-        let last = *spectral_shape
-            .last()
-            .expect("invariant: spectral_shape has len >= 2 (checked above)");
+        // SAFETY: len >= 2 is guaranteed by the early-return guard above
+        let last = spectral_shape[spectral_shape.len() - 1];
         let slope = last - first;
 
         if floor_dbfs < -80.0 {

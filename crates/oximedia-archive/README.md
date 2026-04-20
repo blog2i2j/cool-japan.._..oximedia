@@ -6,6 +6,8 @@ Media archive verification and long-term preservation system for OxiMedia. Provi
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
+Version: 0.1.4 — 2026-04-20 — 799 tests
+
 ## Features
 
 - **Multi-algorithm Checksums** — BLAKE3, SHA-256, MD5, and CRC32 verification
@@ -29,7 +31,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-archive = "0.1.3"
+oximedia-archive = "0.1.4"
 ```
 
 ```rust

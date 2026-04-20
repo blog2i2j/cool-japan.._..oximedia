@@ -9,7 +9,7 @@ use crate::rtmp::{RtmpServer, RtmpServerConfig};
 use bytes::Bytes;
 use parking_lot::RwLock;
 use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -61,11 +61,11 @@ impl Default for IngestConfig {
     fn default() -> Self {
         Self {
             enable_rtmp: true,
-            rtmp_bind_addr: "0.0.0.0:1935".parse().expect("valid address"),
+            rtmp_bind_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 1935),
             enable_srt: true,
-            srt_bind_addr: "0.0.0.0:9998".parse().expect("valid address"),
+            srt_bind_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 9998),
             enable_webrtc: false,
-            webrtc_bind_addr: "0.0.0.0:8443".parse().expect("valid address"),
+            webrtc_bind_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8443),
             max_sessions: 100,
             buffer_size: 1000,
         }

@@ -51,7 +51,9 @@ impl DashServer {
             return Ok(response
                 .status(400)
                 .body(Full::new(Bytes::from("Invalid path")))
-                .expect("invariant: HTTP response builder is valid"));
+                .unwrap_or_else(|_| {
+                    hyper::Response::new(Full::new(Bytes::from("Internal Server Error")))
+                }));
         }
 
         let app_name = parts[1];
@@ -64,7 +66,9 @@ impl DashServer {
                 return Ok(response
                     .status(404)
                     .body(Full::new(Bytes::from("Stream not found")))
-                    .expect("invariant: HTTP response builder is valid"));
+                    .unwrap_or_else(|_| {
+                        hyper::Response::new(Full::new(Bytes::from("Internal Server Error")))
+                    }));
             }
         };
 
@@ -97,7 +101,9 @@ impl DashServer {
                         .header("Content-Type", "application/dash+xml")
                         .header("Cache-Control", "max-age=1")
                         .body(Full::new(cached.clone()))
-                        .expect("invariant: HTTP response builder is valid"));
+                        .unwrap_or_else(|_| {
+                            hyper::Response::new(Full::new(Bytes::from("Internal Server Error")))
+                        }));
                 }
             }
         }
@@ -144,7 +150,9 @@ impl DashServer {
             .header("Content-Type", "application/dash+xml")
             .header("Cache-Control", "max-age=1")
             .body(Full::new(bytes))
-            .expect("invariant: HTTP response builder is valid"))
+            .unwrap_or_else(|_| {
+                hyper::Response::new(Full::new(Bytes::from("Internal Server Error")))
+            }))
     }
 
     /// Serves media segment.
@@ -165,7 +173,9 @@ impl DashServer {
                         .header("Content-Type", "video/mp4")
                         .header("Cache-Control", "max-age=31536000")
                         .body(Full::new(init_segment.data.clone()))
-                        .expect("invariant: HTTP response builder is valid"));
+                        .unwrap_or_else(|_| {
+                            hyper::Response::new(Full::new(Bytes::from("Internal Server Error")))
+                        }));
                 }
             } else if filename.contains("audio") {
                 if let Some(init_segment) = stream.segment_generator.get_audio_init() {
@@ -174,7 +184,9 @@ impl DashServer {
                         .header("Content-Type", "audio/mp4")
                         .header("Cache-Control", "max-age=31536000")
                         .body(Full::new(init_segment.data.clone()))
-                        .expect("invariant: HTTP response builder is valid"));
+                        .unwrap_or_else(|_| {
+                            hyper::Response::new(Full::new(Bytes::from("Internal Server Error")))
+                        }));
                 }
             }
         } else if filename.starts_with("video_") {
@@ -190,7 +202,11 @@ impl DashServer {
                             .header("Content-Type", "video/mp4")
                             .header("Cache-Control", "max-age=31536000")
                             .body(Full::new(segment.data.clone()))
-                            .expect("invariant: HTTP response builder is valid"));
+                            .unwrap_or_else(|_| {
+                                hyper::Response::new(Full::new(Bytes::from(
+                                    "Internal Server Error",
+                                )))
+                            }));
                     }
                 }
             }
@@ -207,7 +223,11 @@ impl DashServer {
                             .header("Content-Type", "audio/mp4")
                             .header("Cache-Control", "max-age=31536000")
                             .body(Full::new(segment.data.clone()))
-                            .expect("invariant: HTTP response builder is valid"));
+                            .unwrap_or_else(|_| {
+                                hyper::Response::new(Full::new(Bytes::from(
+                                    "Internal Server Error",
+                                )))
+                            }));
                     }
                 }
             }
@@ -216,7 +236,9 @@ impl DashServer {
         Ok(response
             .status(404)
             .body(Full::new(Bytes::from("Segment not found")))
-            .expect("invariant: HTTP response builder is valid"))
+            .unwrap_or_else(|_| {
+                hyper::Response::new(Full::new(Bytes::from("Internal Server Error")))
+            }))
     }
 
     /// Clears MPD cache.

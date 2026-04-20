@@ -8,7 +8,7 @@ use crate::{AudioFormat, PlayoutError, Result, VideoFormat};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::io::{BufWriter, Write};
-use std::net::IpAddr;
+use std::net::{IpAddr, Ipv4Addr};
 use std::sync::Arc;
 use tokio::sync::mpsc;
 
@@ -278,13 +278,9 @@ pub struct ST2110Settings {
 impl Default for ST2110Settings {
     fn default() -> Self {
         Self {
-            video_address: "239.0.0.1"
-                .parse()
-                .expect("invariant: valid multicast IP literal"),
+            video_address: IpAddr::V4(Ipv4Addr::new(239, 0, 0, 1)),
             video_port: 5000,
-            audio_address: "239.0.0.2"
-                .parse()
-                .expect("invariant: valid multicast IP literal"),
+            audio_address: IpAddr::V4(Ipv4Addr::new(239, 0, 0, 2)),
             audio_port: 5002,
             anc_address: None,
             anc_port: None,
@@ -333,22 +329,12 @@ pub struct ST2022Settings {
 impl Default for ST2022Settings {
     fn default() -> Self {
         Self {
-            multicast_address: "239.1.0.1"
-                .parse()
-                .expect("invariant: valid multicast IP literal"),
+            multicast_address: IpAddr::V4(Ipv4Addr::new(239, 1, 0, 1)),
             port: 5004,
             fec_enabled: true,
-            fec_col_address: Some(
-                "239.1.0.2"
-                    .parse()
-                    .expect("invariant: valid multicast IP literal"),
-            ),
+            fec_col_address: Some(IpAddr::V4(Ipv4Addr::new(239, 1, 0, 2))),
             fec_col_port: Some(5006),
-            fec_row_address: Some(
-                "239.1.0.3"
-                    .parse()
-                    .expect("invariant: valid multicast IP literal"),
-            ),
+            fec_row_address: Some(IpAddr::V4(Ipv4Addr::new(239, 1, 0, 3))),
             fec_row_port: Some(5008),
             fec_l: 4,
             fec_d: 4,
@@ -382,7 +368,10 @@ pub struct FileSettings {
 impl Default for FileSettings {
     fn default() -> Self {
         Self {
-            path: "/tmp/output.mxf".to_string(),
+            path: std::env::temp_dir()
+                .join("oximedia-output.mxf")
+                .to_string_lossy()
+                .into_owned(),
             format: "mxf".to_string(),
             video_codec: "mpeg2video".to_string(),
             audio_codec: "pcm_s24le".to_string(),

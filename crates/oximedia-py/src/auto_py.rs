@@ -3,7 +3,7 @@
 //! Provides `PyAutomation`, `PyAutoTask`, `PyAutoSchedule` for automated
 //! media processing from Python.
 
-use pyo3::exceptions::PyValueError;
+use pyo3::exceptions::{PyRuntimeError, PyValueError};
 use pyo3::prelude::*;
 use std::collections::HashMap;
 
@@ -74,38 +74,63 @@ impl PyAutoTask {
     }
 
     /// Convert to a Python dict.
-    fn to_dict(&self) -> HashMap<String, Py<PyAny>> {
-        Python::attach(|py| {
+    fn to_dict(&self) -> PyResult<HashMap<String, Py<PyAny>>> {
+        Python::attach(|py| -> PyResult<HashMap<String, Py<PyAny>>> {
             let mut m: HashMap<String, Py<PyAny>> = HashMap::new();
             m.insert(
                 "task_id".to_string(),
-                self.task_id.clone().into_pyobject(py).expect("str").into(),
+                self.task_id
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "name".to_string(),
-                self.name.clone().into_pyobject(py).expect("str").into(),
+                self.name
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "use_case".to_string(),
-                self.use_case.clone().into_pyobject(py).expect("str").into(),
+                self.use_case
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "status".to_string(),
-                self.status.clone().into_pyobject(py).expect("str").into(),
+                self.status
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "progress".to_string(),
-                self.progress.into_pyobject(py).expect("float").into(),
+                self.progress
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "highlight_count".to_string(),
-                self.highlight_count.into_pyobject(py).expect("int").into(),
+                self.highlight_count
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "clip_count".to_string(),
-                self.clip_count.into_pyobject(py).expect("int").into(),
+                self.clip_count
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
-            m
+            Ok(m)
         })
     }
 }
@@ -440,15 +465,13 @@ mod tests {
     #[test]
     fn test_run_and_cancel_task() {
         let mut auto = PyAutomation::new();
+        let tmp = std::env::temp_dir();
+        let in_path = tmp.join("oximedia-py-auto-in.mkv");
+        let out_path = tmp.join("oximedia-py-auto-out.webm");
+        let in_s = in_path.to_string_lossy();
+        let out_s = out_path.to_string_lossy();
         let tid = auto
-            .run_task(
-                "Test",
-                "/tmp/in.mkv",
-                "/tmp/out.webm",
-                Some("highlights"),
-                Some(60.0),
-                None,
-            )
+            .run_task("Test", &in_s, &out_s, Some("highlights"), Some(60.0), None)
             .expect("run_task should succeed");
         assert!(tid.starts_with("auto-task-"));
         assert_eq!(auto.pending_count(), 1);

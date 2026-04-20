@@ -231,7 +231,9 @@ impl AbExperiment {
             }
         }
         // Fallback: last variant (handles floating-point edge cases).
-        self.variants.last().expect("variants non-empty")
+        // SAFETY: variants is non-empty — guaranteed by AbExperiment::new which returns
+        // Err if variants.len() < 2, so the vec always has at least one element.
+        &self.variants[self.variants.len() - 1]
     }
 
     /// Start the experiment.

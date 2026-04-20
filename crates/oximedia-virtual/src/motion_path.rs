@@ -134,15 +134,8 @@ impl MotionPath {
         if self.keyframes.len() < 2 {
             return 0;
         }
-        self.keyframes
-            .last()
-            .expect("invariant: len >= 2 checked above")
-            .frame
-            - self
-                .keyframes
-                .first()
-                .expect("invariant: len >= 2 checked above")
-                .frame
+        let n = self.keyframes.len();
+        self.keyframes[n - 1].frame - self.keyframes[0].frame
     }
 
     /// Evaluate the motion path at a given frame by interpolating between neighbours.
@@ -154,16 +147,8 @@ impl MotionPath {
             return None;
         }
         // Clamp to path range
-        let first = self
-            .keyframes
-            .first()
-            .expect("invariant: len >= 2 checked above")
-            .frame;
-        let last = self
-            .keyframes
-            .last()
-            .expect("invariant: len >= 2 checked above")
-            .frame;
+        let first = self.keyframes[0].frame;
+        let last = self.keyframes[self.keyframes.len() - 1].frame;
         if frame < first || frame > last {
             return None;
         }

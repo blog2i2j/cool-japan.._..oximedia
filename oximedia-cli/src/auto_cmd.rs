@@ -662,8 +662,8 @@ mod tests {
     #[test]
     fn test_auto_command_run() {
         let cmd = AutoCommand::Run {
-            input: std::path::PathBuf::from("/tmp/video.mkv"),
-            output: std::path::PathBuf::from("/tmp/highlight.webm"),
+            input: std::env::temp_dir().join("video.mkv"),
+            output: std::env::temp_dir().join("highlight.webm"),
             use_case: "highlights".to_string(),
             target_duration: Some(60.0),
             pacing: "fast".to_string(),

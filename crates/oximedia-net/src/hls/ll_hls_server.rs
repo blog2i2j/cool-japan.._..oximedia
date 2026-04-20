@@ -275,7 +275,9 @@ impl LlHlsServer {
             ));
         }
 
-        let msn = params.msn.expect("checked above");
+        let msn = params.msn.ok_or_else(|| {
+            NetError::invalid_state("blocking reload requires MSN parameter")
+        })?;
         let part = params.part;
         let max_wait = self.config.max_blocking_wait;
         let waiter_count = Arc::clone(&self.waiter_count);

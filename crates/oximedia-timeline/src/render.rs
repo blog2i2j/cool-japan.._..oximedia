@@ -652,7 +652,6 @@ mod tests {
     #[test]
     fn test_render_frame_with_video_clip() {
         use crate::clip::{Clip, MediaSource};
-        use std::path::PathBuf;
 
         let mut tl =
             crate::timeline::Timeline::new("T", oximedia_core::Rational::new(24, 1), 48000)
@@ -660,7 +659,7 @@ mod tests {
         let tid = tl.add_video_track("V1").expect("should succeed in test");
         let clip = Clip::new(
             "test_clip".to_string(),
-            MediaSource::file(PathBuf::from("/tmp/test.mov")),
+            MediaSource::file(std::env::temp_dir().join("oximedia-timeline-render-test.mov")),
             Position::new(0),
             Position::new(50),
             Position::new(0),

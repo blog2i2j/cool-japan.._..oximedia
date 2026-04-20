@@ -8,6 +8,11 @@
 use std::collections::HashMap;
 use std::fmt;
 
+use oximedia_codec::frame::VideoFrame;
+use oximedia_codec::mjpeg::{MjpegConfig, MjpegEncoder};
+use oximedia_codec::traits::{EncodedPacket, VideoEncoder};
+use oximedia_core::CodecId;
+
 use crate::{AngleId, MultiCamError, Result};
 
 /// Codec hint for the proxy file.
@@ -306,13 +311,7 @@ impl ProxyMapping {
 
     /// Map a crop rectangle from proxy to original space.
     #[must_use]
-    pub fn proxy_rect_to_original(
-        &self,
-        x: f64,
-        y: f64,
-        w: f64,
-        h: f64,
-    ) -> (f64, f64, f64, f64) {
+    pub fn proxy_rect_to_original(&self, x: f64, y: f64, w: f64, h: f64) -> (f64, f64, f64, f64) {
         let (ox, oy) = self.proxy_to_original(x, y);
         if self.scale <= 0.0 {
             return (0.0, 0.0, 0.0, 0.0);
@@ -322,6 +321,147 @@ impl ProxyMapping {
         (ox, oy, ow, oh)
     }
 }
+
+// ── ProxyEncoder ────────────────────────────────────────────────────────────
+
+/// Map a [`ProxyQuality`] preset to a JPEG quality value (1-100).
+#[must_use]
+pub fn proxy_quality_to_jpeg_quality(q: ProxyQuality) -> u8 {
+    match q {
+        ProxyQuality::Draft => 55,
+        ProxyQuality::Preview => 75,
+        ProxyQuality::HighQuality => 90,
+    }
+}
+
+/// Encodes frames for a single proxy stream.
+///
+/// Currently supports MJPEG encoding (the most common proxy codec for
+/// scrubbing use-cases). Other codecs such as [`ProxyCodec::Raw`] and
+/// [`ProxyCodec::Av1`] will return an error from [`ProxyEncoder::from_spec`]
+/// until they are implemented.
+pub struct ProxyEncoder {
+    codec: ProxyCodec,
+    inner: MjpegEncoder,
+    pending: Vec<EncodedPacket>,
+}
+
+impl fmt::Debug for ProxyEncoder {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ProxyEncoder")
+            .field("codec", &self.codec)
+            .finish()
+    }
+}
+
+impl ProxyEncoder {
+    /// Build a `ProxyEncoder` from a [`ProxySpec`].
+    ///
+    /// Currently only [`ProxyCodec::Mjpeg`] is supported.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`MultiCamError::ConfigError`] for unsupported codecs or
+    /// invalid dimensions.
+    pub fn from_spec(spec: &ProxySpec) -> Result<Self> {
+        match spec.codec {
+            ProxyCodec::Mjpeg => {
+                // Derive JPEG quality from the CRF stored in the spec.
+                // Lower CRF means higher quality; map CRF buckets to JPEG quality.
+                let quality: u8 = if spec.crf <= 22 {
+                    proxy_quality_to_jpeg_quality(ProxyQuality::HighQuality)
+                } else if spec.crf <= 32 {
+                    proxy_quality_to_jpeg_quality(ProxyQuality::Preview)
+                } else {
+                    proxy_quality_to_jpeg_quality(ProxyQuality::Draft)
+                };
+                let config = MjpegConfig::new(spec.proxy_width, spec.proxy_height)
+                    .map_err(|e| MultiCamError::ConfigError(e.to_string()))?
+                    .with_quality(quality);
+                let inner = MjpegEncoder::new(config)
+                    .map_err(|e| MultiCamError::ConfigError(e.to_string()))?;
+                Ok(Self {
+                    codec: spec.codec,
+                    inner,
+                    pending: Vec::new(),
+                })
+            }
+            other => Err(MultiCamError::ConfigError(format!(
+                "ProxyEncoder: unsupported codec {other}; only MJPEG is currently implemented"
+            ))),
+        }
+    }
+
+    /// The codec used by this encoder.
+    #[must_use]
+    pub fn codec_id(&self) -> CodecId {
+        match self.codec {
+            ProxyCodec::Mjpeg => CodecId::Mjpeg,
+            ProxyCodec::Vp9 => CodecId::Vp9,
+            ProxyCodec::Av1 => CodecId::Av1,
+            ProxyCodec::Raw => CodecId::RawVideo,
+        }
+    }
+
+    /// Encode one video frame.
+    ///
+    /// The encoded packet is buffered and retrievable via `drain_packets`.
+    ///
+    /// # Errors
+    ///
+    /// Propagates encoding errors from the underlying codec.
+    pub fn encode_frame(&mut self, frame: &VideoFrame) -> Result<()> {
+        self.inner
+            .send_frame(frame)
+            .map_err(|e| MultiCamError::ConfigError(e.to_string()))?;
+        // Drain all produced packets into the local queue.
+        loop {
+            match self.inner.receive_packet() {
+                Ok(Some(pkt)) => self.pending.push(pkt),
+                Ok(None) => break,
+                Err(e) => return Err(MultiCamError::ConfigError(e.to_string())),
+            }
+        }
+        Ok(())
+    }
+
+    /// Drain all buffered encoded packets.
+    ///
+    /// After calling this the internal buffer is cleared; subsequent
+    /// calls will return an empty `Vec` until more frames are encoded.
+    ///
+    /// # Errors
+    ///
+    /// Currently infallible; the `Result` wrapper is kept for API
+    /// consistency with potential future async/fallible drains.
+    pub fn drain_packets(&mut self) -> Result<Vec<EncodedPacket>> {
+        Ok(std::mem::take(&mut self.pending))
+    }
+
+    /// Signal end-of-stream and return any remaining buffered packets.
+    ///
+    /// After `flush` is called the encoder should not be used further.
+    ///
+    /// # Errors
+    ///
+    /// Propagates codec flush errors.
+    pub fn flush(&mut self) -> Result<Vec<EncodedPacket>> {
+        self.inner
+            .flush()
+            .map_err(|e| MultiCamError::ConfigError(e.to_string()))?;
+        // Collect any packets released by the flush.
+        loop {
+            match self.inner.receive_packet() {
+                Ok(Some(pkt)) => self.pending.push(pkt),
+                Ok(None) => break,
+                Err(_) => break,
+            }
+        }
+        Ok(std::mem::take(&mut self.pending))
+    }
+}
+
+// ── tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
 mod tests {

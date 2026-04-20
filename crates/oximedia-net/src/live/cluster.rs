@@ -12,7 +12,7 @@ use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 use uuid::Uuid;
@@ -175,7 +175,7 @@ impl Default for ClusterConfig {
                 .ok()
                 .and_then(|h| h.into_string().ok())
                 .unwrap_or_else(|| "unknown".to_string()),
-            node_address: "0.0.0.0:8080".parse().expect("valid address"),
+            node_address: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8080),
             region: "default".to_string(),
             seed_nodes: Vec::new(),
             heartbeat_interval: Duration::from_secs(5),

@@ -388,6 +388,13 @@ mod tests {
         ClipId::new()
     }
 
+    fn tmp_clip(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-timeline-lazy-clip-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_probe_state_transitions() {
         let state = ProbeState::Unprobed;
@@ -410,7 +417,7 @@ mod tests {
 
     #[test]
     fn test_lazy_clip_start_probing() {
-        let mut entry = LazyClipEntry::new(cid(), "/tmp/clip.webm");
+        let mut entry = LazyClipEntry::new(cid(), tmp_clip("clip.webm"));
         assert!(entry.start_probing());
         assert!(entry.state.is_probing());
         // Cannot start probing again
@@ -419,7 +426,7 @@ mod tests {
 
     #[test]
     fn test_lazy_clip_complete_probe() {
-        let mut entry = LazyClipEntry::new(cid(), "/tmp/clip.webm");
+        let mut entry = LazyClipEntry::new(cid(), tmp_clip("clip.webm"));
         entry.start_probing();
         entry.complete_probe(ProbeResult::synthetic(1920, 1080, 1000));
         assert!(entry.is_ready());
@@ -429,7 +436,7 @@ mod tests {
 
     #[test]
     fn test_lazy_clip_fail_probe() {
-        let mut entry = LazyClipEntry::new(cid(), "/tmp/missing.webm");
+        let mut entry = LazyClipEntry::new(cid(), tmp_clip("missing.webm"));
         entry.start_probing();
         entry.fail_probe("file not found");
         assert!(entry.state.is_failed());
@@ -438,7 +445,7 @@ mod tests {
 
     #[test]
     fn test_lazy_clip_reset() {
-        let mut entry = LazyClipEntry::new(cid(), "/tmp/clip.webm");
+        let mut entry = LazyClipEntry::new(cid(), tmp_clip("clip.webm"));
         entry.start_probing();
         entry.fail_probe("error");
         entry.reset();
@@ -450,7 +457,7 @@ mod tests {
     fn test_loader_register_and_get() {
         let mut loader = LazyClipLoader::new();
         let id = cid();
-        loader.register(id, "/tmp/clip.webm");
+        loader.register(id, tmp_clip("clip.webm"));
         assert_eq!(loader.len(), 1);
         assert!(loader.get(id).is_some());
     }
@@ -459,7 +466,7 @@ mod tests {
     fn test_loader_access_triggers_probing() {
         let mut loader = LazyClipLoader::new();
         let id = cid();
-        loader.register(id, "/tmp/clip.webm");
+        loader.register(id, tmp_clip("clip.webm"));
         let needs_probe = loader.access(id);
         assert!(needs_probe);
         // Second access should not trigger probing again
@@ -472,8 +479,8 @@ mod tests {
         let mut loader = LazyClipLoader::new();
         let id1 = cid();
         let id2 = cid();
-        loader.register(id1, "/tmp/good.webm");
-        loader.register(id2, "/tmp/bad.webm");
+        loader.register(id1, tmp_clip("good.webm"));
+        loader.register(id2, tmp_clip("bad.webm"));
 
         loader.access(id1);
         loader.access(id2);
@@ -490,8 +497,8 @@ mod tests {
         let mut loader = LazyClipLoader::new();
         let id1 = cid();
         let id2 = cid();
-        loader.register(id1, "/tmp/a.webm");
-        loader.register(id2, "/tmp/b.webm");
+        loader.register(id1, tmp_clip("a.webm"));
+        loader.register(id2, tmp_clip("b.webm"));
 
         // Access id2 more than id1
         if let Some(e) = loader.get_mut(id2) {
@@ -514,7 +521,7 @@ mod tests {
     fn test_loader_unregister() {
         let mut loader = LazyClipLoader::new();
         let id = cid();
-        loader.register(id, "/tmp/clip.webm");
+        loader.register(id, tmp_clip("clip.webm"));
         let removed = loader.unregister(id);
         assert!(removed.is_some());
         assert!(loader.is_empty());
@@ -525,8 +532,8 @@ mod tests {
         let mut loader = LazyClipLoader::new();
         let id1 = cid();
         let id2 = cid();
-        loader.register(id1, "/tmp/good.webm");
-        loader.register(id2, "/tmp/bad.webm");
+        loader.register(id1, tmp_clip("good.webm"));
+        loader.register(id2, tmp_clip("bad.webm"));
 
         loader.probe_all(|path| {
             if path.contains("good") {
@@ -545,7 +552,7 @@ mod tests {
     fn test_loader_retry_failed() {
         let mut loader = LazyClipLoader::new();
         let id = cid();
-        loader.register(id, "/tmp/clip.webm");
+        loader.register(id, tmp_clip("clip.webm"));
         loader.access(id);
         loader.fail_probe(id, "error");
         assert_eq!(loader.failed_count(), 1);
@@ -584,7 +591,7 @@ mod tests {
 
     #[test]
     fn test_access_count_increments() {
-        let mut entry = LazyClipEntry::new(cid(), "/tmp/clip.webm");
+        let mut entry = LazyClipEntry::new(cid(), tmp_clip("clip.webm"));
         assert_eq!(entry.access_count(), 0);
         entry.record_access();
         entry.record_access();

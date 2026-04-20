@@ -803,7 +803,11 @@ mod tests {
 
     #[test]
     fn test_to_path_buf() {
-        let pb = to_path_buf("/tmp/test.mp4");
-        assert_eq!(pb, PathBuf::from("/tmp/test.mp4"));
+        let p = std::env::temp_dir()
+            .join("oximedia-compat-ffmpeg-batchmode-test.mp4")
+            .to_string_lossy()
+            .into_owned();
+        let pb = to_path_buf(&p);
+        assert_eq!(pb, PathBuf::from(&p));
     }
 }

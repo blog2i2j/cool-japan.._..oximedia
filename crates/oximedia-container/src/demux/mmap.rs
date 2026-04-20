@@ -189,6 +189,7 @@ mod tests {
         ));
         let mut f = std::fs::File::create(&path).expect("create temp file");
         f.write_all(contents).expect("write temp file");
+        f.sync_all().expect("sync temp file");
         path
     }
 

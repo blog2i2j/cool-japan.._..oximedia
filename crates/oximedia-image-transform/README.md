@@ -1,5 +1,9 @@
 # oximedia-image-transform
 
+![Version: 0.1.4](https://img.shields.io/badge/version-0.1.4-blue)
+![Tests: 501](https://img.shields.io/badge/tests-501-brightgreen)
+![Updated: 2026-04-20](https://img.shields.io/badge/updated-2026--04--20-blue)
+
 Cloudflare Images-compatible URL image transformation for the [OxiMedia](https://github.com/cool-japan/oximedia) Sovereign Media Framework.
 
 ## Overview

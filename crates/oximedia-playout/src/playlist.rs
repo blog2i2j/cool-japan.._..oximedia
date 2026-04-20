@@ -389,16 +389,13 @@ impl Playlist {
                 ));
             }
 
-            if item.out_point.is_some()
-                && item
-                    .out_point
-                    .expect("invariant: out_point is Some (checked above)")
-                    <= item.in_point
-            {
-                errors.push(format!(
-                    "Item {} ({}): Out point must be after in point",
-                    idx, item.name
-                ));
+            if let Some(out_pt) = item.out_point {
+                if out_pt <= item.in_point {
+                    errors.push(format!(
+                        "Item {} ({}): Out point must be after in point",
+                        idx, item.name
+                    ));
+                }
             }
 
             if item.audio_level < 0.0 || item.audio_level > 2.0 {

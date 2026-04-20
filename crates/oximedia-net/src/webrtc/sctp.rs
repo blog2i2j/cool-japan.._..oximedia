@@ -293,14 +293,14 @@ impl Association {
     /// Initiates the association.
     #[must_use]
     pub fn init(&self) -> Packet {
-        *self.state.lock().expect("state mutex poisoned") = AssociationState::CookieWait;
+        *self.state.lock().unwrap_or_else(|e| e.into_inner()) = AssociationState::CookieWait;
 
         let mut init_data = BytesMut::new();
         init_data.put_u32(self.local_tag); // Initiate tag
         init_data.put_u32(65535); // A_rwnd
         init_data.put_u16(65535); // Number of outbound streams
         init_data.put_u16(65535); // Number of inbound streams
-        init_data.put_u32(*self.next_tsn.lock().expect("next_tsn mutex poisoned")); // Initial TSN
+        init_data.put_u32(*self.next_tsn.lock().unwrap_or_else(|e| e.into_inner())); // Initial TSN
 
         let chunk = Chunk::new(ChunkType::Init, 0, init_data.freeze());
 
@@ -354,11 +354,11 @@ impl Association {
         init_ack_data.put_u32(65535); // A_rwnd
         init_ack_data.put_u16(65535); // Outbound streams
         init_ack_data.put_u16(65535); // Inbound streams
-        init_ack_data.put_u32(*self.next_tsn.lock().expect("next_tsn mutex poisoned"));
+        init_ack_data.put_u32(*self.next_tsn.lock().unwrap_or_else(|e| e.into_inner()));
 
         let chunk = Chunk::new(ChunkType::InitAck, 0, init_ack_data.freeze());
 
-        *self.remote_tag.lock().expect("remote_tag mutex poisoned") = remote_tag;
+        *self.remote_tag.lock().unwrap_or_else(|e| e.into_inner()) = remote_tag;
         Ok(Packet::new(self.local_port, self.remote_port, remote_tag).with_chunk(chunk))
     }
 
@@ -372,22 +372,22 @@ impl Association {
         let remote_tag = cursor.get_u32();
         self.set_remote_tag(remote_tag);
 
-        *self.state.lock().expect("state mutex poisoned") = AssociationState::CookieEchoed;
+        *self.state.lock().unwrap_or_else(|e| e.into_inner()) = AssociationState::CookieEchoed;
         Ok(())
     }
 
     /// Handles COOKIE-ECHO chunk.
     fn handle_cookie_echo(&self) -> NetResult<Packet> {
-        *self.state.lock().expect("state mutex poisoned") = AssociationState::Established;
+        *self.state.lock().unwrap_or_else(|e| e.into_inner()) = AssociationState::Established;
 
         let chunk = Chunk::new(ChunkType::CookieAck, 0, Bytes::new());
-        let remote_tag = *self.remote_tag.lock().expect("remote_tag mutex poisoned");
+        let remote_tag = *self.remote_tag.lock().unwrap_or_else(|e| e.into_inner());
         Ok(Packet::new(self.local_port, self.remote_port, remote_tag).with_chunk(chunk))
     }
 
     /// Handles COOKIE-ACK chunk.
     fn handle_cookie_ack(&self) -> NetResult<()> {
-        *self.state.lock().expect("state mutex poisoned") = AssociationState::Established;
+        *self.state.lock().unwrap_or_else(|e| e.into_inner()) = AssociationState::Established;
         Ok(())
     }
 
@@ -406,7 +406,7 @@ impl Association {
         let user_data = cursor.copy_to_bytes(cursor.remaining());
 
         // Store data
-        let mut streams = self.streams.lock().expect("streams mutex poisoned");
+        let mut streams = self.streams.lock().unwrap_or_else(|e| e.into_inner());
         streams.entry(stream_id).or_default().push(user_data);
 
         Ok(())
@@ -417,7 +417,7 @@ impl Association {
     pub fn send_data(&self, stream_id: u16, data: impl Into<Bytes>) -> Packet {
         let data = data.into();
 
-        let mut tsn = self.next_tsn.lock().expect("next_tsn mutex poisoned");
+        let mut tsn = self.next_tsn.lock().unwrap_or_else(|e| e.into_inner());
         let current_tsn = *tsn;
         *tsn = tsn.wrapping_add(1);
         drop(tsn);
@@ -431,14 +431,14 @@ impl Association {
 
         let chunk = Chunk::new(ChunkType::Data, 0x03, chunk_data.freeze()); // Flags: B=1, E=1
 
-        let remote_tag = *self.remote_tag.lock().expect("remote_tag mutex poisoned");
+        let remote_tag = *self.remote_tag.lock().unwrap_or_else(|e| e.into_inner());
         Packet::new(self.local_port, self.remote_port, remote_tag).with_chunk(chunk)
     }
 
     /// Receives data from a stream.
     #[must_use]
     pub fn recv_data(&self, stream_id: u16) -> Option<Bytes> {
-        let mut streams = self.streams.lock().expect("streams mutex poisoned");
+        let mut streams = self.streams.lock().unwrap_or_else(|e| e.into_inner());
         streams.get_mut(&stream_id).and_then(|queue| {
             if queue.is_empty() {
                 None
@@ -451,12 +451,12 @@ impl Association {
     /// Gets the association state.
     #[must_use]
     pub fn state(&self) -> AssociationState {
-        *self.state.lock().expect("state mutex poisoned")
+        *self.state.lock().unwrap_or_else(|e| e.into_inner())
     }
 
     /// Sets the remote verification tag.
     fn set_remote_tag(&self, tag: u32) {
-        *self.remote_tag.lock().expect("remote_tag mutex poisoned") = tag;
+        *self.remote_tag.lock().unwrap_or_else(|e| e.into_inner()) = tag;
     }
 }
 

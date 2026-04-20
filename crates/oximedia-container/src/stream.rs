@@ -3,6 +3,8 @@
 use bytes::Bytes;
 use oximedia_core::{CodecId, MediaType, Rational};
 
+use crate::demux::matroska::matroska_v4::BlockAdditionMapping;
+
 /// Information about a stream in a container.
 ///
 /// Each stream in a container has associated metadata including codec,
@@ -101,6 +103,9 @@ pub struct CodecParams {
 
     /// Codec-specific extra data (e.g., SPS/PPS for video, codec headers).
     pub extradata: Option<Bytes>,
+
+    /// Matroska BlockAdditionMapping metadata for this stream, if any.
+    pub block_addition_mappings: Vec<BlockAdditionMapping>,
 }
 
 impl CodecParams {
@@ -113,6 +118,7 @@ impl CodecParams {
             sample_rate: None,
             channels: None,
             extradata: None,
+            block_addition_mappings: Vec::new(),
         }
     }
 
@@ -125,6 +131,7 @@ impl CodecParams {
             sample_rate: Some(sample_rate),
             channels: Some(channels),
             extradata: None,
+            block_addition_mappings: Vec::new(),
         }
     }
 

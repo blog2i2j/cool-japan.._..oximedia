@@ -404,8 +404,12 @@ impl KernelUtils {
     }
 
     /// Apply kernel to frame.
-    pub fn apply_kernel(frame: &Frame, kernel: &[Vec<f32>]) -> Frame {
-        let mut output = Frame::new(frame.width, frame.height).expect("should succeed in test");
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if a new frame cannot be allocated for the output.
+    pub fn apply_kernel(frame: &Frame, kernel: &[Vec<f32>]) -> VfxResult<Frame> {
+        let mut output = Frame::new(frame.width, frame.height)?;
         let k_size = kernel.len();
         let k_half = k_size as i32 / 2;
 
@@ -446,7 +450,7 @@ impl KernelUtils {
             }
         }
 
-        output
+        Ok(output)
     }
 }
 

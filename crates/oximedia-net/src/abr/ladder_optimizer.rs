@@ -282,7 +282,7 @@ impl OptimizedLadder {
 ///     800_000, 65.0, 0.4, 0.3, (854, 480),
 /// ));
 ///
-/// let ladder = optimizer.optimize().unwrap();
+/// let ladder = optimizer.optimize().expect("optimizer has sufficient samples");
 /// assert!(!ladder.rungs.is_empty());
 /// ```
 pub struct LadderOptimizer {
@@ -588,21 +588,23 @@ mod tests {
     #[test]
     fn test_optimizer_requires_min_samples() {
         let opt = make_optimizer_with_samples(1);
-        let err = opt.optimize().unwrap_err();
+        let err = opt
+            .optimize()
+            .expect_err("fewer than min_samples should fail");
         assert!(matches!(err, NetError::InvalidState(_)));
     }
 
     #[test]
     fn test_optimizer_generates_ladder() {
         let opt = make_optimizer_with_samples(5);
-        let ladder = opt.optimize().unwrap();
+        let ladder = opt.optimize().expect("optimizer has sufficient samples");
         assert!(!ladder.rungs.is_empty());
     }
 
     #[test]
     fn test_ladder_rungs_sorted_ascending() {
         let opt = make_optimizer_with_samples(5);
-        let ladder = opt.optimize().unwrap();
+        let ladder = opt.optimize().expect("optimizer has sufficient samples");
         let bitrates: Vec<u64> = ladder.rungs.iter().map(|r| r.bitrate_bps).collect();
         let mut sorted = bitrates.clone();
         sorted.sort_unstable();
@@ -612,22 +614,24 @@ mod tests {
     #[test]
     fn test_rung_at_or_below() {
         let opt = make_optimizer_with_samples(5);
-        let ladder = opt.optimize().unwrap();
+        let ladder = opt.optimize().expect("optimizer has sufficient samples");
         // The optimized ladder may have one or more rungs; query at a very high
         // bitrate to guarantee at least one rung is at or below it.
         let top = ladder.top_rung().expect("ladder has at least one rung");
         let target = top.bitrate_bps + 1_000_000;
         let rung = ladder.rung_at_or_below(target);
         assert!(rung.is_some(), "should find a rung below {target}bps");
-        assert!(rung.unwrap().bitrate_bps <= target);
+        assert!(
+            rung.expect("rung is Some, checked above").bitrate_bps <= target
+        );
     }
 
     #[test]
     fn test_top_and_bottom_rungs() {
         let opt = make_optimizer_with_samples(5);
-        let ladder = opt.optimize().unwrap();
-        let top = ladder.top_rung().unwrap();
-        let bottom = ladder.bottom_rung().unwrap();
+        let ladder = opt.optimize().expect("optimizer has sufficient samples");
+        let top = ladder.top_rung().expect("ladder has at least one rung");
+        let bottom = ladder.bottom_rung().expect("ladder has at least one rung");
         assert!(top.bitrate_bps >= bottom.bitrate_bps);
     }
 
@@ -677,7 +681,7 @@ mod tests {
     #[test]
     fn test_bitrate_saving_fraction_in_range() {
         let opt = make_optimizer_with_samples(6);
-        let ladder = opt.optimize().unwrap();
+        let ladder = opt.optimize().expect("optimizer has sufficient samples");
         assert!(
             (0.0..=1.0).contains(&ladder.bitrate_saving_fraction),
             "saving fraction out of range: {}",
@@ -688,7 +692,7 @@ mod tests {
     #[test]
     fn test_avg_complexity_bounded() {
         let opt = make_optimizer_with_samples(5);
-        let ladder = opt.optimize().unwrap();
+        let ladder = opt.optimize().expect("optimizer has sufficient samples");
         assert!(
             (0.0..=1.0).contains(&ladder.avg_complexity),
             "avg_complexity out of [0,1]: {}",

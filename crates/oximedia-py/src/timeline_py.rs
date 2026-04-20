@@ -174,15 +174,15 @@ impl PyClip {
     }
 
     /// Convert to a dictionary.
-    fn to_dict(&self) -> HashMap<String, Py<PyAny>> {
-        Python::attach(|py| {
+    fn to_dict(&self) -> PyResult<HashMap<String, Py<PyAny>>> {
+        Python::attach(|py| -> PyResult<HashMap<String, Py<PyAny>>> {
             let mut m = HashMap::new();
             m.insert(
                 "source_path".to_string(),
                 self.source_path
                     .clone()
                     .into_pyobject(py)
-                    .expect("str")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into_any()
                     .unbind(),
             );
@@ -190,7 +190,7 @@ impl PyClip {
                 "in_point".to_string(),
                 self.in_point
                     .into_pyobject(py)
-                    .expect("f64")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into_any()
                     .unbind(),
             );
@@ -198,7 +198,7 @@ impl PyClip {
                 "out_point".to_string(),
                 self.out_point
                     .into_pyobject(py)
-                    .expect("f64")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into_any()
                     .unbind(),
             );
@@ -206,7 +206,7 @@ impl PyClip {
                 "start_time".to_string(),
                 self.start_time
                     .into_pyobject(py)
-                    .expect("f64")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into_any()
                     .unbind(),
             );
@@ -214,7 +214,7 @@ impl PyClip {
                 "duration".to_string(),
                 self.duration
                     .into_pyobject(py)
-                    .expect("f64")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into_any()
                     .unbind(),
             );
@@ -222,7 +222,7 @@ impl PyClip {
                 "speed".to_string(),
                 self.speed
                     .into_pyobject(py)
-                    .expect("f64")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into_any()
                     .unbind(),
             );
@@ -230,7 +230,7 @@ impl PyClip {
                 "volume".to_string(),
                 self.volume
                     .into_pyobject(py)
-                    .expect("f64")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into_any()
                     .unbind(),
             );
@@ -238,7 +238,7 @@ impl PyClip {
                 "opacity".to_string(),
                 self.opacity
                     .into_pyobject(py)
-                    .expect("f64")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into_any()
                     .unbind(),
             );
@@ -246,11 +246,11 @@ impl PyClip {
                 "clip_id".to_string(),
                 self.clip_id
                     .into_pyobject(py)
-                    .expect("u64")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into_any()
                     .unbind(),
             );
-            m
+            Ok(m)
         })
     }
 
@@ -735,27 +735,31 @@ impl PyTimeline {
     }
 
     /// Get timeline info as a dictionary.
-    fn info(&self) -> HashMap<String, Py<PyAny>> {
-        Python::attach(|py| {
+    fn info(&self) -> PyResult<HashMap<String, Py<PyAny>>> {
+        Python::attach(|py| -> PyResult<HashMap<String, Py<PyAny>>> {
             let mut m = HashMap::new();
             m.insert(
                 "name".to_string(),
                 self.name
                     .clone()
                     .into_pyobject(py)
-                    .expect("str")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into_any()
                     .unbind(),
             );
             m.insert(
                 "fps".to_string(),
-                self.fps.into_pyobject(py).expect("f64").into_any().unbind(),
+                self.fps
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into_any()
+                    .unbind(),
             );
             m.insert(
                 "width".to_string(),
                 self.width
                     .into_pyobject(py)
-                    .expect("u32")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into_any()
                     .unbind(),
             );
@@ -763,7 +767,7 @@ impl PyTimeline {
                 "height".to_string(),
                 self.height
                     .into_pyobject(py)
-                    .expect("u32")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into_any()
                     .unbind(),
             );
@@ -771,7 +775,7 @@ impl PyTimeline {
                 "duration".to_string(),
                 self.duration()
                     .into_pyobject(py)
-                    .expect("f64")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into_any()
                     .unbind(),
             );
@@ -779,7 +783,7 @@ impl PyTimeline {
                 "track_count".to_string(),
                 self.track_count()
                     .into_pyobject(py)
-                    .expect("usize")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into_any()
                     .unbind(),
             );
@@ -787,11 +791,11 @@ impl PyTimeline {
                 "clip_count".to_string(),
                 self.clip_count()
                     .into_pyobject(py)
-                    .expect("usize")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into_any()
                     .unbind(),
             );
-            m
+            Ok(m)
         })
     }
 

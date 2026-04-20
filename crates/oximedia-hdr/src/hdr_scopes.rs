@@ -78,7 +78,8 @@ impl LumaStatistics {
         luma_values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         let min = luma_values[0];
-        let max = *luma_values.last().expect("non-empty");
+        // luma_values is non-empty: pixels non-empty guard is checked above.
+        let max = luma_values[luma_values.len() - 1];
         let mean = luma_values.iter().copied().map(|v| v as f64).sum::<f64>() as f32 / n;
 
         let percentile = |p: f32| -> f32 {

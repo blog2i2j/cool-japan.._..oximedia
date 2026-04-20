@@ -712,7 +712,12 @@ mod tests {
         let mut job = JobData::new(v(1, 0, 0));
         job.set(
             "output_path",
-            serde_json::Value::String("/tmp/output".into()),
+            serde_json::Value::String(
+                std::env::temp_dir()
+                    .join("oximedia-batch-migration-output")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
         );
         job.set("legacy_retries", serde_json::Value::Number(3.into()));
 

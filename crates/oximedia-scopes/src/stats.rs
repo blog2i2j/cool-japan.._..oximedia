@@ -46,7 +46,8 @@ pub fn compute_stats(values: &[f64]) -> FrameStats {
     sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
     let min = sorted[0];
-    let max = *sorted.last().expect("should succeed in test");
+    // sorted is non-empty: the empty case returned early above, so index is valid.
+    let max = sorted[sorted.len() - 1];
     let mean = sorted.iter().sum::<f64>() / sorted.len() as f64;
     let variance = sorted.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / sorted.len() as f64;
     let std_dev = variance.sqrt();

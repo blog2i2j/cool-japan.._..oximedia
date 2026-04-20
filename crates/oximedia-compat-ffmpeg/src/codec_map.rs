@@ -6,6 +6,7 @@
 //! a direct match or a patent-motivated substitution.
 
 use std::collections::HashMap;
+use std::sync::OnceLock;
 
 /// Classification of how a codec mapping was resolved.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -89,8 +90,11 @@ static CODEC_TABLE: &[(&str, CodecEntry)] = &[
     ("rv40", CodecEntry::substituted("av1")),
     ("h263", CodecEntry::substituted("av1")),
     ("h261", CodecEntry::substituted("av1")),
-    ("mjpeg", CodecEntry::substituted("av1")),
-    ("mjpegb", CodecEntry::substituted("av1")),
+    ("mjpeg", CodecEntry::direct("mjpeg")),
+    ("mjpegb", CodecEntry::direct("mjpeg")),
+    // ── APV — direct match (ISO/IEC 23009-13, royalty-free intra-frame) ─────
+    ("apv", CodecEntry::direct("apv")),
+    ("apv1", CodecEntry::direct("apv")),
     // ── H.264 hardware encoder aliases → AV1 substitution ───────────────────
     ("h264_nvenc", CodecEntry::substituted("av1")),
     ("h264_amf", CodecEntry::substituted("av1")),
@@ -207,6 +211,19 @@ static CODEC_TABLE: &[(&str, CodecEntry)] = &[
     ("copy", CodecEntry::copy()),
 ];
 
+static CODEC_TABLE_CACHE: OnceLock<HashMap<String, CodecEntry>> = OnceLock::new();
+
+/// Return the cached codec lookup table.
+pub fn table() -> &'static HashMap<String, CodecEntry> {
+    CODEC_TABLE_CACHE.get_or_init(|| {
+        let mut table: HashMap<String, CodecEntry> = HashMap::with_capacity(CODEC_TABLE.len());
+        for (key, entry) in CODEC_TABLE {
+            table.insert(key.replace('-', "_"), entry.clone());
+        }
+        table
+    })
+}
+
 /// Mapping from FFmpeg codec names to OxiMedia codec entries.
 pub struct CodecMap {
     table: HashMap<String, CodecEntry>,
@@ -221,12 +238,9 @@ impl Default for CodecMap {
 impl CodecMap {
     /// Build the codec map with all known FFmpeg → OxiMedia mappings.
     pub fn new() -> Self {
-        let mut table: HashMap<String, CodecEntry> = HashMap::with_capacity(CODEC_TABLE.len());
-        for (key, entry) in CODEC_TABLE {
-            // Store with normalised hyphens-as-underscores key.
-            table.insert(key.replace('-', "_"), entry.clone());
+        Self {
+            table: table().clone(),
         }
-        Self { table }
     }
 
     /// Look up an FFmpeg codec name and return the corresponding [`CodecEntry`].

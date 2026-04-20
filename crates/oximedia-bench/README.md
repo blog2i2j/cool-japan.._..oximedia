@@ -6,6 +6,8 @@ Comprehensive codec benchmarking suite for OxiMedia.
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
+Version: 0.1.4 — 2026-04-20 — 542 tests
+
 ## Features
 
 - **Multi-codec support** — Benchmark AV1, VP9, VP8, and Theora codecs
@@ -23,9 +25,9 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-bench = "0.1.3"
+oximedia-bench = "0.1.4"
 # or without VMAF:
-oximedia-bench = { version = "0.1.3", default-features = false }
+oximedia-bench = { version = "0.1.4", default-features = false }
 ```
 
 ```rust

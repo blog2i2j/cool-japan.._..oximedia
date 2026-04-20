@@ -139,8 +139,29 @@ fn xor_into(dst: &mut [u8], src: &[u8]) {
     let words = common / 8;
     for i in 0..words {
         let off = i * 8;
-        let d = u64::from_le_bytes(dst[off..off + 8].try_into().expect("slice len"));
-        let s = u64::from_le_bytes(src[off..off + 8].try_into().expect("slice len"));
+        // Safety: slice is exactly 8 bytes because `off = i * 8` and `words = common / 8`.
+        let d_arr: [u8; 8] = [
+            dst[off],
+            dst[off + 1],
+            dst[off + 2],
+            dst[off + 3],
+            dst[off + 4],
+            dst[off + 5],
+            dst[off + 6],
+            dst[off + 7],
+        ];
+        let s_arr: [u8; 8] = [
+            src[off],
+            src[off + 1],
+            src[off + 2],
+            src[off + 3],
+            src[off + 4],
+            src[off + 5],
+            src[off + 6],
+            src[off + 7],
+        ];
+        let d = u64::from_le_bytes(d_arr);
+        let s = u64::from_le_bytes(s_arr);
         dst[off..off + 8].copy_from_slice(&(d ^ s).to_le_bytes());
     }
 

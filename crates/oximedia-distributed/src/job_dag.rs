@@ -74,8 +74,9 @@ impl JobDag {
 
         if self.has_cycle() {
             // Roll back.
-            let succs = self.edges.get_mut(&from).expect("just inserted");
-            succs.retain(|s| s != &to);
+            if let Some(succs) = self.edges.get_mut(&from) {
+                succs.retain(|s| s != &to);
+            }
             return Err(DagError::CycleDetected(from));
         }
 

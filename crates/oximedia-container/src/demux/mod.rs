@@ -21,6 +21,7 @@
 //! demux files containing H.264, H.265, AAC, or other patent-encumbered
 //! codecs will result in a [`PatentViolation`](oximedia_core::OxiError::PatentViolation) error.
 
+pub mod avi;
 pub mod buffer;
 pub mod flac;
 pub mod matroska;
@@ -36,6 +37,7 @@ pub mod wav;
 pub mod webvtt;
 pub mod y4m;
 
+pub use avi::{AviDemuxError, AviMjpegReader};
 pub use flac::FlacDemuxer;
 pub use matroska::MatroskaDemuxer;
 pub use mp4::Mp4Demuxer;

@@ -163,12 +163,7 @@ impl LadderGenerator {
 
         // Filter out entries that exceed max bitrate or are below min bitrate
         entries.retain(|e| {
-            e.bitrate >= self.min_bitrate
-                && (self.max_bitrate.is_none()
-                    || e.bitrate
-                        <= self
-                            .max_bitrate
-                            .expect("invariant: max_bitrate is Some (checked above)"))
+            e.bitrate >= self.min_bitrate && self.max_bitrate.map_or(true, |max| e.bitrate <= max)
         });
 
         if entries.is_empty() {

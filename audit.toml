@@ -1,6 +1,5 @@
-# cargo-deny advisory ignore list
-# Format: [[advisories.ignore]] entries for use with `cargo deny check advisories`
-# For cargo-audit, use: cargo audit --ignore <ID> for each entry
+# cargo-deny advisory ignore list (used by `cargo deny check advisories`)
+# Note: cargo-audit reads .cargo/audit.toml (not this file) — see .cargo/audit.toml.
 #
 # All ignored advisories are transitive dependencies; none are directly invoked
 # by OxiMedia code. Each entry documents the rationale and fix path.
@@ -23,7 +22,7 @@ reason = "Transitive via google-cloud-auth (rand_os 0.1.x unmaintained). rand_os
 
 [[advisories.ignore]]
 id = "RUSTSEC-2025-0134"
-reason = "Transitive dependency via tungstenite/reqwest (rustls-pemfile 2.x unmaintained). No direct usage by OxiMedia code. Upstream fix pending; will be resolved when reqwest/tungstenite update their deps."
+reason = "Transitive dependency via oximedia-farm (rustls-pemfile 2.x unmaintained). No direct usage by OxiMedia code. Upstream fix pending; will be resolved when the cert-parsing crate is updated."
 
 [[advisories.ignore]]
 id = "RUSTSEC-2026-0002"
@@ -32,3 +31,11 @@ reason = "Transitive via tantivy/ratatui (lru 0.12.x unsound IterMut). The unsou
 [[advisories.ignore]]
 id = "RUSTSEC-2026-0097"
 reason = "Transitive via multiple crates using rand 0.7/0.8/0.9/0.10 (unsound on certain platforms). OxiMedia's direct code paths use getrandom/rand_core; the affected rand APIs are in transitive deps only. Will resolve as upstream crates migrate to rand 0.11+."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0098"
+reason = "Transitive via aws-sdk-* → aws-smithy-http-client → hyper-rustls → tokio-rustls → rustls 0.21.12 → rustls-webpki 0.101.7 (URI SAN name constraints not validated correctly). No Cargo.toml-only upgrade path exists: aws-smithy-runtime 1.1.12's only newer-rustls feature (default-https-client) requires aws-lc-sys C dependency (explicitly avoided per COOLJAPAN Pure Rust policy). OxiMedia S3/cloud calls use standard DNS names only; URI SAN handling is never exercised. Will resolve when AWS SDK migrates to rustls 0.23+."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0099"
+reason = "Transitive via the same aws-sdk-* → rustls-webpki 0.101.7 chain as RUSTSEC-2026-0098. Wildcard-name certificate constraints are not relied upon by OxiMedia code. Will resolve when AWS SDK upgrades its rustls stack."

@@ -186,7 +186,9 @@ fn build_pyramid(frame: &GrayFrame, levels: u32) -> Vec<GrayFrame> {
     let mut pyr = Vec::with_capacity(levels as usize);
     pyr.push(frame.clone());
     for _ in 1..levels {
-        let last = pyr.last().expect("pyramid always has at least one level");
+        let Some(last) = pyr.last() else {
+            break;
+        };
         if last.width < 8 || last.height < 8 {
             break;
         }

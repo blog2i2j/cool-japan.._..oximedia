@@ -176,6 +176,13 @@ impl FileQcReport {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-qc-file-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     // --- FileQcCheck tests ---
 
     #[test]
@@ -283,7 +290,7 @@ mod tests {
             FileQcResult::new(FileQcCheck::FileSize, true, "ok"),
             FileQcResult::new(FileQcCheck::Duration, true, "ok"),
         ];
-        let report = FileQcReport::new(results, "/tmp/test.mp4");
+        let report = FileQcReport::new(results, tmp_str("test.mp4"));
         assert!(report.all_passed());
         assert!((report.pass_rate() - 1.0).abs() < 1e-6);
     }
@@ -294,7 +301,7 @@ mod tests {
             FileQcResult::new(FileQcCheck::FileSize, true, "ok"),
             FileQcResult::new(FileQcCheck::Duration, false, "too short"),
         ];
-        let report = FileQcReport::new(results, "/tmp/test.mp4");
+        let report = FileQcReport::new(results, tmp_str("test.mp4"));
         assert!(!report.all_passed());
         assert!((report.pass_rate() - 0.5).abs() < 1e-6);
     }
@@ -305,7 +312,7 @@ mod tests {
             FileQcResult::new(FileQcCheck::FileSize, false, "too small"),
             FileQcResult::new(FileQcCheck::Duration, true, "ok"),
         ];
-        let report = FileQcReport::new(results, "/tmp/test.mp4");
+        let report = FileQcReport::new(results, tmp_str("test.mp4"));
         let failed = report.failed_checks();
         assert_eq!(failed.len(), 1);
         assert_eq!(failed[0].check, FileQcCheck::FileSize);
@@ -313,7 +320,7 @@ mod tests {
 
     #[test]
     fn test_report_empty_is_full_pass() {
-        let report = FileQcReport::new(vec![], "/tmp/empty.mp4");
+        let report = FileQcReport::new(vec![], tmp_str("empty.mp4"));
         assert!((report.pass_rate() - 1.0).abs() < 1e-6);
         assert!(report.all_passed());
     }

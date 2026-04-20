@@ -19,7 +19,7 @@
 #![allow(dead_code)]
 
 use std::collections::{BTreeMap, VecDeque};
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::{Duration, Instant};
 
 // ─── Profile ─────────────────────────────────────────────────────────────────
@@ -79,7 +79,7 @@ impl Default for RistConfig {
             nack_interval: Duration::from_millis(20),
             null_packet_deletion: true,
             max_seq_gap: 200,
-            bind_addr: "0.0.0.0:0".parse().expect("valid default addr"),
+            bind_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0),
             peer_addr: None,
         }
     }

@@ -1,7 +1,14 @@
 //! MP4 muxer writer implementation.
 //!
 //! Generates ISOBMFF-compliant MP4 files with moov/mdat layout for
-//! progressive MP4, or moov/moof+mdat for fragmented MP4.
+//! progressive MP4, or moov/moof+mdat for fragmented MP4 (fMP4).
+//!
+//! # Fragmented MP4 box layout
+//!
+//! ```text
+//! [ftyp][moov[mvhd][mvex[trex…]][trak(empty stbl)…]]
+//!   ([sidx][moof[mfhd][traf[tfhd][tfdt][trun]]][mdat])…
+//! ```
 
 #![forbid(unsafe_code)]
 #![allow(clippy::cast_possible_truncation)]
@@ -9,7 +16,11 @@
 
 use oximedia_core::{CodecId, MediaType, OxiError, OxiResult, Rational};
 
-use crate::mux::cmaf::{write_box, write_full_box, write_u32_be, write_u64_be};
+use super::av1c::build_av1c_from_extradata;
+use crate::mux::cmaf::{
+    build_empty_stco, build_empty_stsc, build_empty_stsz, build_empty_stts, build_mfhd, build_traf,
+    write_box, write_full_box, write_u32_be, write_u64_be, FragSampleEntry, FragTrackRun,
+};
 use crate::{Packet, StreamInfo};
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -22,29 +33,45 @@ const MAX_TRACKS: usize = 16;
 
 // ─── Configuration ──────────────────────────────────────────────────────────
 
-/// MP4 muxing mode.
+/// MP4 fragment/muxing mode.
+///
+/// Controls whether the output is a standard progressive MP4 (single `moov`+`mdat`)
+/// or a fragmented MP4 (`moov` init segment + repeating `sidx`+`moof`+`mdat` fragments).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Mp4Mode {
-    /// Progressive MP4: single moov + single mdat.
-    /// All sample metadata is collected in memory and written to moov at finalize.
+pub enum Mp4FragmentMode {
+    /// Progressive MP4: single `moov` + single `mdat`.
+    ///
+    /// All sample metadata is collected in memory and written to `moov` at finalize time.
     Progressive,
-    /// Fragmented MP4: moov (with mvex) + repeating moof+mdat fragments.
-    Fragmented,
+    /// Fragmented MP4 (fMP4/CMAF-compatible): `moov` init segment + `sidx`+`moof`+`mdat` fragments.
+    ///
+    /// The `moov` init segment contains empty `stbl` tables and an `mvex`/`trex` extension box.
+    /// Fragments are split on keyframe boundaries, honouring the requested target duration.
+    ///
+    /// `fragment_duration_ms` is the target fragment duration in milliseconds.  A value of 0
+    /// means "one fragment per keyframe boundary".
+    Fragmented {
+        /// Target fragment duration in milliseconds.
+        fragment_duration_ms: u32,
+    },
 }
 
-impl Default for Mp4Mode {
+impl Default for Mp4FragmentMode {
     fn default() -> Self {
         Self::Progressive
     }
 }
 
+/// Backward-compatible type alias — prefer [`Mp4FragmentMode`] in new code.
+pub type Mp4Mode = Mp4FragmentMode;
+
 /// Configuration for the MP4 muxer.
 #[derive(Debug, Clone)]
 pub struct Mp4Config {
     /// Muxing mode (progressive or fragmented).
-    pub mode: Mp4Mode,
-    /// Fragment duration in milliseconds (only for fragmented mode).
-    pub fragment_duration_ms: u32,
+    ///
+    /// For fragmented mode use `Mp4FragmentMode::Fragmented { fragment_duration_ms }`.
+    pub mode: Mp4FragmentMode,
     /// Major brand for ftyp box.
     pub major_brand: [u8; 4],
     /// Minor version for ftyp box.
@@ -60,8 +87,7 @@ pub struct Mp4Config {
 impl Default for Mp4Config {
     fn default() -> Self {
         Self {
-            mode: Mp4Mode::Progressive,
-            fragment_duration_ms: 2000,
+            mode: Mp4FragmentMode::Progressive,
             major_brand: *b"isom",
             minor_version: 0x200,
             compatible_brands: vec![*b"isom", *b"iso6", *b"mp41"],
@@ -80,15 +106,20 @@ impl Mp4Config {
 
     /// Sets the muxing mode.
     #[must_use]
-    pub const fn with_mode(mut self, mode: Mp4Mode) -> Self {
+    pub fn with_mode(mut self, mode: Mp4FragmentMode) -> Self {
         self.mode = mode;
         self
     }
 
-    /// Sets the fragment duration in milliseconds.
+    /// Convenience builder: configure fragmented mode with the given target
+    /// fragment duration in milliseconds.
+    ///
+    /// Equivalent to `.with_mode(Mp4FragmentMode::Fragmented { fragment_duration_ms: ms })`.
     #[must_use]
-    pub const fn with_fragment_duration_ms(mut self, ms: u32) -> Self {
-        self.fragment_duration_ms = ms;
+    pub fn with_fragmented(mut self, fragment_duration_ms: u32) -> Self {
+        self.mode = Mp4FragmentMode::Fragmented {
+            fragment_duration_ms,
+        };
         self
     }
 
@@ -349,7 +380,7 @@ impl Mp4Muxer {
         output.extend(self.build_ftyp());
 
         match self.config.mode {
-            Mp4Mode::Progressive => {
+            Mp4FragmentMode::Progressive => {
                 // 2. Collect all mdat data with offsets
                 let (mdat_box, chunk_offsets) = self.build_mdat_progressive();
 
@@ -368,7 +399,7 @@ impl Mp4Muxer {
                 output.extend(moov_final);
                 output.extend(mdat_box);
             }
-            Mp4Mode::Fragmented => {
+            Mp4FragmentMode::Fragmented { .. } => {
                 // moov with mvex
                 let moov = self.build_moov_fragmented();
                 output.extend(moov);
@@ -475,7 +506,8 @@ impl Mp4Muxer {
 
     fn build_moov_fragmented(&self) -> Vec<u8> {
         let mut content = Vec::new();
-        content.extend(self.build_mvhd());
+        // mvhd with duration=0 (indeterminate for fragmented)
+        content.extend(self.build_mvhd_fragmented());
 
         // mvex with trex for each track
         let mut mvex_content = Vec::new();
@@ -484,12 +516,72 @@ impl Mp4Muxer {
         }
         content.extend(write_box(b"mvex", &mvex_content));
 
-        // trak boxes (with empty stbl for fragmented)
+        // trak boxes with EMPTY stbl tables (no sample data in init segment)
         for track in &self.tracks {
-            content.extend(self.build_trak(track, &[]));
+            content.extend(self.build_trak_fragmented(track));
         }
 
         write_box(b"moov", &content)
+    }
+
+    /// Builds an `mvhd` with duration=0 (indeterminate, for fragmented mode).
+    fn build_mvhd_fragmented(&self) -> Vec<u8> {
+        let mut c = Vec::new();
+        c.extend_from_slice(&write_u32_be(self.config.creation_time as u32));
+        c.extend_from_slice(&write_u32_be(self.config.modification_time as u32));
+        c.extend_from_slice(&write_u32_be(MOVIE_TIMESCALE));
+        // duration = 0 for fragmented (unknown at init time)
+        c.extend_from_slice(&write_u32_be(0));
+        c.extend_from_slice(&write_u32_be(0x0001_0000)); // rate 1.0
+        c.extend_from_slice(&[0x01, 0x00]); // volume 1.0
+        c.extend_from_slice(&[0u8; 10]); // reserved
+        c.extend_from_slice(&IDENTITY_MATRIX);
+        c.extend_from_slice(&[0u8; 24]); // pre_defined
+        c.extend_from_slice(&write_u32_be((self.tracks.len() + 1) as u32)); // next_track_id
+        write_full_box(b"mvhd", 0, 0, &c)
+    }
+
+    /// Builds a `trak` box suitable for a fragmented init segment.
+    ///
+    /// The `stbl` contains only an `stsd` (sample description) plus the four
+    /// mandatory empty sub-boxes — no sample timing, size, or chunk-offset data.
+    fn build_trak_fragmented(&self, track: &Mp4TrackState) -> Vec<u8> {
+        let mut content = Vec::new();
+        content.extend(build_tkhd(track));
+        content.extend(self.build_mdia_fragmented(track));
+        write_box(b"trak", &content)
+    }
+
+    fn build_mdia_fragmented(&self, track: &Mp4TrackState) -> Vec<u8> {
+        let mut content = Vec::new();
+        content.extend(build_mdhd(track));
+        content.extend(build_hdlr(track));
+        content.extend(self.build_minf_fragmented(track));
+        write_box(b"mdia", &content)
+    }
+
+    fn build_minf_fragmented(&self, track: &Mp4TrackState) -> Vec<u8> {
+        let mut content = Vec::new();
+        match track.stream_info.media_type {
+            MediaType::Video => content.extend(build_vmhd()),
+            MediaType::Audio => content.extend(build_smhd()),
+            _ => content.extend(write_full_box(b"nmhd", 0, 0, &[])),
+        }
+        content.extend(build_dinf());
+        content.extend(self.build_stbl_fragmented(track));
+        write_box(b"minf", &content)
+    }
+
+    fn build_stbl_fragmented(&self, track: &Mp4TrackState) -> Vec<u8> {
+        let mut content = Vec::new();
+        // stsd must be present with proper sample entry
+        content.extend(build_stsd(track));
+        // Four mandatory empty tables (required by ISO 14496-12 §8.6.1 for fragmented)
+        content.extend(build_empty_stts());
+        content.extend(build_empty_stsc());
+        content.extend(build_empty_stsz());
+        content.extend(build_empty_stco());
+        write_box(b"stbl", &content)
     }
 
     fn build_mvhd(&self) -> Vec<u8> {
@@ -604,54 +696,169 @@ impl Mp4Muxer {
         write_box(b"stbl", &content)
     }
 
+    /// Splits all track samples into timed fragments and builds `sidx`+`moof`+`mdat` for each.
+    ///
+    /// Fragment boundaries are determined by the `fragment_duration_ms` setting:
+    /// a new fragment begins at each keyframe whose decode timestamp is at or beyond
+    /// the target duration since the previous fragment start.
     fn build_fragments_from_tracks(&self) -> Vec<Vec<u8>> {
+        // Collect fragments from the first non-empty track; use it as the reference timeline.
+        let ref_track = match self.tracks.iter().find(|t| !t.samples.is_empty()) {
+            Some(t) => t,
+            None => return Vec::new(),
+        };
+
+        // Compute fragment boundaries (sample indices) based on the reference track.
+        let config_frag_ms = match self.config.mode {
+            Mp4FragmentMode::Fragmented {
+                fragment_duration_ms,
+            } => fragment_duration_ms,
+            Mp4FragmentMode::Progressive => 0,
+        };
+        let frag_duration_ticks = if ref_track.timescale > 0 && config_frag_ms > 0 {
+            u64::from(config_frag_ms) * u64::from(ref_track.timescale) / 1000
+        } else {
+            0
+        };
+        let boundaries = compute_fragment_boundaries(ref_track, frag_duration_ticks);
+
         let mut result = Vec::new();
         let mut seq = self.fragment_sequence;
+
+        for &(frag_start, frag_end) in &boundaries {
+            let fragment = self.build_one_fragment(seq, frag_start, frag_end);
+            result.push(fragment);
+            seq += 1;
+        }
+
+        result
+    }
+
+    /// Builds one `sidx`+`moof`+`mdat` fragment for samples `[frag_start, frag_end)` on the
+    /// reference (video) track and matching time-range samples on every other track.
+    fn build_one_fragment(&self, seq: u32, frag_start: usize, frag_end: usize) -> Vec<u8> {
+        // ── Determine per-track sample slices ────────────────────────────────
+        let ref_track = match self.tracks.first() {
+            Some(t) => t,
+            None => return Vec::new(),
+        };
+
+        // Compute the DTS range covered by this fragment on the reference track.
+        let frag_base_dts = dts_at(ref_track, frag_start);
+        let frag_end_dts = dts_at(ref_track, frag_end);
+
+        // ── Collect mdat payload and traf descriptors ─────────────────────────
+        let mut mdat_payload: Vec<u8> = Vec::new();
+        let mut track_runs: Vec<FragTrackRun> = Vec::new();
 
         for track in &self.tracks {
             if track.samples.is_empty() {
                 continue;
             }
 
-            // Build one moof+mdat per track
-            let mut moof_content = Vec::new();
+            // For the reference track use explicit indices;
+            // for other tracks select samples whose DTS falls in [frag_base_dts, frag_end_dts).
+            let (slice_start, slice_end) = if track.track_id == ref_track.track_id {
+                (frag_start, frag_end)
+            } else {
+                select_time_range(track, frag_base_dts, frag_end_dts)
+            };
 
-            // mfhd
-            let mut mfhd_c = Vec::new();
-            mfhd_c.extend_from_slice(&write_u32_be(seq));
-            moof_content.extend(write_full_box(b"mfhd", 0, 0, &mfhd_c));
+            if slice_start >= slice_end {
+                continue;
+            }
 
-            // traf
-            let mut traf_content = Vec::new();
+            let base_dts = dts_at(track, slice_start);
+            let mdat_offset_start = mdat_payload.len() as u32;
+            let mut entries: Vec<FragSampleEntry> = Vec::new();
 
-            // tfhd
-            let mut tfhd_c = Vec::new();
-            tfhd_c.extend_from_slice(&write_u32_be(track.track_id));
-            traf_content.extend(write_full_box(b"tfhd", 0, 0x020000, &tfhd_c));
+            let mut byte_offset = 0usize;
+            for s_idx in 0..slice_start {
+                byte_offset += track.samples.get(s_idx).map_or(0, |s| s.size as usize);
+            }
 
-            // tfdt
-            let mut tfdt_c = Vec::new();
-            tfdt_c.extend_from_slice(&write_u64_be(0)); // base_media_decode_time
-            traf_content.extend(write_full_box(b"tfdt", 1, 0, &tfdt_c));
+            for s_idx in slice_start..slice_end {
+                let s = match track.samples.get(s_idx) {
+                    Some(s) => s,
+                    None => break,
+                };
+                let end = byte_offset + s.size as usize;
+                if end <= track.mdat_data.len() {
+                    mdat_payload.extend_from_slice(&track.mdat_data[byte_offset..end]);
+                }
+                byte_offset = end;
 
-            // trun
-            let trun_data = build_trun_for_track(track);
-            traf_content.extend(trun_data);
+                let flags: u32 = if s.is_sync { 0x0200_0000 } else { 0x0101_0000 };
+                #[allow(clippy::cast_possible_wrap)]
+                let pts_offset = s.composition_offset;
+                entries.push(FragSampleEntry {
+                    duration: s.duration,
+                    size: s.size,
+                    flags,
+                    pts_offset,
+                });
+            }
 
-            moof_content.extend(write_box(b"traf", &traf_content));
-
-            let moof = write_box(b"moof", &moof_content);
-            let mdat = write_box(b"mdat", &track.mdat_data);
-
-            let mut fragment = Vec::new();
-            fragment.extend(moof);
-            fragment.extend(mdat);
-            result.push(fragment);
-
-            seq += 1;
+            track_runs.push(FragTrackRun {
+                track_id: track.track_id,
+                base_dts,
+                mdat_offset_start,
+                entries,
+            });
         }
 
-        result
+        // ── Two-pass moof build to fixup data_offset ─────────────────────────
+        let build_moof = |data_offset_base: i32, runs: &[FragTrackRun]| -> Vec<u8> {
+            let mut moof_content = Vec::new();
+            moof_content.extend(build_mfhd(seq));
+            for tr in runs {
+                moof_content.extend(build_traf(
+                    tr.track_id,
+                    tr.base_dts,
+                    data_offset_base + tr.mdat_offset_start as i32,
+                    &tr.entries,
+                ));
+            }
+            write_box(b"moof", &moof_content)
+        };
+
+        let moof_placeholder = build_moof(0, &track_runs);
+        let moof_size = moof_placeholder.len() as i32;
+        // data_offset is relative to start of moof; mdat header is 8 bytes.
+        let moof = build_moof(moof_size + 8, &track_runs);
+        let mdat = write_box(b"mdat", &mdat_payload);
+
+        // ── sidx (segment index) ──────────────────────────────────────────────
+        // Compute subsegment_duration in the reference track's timescale.
+        let subseg_dur = track_runs
+            .iter()
+            .find(|tr| tr.track_id == ref_track.track_id)
+            .map(|tr| {
+                tr.entries
+                    .iter()
+                    .map(|e| u64::from(e.duration))
+                    .sum::<u64>()
+            })
+            .unwrap_or(0);
+        let is_sap = track_runs
+            .iter()
+            .find(|tr| tr.track_id == ref_track.track_id)
+            .and_then(|tr| tr.entries.first())
+            .is_some_and(|e| e.flags == 0x0200_0000);
+        let referenced_size = (moof.len() + mdat.len()) as u32;
+        let sidx = build_sidx(
+            ref_track.track_id,
+            ref_track.timescale,
+            frag_base_dts,
+            referenced_size,
+            subseg_dur as u32,
+            is_sap,
+        );
+
+        let mut out = sidx;
+        out.extend(moof);
+        out.extend(mdat);
+        out
     }
 }
 
@@ -833,9 +1040,31 @@ fn build_video_sample_entry(track: &Mp4TrackState) -> Vec<u8> {
     c.extend_from_slice(&[0xFF, 0xFF]);
 
     // Codec-specific configuration box
-    if let Some(extradata) = &track.stream_info.codec_params.extradata {
-        let config_fourcc = codec_config_fourcc(track.stream_info.codec);
-        c.extend(write_box(&config_fourcc, extradata));
+    match track.stream_info.codec {
+        CodecId::Av1 => {
+            // For AV1, always emit an av1C box.  If the caller supplied a pre-built
+            // AV1CodecConfigurationRecord in extradata we use that verbatim; otherwise
+            // we attempt to derive one from the first OBU in extradata, falling back
+            // to a safe default (Main profile, level 2.0, 4:2:0, 8-bit).
+            let av1c_payload = track
+                .stream_info
+                .codec_params
+                .extradata
+                .as_deref()
+                .and_then(|data| build_av1c_from_extradata(data))
+                .unwrap_or_else(|| {
+                    // Safe default: marker=1, version=1, Main profile, level 2.0,
+                    // tier 0, 8-bit, 4:2:0, no initial presentation delay.
+                    vec![0x81u8, 0x00, 0x04, 0x00]
+                });
+            c.extend(write_box(b"av1C", &av1c_payload));
+        }
+        _ => {
+            if let Some(extradata) = &track.stream_info.codec_params.extradata {
+                let config_fourcc = codec_config_fourcc(track.stream_info.codec);
+                c.extend(write_box(&config_fourcc, extradata));
+            }
+        }
     }
 
     write_box(&fourcc, &c)
@@ -1043,22 +1272,6 @@ fn build_trex(track_id: u32) -> Vec<u8> {
     write_full_box(b"trex", 0, 0, &c)
 }
 
-fn build_trun_for_track(track: &Mp4TrackState) -> Vec<u8> {
-    // flags: 0x000301 = data_offset_present | duration_present | size_present
-    let flags: u32 = 0x000301;
-
-    let mut c = Vec::new();
-    c.extend_from_slice(&write_u32_be(track.samples.len() as u32)); // sample_count
-    c.extend_from_slice(&write_u32_be(0)); // data_offset (placeholder)
-
-    for sample in &track.samples {
-        c.extend_from_slice(&write_u32_be(sample.duration));
-        c.extend_from_slice(&write_u32_be(sample.size));
-    }
-
-    write_full_box(b"trun", 0, flags, &c)
-}
-
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
 fn validate_codec(codec: CodecId) -> OxiResult<()> {
@@ -1068,7 +1281,10 @@ fn validate_codec(codec: CodecId) -> OxiResult<()> {
         | CodecId::Vp8
         | CodecId::Opus
         | CodecId::Flac
-        | CodecId::Vorbis => Ok(()),
+        | CodecId::Vorbis
+        | CodecId::Apv   // ISO/IEC 23009-13 — royalty-free
+        | CodecId::Mjpeg // JPEG patents expired — royalty-free
+        => Ok(()),
         _ => Err(OxiError::PatentViolation(format!(
             "Codec {:?} is not supported in MP4 muxer (patent-free codecs only)",
             codec
@@ -1084,6 +1300,8 @@ fn codec_to_fourcc(codec: CodecId) -> [u8; 4] {
         CodecId::Opus => *b"Opus",
         CodecId::Flac => *b"fLaC",
         CodecId::Vorbis => *b"vorb",
+        CodecId::Apv => *b"apv1",   // ISO/IEC 23009-13 registered fourcc
+        CodecId::Mjpeg => *b"jpeg", // ISOM-registered fourcc for Motion JPEG
         _ => *b"unkn",
     }
 }
@@ -1128,6 +1346,117 @@ fn adjust_chunk_offsets(offsets: &[Vec<u64>], mdat_data_start: u64) -> Vec<Vec<u
         .iter()
         .map(|track_offsets| track_offsets.iter().map(|&o| o + mdat_data_start).collect())
         .collect()
+}
+
+// ─── Fragment helpers ────────────────────────────────────────────────────────
+
+/// Computes `(start_idx, end_idx)` fragment boundaries from a track's sample list.
+///
+/// A new fragment starts at each keyframe whose accumulated DTS since the previous
+/// fragment start exceeds `frag_duration_ticks`.  The last fragment end is always
+/// `track.samples.len()`.
+fn compute_fragment_boundaries(
+    track: &Mp4TrackState,
+    frag_duration_ticks: u64,
+) -> Vec<(usize, usize)> {
+    if track.samples.is_empty() {
+        return Vec::new();
+    }
+
+    let mut boundaries: Vec<(usize, usize)> = Vec::new();
+    let mut frag_start = 0usize;
+    let mut accumulated: u64 = 0;
+
+    for (i, sample) in track.samples.iter().enumerate() {
+        if i > frag_start && sample.is_sync {
+            // Decide to cut here if we've accumulated enough or if no duration limit.
+            if frag_duration_ticks == 0 || accumulated >= frag_duration_ticks {
+                boundaries.push((frag_start, i));
+                frag_start = i;
+                accumulated = 0;
+            }
+        }
+        accumulated += u64::from(sample.duration);
+    }
+
+    // Last fragment
+    boundaries.push((frag_start, track.samples.len()));
+    boundaries
+}
+
+/// Returns the cumulative DTS (in track timescale ticks) at sample index `idx`.
+///
+/// Returns 0 when `idx == 0` or the track has no samples.
+fn dts_at(track: &Mp4TrackState, idx: usize) -> u64 {
+    track
+        .samples
+        .iter()
+        .take(idx)
+        .map(|s| u64::from(s.duration))
+        .sum()
+}
+
+/// Selects the slice `[start, end)` of samples from `track` whose accumulated DTS
+/// falls within `[base_dts, end_dts)`.
+///
+/// Returns `(0, 0)` when the track has no samples in range.
+fn select_time_range(track: &Mp4TrackState, base_dts: u64, end_dts: u64) -> (usize, usize) {
+    let mut cursor: u64 = 0;
+    let mut start: Option<usize> = None;
+    let mut end = 0usize;
+
+    for (i, s) in track.samples.iter().enumerate() {
+        let sample_dts = cursor;
+        cursor += u64::from(s.duration);
+
+        if sample_dts >= end_dts {
+            break;
+        }
+        if sample_dts >= base_dts {
+            if start.is_none() {
+                start = Some(i);
+            }
+            end = i + 1;
+        }
+    }
+
+    match start {
+        Some(s) => (s, end),
+        None => (0, 0),
+    }
+}
+
+/// Builds a minimal `sidx` (Segment Index Box, ISO 14496-12 §8.16.3).
+///
+/// Emits exactly one reference entry covering the subsequent `moof`+`mdat`.
+fn build_sidx(
+    reference_id: u32,
+    timescale: u32,
+    earliest_pts: u64,
+    referenced_size: u32,
+    subsegment_duration: u32,
+    is_sap: bool,
+) -> Vec<u8> {
+    // version=1 → 64-bit earliest_presentation_time + first_offset
+    let mut c = Vec::new();
+    c.extend_from_slice(&write_u32_be(reference_id));
+    c.extend_from_slice(&write_u32_be(timescale));
+    c.extend_from_slice(&write_u64_be(earliest_pts));
+    c.extend_from_slice(&write_u64_be(0)); // first_offset (0 = immediately follows)
+    c.extend_from_slice(&[0u8; 2]); // reserved
+    c.extend_from_slice(&1u16.to_be_bytes()); // reference_count = 1
+
+    // reference entry:
+    // bit(1) reference_type = 0 (movie fragment)
+    // unsigned int(31) referenced_size
+    let ref_type_size: u32 = referenced_size & 0x7FFF_FFFF; // reference_type=0
+    c.extend_from_slice(&write_u32_be(ref_type_size));
+    c.extend_from_slice(&write_u32_be(subsegment_duration));
+    // SAP info: bit(1) starts_with_SAP + bit(3) SAP_type + bit(28) SAP_delta_time
+    let sap_word: u32 = if is_sap { 0x9000_0000u32 } else { 0 };
+    c.extend_from_slice(&write_u32_be(sap_word));
+
+    write_full_box(b"sidx", 1, 0, &c)
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────
@@ -1182,22 +1511,24 @@ mod tests {
     #[test]
     fn test_mp4_config_default() {
         let config = Mp4Config::new();
-        assert_eq!(config.mode, Mp4Mode::Progressive);
+        assert_eq!(config.mode, Mp4FragmentMode::Progressive);
         assert_eq!(config.major_brand, *b"isom");
-        assert_eq!(config.fragment_duration_ms, 2000);
     }
 
     #[test]
     fn test_mp4_config_builder() {
         let config = Mp4Config::new()
-            .with_mode(Mp4Mode::Fragmented)
-            .with_fragment_duration_ms(4000)
+            .with_fragmented(4000)
             .with_major_brand(*b"av01")
             .with_minor_version(0x100)
             .with_compatible_brand(*b"dash");
 
-        assert_eq!(config.mode, Mp4Mode::Fragmented);
-        assert_eq!(config.fragment_duration_ms, 4000);
+        assert_eq!(
+            config.mode,
+            Mp4FragmentMode::Fragmented {
+                fragment_duration_ms: 4000
+            }
+        );
         assert_eq!(config.major_brand, *b"av01");
         assert_eq!(config.minor_version, 0x100);
         assert!(config.compatible_brands.contains(b"dash"));
@@ -1414,7 +1745,7 @@ mod tests {
 
     #[test]
     fn test_fragmented_contains_mvex() {
-        let config = Mp4Config::new().with_mode(Mp4Mode::Fragmented);
+        let config = Mp4Config::new().with_fragmented(2000);
         let mut muxer = Mp4Muxer::new(config);
         muxer
             .add_stream(make_video_stream())
@@ -1433,7 +1764,7 @@ mod tests {
 
     #[test]
     fn test_fragmented_contains_moof_mdat() {
-        let config = Mp4Config::new().with_mode(Mp4Mode::Fragmented);
+        let config = Mp4Config::new().with_fragmented(2000);
         let mut muxer = Mp4Muxer::new(config);
         muxer
             .add_stream(make_video_stream())
@@ -1452,7 +1783,7 @@ mod tests {
 
     #[test]
     fn test_fragmented_contains_traf_trun() {
-        let config = Mp4Config::new().with_mode(Mp4Mode::Fragmented);
+        let config = Mp4Config::new().with_fragmented(2000);
         let mut muxer = Mp4Muxer::new(config);
         muxer
             .add_stream(make_video_stream())

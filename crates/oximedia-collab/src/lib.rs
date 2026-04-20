@@ -1,7 +1,59 @@
-//! OxiMedia Collaboration - Real-time multi-user video editing collaboration
+//! Real-time CRDT-based multi-user collaboration for OxiMedia.
 //!
-//! This crate provides CRDT-based synchronization for collaborative video editing,
-//! supporting 10+ concurrent editors with sub-second latency.
+//! Provides conflict-free synchronization for concurrent video editing sessions,
+//! supporting up to 10 simultaneous editors with sub-second latency over WebSocket.
+//!
+//! # Overview
+//!
+//! - **CRDT synchronization** — Yjs-backed (`yrs`) document model; GCounter, PNCounter,
+//!   LWWRegister, MVRegister, GSet, and TwoPhaseSet primitives in `crdt_primitives`.
+//! - **Operational transformation** — Insert/Delete/Update/Move ops with FIFO tiebreak;
+//!   git-rebase-style `rebase()`; Kahn topological order and memoized LCA in `operation_log`.
+//! - **Binary framing** — 4-byte header `[type u16 LE][len u16 LE]` + payload in
+//!   `binary_framer`; `BatchedFramer` auto-flushes above a configurable threshold.
+//! - **Deadlock detection** — `WaiterGraph` DFS cycle detection (`detect_cycle_if_added`)
+//!   in `edit_lock`; region-based, track-based, and hierarchical lock scopes.
+//! - **Delta changesets** — `DeltaChangeset::delta_from(base, current)` encodes only
+//!   suffix ops beyond the base; `apply_delta` restores the full changeset.
+//! - **Three-way merge** — `ProjectMerger` resolves timeline events via five
+//!   `ConflictResolution` strategies; heuristic scoring by duration + parameter richness.
+//! - **Snapshot repository** — git-inspired parent-chain with BFS common-ancestor detection
+//!   and branch/fast-forward semantics in `snapshot_manager`.
+//! - **Session management** — Owner/Editor/Viewer roles; per-session GC; awareness
+//!   (cursor, viewport, presence) in `awareness` and `user_presence_map`.
+//!
+//! # Quick Start
+//!
+//! ```rust,no_run
+//! use oximedia_collab::{CollaborationServer, CollabConfig, User, UserRole};
+//!
+//! # async fn run() -> Result<(), Box<dyn std::error::Error>> {
+//! let config = CollabConfig::default();
+//! let server = CollaborationServer::new(config);
+//!
+//! let owner = User::new("Alice".to_string(), UserRole::Owner);
+//! let project_id = uuid::Uuid::new_v4();
+//! let session_id = server.create_session(project_id, owner).await?;
+//!
+//! let editor = User::new("Bob".to_string(), UserRole::Editor);
+//! server.join_session(session_id, editor).await?;
+//!
+//! server.start_background_tasks().await;
+//! server.shutdown().await?;
+//! # Ok(())
+//! # }
+//! ```
+//!
+//! # Default Configuration
+//!
+//! | Field | Default |
+//! |-------|---------|
+//! | `max_users_per_session` | 10 |
+//! | `lock_timeout_secs` | 300 (5 min) |
+//! | `compression_threshold` | 1 024 bytes |
+//! | `history_limit` | 1 000 operations |
+//! | `gc_interval_secs` | 600 (10 min) |
+//! | `max_offline_queue` | 10 000 entries |
 
 /// Chronological activity feed for tracking collaboration events with filtering and aggregation.
 pub mod activity_feed;

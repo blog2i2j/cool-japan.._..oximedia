@@ -365,7 +365,7 @@ mod tests {
 
     #[test]
     fn test_extract_metadata() {
-        let temp_file = PathBuf::from("/tmp/test.mp4");
+        let temp_file = std::env::temp_dir().join("oximedia-batch-media-ops-test.mp4");
         let result = MediaOperationExecutor::extract_metadata(&temp_file);
         assert!(result.is_ok());
         let metadata = result.expect("result should be valid");
@@ -375,7 +375,7 @@ mod tests {
 
     #[test]
     fn test_quality_control() {
-        let temp_file = PathBuf::from("/tmp/test.mp4");
+        let temp_file = std::env::temp_dir().join("oximedia-batch-media-ops-test.mp4");
         let result = MediaOperationExecutor::quality_control(&temp_file, "default");
         assert!(result.is_ok());
         let qc = result.expect("result should be valid");
@@ -384,7 +384,7 @@ mod tests {
 
     #[test]
     fn test_analyze_media_video_quality() {
-        let temp_file = PathBuf::from("/tmp/test.mp4");
+        let temp_file = std::env::temp_dir().join("oximedia-batch-media-ops-test.mp4");
         let result = MediaOperationExecutor::analyze_media(&temp_file, &AnalysisType::VideoQuality);
         assert!(result.is_ok());
         let analysis = result.expect("result should be valid");
@@ -393,7 +393,7 @@ mod tests {
 
     #[test]
     fn test_analyze_media_audio_level() {
-        let temp_file = PathBuf::from("/tmp/test.mp4");
+        let temp_file = std::env::temp_dir().join("oximedia-batch-media-ops-test.mp4");
         let result = MediaOperationExecutor::analyze_media(&temp_file, &AnalysisType::AudioLevel);
         assert!(result.is_ok());
         let analysis = result.expect("result should be valid");
@@ -402,7 +402,7 @@ mod tests {
 
     #[test]
     fn test_analyze_media_loudness() {
-        let temp_file = PathBuf::from("/tmp/test.mp4");
+        let temp_file = std::env::temp_dir().join("oximedia-batch-media-ops-test.mp4");
         let result =
             MediaOperationExecutor::analyze_media(&temp_file, &AnalysisType::LoudnessMeasurement);
         assert!(result.is_ok());
@@ -412,8 +412,8 @@ mod tests {
 
     #[test]
     fn test_generate_thumbnails() {
-        let input = PathBuf::from("/tmp/test.mp4");
-        let output_dir = PathBuf::from("/tmp");
+        let input = std::env::temp_dir().join("oximedia-batch-media-ops-test.mp4");
+        let output_dir = std::env::temp_dir();
         let result = MediaOperationExecutor::generate_thumbnails(&input, &output_dir, 3, 320, 180);
         assert!(result.is_ok());
         let thumbs = result.expect("result should be valid");
@@ -422,8 +422,8 @@ mod tests {
 
     #[test]
     fn test_generate_proxy_presets() {
-        let input = PathBuf::from("/tmp/test.mp4");
-        let output = PathBuf::from("/tmp/proxy.mp4");
+        let input = std::env::temp_dir().join("oximedia-batch-media-ops-test.mp4");
+        let output = std::env::temp_dir().join("oximedia-batch-media-ops-proxy.mp4");
         let result = MediaOperationExecutor::generate_proxy(&input, &output, &ProxyPreset::Low);
         assert!(result.is_ok());
     }

@@ -310,10 +310,9 @@ impl CentroidOnlyTracker {
                 .min_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal));
 
             if let Some((i, _)) = best {
-                *self
-                    .tracks
-                    .get_mut(&id)
-                    .expect("id came from self.tracks.keys()") = cents[i];
+                if let Some(v) = self.tracks.get_mut(&id) {
+                    *v = cents[i];
+                }
                 assigned[i] = true;
                 updated_ids.push(id);
             } else {

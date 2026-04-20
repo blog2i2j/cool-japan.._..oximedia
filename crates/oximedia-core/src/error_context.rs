@@ -1,49 +1,258 @@
 //! Structured error context and error chaining utilities.
 //!
-//! Provides [`ErrorContext`], [`ErrorChain`], and [`ErrorContextBuilder`] for
-//! attaching structured metadata (component, operation, and arbitrary key/value
-//! pairs) to errors propagated through the media pipeline.
+//! Provides [`ErrorContext`], [`ErrorChain`], [`ErrorContextBuilder`], and
+//! [`ErrorFrame`] for attaching structured metadata to errors propagated through
+//! the media pipeline.
 //!
 //! # Examples
 //!
 //! ```
-//! use oximedia_core::error_context::{ErrorContext, ErrorChain};
+//! use oximedia_core::error_context::{ErrorContext, ErrorChain, ErrorFrame};
 //!
 //! let ctx = ErrorContext::new("demuxer", "read_packet", "unexpected EOF");
 //! assert_eq!(ctx.component(), "demuxer");
 //!
 //! let chain = ErrorChain::root(ctx);
 //! assert_eq!(chain.depth(), 1);
+//!
+//! // Structured frame chain on ErrorContext
+//! let mut ctx2 = ErrorContext::new("codec", "decode", "buffer underflow");
+//! ctx2.push_frame(ErrorFrame {
+//!     file: "src/codec.rs",
+//!     line: 42,
+//!     function: "decode_frame",
+//!     message: std::borrow::Cow::Borrowed("buffer underflow"),
+//! });
+//! let display = ctx2.frames_display();
+//! assert!(!display.is_empty());
+//! ```
+//!
+//! ## Building an Error Context Chain
+//!
+//! Use the `ctx!` macro to attach a location frame, then chain frames as errors
+//! propagate up the call stack:
+//!
+//! ```
+//! use oximedia_core::error_context::{ErrorContext, ErrorFrame};
+//! use std::borrow::Cow;
+//!
+//! let mut ctx = ErrorContext::new("demuxer", "read_packet", "initial error");
+//! ctx.push_frame(ErrorFrame {
+//!     file: file!(),
+//!     line: line!(),
+//!     function: "my_function",
+//!     message: Cow::Borrowed("initial error"),
+//! });
+//! ctx.push_frame(ErrorFrame {
+//!     file: file!(),
+//!     line: line!(),
+//!     function: "caller",
+//!     message: Cow::Borrowed("wrapping context"),
+//! });
+//! assert_eq!(ctx.frame_count(), 2);
+//! // frames_display() returns a multi-line string showing file:line [fn]: message
+//! let display = ctx.frames_display();
+//! assert!(display.contains("my_function"));
+//! assert!(display.contains("caller"));
 //! ```
 
 #![allow(dead_code)]
 #![allow(clippy::module_name_repetitions)]
 
+use std::borrow::Cow;
 use std::collections::HashMap;
+use std::fmt;
+
+// ---------------------------------------------------------------------------
+// ErrorFrame — a single source-location frame in a context chain
+// ---------------------------------------------------------------------------
+
+/// A single frame in an error context chain, capturing the source location
+/// and a human-readable message at the point where context was attached.
+///
+/// Instances are typically created via the `ctx!` macro rather than
+/// constructed by hand.
+///
+/// # Examples
+///
+/// ```
+/// use oximedia_core::error_context::ErrorFrame;
+///
+/// let frame = ErrorFrame {
+///     file: "src/lib.rs",
+///     line: 10,
+///     function: "my_func",
+///     message: std::borrow::Cow::Borrowed("something went wrong"),
+/// };
+/// let s = frame.to_string();
+/// assert!(s.contains("src/lib.rs"));
+/// assert!(s.contains("10"));
+/// assert!(s.contains("my_func"));
+/// assert!(s.contains("something went wrong"));
+/// ```
+#[derive(Debug, Clone)]
+pub struct ErrorFrame {
+    /// Source file path captured by `file!()`.
+    pub file: &'static str,
+    /// Line number captured by `line!()`.
+    pub line: u32,
+    /// Function or module path captured by the `current_fn_name!()` macro.
+    pub function: &'static str,
+    /// Human-readable context message.
+    pub message: Cow<'static, str>,
+}
+
+impl fmt::Display for ErrorFrame {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(
+            f,
+            "  at {}:{} [{}]: {}",
+            self.file, self.line, self.function, self.message
+        )
+    }
+}
+
+// ---------------------------------------------------------------------------
+// current_fn_name! and ctx! macros
+// ---------------------------------------------------------------------------
+
+/// Captures the fully-qualified path of the enclosing function at compile time.
+///
+/// The result is a `&'static str` with the `::f` helper suffix stripped,
+/// yielding the module path of the call site (e.g. `"my_crate::module::fn"`).
+///
+/// # Examples
+///
+/// ```
+/// fn example() {
+///     let name = oximedia_core::current_fn_name!();
+///     // name ends with "example"
+///     assert!(name.contains("example"));
+/// }
+/// example();
+/// ```
+#[macro_export]
+macro_rules! current_fn_name {
+    () => {{
+        fn f() {}
+        fn type_name_of<T>(_: T) -> &'static str {
+            std::any::type_name::<T>()
+        }
+        let full = type_name_of(f);
+        // Strip the trailing "::f" (3 chars) added by the inner fn
+        &full[..full.len() - 3]
+    }};
+}
+
+/// Creates an [`ErrorFrame`] capturing the current source file, line, and
+/// function name via built-in macros.
+///
+/// Two forms:
+/// - `ctx!("literal message")` — zero-allocation borrowed string.
+/// - `ctx!("fmt {}", arg)` — allocated owned string via `format!`.
+///
+/// # Examples
+///
+/// ```
+/// use oximedia_core::{ctx, error_context::ErrorFrame};
+///
+/// let frame: ErrorFrame = ctx!("something failed");
+/// assert!(frame.to_string().contains("something failed"));
+///
+/// let n = 42u32;
+/// let frame2: ErrorFrame = ctx!("value was {}", n);
+/// assert!(frame2.to_string().contains("42"));
+/// ```
+#[macro_export]
+macro_rules! ctx {
+    ($msg:literal) => {
+        $crate::error_context::ErrorFrame {
+            file: file!(),
+            line: line!(),
+            function: $crate::current_fn_name!(),
+            message: std::borrow::Cow::Borrowed($msg),
+        }
+    };
+    ($fmt:expr, $($arg:tt)*) => {
+        $crate::error_context::ErrorFrame {
+            file: file!(),
+            line: line!(),
+            function: $crate::current_fn_name!(),
+            message: std::borrow::Cow::Owned(format!($fmt, $($arg)*)),
+        }
+    };
+}
+
+// ---------------------------------------------------------------------------
+// OxiErrorExt
+// ---------------------------------------------------------------------------
+
+/// Extension trait that attaches an [`ErrorFrame`] as additional context to
+/// any error type that implements [`std::error::Error`].
+///
+/// This avoids a dependency on `anyhow` by embedding the frame's `Display`
+/// representation into a new [`crate::error::OxiError::InvalidData`] wrapper.
+pub trait OxiErrorExt: Sized {
+    /// Wraps `self` by prepending the frame's display string as context.
+    fn with_oxi_context(self, frame: ErrorFrame) -> crate::error::OxiError;
+}
+
+impl<E: std::error::Error> OxiErrorExt for E {
+    fn with_oxi_context(self, frame: ErrorFrame) -> crate::error::OxiError {
+        crate::error::OxiError::InvalidData(format!("{frame}\ncaused by: {self}"))
+    }
+}
+
+// ---------------------------------------------------------------------------
 
 /// Structured context attached to a single error occurrence.
 ///
 /// Records where an error happened (`component`, `operation`) and a
 /// human-readable `message`.  Optional key/value pairs may carry additional
-/// diagnostic information.
+/// diagnostic information.  An ordered list of [`ErrorFrame`] records captures
+/// the source locations where context was attached via the `ctx!` macro.
 ///
 /// # Examples
 ///
 /// ```
-/// use oximedia_core::error_context::ErrorContext;
+/// use oximedia_core::error_context::{ErrorContext, ErrorFrame};
 ///
-/// let ctx = ErrorContext::new("muxer", "write_header", "disk full");
+/// let mut ctx = ErrorContext::new("muxer", "write_header", "disk full");
 /// assert_eq!(ctx.component(), "muxer");
 /// assert_eq!(ctx.operation(), "write_header");
 /// assert_eq!(ctx.message(), "disk full");
+///
+/// ctx.push_frame(ErrorFrame {
+///     file: "src/muxer.rs",
+///     line: 99,
+///     function: "write_header",
+///     message: std::borrow::Cow::Borrowed("disk full"),
+/// });
+/// assert_eq!(ctx.frame_count(), 1);
 /// ```
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone)]
 pub struct ErrorContext {
     component: String,
     operation: String,
     message: String,
     fields: HashMap<String, String>,
+    /// Ordered list of source-location frames attached via [`ctx!`].
+    frames: Vec<ErrorFrame>,
 }
+
+/// `ErrorContext` values are compared by component, operation, message, and fields only.
+/// The `frames` chain is intentionally excluded from equality so that adding trace
+/// frames does not alter the identity of an error context.
+impl PartialEq for ErrorContext {
+    fn eq(&self, other: &Self) -> bool {
+        self.component == other.component
+            && self.operation == other.operation
+            && self.message == other.message
+            && self.fields == other.fields
+    }
+}
+
+impl Eq for ErrorContext {}
 
 impl ErrorContext {
     /// Creates a new context with the given component, operation, and message.
@@ -54,7 +263,74 @@ impl ErrorContext {
             operation: operation.to_owned(),
             message: message.to_owned(),
             fields: HashMap::new(),
+            frames: Vec::new(),
         }
+    }
+
+    /// Appends an [`ErrorFrame`] to the context chain.
+    ///
+    /// Frames accumulate in the order they are pushed (earliest first).
+    pub fn push_frame(&mut self, frame: ErrorFrame) {
+        self.frames.push(frame);
+    }
+
+    /// Consumes `self`, appends `frame`, and returns the modified context.
+    ///
+    /// Useful for method chaining.
+    #[must_use]
+    pub fn with_frame(mut self, frame: ErrorFrame) -> Self {
+        self.frames.push(frame);
+        self
+    }
+
+    /// Returns the number of frames in the context chain.
+    #[must_use]
+    pub fn frame_count(&self) -> usize {
+        self.frames.len()
+    }
+
+    /// Returns an iterator over the attached frames (earliest first).
+    pub fn frames(&self) -> impl Iterator<Item = &ErrorFrame> {
+        self.frames.iter()
+    }
+
+    /// Returns a multi-line string rendering of all attached frames,
+    /// or `"(no context frames)"` if the chain is empty.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use oximedia_core::error_context::{ErrorContext, ErrorFrame};
+    ///
+    /// let mut ctx = ErrorContext::new("a", "b", "c");
+    /// ctx.push_frame(ErrorFrame {
+    ///     file: "x.rs", line: 1, function: "f",
+    ///     message: std::borrow::Cow::Borrowed("first"),
+    /// });
+    /// ctx.push_frame(ErrorFrame {
+    ///     file: "y.rs", line: 2, function: "g",
+    ///     message: std::borrow::Cow::Borrowed("second"),
+    /// });
+    /// let s = ctx.frames_display();
+    /// assert!(s.contains("first"));
+    /// assert!(s.contains("second"));
+    /// ```
+    #[must_use]
+    pub fn frames_display(&self) -> String {
+        if self.frames.is_empty() {
+            return "(no context frames)".to_owned();
+        }
+        self.frames
+            .iter()
+            .enumerate()
+            .map(|(i, f)| {
+                if i == 0 {
+                    f.to_string()
+                } else {
+                    format!("\n{f}")
+                }
+            })
+            .collect()
     }
 
     /// Returns the name of the component that raised the error.
@@ -256,6 +532,7 @@ impl ErrorContextBuilder {
             operation: self.operation,
             message: self.message,
             fields: self.fields,
+            frames: Vec::new(),
         }
     }
 }

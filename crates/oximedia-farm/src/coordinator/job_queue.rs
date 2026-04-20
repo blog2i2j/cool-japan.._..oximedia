@@ -218,10 +218,9 @@ impl JobQueue {
             .update_task_state(task_id, TaskState::Assigned, Some(worker_id.clone()))?;
 
         // Track the assignment in-memory for fast worker-based lookup
-        let mut assignments = self
-            .worker_assignments
-            .lock()
-            .expect("lock should not be poisoned");
+        let mut assignments = self.worker_assignments.lock().map_err(|e| {
+            FarmError::Coordinator(format!("worker_assignments lock poisoned: {e}"))
+        })?;
         assignments
             .entry(worker_id.clone())
             .or_default()
@@ -326,10 +325,9 @@ impl JobQueue {
 
         // Drain the worker's task list from the in-memory assignment map
         let task_ids: Vec<TaskId> = {
-            let mut assignments = self
-                .worker_assignments
-                .lock()
-                .expect("lock should not be poisoned");
+            let mut assignments = self.worker_assignments.lock().map_err(|e| {
+                FarmError::Coordinator(format!("worker_assignments lock poisoned: {e}"))
+            })?;
             assignments.remove(worker_id).unwrap_or_default()
         };
 
@@ -574,14 +572,14 @@ fn derive_capabilities_from_task_type(task_type: &str) -> Vec<String> {
 mod tests {
     use super::*;
 
-    async fn create_test_queue() -> JobQueue {
-        let db = Arc::new(Database::in_memory().unwrap());
-        JobQueue::new(db, 100, 100)
+    async fn create_test_queue() -> Result<JobQueue> {
+        let db = Arc::new(Database::in_memory()?);
+        Ok(JobQueue::new(db, 100, 100))
     }
 
     #[tokio::test]
-    async fn test_job_submission() {
-        let queue = create_test_queue().await;
+    async fn test_job_submission() -> Result<()> {
+        let queue = create_test_queue().await?;
 
         let job = Job::new(
             JobType::VideoTranscode,
@@ -590,15 +588,16 @@ mod tests {
             Priority::Normal,
         );
 
-        let job_id = queue.submit_job(job).await.unwrap();
-        let retrieved = queue.get_job(job_id).await.unwrap();
+        let job_id = queue.submit_job(job).await?;
+        let retrieved = queue.get_job(job_id).await?;
         assert_eq!(retrieved.id, job_id);
         assert_eq!(retrieved.state, JobState::Queued);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_task_assignment() {
-        let queue = create_test_queue().await;
+    async fn test_task_assignment() -> Result<()> {
+        let queue = create_test_queue().await?;
 
         let job = Job::new(
             JobType::VideoTranscode,
@@ -607,23 +606,23 @@ mod tests {
             Priority::Normal,
         );
 
-        let job_id = queue.submit_job(job).await.unwrap();
-        let job = queue.get_job(job_id).await.unwrap();
+        let job_id = queue.submit_job(job).await?;
+        let job = queue.get_job(job_id).await?;
         let task_id = job.tasks[0].task_id;
 
         queue
             .assign_task(task_id, WorkerId::new("worker-1"))
-            .await
-            .unwrap();
+            .await?;
 
         // Verify task was assigned
-        let updated_job = queue.get_job(job_id).await.unwrap();
+        let updated_job = queue.get_job(job_id).await?;
         assert_eq!(updated_job.tasks[0].state, TaskState::Assigned);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_task_progress() {
-        let queue = create_test_queue().await;
+    async fn test_task_progress() -> Result<()> {
+        let queue = create_test_queue().await?;
 
         let job = Job::new(
             JobType::VideoTranscode,
@@ -632,19 +631,20 @@ mod tests {
             Priority::Normal,
         );
 
-        let job_id = queue.submit_job(job).await.unwrap();
-        let job = queue.get_job(job_id).await.unwrap();
+        let job_id = queue.submit_job(job).await?;
+        let job = queue.get_job(job_id).await?;
         let task_id = job.tasks[0].task_id;
 
-        queue.update_task_progress(task_id, 0.5).await.unwrap();
+        queue.update_task_progress(task_id, 0.5).await?;
 
-        let updated_job = queue.get_job(job_id).await.unwrap();
+        let updated_job = queue.get_job(job_id).await?;
         assert!((updated_job.tasks[0].progress - 0.5).abs() < 0.01);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_job_cancellation() {
-        let queue = create_test_queue().await;
+    async fn test_job_cancellation() -> Result<()> {
+        let queue = create_test_queue().await?;
 
         let job = Job::new(
             JobType::VideoTranscode,
@@ -653,11 +653,12 @@ mod tests {
             Priority::Normal,
         );
 
-        let job_id = queue.submit_job(job).await.unwrap();
-        queue.cancel_job(job_id).await.unwrap();
+        let job_id = queue.submit_job(job).await?;
+        queue.cancel_job(job_id).await?;
 
-        let job = queue.get_job(job_id).await.unwrap();
+        let job = queue.get_job(job_id).await?;
         assert_eq!(job.state, JobState::Cancelled);
+        Ok(())
     }
 
     #[test]
@@ -723,8 +724,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_reassign_worker_tasks() {
-        let queue = create_test_queue().await;
+    async fn test_reassign_worker_tasks() -> Result<()> {
+        let queue = create_test_queue().await?;
         let worker_id = WorkerId::new("worker-99");
 
         // Submit a job and get its task
@@ -734,28 +735,29 @@ mod tests {
             "/output/test.mp4".to_string(),
             Priority::Normal,
         );
-        let job_id = queue.submit_job(job).await.unwrap();
-        let job = queue.get_job(job_id).await.unwrap();
+        let job_id = queue.submit_job(job).await?;
+        let job = queue.get_job(job_id).await?;
         let task_id = job.tasks[0].task_id;
 
         // Assign the task to a worker
-        queue.assign_task(task_id, worker_id.clone()).await.unwrap();
+        queue.assign_task(task_id, worker_id.clone()).await?;
 
         // Verify the task is assigned
-        let updated_job = queue.get_job(job_id).await.unwrap();
+        let updated_job = queue.get_job(job_id).await?;
         assert_eq!(updated_job.tasks[0].state, TaskState::Assigned);
 
         // Reassign (simulating worker going offline)
-        queue.reassign_worker_tasks(&worker_id).await.unwrap();
+        queue.reassign_worker_tasks(&worker_id).await?;
 
         // The task should be reset to Pending
-        let reset_job = queue.get_job(job_id).await.unwrap();
+        let reset_job = queue.get_job(job_id).await?;
         assert_eq!(reset_job.tasks[0].state, TaskState::Pending);
+        Ok(())
     }
 
     #[tokio::test]
-    async fn test_worker_assignments_tracked_in_memory() {
-        let queue = create_test_queue().await;
+    async fn test_worker_assignments_tracked_in_memory() -> Result<()> {
+        let queue = create_test_queue().await?;
         let worker_id = WorkerId::new("worker-mem");
 
         // Submit two jobs
@@ -766,98 +768,102 @@ mod tests {
                 "/output/test.mp4".to_string(),
                 Priority::Normal,
             );
-            let job_id = queue.submit_job(job).await.unwrap();
-            let job = queue.get_job(job_id).await.unwrap();
+            let job_id = queue.submit_job(job).await?;
+            let job = queue.get_job(job_id).await?;
             queue
                 .assign_task(job.tasks[0].task_id, worker_id.clone())
-                .await
-                .unwrap();
+                .await?;
         }
 
         // Verify in-memory tracking has 2 task IDs for this worker
         {
-            let assignments = queue.worker_assignments.lock().unwrap();
-            let tasks = assignments.get(&worker_id).unwrap();
+            let assignments = queue
+                .worker_assignments
+                .lock()
+                .map_err(|e| FarmError::Coordinator(format!("lock poisoned: {e}")))?;
+            let tasks = assignments.get(&worker_id).ok_or_else(|| {
+                FarmError::NotFound("worker not found in assignments".to_string())
+            })?;
             assert_eq!(tasks.len(), 2);
         }
 
         // Reassign clears the worker entry
-        queue.reassign_worker_tasks(&worker_id).await.unwrap();
+        queue.reassign_worker_tasks(&worker_id).await?;
         {
-            let assignments = queue.worker_assignments.lock().unwrap();
+            let assignments = queue
+                .worker_assignments
+                .lock()
+                .map_err(|e| FarmError::Coordinator(format!("lock poisoned: {e}")))?;
             assert!(!assignments.contains_key(&worker_id));
         }
+        Ok(())
     }
 
     // ── Task H: output validator integration tests ─────────────────────────────
 
-    #[test]
-    fn test_validate_job_output_missing_file_returns_completed() {
-        let queue = tokio::runtime::Runtime::new()
-            .expect("create tokio runtime")
-            .block_on(create_test_queue());
+    #[tokio::test]
+    async fn test_validate_job_output_missing_file_returns_completed() -> Result<()> {
+        let queue = create_test_queue().await?;
         // A non-existent absolute path is treated as a simulated/pending job —
         // the validator passes through to allow integration tests that don't
         // actually write output files.
-        let state =
-            queue.validate_job_output_and_pick_state("/tmp/oximedia_missing_output_xyz123.mp4");
+        let p = std::env::temp_dir().join("oximedia-farm-jq-missing_output_xyz123.mp4");
+        let state = queue.validate_job_output_and_pick_state(p.to_string_lossy().as_ref());
         assert_eq!(state, Some(JobState::Completed));
+        Ok(())
     }
 
-    #[test]
-    fn test_validate_job_output_valid_large_file_returns_completed() {
+    #[tokio::test]
+    async fn test_validate_job_output_valid_large_file_returns_completed() -> Result<()> {
         use std::io::Write;
         let path = std::env::temp_dir().join("oximedia_farm_valid_output.mp4");
         {
-            let mut f = std::fs::File::create(&path).expect("create temp file");
+            let mut f = std::fs::File::create(&path)?;
             // Write > 1 KB so it gets Completed (not CompletedWithWarnings).
-            f.write_all(&vec![0u8; 2_048]).expect("write large content");
+            f.write_all(&vec![0u8; 2_048])?;
         }
 
-        let queue = tokio::runtime::Runtime::new()
-            .expect("create tokio runtime")
-            .block_on(create_test_queue());
-        let state = queue.validate_job_output_and_pick_state(path.to_str().expect("path to str"));
+        let queue = create_test_queue().await?;
+        let path_str = path.to_string_lossy();
+        let state = queue.validate_job_output_and_pick_state(path_str.as_ref());
         assert_eq!(state, Some(JobState::Completed));
         let _ = std::fs::remove_file(&path);
+        Ok(())
     }
 
-    #[test]
-    fn test_validate_job_output_small_file_returns_completed_with_warnings() {
+    #[tokio::test]
+    async fn test_validate_job_output_small_file_returns_completed_with_warnings() -> Result<()> {
         use std::io::Write;
         let path = std::env::temp_dir().join("oximedia_farm_small_output.mp4");
         {
-            let mut f = std::fs::File::create(&path).expect("create temp file");
+            let mut f = std::fs::File::create(&path)?;
             // 100 bytes — valid but small → CompletedWithWarnings.
-            f.write_all(b"small file content ok!")
-                .expect("write small content");
+            f.write_all(b"small file content ok!")?;
         }
 
-        let queue = tokio::runtime::Runtime::new()
-            .expect("create tokio runtime")
-            .block_on(create_test_queue());
-        let state = queue.validate_job_output_and_pick_state(path.to_str().expect("path to str"));
+        let queue = create_test_queue().await?;
+        let path_str = path.to_string_lossy();
+        let state = queue.validate_job_output_and_pick_state(path_str.as_ref());
         assert_eq!(state, Some(JobState::CompletedWithWarnings));
         let _ = std::fs::remove_file(&path);
+        Ok(())
     }
 
-    #[test]
-    fn test_validate_job_output_empty_path_returns_completed() {
-        let queue = tokio::runtime::Runtime::new()
-            .expect("create tokio runtime")
-            .block_on(create_test_queue());
+    #[tokio::test]
+    async fn test_validate_job_output_empty_path_returns_completed() -> Result<()> {
+        let queue = create_test_queue().await?;
         // Empty path — synthetic/mock job, should not block.
         let state = queue.validate_job_output_and_pick_state("");
         assert_eq!(state, Some(JobState::Completed));
+        Ok(())
     }
 
-    #[test]
-    fn test_validate_job_output_relative_path_returns_completed() {
-        let queue = tokio::runtime::Runtime::new()
-            .expect("create tokio runtime")
-            .block_on(create_test_queue());
+    #[tokio::test]
+    async fn test_validate_job_output_relative_path_returns_completed() -> Result<()> {
+        let queue = create_test_queue().await?;
         // Relative path — treated as synthetic.
         let state = queue.validate_job_output_and_pick_state("relative/output.mp4");
         assert_eq!(state, Some(JobState::Completed));
+        Ok(())
     }
 }

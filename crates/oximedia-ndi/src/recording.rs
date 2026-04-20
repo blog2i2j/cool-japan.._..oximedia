@@ -469,15 +469,16 @@ mod tests {
 
     #[test]
     fn test_segment_path_format() {
+        let dir = std::env::temp_dir().join("oximedia-ndi-recordings");
         let config = RecordingConfig {
-            output_dir: PathBuf::from("/tmp/recordings"),
+            output_dir: dir.clone(),
             file_prefix: "stream".to_string(),
             extension: "mov".to_string(),
             ..Default::default()
         };
         let s = RecordingSession::new(config);
         let p = s.segment_path(7);
-        assert_eq!(p, PathBuf::from("/tmp/recordings/stream_0007.mov"));
+        assert_eq!(p, dir.join("stream_0007.mov"));
     }
 
     #[test]
@@ -515,9 +516,10 @@ mod tests {
 
     #[test]
     fn test_config_builder() {
-        let cfg = RecordingConfig::with_dir("/tmp/out")
+        let dir = std::env::temp_dir().join("oximedia-ndi-rec-out");
+        let cfg = RecordingConfig::with_dir(dir.clone())
             .segment(SegmentPolicy::MaxFrames(100));
-        assert_eq!(cfg.output_dir, PathBuf::from("/tmp/out"));
+        assert_eq!(cfg.output_dir, dir);
         assert!(matches!(cfg.segment_policy, SegmentPolicy::MaxFrames(100)));
     }
 }

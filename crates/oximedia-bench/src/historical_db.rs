@@ -888,9 +888,13 @@ mod tests {
 
     #[test]
     fn test_db_append_and_query() {
+        let db_path = std::env::temp_dir()
+            .join("oximedia-bench-histdb-noop.ndjson")
+            .to_string_lossy()
+            .into_owned();
         let cfg = HistoricalDbConfig::new()
             .with_flush_on_append(false)
-            .with_db_path("/tmp/test_hist_db_noop.ndjson");
+            .with_db_path(db_path);
         let mut db = HistoricalDb::new(cfg);
         db.append(make_entry("b1", CodecId::Av1, "fps", 30.0, 100))
             .expect("append should succeed");

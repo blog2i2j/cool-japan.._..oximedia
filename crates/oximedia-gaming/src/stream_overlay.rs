@@ -270,7 +270,10 @@ mod tests {
     fn test_image_element_is_transparent_true() {
         let img = ImageElement {
             base: make_elem(3, 0.0, 0.0, 100.0, 100.0),
-            src_path: "/tmp/logo.png".to_string(),
+            src_path: std::env::temp_dir()
+                .join("oximedia-gaming-overlay-logo.png")
+                .to_string_lossy()
+                .into_owned(),
             opacity: 0.0,
         };
         assert!(img.is_transparent());
@@ -280,7 +283,10 @@ mod tests {
     fn test_image_element_is_transparent_false() {
         let img = ImageElement {
             base: make_elem(4, 0.0, 0.0, 100.0, 100.0),
-            src_path: "/tmp/logo.png".to_string(),
+            src_path: std::env::temp_dir()
+                .join("oximedia-gaming-overlay-logo.png")
+                .to_string_lossy()
+                .into_owned(),
             opacity: 0.5,
         };
         assert!(!img.is_transparent());

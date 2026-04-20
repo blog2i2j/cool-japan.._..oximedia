@@ -333,9 +333,9 @@ mod tests {
         (0..(width * height)).map(|i| (i % 256) as u8).collect()
     }
 
-    fn make_cache(capacity: usize, tile_size: u32) -> TextureCache {
+    fn make_cache(capacity: usize, tile_size: u32) -> Result<TextureCache, CacheError> {
         let data = make_texture(16, 16);
-        TextureCache::new(16, 16, tile_size, capacity, data).unwrap()
+        TextureCache::new(16, 16, tile_size, capacity, data)
     }
 
     // ── TileKey ───────────────────────────────────────────────────────────────
@@ -405,60 +405,65 @@ mod tests {
     // ── fetch: hit / miss tracking ────────────────────────────────────────────
 
     #[test]
-    fn test_fetch_first_access_is_miss() {
-        let mut cache = make_cache(8, 4);
-        let _ = cache.fetch(0, 0).unwrap();
+    fn test_fetch_first_access_is_miss() -> Result<(), CacheError> {
+        let mut cache = make_cache(8, 4)?;
+        let _ = cache.fetch(0, 0)?;
         assert_eq!(cache.stats().misses, 1);
         assert_eq!(cache.stats().hits, 0);
+        Ok(())
     }
 
     #[test]
-    fn test_fetch_second_access_same_tile_is_hit() {
-        let mut cache = make_cache(8, 4);
-        let _ = cache.fetch(0, 0).unwrap();
-        let _ = cache.fetch(1, 1).unwrap(); // same tile (tile 0,0)
+    fn test_fetch_second_access_same_tile_is_hit() -> Result<(), CacheError> {
+        let mut cache = make_cache(8, 4)?;
+        let _ = cache.fetch(0, 0)?;
+        let _ = cache.fetch(1, 1)?; // same tile (tile 0,0)
         assert_eq!(cache.stats().misses, 1);
         assert_eq!(cache.stats().hits, 1);
+        Ok(())
     }
 
     #[test]
-    fn test_fetch_correct_texel_value() {
+    fn test_fetch_correct_texel_value() -> Result<(), CacheError> {
         let data = make_texture(16, 16);
         let expected_at_3_5 = data[5 * 16 + 3];
-        let mut cache = TextureCache::new(16, 16, 4, 8, data).unwrap();
-        let val = cache.fetch(3, 5).unwrap();
+        let mut cache = TextureCache::new(16, 16, 4, 8, data)?;
+        let val = cache.fetch(3, 5)?;
         assert_eq!(val, expected_at_3_5);
+        Ok(())
     }
 
     #[test]
-    fn test_fetch_out_of_bounds() {
-        let mut cache = make_cache(4, 4);
+    fn test_fetch_out_of_bounds() -> Result<(), CacheError> {
+        let mut cache = make_cache(4, 4)?;
         let err = cache.fetch(16, 0);
         assert!(matches!(err, Err(CacheError::OutOfBounds { .. })));
+        Ok(())
     }
 
     // ── LRU eviction ─────────────────────────────────────────────────────────
 
     #[test]
-    fn test_lru_eviction_when_full() {
+    fn test_lru_eviction_when_full() -> Result<(), CacheError> {
         // 2-tile cache; access 3 different tiles → first tile should be evicted.
-        let mut cache = make_cache(2, 4); // 16×16 / 4×4 = 16 tiles
-        cache.fetch(0, 0).unwrap(); // tile (0,0) loaded
-        cache.fetch(4, 0).unwrap(); // tile (1,0) loaded — cache full
-                                    // Access a third tile → (0,0) should be evicted (LRU)
-        cache.fetch(8, 0).unwrap(); // tile (2,0) loaded
+        let mut cache = make_cache(2, 4)?; // 16×16 / 4×4 = 16 tiles
+        cache.fetch(0, 0)?; // tile (0,0) loaded
+        cache.fetch(4, 0)?; // tile (1,0) loaded — cache full
+                            // Access a third tile → (0,0) should be evicted (LRU)
+        cache.fetch(8, 0)?; // tile (2,0) loaded
         assert_eq!(cache.stats().evictions, 1);
         assert_eq!(cache.resident_count(), 2);
+        Ok(())
     }
 
     #[test]
-    fn test_lru_promotion_prevents_eviction() {
-        let mut cache = make_cache(2, 4);
-        cache.fetch(0, 0).unwrap(); // (0,0) loaded → LRU = [(0,0)]
-        cache.fetch(4, 0).unwrap(); // (1,0) loaded → LRU = [(1,0), (0,0)]
-        cache.fetch(0, 0).unwrap(); // (0,0) hit → promoted → LRU = [(0,0),(1,0)]
-                                    // Load new tile → (1,0) evicted, not (0,0)
-        cache.fetch(8, 0).unwrap();
+    fn test_lru_promotion_prevents_eviction() -> Result<(), CacheError> {
+        let mut cache = make_cache(2, 4)?;
+        cache.fetch(0, 0)?; // (0,0) loaded → LRU = [(0,0)]
+        cache.fetch(4, 0)?; // (1,0) loaded → LRU = [(1,0), (0,0)]
+        cache.fetch(0, 0)?; // (0,0) hit → promoted → LRU = [(0,0),(1,0)]
+                            // Load new tile → (1,0) evicted, not (0,0)
+        cache.fetch(8, 0)?;
         let key_0_0 = TileKey {
             tile_x: 0,
             tile_y: 0,
@@ -467,48 +472,52 @@ mod tests {
             cache.is_resident(key_0_0),
             "promoted tile should survive eviction"
         );
+        Ok(())
     }
 
     // ── prefetch ──────────────────────────────────────────────────────────────
 
     #[test]
-    fn test_prefetch_loads_tile_without_hit_count() {
-        let mut cache = make_cache(8, 4);
-        cache.prefetch(0, 0).unwrap();
+    fn test_prefetch_loads_tile_without_hit_count() -> Result<(), CacheError> {
+        let mut cache = make_cache(8, 4)?;
+        cache.prefetch(0, 0)?;
         assert_eq!(cache.stats().prefetches, 1);
         assert_eq!(cache.stats().hits, 0);
         assert_eq!(cache.stats().misses, 0);
         // Subsequent fetch should be a hit.
-        cache.fetch(0, 0).unwrap();
+        cache.fetch(0, 0)?;
         assert_eq!(cache.stats().hits, 1);
+        Ok(())
     }
 
     #[test]
-    fn test_prefetch_already_resident_is_noop() {
-        let mut cache = make_cache(8, 4);
-        cache.fetch(0, 0).unwrap(); // miss → tile loaded
-        cache.prefetch(0, 0).unwrap(); // already resident → no prefetch count
+    fn test_prefetch_already_resident_is_noop() -> Result<(), CacheError> {
+        let mut cache = make_cache(8, 4)?;
+        cache.fetch(0, 0)?; // miss → tile loaded
+        cache.prefetch(0, 0)?; // already resident → no prefetch count
         assert_eq!(cache.stats().prefetches, 0);
+        Ok(())
     }
 
     // ── flush and invalidate ──────────────────────────────────────────────────
 
     #[test]
-    fn test_flush_clears_cache() {
-        let mut cache = make_cache(8, 4);
-        cache.fetch(0, 0).unwrap();
-        cache.fetch(4, 0).unwrap();
+    fn test_flush_clears_cache() -> Result<(), CacheError> {
+        let mut cache = make_cache(8, 4)?;
+        cache.fetch(0, 0)?;
+        cache.fetch(4, 0)?;
         assert_eq!(cache.resident_count(), 2);
         cache.flush();
         assert_eq!(cache.resident_count(), 0);
         // Stats should be preserved
         assert_eq!(cache.stats().misses, 2);
+        Ok(())
     }
 
     #[test]
-    fn test_invalidate_tile() {
-        let mut cache = make_cache(8, 4);
-        cache.fetch(0, 0).unwrap();
+    fn test_invalidate_tile() -> Result<(), CacheError> {
+        let mut cache = make_cache(8, 4)?;
+        cache.fetch(0, 0)?;
         let key = TileKey {
             tile_x: 0,
             tile_y: 0,
@@ -517,22 +526,25 @@ mod tests {
         assert!(!cache.is_resident(key));
         // Second invalidation should return false.
         assert!(!cache.invalidate_tile(key));
+        Ok(())
     }
 
     // ── grid_size ─────────────────────────────────────────────────────────────
 
     #[test]
-    fn test_grid_size_exact_division() {
+    fn test_grid_size_exact_division() -> Result<(), CacheError> {
         let data = vec![0u8; 64];
-        let cache = TextureCache::new(8, 8, 4, 4, data).unwrap();
+        let cache = TextureCache::new(8, 8, 4, 4, data)?;
         assert_eq!(cache.grid_size(), (2, 2));
+        Ok(())
     }
 
     #[test]
-    fn test_grid_size_non_exact() {
+    fn test_grid_size_non_exact() -> Result<(), CacheError> {
         let data = vec![0u8; 100];
-        let cache = TextureCache::new(10, 10, 4, 4, data).unwrap();
+        let cache = TextureCache::new(10, 10, 4, 4, data)?;
         // ceil(10/4) = 3
         assert_eq!(cache.grid_size(), (3, 3));
+        Ok(())
     }
 }

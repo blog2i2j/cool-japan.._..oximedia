@@ -229,7 +229,7 @@ impl IceAgent {
         *self
             .gathering_state
             .lock()
-            .expect("gathering_state mutex poisoned") = IceGatheringState::Gathering;
+            .unwrap_or_else(|e| e.into_inner()) = IceGatheringState::Gathering;
 
         let mut candidates = Vec::new();
 
@@ -249,11 +249,11 @@ impl IceAgent {
         *self
             .local_candidates
             .lock()
-            .expect("local_candidates mutex poisoned") = candidates.clone();
+            .unwrap_or_else(|e| e.into_inner()) = candidates.clone();
         *self
             .gathering_state
             .lock()
-            .expect("gathering_state mutex poisoned") = IceGatheringState::Complete;
+            .unwrap_or_else(|e| e.into_inner()) = IceGatheringState::Complete;
 
         Ok(candidates)
     }
@@ -377,7 +377,7 @@ impl IceAgent {
         let mut remote = self
             .remote_candidates
             .lock()
-            .expect("remote_candidates mutex poisoned");
+            .unwrap_or_else(|e| e.into_inner());
         remote.push(candidate);
 
         // Create candidate pairs
@@ -395,12 +395,12 @@ impl IceAgent {
         let local = self
             .local_candidates
             .lock()
-            .expect("local_candidates mutex poisoned");
+            .unwrap_or_else(|e| e.into_inner());
         let remote = self
             .remote_candidates
             .lock()
-            .expect("remote_candidates mutex poisoned");
-        let mut pairs = self.pairs.lock().expect("pairs mutex poisoned");
+            .unwrap_or_else(|e| e.into_inner());
+        let mut pairs = self.pairs.lock().unwrap_or_else(|e| e.into_inner());
 
         pairs.clear();
 
@@ -421,16 +421,16 @@ impl IceAgent {
 
     /// Performs connectivity checks.
     pub async fn check_connectivity(&self) -> NetResult<()> {
-        *self.state.lock().expect("state mutex poisoned") = IceConnectionState::Checking;
+        *self.state.lock().unwrap_or_else(|e| e.into_inner()) = IceConnectionState::Checking;
 
         // Get pairs to check
         let pairs_to_check = {
-            let pairs = self.pairs.lock().expect("pairs mutex poisoned");
+            let pairs = self.pairs.lock().unwrap_or_else(|e| e.into_inner());
             pairs.clone()
         };
 
         if pairs_to_check.is_empty() {
-            *self.state.lock().expect("state mutex poisoned") = IceConnectionState::Failed;
+            *self.state.lock().unwrap_or_else(|e| e.into_inner()) = IceConnectionState::Failed;
             return Err(NetError::connection("No candidate pairs to check"));
         }
 
@@ -438,16 +438,14 @@ impl IceAgent {
         for pair in &pairs_to_check {
             if let Ok(true) = self.check_pair(pair).await {
                 // Found a working pair
-                *self
-                    .selected_pair
-                    .lock()
-                    .expect("selected_pair mutex poisoned") = Some(pair.clone());
-                *self.state.lock().expect("state mutex poisoned") = IceConnectionState::Connected;
+                *self.selected_pair.lock().unwrap_or_else(|e| e.into_inner()) = Some(pair.clone());
+                *self.state.lock().unwrap_or_else(|e| e.into_inner()) =
+                    IceConnectionState::Connected;
                 return Ok(());
             }
         }
 
-        *self.state.lock().expect("state mutex poisoned") = IceConnectionState::Failed;
+        *self.state.lock().unwrap_or_else(|e| e.into_inner()) = IceConnectionState::Failed;
         Err(NetError::connection("No valid candidate pairs found"))
     }
 
@@ -458,16 +456,19 @@ impl IceAgent {
 
         // Create or reuse socket
         let socket = {
-            let mut sock = self.socket.lock().expect("socket mutex poisoned");
-            if sock.is_none() {
-                let new_sock = TokioUdpSocket::bind(local_addr)
-                    .await
-                    .map_err(|e| NetError::connection(format!("Failed to bind: {e}")))?;
-                *sock = Some(Arc::new(new_sock));
+            let mut sock = self.socket.lock().unwrap_or_else(|e| e.into_inner());
+            match sock.as_ref() {
+                Some(s) => s.clone(),
+                None => {
+                    let new_sock = Arc::new(
+                        TokioUdpSocket::bind(local_addr)
+                            .await
+                            .map_err(|e| NetError::connection(format!("Failed to bind: {e}")))?,
+                    );
+                    *sock = Some(new_sock.clone());
+                    new_sock
+                }
             }
-            sock.as_ref()
-                .expect("invariant: socket is Some (just set above)")
-                .clone()
         };
 
         // Build STUN binding request
@@ -521,7 +522,7 @@ impl IceAgent {
     /// Gets the connection state.
     #[must_use]
     pub fn state(&self) -> IceConnectionState {
-        *self.state.lock().expect("state mutex poisoned")
+        *self.state.lock().unwrap_or_else(|e| e.into_inner())
     }
 
     /// Gets the gathering state.
@@ -530,7 +531,7 @@ impl IceAgent {
         *self
             .gathering_state
             .lock()
-            .expect("gathering_state mutex poisoned")
+            .unwrap_or_else(|e| e.into_inner())
     }
 
     /// Gets local candidates.
@@ -538,7 +539,7 @@ impl IceAgent {
     pub fn local_candidates(&self) -> Vec<IceCandidate> {
         self.local_candidates
             .lock()
-            .expect("local_candidates mutex poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
     }
 
@@ -547,14 +548,17 @@ impl IceAgent {
     pub fn selected_pair(&self) -> Option<CandidatePair> {
         self.selected_pair
             .lock()
-            .expect("selected_pair mutex poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
     }
 
     /// Gets the socket for data transmission.
     #[must_use]
     pub fn socket(&self) -> Option<Arc<TokioUdpSocket>> {
-        self.socket.lock().expect("socket mutex poisoned").clone()
+        self.socket
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 }
 

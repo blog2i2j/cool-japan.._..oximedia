@@ -226,7 +226,11 @@ mod tests {
 
     #[test]
     fn test_index_field_stored_not_searchable() {
-        let f = IndexField::stored("path", "/tmp/a.mp4");
+        let path = std::env::temp_dir()
+            .join("oximedia-search-indexbuilder-a.mp4")
+            .to_string_lossy()
+            .into_owned();
+        let f = IndexField::stored("path", path);
         assert!(!f.searchable);
     }
 

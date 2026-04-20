@@ -30,7 +30,10 @@ impl TwoPassExample {
             width,
             height,
             target_bitrate,
-            stats_file: "/tmp/multipass_stats.txt".to_string(),
+            stats_file: std::env::temp_dir()
+                .join("oximedia-multipass-stats.txt")
+                .to_string_lossy()
+                .into_owned(),
         }
     }
 

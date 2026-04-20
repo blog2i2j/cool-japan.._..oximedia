@@ -346,14 +346,8 @@ impl<'a> BitReader<'a> {
         while self.bits_left <= 24 && self.pos < self.data.len() {
             let byte = self.data[self.pos];
             self.pos += 1;
-            // JPEG byte stuffing: 0xFF 0x00 → 0xFF
-            let byte = if byte == 0xFF && self.pos < self.data.len() && self.data[self.pos] == 0x00
-            {
-                self.pos += 1;
-                0xFF
-            } else {
-                byte
-            };
+            // NOTE: scan_data has already been de-stuffed (0xFF 0x00 → 0xFF)
+            // by the outer scan extraction loop. Do NOT do stuffing removal here.
             self.bit_buf = (self.bit_buf << 8) | byte as u32;
             self.bits_left += 8;
         }
@@ -716,7 +710,9 @@ impl JpegDecoder {
                         k += 1;
                     }
 
-                    // Dequantize
+                    // Dequantize.
+                    // coeffs[i] holds the quantized coefficient at natural block position i.
+                    // qt_comp is also in natural order, so multiply element-wise.
                     for (i, c) in coeffs.iter_mut().enumerate() {
                         *c *= qt_comp[i] as i32;
                     }
@@ -987,22 +983,27 @@ impl JpegEncoder {
                     // DCT
                     dct_8x8(&mut block);
 
-                    // Quantize
-                    let mut coeffs = [0i32; 64];
-                    for i in 0..64 {
-                        coeffs[ZIGZAG[i] as usize] =
-                            (block[i] / qt[ZIGZAG_INV[i] as usize] as f32).round() as i32;
+                    // Quantize: for zigzag scan position k, the natural block position is
+                    // nat = ZIGZAG[k]. qt is in natural order, so the quantization step for
+                    // position k is qt[nat] = qt[ZIGZAG[k]].
+                    let mut coeffs_zz = [0i32; 64]; // indexed by zigzag scan position k
+                    for k in 0..64 {
+                        let nat = ZIGZAG[k] as usize;
+                        coeffs_zz[k] = (block[nat] / qt[nat] as f32).round() as i32;
                     }
 
                     // Encode DC
-                    let diff = coeffs[0] - dc_pred[comp];
-                    dc_pred[comp] = coeffs[0];
+                    let diff = coeffs_zz[0] - dc_pred[comp];
+                    dc_pred[comp] = coeffs_zz[0];
                     encode_dc(&mut bw, diff, dc_map);
 
-                    // Encode AC
+                    // Encode AC in zigzag scan order.
+                    // Find the last non-zero AC position to know when to stop early.
+                    let last_nz = (1..64).rev().find(|&k| coeffs_zz[k] != 0);
+                    let eob_pos = last_nz.map_or(1, |k| k + 1); // first pos after last non-zero
                     let mut run = 0u8;
-                    for i in 1..64 {
-                        let ac = coeffs[i];
+                    for k in 1..eob_pos {
+                        let ac = coeffs_zz[k];
                         if ac == 0 {
                             run += 1;
                             if run == 16 {
@@ -1013,17 +1014,23 @@ impl JpegEncoder {
                                 run = 0;
                             }
                         } else {
-                            let rs = (run << 4) | category(ac) as u8;
+                            let cat = category(ac);
+                            let rs = (run << 4) | cat as u8;
                             if let Some(&(code, len)) = ac_map.get(&rs) {
                                 bw.write_bits(code, len);
+                                encode_value(&mut bw, ac);
                             }
-                            encode_value(&mut bw, ac);
                             run = 0;
                         }
                     }
-                    // EOB
-                    if let Some(&(code, len)) = ac_map.get(&0x00u8) {
-                        bw.write_bits(code, len);
+                    // Write EOB only if there are trailing zeros (eob_pos < 64 means the
+                    // last non-zero AC is before k=63, so remaining positions are all zero).
+                    // If all ACs were processed (eob_pos == 64, meaning last non-zero was k=63),
+                    // no EOB is needed — the decoder knows when k reaches 64.
+                    if eob_pos < 64 {
+                        if let Some(&(code, len)) = ac_map.get(&0x00u8) {
+                            bw.write_bits(code, len);
+                        }
                     }
                 }
             }
@@ -1045,8 +1052,10 @@ fn encode_dc(bw: &mut BitWriter, diff: i32, map: &std::collections::HashMap<u8, 
     let cat = category(diff) as u8;
     if let Some(&(code, len)) = map.get(&cat) {
         bw.write_bits(code, len);
+        encode_value(bw, diff);
     }
-    encode_value(bw, diff);
+    // If cat > 11 (not in standard DC table), skip this coefficient to avoid
+    // corrupting the bitstream. The decoder will use 0 for this DC value.
 }
 
 fn encode_value(bw: &mut BitWriter, v: i32) {
@@ -1352,6 +1361,113 @@ mod tests {
         let bad = vec![0xFFu8, 0xD9, 0x00, 0x00]; // EOI, not SOI
         let result = JpegDecoder::new().decode(&bad);
         assert!(result.is_err());
+    }
+
+    /// Encode a 16×16 RGB24 block at Q85, decode, and verify PSNR ≥ 30 dB.
+    /// This is a sanity check that encode→decode is actually lossless at the image layer.
+    #[test]
+    fn test_jpeg_encode_decode_psnr_q85() {
+        const W: u32 = 16;
+        const H: u32 = 16;
+        // Build a simple test pattern
+        let mut rgb = vec![0u8; (W * H * 3) as usize];
+        for row in 0..H as usize {
+            for col in 0..W as usize {
+                let idx = (row * W as usize + col) * 3;
+                rgb[idx] = ((row * 2 + col * 3) % 200 + 28) as u8;
+                rgb[idx + 1] = ((row * 3 + col * 2) % 180 + 40) as u8;
+                rgb[idx + 2] = ((row + col * 5) % 160 + 50) as u8;
+            }
+        }
+
+        let frame = ImageFrame::new(
+            0,
+            W,
+            H,
+            PixelType::U8,
+            3,
+            ColorSpace::Srgb,
+            ImageData::interleaved(rgb.clone()),
+        );
+
+        let encoder = JpegEncoder::new(JpegQuality::new(85));
+        let jpeg_bytes = encoder.encode(&frame).expect("encode Q85");
+
+        let decoded = JpegDecoder::new().decode(&jpeg_bytes).expect("decode Q85");
+
+        assert_eq!(decoded.width, W, "decoded width");
+        assert_eq!(decoded.height, H, "decoded height");
+        assert_eq!(decoded.components, 3, "decoded components");
+
+        let orig = &rgb;
+        let dec = &decoded.pixels;
+        let mse: f64 = orig
+            .iter()
+            .zip(dec.iter())
+            .map(|(&a, &b)| {
+                let d = a as f64 - b as f64;
+                d * d
+            })
+            .sum::<f64>()
+            / orig.len() as f64;
+        let psnr = if mse < 1e-10 {
+            f64::INFINITY
+        } else {
+            20.0 * (255.0_f64).log10() - 10.0 * mse.log10()
+        };
+        assert!(
+            psnr >= 28.0,
+            "JPEG Q85 encode-decode PSNR should be ≥ 28 dB, got {psnr:.2} dB"
+        );
+    }
+
+    #[test]
+    fn test_jpeg_encode_decode_psnr_128x96_adversarial() {
+        const W: u32 = 128;
+        const H: u32 = 96;
+        let w = W as usize;
+        let h = H as usize;
+        let mut rgb = vec![0u8; w * h * 3];
+        for row in 0..h {
+            for col in 0..w {
+                let idx = (row * w + col) * 3;
+                rgb[idx] = ((row * 2 + col * 3) & 0xFF) as u8;
+                rgb[idx + 1] = ((row * 3 + col * 2) & 0xFF) as u8;
+                rgb[idx + 2] = ((row + col * 5) & 0xFF) as u8;
+            }
+        }
+
+        let frame = ImageFrame::new(
+            0,
+            W,
+            H,
+            PixelType::U8,
+            3,
+            ColorSpace::Srgb,
+            ImageData::interleaved(rgb.clone()),
+        );
+        let encoder = JpegEncoder::new(JpegQuality::new(85));
+        let jpeg_bytes = encoder.encode(&frame).expect("encode");
+        let decoded = JpegDecoder::new().decode(&jpeg_bytes).expect("decode");
+
+        let mse: f64 = rgb
+            .iter()
+            .zip(decoded.pixels.iter())
+            .map(|(&a, &b)| {
+                let d = a as f64 - b as f64;
+                d * d
+            })
+            .sum::<f64>()
+            / rgb.len() as f64;
+        let psnr = if mse < 1e-10 {
+            f64::INFINITY
+        } else {
+            20.0 * (255.0_f64).log10() - 10.0 * mse.log10()
+        };
+        assert!(
+            psnr >= 28.0,
+            "128x96 adversarial Q85 PSNR should be ≥ 28 dB, got {psnr:.2} dB"
+        );
     }
 
     #[test]

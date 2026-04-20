@@ -8,14 +8,34 @@
 - Modules: demux/, mux/, metadata/, chapters/, fragment/, streaming/, data/ (telemetry/GPS), edit/, tracks/, attach/, cue/, etc.
 
 ## Enhancements
-- [ ] Complete MP4 muxer (currently only demuxer exists in `demux/mp4/`; no `mux/mp4/`)
+- [x] mp4-muxer — muxer exists at mux/mp4/ (5 files: basic.rs, simple.rs, mod.rs, facade.rs, writer.rs); fMP4 fragmented mode tracked by Wave 3 Slice D
 - [ ] Extend `demux/matroska/parser.rs` with full support for Matroska v4 elements (Block Addition Mappings)
 - [ ] Add sample-accurate seeking in `seek.rs` for all container formats (not just keyframe-based)
-- [ ] Extend `metadata/editor.rs` with batch tag operations (copy all tags between files)
+- [x] Extend `metadata/editor.rs` with batch tag operations (copy all tags between files)
 - [ ] Improve `streaming/mux.rs` with CMAF low-latency chunked transfer encoding
 - [ ] Add edit list support in `edit_list.rs` for gapless audio and trimmed video playback
-- [ ] Extend `demux/mpegts/` with SCTE-35 ad insertion marker parsing
+- [x] Extend `demux/mpegts/` with SCTE-35 ad insertion marker parsing and mux emission
 - [ ] Add `container_probe.rs` detailed stream analysis (bitrate distribution, keyframe interval)
+
+## Wave 2 Progress (2026-04-17)
+- [x] AVI container: muxer (mux/avi/writer.rs) + demuxer (demux/avi/reader.rs) implemented — MJPEG-only, ≤1 GB. Wave 2 Slice F (2026-04-17). Follow-ups: OpenDML >1GB, audio streams, non-MJPEG codecs.
+- [x] MKV MJPEG support: V_MJPEG codec ID now emitted correctly. Wave 2 Slice B.
+- [x] MKV APV support: V_MS/VFW/FOURCC with BITMAPINFOHEADER CodecPrivate (biCompression=apv1). Wave 2 Slice B.
+
+## Wave 3 Progress (2026-04-17)
+- [x] AVI v3: OpenDML >1 GB super-index, PCM audio track, H264/RGB24 codec FourCCs — Slice C of /ultra Wave 3 (2026-04-17)
+- [x] MP4 muxer gap-fill: fMP4 fragmented mode (moof+mdat+sidx), AV1 av1C, MJPEG/APV codec arms — Slice D of /ultra Wave 3 (2026-04-17)
+- [x] Matroska+streaming: sample-accurate seek (Cues walk+decode-skip), gapless elst, DASH SegmentTemplate — Slice F of /ultra Wave 3 (2026-04-17)
+
+## Wave 4 Progress (2026-04-18)
+- [x] mkv-v4-blockadd: BlockAdditionMappingType 4 (HDR10+) + 5 (DV EL) emit+parse — Wave 4 Slice D
+- [x] seek-sample-accurate-all: extend MKV pattern to MP4 (stss+stts+ctts) + AVI (idx1/super-index) — Wave 4 Slice D
+- [x] cmaf-ll-chunked: CmafChunkedMode with moof+mdat per chunk, styp=cmfl, prft boxes — Wave 4 Slice D
+
+## Wave 5 Progress (2026-04-18)
+- [x] scte35-parse-emit: `parse_splice_info_section()` free function + `emit_time_signal/splice_null/splice_insert` — demux/mpegts/scte35 + mux/mpegts/scte35, re-exported from crate root — Wave 5 Slice D
+- [x] metadata-batch: `BatchMetadataUpdate` builder + `BatchResult` in `metadata/batch.rs`, re-exported from crate root — Wave 5 Slice D
+- [x] integration tests: `tests/scte35_parse.rs` (9 tests) + `tests/metadata_batch.rs` (12 tests) smoke-testing public re-exports — Wave 5 Slice D
 
 ## New Features
 - [x] Implement CAF (Core Audio Format) demuxer/muxer for Apple ecosystem compatibility

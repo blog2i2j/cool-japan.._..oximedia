@@ -302,6 +302,13 @@ impl Default for FileIntegrityChecker {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-forensics-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_integrity_check_severity_ordering() {
         assert!(IntegrityCheck::Ok.severity() < IntegrityCheck::Info.severity());
@@ -327,13 +334,13 @@ mod tests {
 
     #[test]
     fn test_file_integrity_has_no_issues_when_empty() {
-        let fi = FileIntegrity::new("/tmp/clean.mp4");
+        let fi = FileIntegrity::new(tmp_str("clean.mp4"));
         assert!(!fi.has_issues());
     }
 
     #[test]
     fn test_file_integrity_has_issues_with_warning() {
-        let mut fi = FileIntegrity::new("/tmp/warn.mp4");
+        let mut fi = FileIntegrity::new(tmp_str("warn.mp4"));
         fi.add_finding(IntegrityFinding::new(
             IntegrityCheck::Warning,
             "test",
@@ -344,7 +351,7 @@ mod tests {
 
     #[test]
     fn test_file_integrity_max_severity() {
-        let mut fi = FileIntegrity::new("/tmp/test.mp4");
+        let mut fi = FileIntegrity::new(tmp_str("test.mp4"));
         fi.add_finding(IntegrityFinding::new(IntegrityCheck::Info, "a", "info"));
         fi.add_finding(IntegrityFinding::new(IntegrityCheck::Error, "b", "error"));
         assert_eq!(fi.max_severity(), IntegrityCheck::Error);
@@ -352,7 +359,7 @@ mod tests {
 
     #[test]
     fn test_file_integrity_count_at_level() {
-        let mut fi = FileIntegrity::new("/tmp/test.mp4");
+        let mut fi = FileIntegrity::new(tmp_str("test.mp4"));
         fi.add_finding(IntegrityFinding::new(IntegrityCheck::Warning, "a", "w1"));
         fi.add_finding(IntegrityFinding::new(IntegrityCheck::Warning, "b", "w2"));
         fi.add_finding(IntegrityFinding::new(IntegrityCheck::Error, "c", "e1"));
@@ -363,7 +370,7 @@ mod tests {
     #[test]
     fn test_checker_empty_file_critical() {
         let checker = FileIntegrityChecker::new();
-        let fi = checker.check("/tmp/empty.mp4", &[]);
+        let fi = checker.check(tmp_str("empty.mp4"), &[]);
         assert_eq!(fi.max_severity(), IntegrityCheck::Critical);
     }
 
@@ -375,7 +382,7 @@ mod tests {
             0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00,
             0x00, 0x01, 0x01,
         ];
-        let fi = checker.check("/tmp/test.jpg", &data);
+        let fi = checker.check(tmp_str("test.jpg"), &data);
         let ok_count = fi.count_at_level(IntegrityCheck::Ok);
         assert!(
             ok_count > 0,
@@ -390,7 +397,7 @@ mod tests {
             0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88,
             0x99, 0x00,
         ];
-        let fi = checker.check("/tmp/unknown.bin", &data);
+        let fi = checker.check(tmp_str("unknown.bin"), &data);
         assert!(fi.count_at_level(IntegrityCheck::Error) > 0);
     }
 
@@ -403,21 +410,24 @@ mod tests {
             0x44, 0x52,
         ];
         data.extend_from_slice(&[0x00, 0x00, 0x00, 0x00]); // trailing zeros
-        let fi = checker.check("/tmp/trunc.png", &data);
+        let fi = checker.check(tmp_str("trunc.png"), &data);
         assert!(fi.count_at_level(IntegrityCheck::Warning) > 0);
     }
 
     #[test]
     fn test_integrity_result_critical_count() {
         let checker = FileIntegrityChecker::new();
-        let result = checker.report([("/tmp/a.mp4", [].as_slice()), ("/tmp/b.mp4", [].as_slice())]);
+        let a = tmp_str("a.mp4");
+        let b = tmp_str("b.mp4");
+        let result = checker.report([(a.as_str(), [].as_slice()), (b.as_str(), [].as_slice())]);
         assert_eq!(result.critical_count(), 2);
     }
 
     #[test]
     fn test_integrity_result_all_clean_false_when_issues() {
         let checker = FileIntegrityChecker::new();
-        let result = checker.report([("/tmp/bad.mp4", [].as_slice())]);
+        let bad = tmp_str("bad.mp4");
+        let result = checker.report([(bad.as_str(), [].as_slice())]);
         assert!(!result.all_clean());
     }
 
@@ -428,10 +438,9 @@ mod tests {
             0xFF, 0xD8, 0xFF, 0xE0u8, 0x00, 0x10, 0x4A, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x00,
             0x00, 0x01, 0x01,
         ];
-        let result = checker.report([
-            ("/tmp/a.jpg", jpeg.as_slice()),
-            ("/tmp/b.jpg", jpeg.as_slice()),
-        ]);
+        let a = tmp_str("a.jpg");
+        let b = tmp_str("b.jpg");
+        let result = checker.report([(a.as_str(), jpeg.as_slice()), (b.as_str(), jpeg.as_slice())]);
         assert_eq!(result.file_count(), 2);
     }
 }

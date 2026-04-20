@@ -457,7 +457,12 @@ mod tests {
 
     #[test]
     fn test_lazy_essence_debug_repr() {
-        let e = LazyEssence::new(PathBuf::from("/tmp/x.aaf"), 0, 10, "Sound".to_string());
+        let e = LazyEssence::new(
+            std::env::temp_dir().join("oximedia-aaf-lazy-essence-x.aaf"),
+            0,
+            10,
+            "Sound".to_string(),
+        );
         let s = format!("{e:?}");
         assert!(s.contains("LazyEssence"));
         assert!(s.contains("loaded: false"));
@@ -477,7 +482,12 @@ mod tests {
     #[test]
     fn test_collection_add_and_get() {
         let mut c = EssenceCollection::new();
-        let e = LazyEssence::new(PathBuf::from("/tmp/a.aaf"), 0, 100, "Picture".to_string());
+        let e = LazyEssence::new(
+            std::env::temp_dir().join("oximedia-aaf-lazy-essence-a.aaf"),
+            0,
+            100,
+            "Picture".to_string(),
+        );
         c.add(e);
         assert_eq!(c.len(), 1);
         assert!(c.get(0).is_some());

@@ -97,8 +97,10 @@ impl TokenAuth {
         let expires_at = Utc::now() + expires_in;
         let payload = format!("{stream_key}:{app_name}:{}", expires_at.timestamp());
 
-        let mut mac = Hmac::<Sha256>::new_from_slice(&self.secret_key)
-            .expect("HMAC can take key of any size");
+        // Hmac::<Sha256>::new_from_slice accepts keys of any length; error is unreachable.
+        let Ok(mut mac) = Hmac::<Sha256>::new_from_slice(&self.secret_key) else {
+            return String::new();
+        };
         mac.update(payload.as_bytes());
         let signature = mac.finalize().into_bytes();
 
@@ -136,8 +138,10 @@ impl TokenAuth {
 
         // Verify signature
         let payload = format!("{token_stream_key}:{token_app_name}:{expires_str}");
-        let mut mac = Hmac::<Sha256>::new_from_slice(&self.secret_key)
-            .expect("HMAC can take key of any size");
+        // Hmac::<Sha256>::new_from_slice accepts keys of any length; error is unreachable.
+        let Ok(mut mac) = Hmac::<Sha256>::new_from_slice(&self.secret_key) else {
+            return false;
+        };
         mac.update(payload.as_bytes());
         let expected_signature = mac.finalize().into_bytes();
         let expected_hex = hex::encode(expected_signature);

@@ -43,10 +43,13 @@ pub struct EchoEmbedder {
 
 impl EchoEmbedder {
     /// Create a new echo embedder.
-    #[must_use]
-    pub fn new(config: EchoConfig) -> Self {
-        let codec = PayloadCodec::new(16, 8).expect("should succeed in test");
-        Self { config, codec }
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the Reed-Solomon codec cannot be initialised.
+    pub fn new(config: EchoConfig) -> WatermarkResult<Self> {
+        let codec = PayloadCodec::new(16, 8)?;
+        Ok(Self { config, codec })
     }
 
     /// Embed watermark using echo hiding.
@@ -118,10 +121,13 @@ pub struct EchoDetector {
 
 impl EchoDetector {
     /// Create a new echo detector.
-    #[must_use]
-    pub fn new(config: EchoConfig) -> Self {
-        let codec = PayloadCodec::new(16, 8).expect("should succeed in test");
-        Self { config, codec }
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if the Reed-Solomon codec cannot be initialised.
+    pub fn new(config: EchoConfig) -> WatermarkResult<Self> {
+        let codec = PayloadCodec::new(16, 8)?;
+        Ok(Self { config, codec })
     }
 
     /// Detect and extract watermark.
@@ -291,8 +297,8 @@ mod tests {
     #[test]
     fn test_echo_embedding() {
         let config = EchoConfig::default();
-        let embedder = EchoEmbedder::new(config.clone());
-        let detector = EchoDetector::new(config.clone());
+        let embedder = EchoEmbedder::new(config.clone()).unwrap();
+        let detector = EchoDetector::new(config.clone()).unwrap();
 
         // Payload "Echo Test" (9 bytes) encodes to ~280 bits with PayloadCodec(16,8).
         // Each bit needs kernel_size=512 samples, so we need at least 280*512=143360.
@@ -326,7 +332,7 @@ mod tests {
     #[test]
     fn test_autocorrelation() {
         let config = EchoConfig::default();
-        let detector = EchoDetector::new(config.clone());
+        let detector = EchoDetector::new(config.clone()).unwrap();
 
         let samples: Vec<f32> = (0..1000)
             .map(|i| {
@@ -360,7 +366,7 @@ mod tests {
     #[test]
     fn test_capacity() {
         let config = EchoConfig::default();
-        let embedder = EchoEmbedder::new(config);
+        let embedder = EchoEmbedder::new(config).unwrap();
 
         let capacity = embedder.capacity(44100); // 1 second at 44.1kHz
         assert!(capacity > 0);

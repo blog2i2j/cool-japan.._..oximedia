@@ -497,7 +497,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cmd_analyze_missing_file() {
-        let path = PathBuf::from("/tmp/oximedia_normalize_nonexistent_99.wav");
+        let path = std::env::temp_dir().join("oximedia_normalize_nonexistent_99.wav");
         let result = cmd_analyze(&path, "ebu", "text").await;
         assert!(result.is_err());
     }
@@ -514,7 +514,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cmd_check_missing_file() {
-        let path = PathBuf::from("/tmp/oximedia_normalize_check_missing.wav");
+        let path = std::env::temp_dir().join("oximedia_normalize_check_missing.wav");
         let result = cmd_check(&path, "spotify", false, false).await;
         assert!(result.is_err());
     }
@@ -531,7 +531,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_cmd_process_missing_input() {
-        let input = PathBuf::from("/tmp/oximedia_normalize_proc_missing.wav");
+        let input = std::env::temp_dir().join("oximedia_normalize_proc_missing.wav");
         let output = std::env::temp_dir().join("oximedia_normalize_proc_out.wav");
         let result = cmd_process(&input, &output, -23.0, -1.0, "text").await;
         assert!(result.is_err());

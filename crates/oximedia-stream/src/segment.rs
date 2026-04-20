@@ -452,6 +452,8 @@ mod tests {
     use super::*;
     use std::thread::sleep;
 
+    type TestResult = Result<(), Box<dyn std::error::Error>>;
+
     fn make_segment(seq: u64, duration: f64) -> Segment {
         Segment::new(
             seq,
@@ -462,8 +464,8 @@ mod tests {
         )
     }
 
-    fn default_watermarks() -> WatermarkConfig {
-        WatermarkConfig::new(5.0, 15.0, 30.0).unwrap()
+    fn default_watermarks() -> StreamResult<WatermarkConfig> {
+        WatermarkConfig::new(5.0, 15.0, 30.0)
     }
 
     #[test]
@@ -483,27 +485,28 @@ mod tests {
     }
 
     #[test]
-    fn test_segment_state_machine() {
+    fn test_segment_state_machine() -> TestResult {
         let mut seg = make_segment(1, 4.0);
         assert_eq!(seg.state, SegmentState::Requested);
 
-        seg.begin_download().unwrap();
+        seg.begin_download()?;
         assert!(matches!(seg.state, SegmentState::Downloading { .. }));
 
-        seg.finish_download(500_000).unwrap();
+        seg.finish_download(500_000)?;
         assert!(matches!(seg.state, SegmentState::Downloaded { .. }));
 
-        seg.begin_decode().unwrap();
+        seg.begin_decode()?;
         assert!(matches!(seg.state, SegmentState::Decoding { .. }));
 
-        seg.finish_decode().unwrap();
+        seg.finish_decode()?;
         assert!(matches!(seg.state, SegmentState::Buffered { .. }));
 
-        seg.begin_play().unwrap();
+        seg.begin_play()?;
         assert_eq!(seg.state, SegmentState::Playing);
 
-        seg.evict().unwrap();
+        seg.evict()?;
         assert_eq!(seg.state, SegmentState::Evicted);
+        Ok(())
     }
 
     #[test]
@@ -514,56 +517,57 @@ mod tests {
     }
 
     #[test]
-    fn test_segment_fail_from_any_state() {
+    fn test_segment_fail_from_any_state() -> TestResult {
         let mut seg = make_segment(3, 4.0);
-        seg.begin_download().unwrap();
+        seg.begin_download()?;
         seg.fail("network error");
         assert!(matches!(seg.state, SegmentState::Failed { .. }));
+        Ok(())
     }
 
     #[test]
-    fn test_buffer_push_and_occupancy() {
-        let wm = default_watermarks();
+    fn test_buffer_push_and_occupancy() -> TestResult {
+        let wm = default_watermarks()?;
         let mut buf = SegmentBuffer::new(wm);
         let seg = make_segment(1, 4.0);
-        buf.push(seg).unwrap();
+        buf.push(seg)?;
         // Segment in Requested state doesn't count toward occupancy.
         assert_eq!(buf.occupancy_secs(), 0.0);
+        Ok(())
     }
 
     #[test]
-    fn test_buffer_full_error() {
-        let wm = WatermarkConfig::new(2.0, 5.0, 8.0).unwrap();
+    fn test_buffer_full_error() -> TestResult {
+        let wm = WatermarkConfig::new(2.0, 5.0, 8.0)?;
         let mut buf = SegmentBuffer::new(wm);
         // Use transition to put segment in Buffered state so it counts toward occupancy.
-        buf.push(make_segment(1, 4.0)).unwrap();
+        buf.push(make_segment(1, 4.0))?;
         buf.transition(1, |s| {
             s.begin_download()?;
             s.finish_download(0)?;
             s.begin_decode()?;
             s.finish_decode().map(|_| ())
-        })
-        .unwrap();
+        })?;
         // Occupancy is now 4.0s. Trying to push a 5.0s segment (would be 9.0 > 8.0) should fail.
         let big = make_segment(2, 5.0);
         assert!(matches!(buf.push(big), Err(StreamError::BufferFull { .. })));
+        Ok(())
     }
 
     #[test]
-    fn test_high_watermark_event() {
-        let wm = WatermarkConfig::new(2.0, 10.0, 30.0).unwrap();
+    fn test_high_watermark_event() -> TestResult {
+        let wm = WatermarkConfig::new(2.0, 10.0, 30.0)?;
         let mut buf = SegmentBuffer::new(wm);
 
         // Add and buffer 12 seconds of segments.
         for i in 0..3u64 {
-            buf.push(make_segment(i, 4.0)).unwrap();
+            buf.push(make_segment(i, 4.0))?;
             buf.transition(i, |s| {
                 s.begin_download()?;
                 s.finish_download(0)?;
                 s.begin_decode()?;
                 s.finish_decode().map(|_| ())
-            })
-            .unwrap();
+            })?;
         }
 
         let events = buf.drain_events();
@@ -574,13 +578,14 @@ mod tests {
             has_high,
             "should emit HighWatermark when crossing threshold"
         );
+        Ok(())
     }
 
     #[test]
-    fn test_evicted_segments_pruned() {
-        let wm = default_watermarks();
+    fn test_evicted_segments_pruned() -> TestResult {
+        let wm = default_watermarks()?;
         let mut buf = SegmentBuffer::new(wm);
-        buf.push(make_segment(1, 4.0)).unwrap();
+        buf.push(make_segment(1, 4.0))?;
 
         // Walk segment through full lifecycle.
         buf.transition(1, |s| {
@@ -588,10 +593,9 @@ mod tests {
             s.finish_download(0)?;
             s.begin_decode()?;
             s.finish_decode().map(|_| ())
-        })
-        .unwrap();
-        buf.transition(1, |s| s.begin_play()).unwrap();
-        buf.transition(1, |s| s.evict()).unwrap();
+        })?;
+        buf.transition(1, |s| s.begin_play())?;
+        buf.transition(1, |s| s.evict())?;
 
         let events = buf.drain_events();
         let pruned = events
@@ -599,21 +603,23 @@ mod tests {
             .any(|e| matches!(e, LifecycleEvent::SegmentPruned { sequence_number: 1 }));
         assert!(pruned, "evicted segment should be pruned and event emitted");
         assert!(buf.is_empty(), "buffer should be empty after eviction");
+        Ok(())
     }
 
     #[test]
-    fn test_get_mut_not_found() {
-        let wm = default_watermarks();
+    fn test_get_mut_not_found() -> TestResult {
+        let wm = default_watermarks()?;
         let mut buf = SegmentBuffer::new(wm);
         assert!(buf.get_mut(999).is_none());
+        Ok(())
     }
 
     #[test]
-    fn test_download_duration_captured() {
+    fn test_download_duration_captured() -> TestResult {
         let mut seg = make_segment(10, 4.0);
-        seg.begin_download().unwrap();
+        seg.begin_download()?;
         sleep(Duration::from_millis(1));
-        seg.finish_download(1024).unwrap();
+        seg.finish_download(1024)?;
         if let SegmentState::Downloaded {
             download_duration,
             byte_length,
@@ -624,5 +630,6 @@ mod tests {
         } else {
             panic!("expected Downloaded state");
         }
+        Ok(())
     }
 }

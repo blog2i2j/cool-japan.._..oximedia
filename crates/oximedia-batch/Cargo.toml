@@ -22,7 +22,6 @@ oximedia-core = { workspace = true }
 oximedia-transcode = { workspace = true }
 oximedia-qc = { workspace = true }
 oximedia-workflow = { workspace = true }
-oximedia-farm = { workspace = true }
 oximedia-monitor = { workspace = true }
 oximedia-metadata = { workspace = true }
 thiserror = { workspace = true }
@@ -47,6 +46,7 @@ hex = "0.4"
 num_cpus = "1.17"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+oximedia-farm = { workspace = true }
 hostname = "0.4"
 tokio = { workspace = true }
 rusqlite = { workspace = true, optional = true }

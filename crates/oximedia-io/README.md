@@ -1,46 +1,57 @@
 # oximedia-io
 
-![Status: Stable](https://img.shields.io/badge/status-stable-green)
-![Version: 0.1.3](https://img.shields.io/badge/version-0.1.3-blue)
+![Version: 0.1.4](https://img.shields.io/badge/version-0.1.4-blue)
+![Tests: 607](https://img.shields.io/badge/tests-607-brightgreen)
+![Updated: 2026-04-20](https://img.shields.io/badge/updated-2026--04--20-blue)
 
-I/O layer for the OxiMedia multimedia framework, providing async media sources, bit-level reading, buffered I/O, memory-mapped files, checksums, compression, and pipeline I/O utilities.
+> I/O layer for the OxiMedia multimedia framework.
 
-Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
+Part of the [OxiMedia](https://github.com/cool-japan/oximedia) multimedia framework.
 
 ## Features
 
-- **Media Sources** — Async file, memory, and seekable sources
-- **Bit-Level I/O** — Bit reader with Exp-Golomb coding for binary format parsing
-- **Aligned I/O** — Memory-aligned I/O for optimal DMA performance
-- **Buffered I/O** — Read-ahead buffering with configurable buffer sizes
-- **Memory-Mapped I/O** — mmap-based zero-copy file access
-- **Scatter-Gather I/O** — Vectorized I/O for multi-buffer operations
-- **Chunked Writing** — Write large files in chunks with progress tracking
-- **Copy Engine** — High-throughput async file copy
-- **Checksum** — CRC32, CRC64, SHA-256, BLAKE3 checksumming
-- **Compression** — zstd, LZ4, gzip, bzip2 compress/decompress
-- **Progress Reader** — Async reader with progress callback
-- **Rate Limiter** — Bandwidth-limited I/O for upload/download throttling
-- **Ring Buffer** — Lock-free ring buffer for streaming
-- **Splice Pipe** — Zero-copy splice between descriptors (Linux)
-- **Temp Files** — Secure temporary file creation and management
-- **Verification I/O** — Read-back verification for write integrity
-- **Write Journal** — Journaled writes for crash-safe I/O
-- **File Metadata** — Extended file metadata (size, timestamps, permissions)
-- **File Watch** — File system event watching
-- **I/O Pipeline** — Composable I/O pipeline stages
-- **I/O Stats** — Throughput and latency statistics
+- **Magic-byte format detection** — identifies over 45 media formats (MP4, MKV, AVI, WebM, MXF, FLAC, WAV, PNG, JPEG, WebP, DPX, EXR, JPEG-XL, and more) from a leading-bytes buffer
+- **Media sources** — unified async `MediaSource` trait with `FileSource` (tokio) and `MemorySource` (`bytes::Bytes`) implementations
+- **Bit-level reading** — MSB-first `BitReader` for video bitstream parsing; unsigned and signed Exp-Golomb (`ue(v)` / `se(v)`) coding for H.264-style syntax
+- **MXF probing** — lightweight parser for MXF Header Partition Pack, operational pattern, and essence tracks
+- **Content detection** — text encoding (UTF-8, UTF-16, Latin-1) and binary-vs-text heuristics
+- **Aligned I/O** — memory-aligned reads and writes for DMA-friendly transfers
+- **Buffered I/O** — read-ahead buffering; synchronous buffered reader
+- **Memory-mapped I/O** — zero-copy mmap-based file access
+- **Scatter-gather I/O** — vectorized multi-buffer I/O
+- **Checksums** — CRC32, CRC64, SHA-256, BLAKE3
+- **Compression** — zstd, LZ4, gzip, bzip2 (compress/decompress)
+- **Progress reader** — async reader with callback for upload/download progress
+- **Rate limiter** — bandwidth-limited I/O
+- **Ring buffer** — lock-free ring buffer for streaming pipelines
+- **Retrying source** — automatic retry on transient I/O errors
+- **Chunked writer** — write large outputs in fixed-size chunks
+- **Copy engine** — high-throughput async file copy
+- **Temp files** — secure temporary file creation and cleanup
+- **Verification I/O** — read-back verification for write integrity
+- **Write journal** — journaled writes for crash-safe I/O
+- **File metadata** — extended file attributes (size, timestamps, permissions)
+- **File watching** — file system event watching
 
 ## Usage
 
-Add to your `Cargo.toml`:
-
 ```toml
 [dependencies]
-oximedia-io = "0.1.3"
+oximedia-io = "0.1.4"
 ```
 
-### File Source
+### Detect media format
+
+```rust
+use oximedia_io::format_detector::FormatDetector;
+
+let header = std::fs::read("input.mkv").unwrap();
+let detection = FormatDetector::detect(&header);
+println!("format: {:?}", detection.format);  // MediaFormat::Mkv
+println!("mime:   {}", detection.mime_type); // "video/x-matroska"
+```
+
+### Async file source
 
 ```rust
 use oximedia_io::source::{FileSource, MediaSource};
@@ -48,76 +59,53 @@ use oximedia_io::source::{FileSource, MediaSource};
 #[tokio::main]
 async fn main() -> oximedia_core::OxiResult<()> {
     let mut source = FileSource::open("video.webm").await?;
-
-    let mut buffer = [0u8; 1024];
-    let bytes_read = source.read(&mut buffer).await?;
-
-    println!("Read {} bytes", bytes_read);
+    let mut buf = [0u8; 4096];
+    let n = source.read(&mut buf).await?;
+    println!("read {n} bytes");
     Ok(())
 }
 ```
 
-### BitReader
+### Bit-level parsing (H.264 SPS)
 
 ```rust
 use oximedia_io::bits::BitReader;
 
-fn parse_header(data: &[u8]) {
-    let mut reader = BitReader::new(data);
-    let flag = reader.read_bit().unwrap();
-    let value = reader.read_bits(8).unwrap();
-    let ue_value = reader.read_ue().unwrap();  // Unsigned Exp-Golomb
-    let se_value = reader.read_se().unwrap();  // Signed Exp-Golomb
-}
+let sps = [0x64u8, 0x00, 0x1f];  // profile_idc=100, flags=0, level_idc=31
+let mut r = BitReader::new(&sps);
+let profile_idc = r.read_bits(8).unwrap(); // 100 — High Profile
+let _flags      = r.read_bits(6).unwrap();
+let level_idc   = r.read_bits(8).unwrap(); // 31 — Level 3.1
+assert_eq!(profile_idc, 100);
+assert_eq!(level_idc,    31);
 ```
 
-### Checksum
+### Exp-Golomb coding
 
 ```rust
-use oximedia_io::checksum::{Checksum, ChecksumAlgorithm};
+use oximedia_io::bits::BitReader;
 
-let mut checksum = Checksum::new(ChecksumAlgorithm::Blake3);
-checksum.update(b"media data");
-let digest = checksum.finalize();
+// ue(0) is encoded as a single `1` bit
+let data = [0b10000000u8];
+let mut r = BitReader::new(&data);
+assert_eq!(r.read_exp_golomb().unwrap(), 0);
 ```
 
 ## API Overview
 
-**Core types:**
-- `MediaSource` — Unified async trait for media access
-- `FileSource` — Tokio async file source
-- `MemorySource` — In-memory bytes source
-- `BitReader` — Bit-level binary reader with Exp-Golomb support
+| Type | Description |
+|------|-------------|
+| `MediaSource` | Unified async read trait |
+| `FileSource` | Tokio async file reader (non-WASM) |
+| `MemorySource` | Zero-copy in-memory reader |
+| `BitReader` | MSB-first bit-level reader |
+| `FormatDetector` | Magic-byte media format identifier |
+| `FormatDetection` | Detection result (format, MIME type, extension, confidence) |
+| `MxfInfo` | MXF container probe result |
 
-**Modules:**
-- `source` — Media source traits and implementations
-- `bits` — Bit-level I/O and Exp-Golomb coding
-- `aligned_io` — Memory-aligned I/O
-- `async_io` — Async I/O abstractions
-- `buffered_io` — Buffered read-ahead I/O
-- `mmap` — Memory-mapped file access
-- `scatter_gather` — Vectorized scatter-gather I/O
-- `seekable` — Seekable source utilities
-- `chunked_writer` — Chunked file writing
-- `copy_engine` — High-throughput async copy
-- `checksum` — CRC32/CRC64/SHA-256/BLAKE3 checksums
-- `compression` — zstd/LZ4/gzip/bzip2 compress/decompress
-- `progress_reader` — Progress-reporting async reader
-- `rate_limiter` — Bandwidth throttling
-- `ring_buffer` — Lock-free ring buffer
-- `splice_pipe` — Zero-copy splice (Linux)
-- `temp_files` — Secure temporary file management
-- `verify_io` — Write verification
-- `write_journal` — Journaled writes
-- `file_metadata` — Extended file metadata
-- `file_watch` — File system watcher
-- `io_pipeline` — Composable I/O pipeline
-- `io_stats` — I/O throughput and latency statistics
-- `buffer_pool` — Buffer pool for I/O operations
+## Status
 
-## Design Principles
-
-All I/O operations are async by default, built on tokio. `MemorySource` uses `bytes::Bytes` for zero-copy buffer sharing.
+Alpha — API may change between minor versions.
 
 ## License
 

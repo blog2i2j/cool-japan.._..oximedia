@@ -685,6 +685,13 @@ impl Default for ParallelEncodeBuilder {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-transcode-parallel-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_parallel_config_default() {
         let config = ParallelConfig::default();
@@ -720,8 +727,8 @@ mod tests {
         assert_eq!(encoder.job_count(), 0);
 
         let job = TranscodeConfig {
-            input: Some("/tmp/input.mp4".to_string()),
-            output: Some("/tmp/output.mp4".to_string()),
+            input: Some(tmp_str("input.mp4")),
+            output: Some(tmp_str("output.mp4")),
             ..Default::default()
         };
 
@@ -735,13 +742,13 @@ mod tests {
 
         let jobs = vec![
             TranscodeConfig {
-                input: Some("/tmp/input1.mp4".to_string()),
-                output: Some("/tmp/output1.mp4".to_string()),
+                input: Some(tmp_str("input1.mp4")),
+                output: Some(tmp_str("output1.mp4")),
                 ..Default::default()
             },
             TranscodeConfig {
-                input: Some("/tmp/input2.mp4".to_string()),
-                output: Some("/tmp/output2.mp4".to_string()),
+                input: Some(tmp_str("input2.mp4")),
+                output: Some(tmp_str("output2.mp4")),
                 ..Default::default()
             },
         ];
@@ -755,8 +762,8 @@ mod tests {
         let mut encoder = ParallelEncoder::new(ParallelConfig::default());
 
         let job = TranscodeConfig {
-            input: Some("/tmp/input.mp4".to_string()),
-            output: Some("/tmp/output.mp4".to_string()),
+            input: Some(tmp_str("input.mp4")),
+            output: Some(tmp_str("output.mp4")),
             ..Default::default()
         };
 
@@ -770,8 +777,8 @@ mod tests {
     #[test]
     fn test_parallel_builder() {
         let job = TranscodeConfig {
-            input: Some("/tmp/input.mp4".to_string()),
-            output: Some("/tmp/output.mp4".to_string()),
+            input: Some(tmp_str("input.mp4")),
+            output: Some(tmp_str("output.mp4")),
             ..Default::default()
         };
 

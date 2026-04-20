@@ -472,7 +472,7 @@ mod tests {
             Some(5_000),
             Some(48_000),
         );
-        let r = checker.check_content("ok", Path::new("/tmp/x.av1"), Some(&meta));
+        let r = checker.check_content("ok", &tmp_path("x.av1"), Some(&meta));
         assert!(r.passed, "Issues: {:?}", r.issues);
     }
 
@@ -489,7 +489,7 @@ mod tests {
             None,
             Some(48_000),
         );
-        let r = checker.check_content("no_video", Path::new("/tmp/x.opus"), Some(&meta));
+        let r = checker.check_content("no_video", &tmp_path("x.opus"), Some(&meta));
         assert!(!r.passed);
         assert!(r
             .issues
@@ -510,7 +510,7 @@ mod tests {
             Some(5_000),
             None,
         );
-        let r = checker.check_content("no_audio", Path::new("/tmp/x.av1"), Some(&meta));
+        let r = checker.check_content("no_audio", &tmp_path("x.av1"), Some(&meta));
         assert!(!r.passed);
         assert!(r
             .issues
@@ -531,7 +531,7 @@ mod tests {
             Some(5_000),
             Some(48_000),
         );
-        let r = checker.check_content("bad_vcod", Path::new("/tmp/x.mp4"), Some(&meta));
+        let r = checker.check_content("bad_vcod", &tmp_path("x.mp4"), Some(&meta));
         assert!(!r.passed);
         assert!(r
             .issues
@@ -552,7 +552,7 @@ mod tests {
             Some(5_000),
             Some(48_000),
         );
-        let r = checker.check_content("bad_acod", Path::new("/tmp/x.av1"), Some(&meta));
+        let r = checker.check_content("bad_acod", &tmp_path("x.av1"), Some(&meta));
         assert!(!r.passed);
         assert!(r
             .issues
@@ -573,7 +573,7 @@ mod tests {
             Some(5_000),
             Some(48_000),
         );
-        let r = checker.check_content("short", Path::new("/tmp/x.av1"), Some(&meta));
+        let r = checker.check_content("short", &tmp_path("x.av1"), Some(&meta));
         assert!(!r.passed);
         assert!(r
             .issues
@@ -594,7 +594,7 @@ mod tests {
             Some(5_000),
             Some(48_000),
         );
-        let r = checker.check_content("long", Path::new("/tmp/x.av1"), Some(&meta));
+        let r = checker.check_content("long", &tmp_path("x.av1"), Some(&meta));
         assert!(!r.passed);
         assert!(r
             .issues
@@ -615,7 +615,7 @@ mod tests {
             Some(100),
             Some(48_000),
         );
-        let r = checker.check_content("low_br", Path::new("/tmp/x.av1"), Some(&meta));
+        let r = checker.check_content("low_br", &tmp_path("x.av1"), Some(&meta));
         assert!(!r.passed);
         assert!(r
             .issues
@@ -636,7 +636,7 @@ mod tests {
             Some(5_000),
             Some(22_050),
         );
-        let r = checker.check_content("low_sr", Path::new("/tmp/x.av1"), Some(&meta));
+        let r = checker.check_content("low_sr", &tmp_path("x.av1"), Some(&meta));
         assert!(!r.passed);
         assert!(r
             .issues
@@ -664,7 +664,7 @@ mod tests {
     // 12. Extension inference: .flac → audio only
     #[test]
     fn test_extension_inference_flac() {
-        let meta = infer_metadata_from_extension(Path::new("/tmp/track.flac"));
+        let meta = infer_metadata_from_extension(&tmp_path("track.flac"));
         assert!(meta.has_audio);
         assert!(!meta.has_video);
         assert_eq!(meta.audio_codec.as_deref(), Some("flac"));
@@ -726,8 +726,8 @@ mod tests {
             Some(48_000),
         );
 
-        let r_good = checker.check_content("good", Path::new("/tmp/g.av1"), Some(&good_meta));
-        let r_bad = checker.check_content("bad", Path::new("/tmp/b.av1"), Some(&bad_meta));
+        let r_good = checker.check_content("good", &tmp_path("g.av1"), Some(&good_meta));
+        let r_bad = checker.check_content("bad", &tmp_path("b.av1"), Some(&bad_meta));
 
         let summary = PreflightChecker::summarise(&[r_good, r_bad]);
         assert_eq!(summary.len(), 1);

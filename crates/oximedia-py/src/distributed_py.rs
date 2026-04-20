@@ -156,42 +156,64 @@ impl PyWorkerInfo {
     }
 
     /// Convert to a Python dict.
-    fn to_dict(&self) -> HashMap<String, Py<PyAny>> {
-        Python::attach(|py| {
+    fn to_dict(&self) -> PyResult<HashMap<String, Py<PyAny>>> {
+        Python::attach(|py| -> PyResult<HashMap<String, Py<PyAny>>> {
             let mut m: HashMap<String, Py<PyAny>> = HashMap::new();
             m.insert(
                 "id".to_string(),
-                self.id.clone().into_pyobject(py).expect("str").into(),
+                self.id
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "name".to_string(),
-                self.name.clone().into_pyobject(py).expect("str").into(),
+                self.name
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "address".to_string(),
-                self.address.clone().into_pyobject(py).expect("str").into(),
+                self.address
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "status".to_string(),
-                self.status.clone().into_pyobject(py).expect("str").into(),
+                self.status
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "capabilities".to_string(),
                 self.capabilities
                     .clone()
                     .into_pyobject(py)
-                    .expect("list")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
             m.insert(
                 "completed_jobs".to_string(),
-                self.completed_jobs.into_pyobject(py).expect("int").into(),
+                self.completed_jobs
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "max_concurrent".to_string(),
-                self.max_concurrent.into_pyobject(py).expect("int").into(),
+                self.max_concurrent
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
-            m
+            Ok(m)
         })
     }
 }
@@ -254,27 +276,38 @@ impl PyDistributedJob {
     }
 
     /// Convert to a Python dict.
-    fn to_dict(&self) -> HashMap<String, Py<PyAny>> {
-        Python::attach(|py| {
+    fn to_dict(&self) -> PyResult<HashMap<String, Py<PyAny>>> {
+        Python::attach(|py| -> PyResult<HashMap<String, Py<PyAny>>> {
             let mut m: HashMap<String, Py<PyAny>> = HashMap::new();
             m.insert(
                 "id".to_string(),
-                self.id.clone().into_pyobject(py).expect("str").into(),
+                self.id
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "status".to_string(),
-                self.status.clone().into_pyobject(py).expect("str").into(),
+                self.status
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "progress".to_string(),
-                self.progress.into_pyobject(py).expect("float").into(),
+                self.progress
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "input_path".to_string(),
                 self.input_path
                     .clone()
                     .into_pyobject(py)
-                    .expect("str")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
             m.insert(
@@ -282,26 +315,40 @@ impl PyDistributedJob {
                 self.output_path
                     .clone()
                     .into_pyobject(py)
-                    .expect("str")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
             m.insert(
                 "chunks_total".to_string(),
-                self.chunks_total.into_pyobject(py).expect("int").into(),
+                self.chunks_total
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "chunks_completed".to_string(),
-                self.chunks_completed.into_pyobject(py).expect("int").into(),
+                self.chunks_completed
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "codec".to_string(),
-                self.codec.clone().into_pyobject(py).expect("str").into(),
+                self.codec
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "priority".to_string(),
-                self.priority.clone().into_pyobject(py).expect("str").into(),
+                self.priority
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
-            m
+            Ok(m)
         })
     }
 
@@ -598,6 +645,13 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-py-distrib-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_cluster_config_default() {
         let config = PyClusterConfig::new(None);
@@ -638,8 +692,10 @@ mod tests {
         let config = PyClusterConfig::new(None);
         let mut cluster = PyCluster::new(config);
 
+        let in_s = tmp_str("in.mkv");
+        let out_s = tmp_str("out.webm");
         let job_id = cluster
-            .submit_job("/tmp/in.mkv", "/tmp/out.webm", None, None, None, None)
+            .submit_job(&in_s, &out_s, None, None, None, None)
             .expect("submit_job should succeed");
         assert_eq!(cluster.active_job_count(), 1);
 
@@ -675,8 +731,8 @@ mod tests {
             id: "job-1".to_string(),
             status: "completed".to_string(),
             progress: 1.0,
-            input_path: "/tmp/in.mkv".to_string(),
-            output_path: "/tmp/out.webm".to_string(),
+            input_path: tmp_str("in.mkv"),
+            output_path: tmp_str("out.webm"),
             chunks_total: 4,
             chunks_completed: 4,
             worker_id: Some("worker-1".to_string()),

@@ -104,6 +104,13 @@ pub use types::{
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-net-rtmp-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     // ── stream key validator ──────────────────────────────────────────────────
 
     #[test]
@@ -295,7 +302,7 @@ mod tests {
     #[tokio::test]
     async fn test_recording_session_pause_resume() {
         let registry = RecordingRegistry::new();
-        let id = registry.start_session("live/s", "/tmp/s.flv", 0).await;
+        let id = registry.start_session("live/s", tmp_str("s.flv"), 0).await;
 
         registry.pause_session(id).await;
         let session = registry
@@ -330,9 +337,9 @@ mod tests {
     #[tokio::test]
     async fn test_recording_registry_active_count() {
         let registry = RecordingRegistry::new();
-        let id1 = registry.start_session("live/a", "/tmp/a.flv", 0).await;
-        let id2 = registry.start_session("live/b", "/tmp/b.flv", 0).await;
-        let _id3 = registry.start_session("live/c", "/tmp/c.flv", 0).await;
+        let id1 = registry.start_session("live/a", tmp_str("a.flv"), 0).await;
+        let id2 = registry.start_session("live/b", tmp_str("b.flv"), 0).await;
+        let _id3 = registry.start_session("live/c", tmp_str("c.flv"), 0).await;
 
         assert_eq!(registry.active_count().await, 3);
 
@@ -344,9 +351,15 @@ mod tests {
     #[tokio::test]
     async fn test_recording_registry_sessions_for_stream() {
         let registry = RecordingRegistry::new();
-        let _ = registry.start_session("live/cam", "/tmp/1.flv", 0).await;
-        let _ = registry.start_session("live/cam", "/tmp/2.flv", 0).await;
-        let _ = registry.start_session("live/other", "/tmp/3.flv", 0).await;
+        let _ = registry
+            .start_session("live/cam", tmp_str("1.flv"), 0)
+            .await;
+        let _ = registry
+            .start_session("live/cam", tmp_str("2.flv"), 0)
+            .await;
+        let _ = registry
+            .start_session("live/other", tmp_str("3.flv"), 0)
+            .await;
 
         let cam_sessions = registry.sessions_for_stream("live/cam").await;
         assert_eq!(cam_sessions.len(), 2);
@@ -355,8 +368,8 @@ mod tests {
     #[tokio::test]
     async fn test_recording_registry_prune() {
         let registry = RecordingRegistry::new();
-        let id1 = registry.start_session("s1", "/tmp/1.flv", 0).await;
-        let _id2 = registry.start_session("s2", "/tmp/2.flv", 0).await;
+        let id1 = registry.start_session("s1", tmp_str("p1.flv"), 0).await;
+        let _id2 = registry.start_session("s2", tmp_str("p2.flv"), 0).await;
         registry.finish_session(id1, 1).await;
 
         registry.prune_completed().await;
@@ -459,7 +472,7 @@ mod tests {
 
     #[test]
     fn test_recording_session_duration() {
-        let mut session = RecordingSession::new(1, "s", "/tmp/s.flv", 0);
+        let mut session = RecordingSession::new(1, "s", tmp_str("rs.flv"), 0);
         assert!(session.duration_ms().is_none());
 
         let p1 = MediaPacket {

@@ -378,10 +378,11 @@ impl PredictionEngine {
         let mv = self.get_motion_vector(mode_info, 0);
 
         // Perform motion compensation
+        let ref_frame_inner = ref_frame.as_ref().ok_or_else(|| {
+            CodecError::InvalidBitstream("Reference frame not available".to_string())
+        })?;
         self.motion_compensate(
-            ref_frame
-                .as_ref()
-                .expect("ref_frame is Some: checked is_none() above"),
+            ref_frame_inner,
             x,
             y,
             mv,

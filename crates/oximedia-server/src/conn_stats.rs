@@ -160,7 +160,7 @@ impl ConnectionPool {
     /// Removes all connections that have been idle longer than `timeout`.
     pub fn evict_stale(&mut self, timeout: Duration) {
         self.connections
-            .retain(|_, c| !(c.is_idle() && c.idle_duration() > timeout));
+            .retain(|_, c| !(c.is_idle() && c.idle_duration() >= timeout));
     }
 }
 

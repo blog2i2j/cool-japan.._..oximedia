@@ -593,8 +593,8 @@ mod tests {
     #[test]
     fn test_submit_command() {
         let cmd = DistributedCommand::Submit {
-            input: PathBuf::from("/tmp/test.mkv"),
-            output: PathBuf::from("/tmp/out.webm"),
+            input: std::env::temp_dir().join("test.mkv"),
+            output: std::env::temp_dir().join("out.webm"),
             coordinator: "127.0.0.1:9000".to_string(),
             preset: Some("fast".to_string()),
             priority: Some(2),

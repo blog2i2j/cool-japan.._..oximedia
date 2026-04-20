@@ -1,5 +1,7 @@
 # oximedia-neural
 
+**Status: [Stable]** | Version: 0.1.4 | Tests: 696 | Updated: 2026-04-20
+
 Lightweight neural network inference for media processing — pure Rust tensor ops, conv2d, and pre-defined media models
 
 [![Crates.io](https://img.shields.io/crates/v/oximedia-neural.svg)](https://crates.io/crates/oximedia-neural)

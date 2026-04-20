@@ -266,21 +266,13 @@ impl ToneCurve {
             return self.control_points[0].output;
         }
 
-        // Clamp to range of control points
+        // Clamp to range of control points. len >= 2 is guaranteed by the early returns above.
+        let last = &self.control_points[self.control_points.len() - 1];
         if x <= self.control_points[0].input {
             return self.control_points[0].output;
         }
-        if x >= self
-            .control_points
-            .last()
-            .expect("invariant: control_points non-empty (len>=2 guaranteed by earlier checks)")
-            .input
-        {
-            return self
-                .control_points
-                .last()
-                .expect("invariant: control_points non-empty (len>=2 guaranteed by earlier checks)")
-                .output;
+        if x >= last.input {
+            return last.output;
         }
 
         // Find the segment

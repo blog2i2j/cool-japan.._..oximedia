@@ -345,7 +345,9 @@ mod tests {
 
     #[test]
     fn test_output_structure_creation() {
-        let root = Utf8PathBuf::from("/tmp/output");
+        let root =
+            Utf8PathBuf::from_path_buf(std::env::temp_dir().join("oximedia-packager-output-root"))
+                .expect("temp path should be valid UTF-8");
         let mut structure = OutputStructure::new(root.clone());
 
         let variant_dir = structure.add_variant("video", 1000000);

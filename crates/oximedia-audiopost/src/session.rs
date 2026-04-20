@@ -747,28 +747,32 @@ mod tests {
 
     #[test]
     fn test_session_creation() {
-        let session =
-            PostProductionSession::new("Test Session", PathBuf::from("/tmp/test"), 48000, 24, 24.0)
-                .expect("operation should succeed");
+        let session = PostProductionSession::new(
+            "Test Session",
+            std::env::temp_dir().join("oximedia-audiopost-session-test"),
+            48000,
+            24,
+            24.0,
+        )
+        .expect("operation should succeed");
         assert_eq!(session.name, "Test Session");
         assert_eq!(session.sample_rate, 48000);
     }
 
     #[test]
     fn test_invalid_sample_rate() {
-        assert!(PostProductionSession::new("Test", PathBuf::from("/tmp"), 0, 24, 24.0).is_err());
+        assert!(PostProductionSession::new("Test", std::env::temp_dir(), 0, 24, 24.0).is_err());
     }
 
     #[test]
     fn test_invalid_bit_depth() {
-        assert!(PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 8, 24.0).is_err());
+        assert!(PostProductionSession::new("Test", std::env::temp_dir(), 48000, 8, 24.0).is_err());
     }
 
     #[test]
     fn test_add_track() {
-        let mut session =
-            PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
-                .expect("failed to create");
+        let mut session = PostProductionSession::new("Test", std::env::temp_dir(), 48000, 24, 24.0)
+            .expect("failed to create");
         let track = Track::new("Dialogue", TrackType::Dialogue, 0);
         let id = session.add_track(track);
         assert_eq!(id, 1);
@@ -777,9 +781,8 @@ mod tests {
 
     #[test]
     fn test_get_track() {
-        let mut session =
-            PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
-                .expect("failed to create");
+        let mut session = PostProductionSession::new("Test", std::env::temp_dir(), 48000, 24, 24.0)
+            .expect("failed to create");
         let track = Track::new("Dialogue", TrackType::Dialogue, 0);
         let id = session.add_track(track);
         assert!(session.get_track(id).is_ok());
@@ -787,9 +790,8 @@ mod tests {
 
     #[test]
     fn test_remove_track() {
-        let mut session =
-            PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
-                .expect("failed to create");
+        let mut session = PostProductionSession::new("Test", std::env::temp_dir(), 48000, 24, 24.0)
+            .expect("failed to create");
         let track = Track::new("Dialogue", TrackType::Dialogue, 0);
         let id = session.add_track(track);
         assert!(session.remove_track(id).is_ok());
@@ -876,9 +878,8 @@ mod tests {
 
     #[test]
     fn test_add_marker() {
-        let mut session =
-            PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
-                .expect("failed to create");
+        let mut session = PostProductionSession::new("Test", std::env::temp_dir(), 48000, 24, 24.0)
+            .expect("failed to create");
         let marker = Marker::new("Marker 1", 10.0, MarkerType::Cue);
         session.add_marker(marker);
         assert_eq!(session.get_markers().len(), 1);
@@ -893,9 +894,8 @@ mod tests {
 
     #[test]
     fn test_add_region() {
-        let mut session =
-            PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
-                .expect("failed to create");
+        let mut session = PostProductionSession::new("Test", std::env::temp_dir(), 48000, 24, 24.0)
+            .expect("failed to create");
         let region = Region::new("Region 1", 0.0, 10.0, RegionType::Loop);
         session.add_region(region);
         assert_eq!(session.get_regions().len(), 1);
@@ -933,7 +933,7 @@ mod tests {
 
     #[test]
     fn test_session_backup() {
-        let session = PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
+        let session = PostProductionSession::new("Test", std::env::temp_dir(), 48000, 24, 24.0)
             .expect("failed to create");
         let backup = SessionBackup::new(session, "Test backup");
         assert_eq!(backup.description, "Test backup");
@@ -949,7 +949,7 @@ mod tests {
     fn test_create_session_in_manager() {
         let mut manager = SessionManager::new();
         let id = manager
-            .create_session("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
+            .create_session("Test", std::env::temp_dir(), 48000, 24, 24.0)
             .expect("operation should succeed");
         assert_eq!(manager.session_count(), 1);
         assert!(manager.get_session(&id).is_ok());
@@ -959,7 +959,7 @@ mod tests {
     fn test_close_session() {
         let mut manager = SessionManager::new();
         let id = manager
-            .create_session("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
+            .create_session("Test", std::env::temp_dir(), 48000, 24, 24.0)
             .expect("operation should succeed");
         assert!(manager.close_session(&id).is_ok());
         assert_eq!(manager.session_count(), 0);
@@ -969,7 +969,7 @@ mod tests {
     fn test_create_backup_in_manager() {
         let mut manager = SessionManager::new();
         let id = manager
-            .create_session("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
+            .create_session("Test", std::env::temp_dir(), 48000, 24, 24.0)
             .expect("operation should succeed");
         assert!(manager.create_backup(&id, "Backup 1").is_ok());
     }
@@ -978,19 +978,30 @@ mod tests {
     fn test_get_session_ids() {
         let mut manager = SessionManager::new();
         manager
-            .create_session("Test 1", PathBuf::from("/tmp1"), 48000, 24, 24.0)
+            .create_session(
+                "Test 1",
+                std::env::temp_dir().join("oximedia-audiopost-test1"),
+                48000,
+                24,
+                24.0,
+            )
             .expect("operation should succeed");
         manager
-            .create_session("Test 2", PathBuf::from("/tmp2"), 48000, 24, 24.0)
+            .create_session(
+                "Test 2",
+                std::env::temp_dir().join("oximedia-audiopost-test2"),
+                48000,
+                24,
+                24.0,
+            )
             .expect("operation should succeed");
         assert_eq!(manager.get_session_ids().len(), 2);
     }
 
     #[test]
     fn test_session_duration() {
-        let mut session =
-            PostProductionSession::new("Test", PathBuf::from("/tmp"), 48000, 24, 24.0)
-                .expect("failed to create");
+        let mut session = PostProductionSession::new("Test", std::env::temp_dir(), 48000, 24, 24.0)
+            .expect("failed to create");
         let mut track = Track::new("Test", TrackType::Music, 0);
         track.add_clip(AudioClip::new(
             "Clip",

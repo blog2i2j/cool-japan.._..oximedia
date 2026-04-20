@@ -175,7 +175,7 @@ impl TempFileManager {
         std::fs::write(&path, b"")?;
         self.registry
             .lock()
-            .expect("registry mutex poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .insert(name.to_string(), path.clone());
         Ok(TempFileHandle {
             path,
@@ -192,7 +192,7 @@ impl TempFileManager {
     pub fn lookup(&self, name: &str) -> Option<PathBuf> {
         self.registry
             .lock()
-            .expect("registry mutex poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .get(name)
             .cloned()
     }
@@ -207,7 +207,7 @@ impl TempFileManager {
     ///
     /// Panics if the internal registry mutex is poisoned.
     pub fn cleanup(&self) -> std::io::Result<()> {
-        let mut reg = self.registry.lock().expect("registry mutex poisoned");
+        let mut reg = self.registry.lock().unwrap_or_else(|e| e.into_inner());
         for (_name, path) in reg.iter() {
             if path.exists() {
                 std::fs::remove_file(path)?;
@@ -224,11 +224,14 @@ impl TempFileManager {
     /// Panics if the internal registry mutex is poisoned.
     #[must_use]
     pub fn count(&self) -> usize {
-        self.registry.lock().expect("registry mutex poisoned").len()
+        self.registry
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .len()
     }
 
     fn next_name(&self) -> String {
-        let mut c = self.counter.lock().expect("counter mutex poisoned");
+        let mut c = self.counter.lock().unwrap_or_else(|e| e.into_inner());
         let n = *c;
         *c += 1;
         format!("{n:08x}")

@@ -114,8 +114,9 @@ pub fn bradford_adaptation(source_wp: &Xyz, dest_wp: &Xyz) -> Matrix3x3 {
     ];
 
     // Compute final adaptation matrix: BRADFORD^-1 * scale * BRADFORD
+    // BRADFORD is a known invertible constant — fall back to identity only on degenerate inputs
     let bradford_inv =
-        invert_matrix3x3(&BRADFORD).expect("invariant: BRADFORD matrix is always invertible");
+        invert_matrix3x3(&BRADFORD).unwrap_or([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
     let temp = multiply_matrix3x3(&scale, &BRADFORD);
     multiply_matrix3x3(&bradford_inv, &temp)
 }
@@ -136,8 +137,9 @@ pub fn von_kries_adaptation(source_wp: &Xyz, dest_wp: &Xyz) -> Matrix3x3 {
         [0.0, 0.0, dest_rgb[2] / source_rgb[2]],
     ];
 
+    // VON_KRIES is a known invertible constant — fall back to identity only on degenerate inputs
     let von_kries_inv =
-        invert_matrix3x3(&VON_KRIES).expect("invariant: VON_KRIES matrix is always invertible");
+        invert_matrix3x3(&VON_KRIES).unwrap_or([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
     let temp = multiply_matrix3x3(&scale, &VON_KRIES);
     multiply_matrix3x3(&von_kries_inv, &temp)
 }

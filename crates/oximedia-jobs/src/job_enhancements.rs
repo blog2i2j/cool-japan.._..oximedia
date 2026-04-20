@@ -256,12 +256,12 @@ impl JobProgress {
             message: message.to_string(),
             recorded_at: Instant::now(),
         };
-        *self.last.lock().expect("progress lock poisoned") = Some(update);
+        *self.last.lock().unwrap_or_else(|e| e.into_inner()) = Some(update);
     }
 
     /// Return the most recent progress update, if any.
     pub fn last_update(&self) -> Option<ProgressUpdate> {
-        self.last.lock().expect("progress lock poisoned").clone()
+        self.last.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 }
 
@@ -287,7 +287,7 @@ impl WorkerHealthMonitor {
     pub fn record_heartbeat(&self, worker_id: u64, now_ms: u64) {
         self.last_heartbeat
             .lock()
-            .expect("health monitor lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .insert(worker_id, now_ms);
     }
 
@@ -298,7 +298,7 @@ impl WorkerHealthMonitor {
         let cutoff = now_ms.saturating_sub(stale_ms);
         self.last_heartbeat
             .lock()
-            .expect("health monitor lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .iter()
             .filter_map(|(&wid, &last)| if last < cutoff { Some(wid) } else { None })
             .collect()
@@ -309,7 +309,7 @@ impl WorkerHealthMonitor {
     pub fn worker_count(&self) -> usize {
         self.last_heartbeat
             .lock()
-            .expect("health monitor lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .len()
     }
 }
@@ -335,7 +335,7 @@ impl JobMetrics {
     pub fn record_completion(&self, job_id: u64, duration_ms: u64, success: bool) {
         self.completions
             .lock()
-            .expect("job metrics lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .push((job_id, duration_ms, success));
     }
 
@@ -343,7 +343,7 @@ impl JobMetrics {
     /// no completions have been recorded.
     #[must_use]
     pub fn avg_duration_ms(&self) -> f64 {
-        let guard = self.completions.lock().expect("job metrics lock poisoned");
+        let guard = self.completions.lock().unwrap_or_else(|e| e.into_inner());
         if guard.is_empty() {
             return 0.0;
         }
@@ -354,7 +354,7 @@ impl JobMetrics {
     /// Success rate in [0.0, 1.0]. Returns 0.0 if no completions recorded.
     #[must_use]
     pub fn success_rate(&self) -> f32 {
-        let guard = self.completions.lock().expect("job metrics lock poisoned");
+        let guard = self.completions.lock().unwrap_or_else(|e| e.into_inner());
         if guard.is_empty() {
             return 0.0;
         }
@@ -367,7 +367,7 @@ impl JobMetrics {
     pub fn total_completions(&self) -> usize {
         self.completions
             .lock()
-            .expect("job metrics lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .len()
     }
 }
@@ -444,7 +444,7 @@ impl BatchJobProcessor {
         let id = self.next_id.fetch_add(1, Ordering::AcqRel);
         self.batches
             .lock()
-            .expect("batch processor lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .insert(
                 id,
                 BatchRecord {
@@ -461,7 +461,7 @@ impl BatchJobProcessor {
     pub fn poll_batch(&self, batch_id: BatchId) -> Option<BatchStatus> {
         self.batches
             .lock()
-            .expect("batch processor lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .get(&batch_id)
             .map(|r| r.status.clone())
     }
@@ -471,7 +471,7 @@ impl BatchJobProcessor {
         if let Some(record) = self
             .batches
             .lock()
-            .expect("batch processor lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .get_mut(&batch_id)
         {
             if record.status == BatchStatus::Pending {
@@ -485,7 +485,7 @@ impl BatchJobProcessor {
         if let Some(record) = self
             .batches
             .lock()
-            .expect("batch processor lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .get_mut(&batch_id)
         {
             if record.status == BatchStatus::Running {
@@ -498,7 +498,7 @@ impl BatchJobProcessor {
     pub fn batch_job_count(&self, batch_id: BatchId) -> usize {
         self.batches
             .lock()
-            .expect("batch processor lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .get(&batch_id)
             .map(|r| r.jobs.len())
             .unwrap_or(0)

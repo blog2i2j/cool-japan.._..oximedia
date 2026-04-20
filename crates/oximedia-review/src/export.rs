@@ -162,7 +162,11 @@ mod tests {
         let session_id = SessionId::new();
         let options = ExportOptions::new(ExportFormat::Pdf);
 
-        let result = export_session(session_id, options, "/tmp/export.pdf").await;
+        let out_path = std::env::temp_dir()
+            .join("oximedia-review-export-session.pdf")
+            .to_string_lossy()
+            .into_owned();
+        let result = export_session(session_id, options, &out_path).await;
         assert!(result.is_ok());
 
         let export_result = result.expect("should succeed in test");

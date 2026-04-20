@@ -422,6 +422,12 @@ caption-gen = ["dep:oximedia-caption-gen"]
 ## Enable image transformation (resize, crop, rotate, flip, color conversion)
 image-transform = ["dep:oximedia-image-transform"]
 
+## Enable Motion JPEG (MJPEG) intra-frame video codec
+mjpeg = ["dep:oximedia-codec", "oximedia-codec/mjpeg"]
+
+## Enable APV (Advanced Professional Video) intra-frame codec (ISO/IEC 23009-13)
+apv = ["dep:oximedia-codec", "oximedia-codec/apv"]
+
 ## Enable all optional features
 full = [
     "audio",
@@ -523,6 +529,8 @@ full = [
     "analytics",
     "caption-gen",
     "image-transform",
+    "mjpeg",
+    "apv",
 ]
 
 [dev-dependencies]

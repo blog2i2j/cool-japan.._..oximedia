@@ -336,11 +336,12 @@ pub fn is_image_file(path: &Path) -> bool {
 /// # Examples
 ///
 /// ```
-/// use std::path::PathBuf;
 /// use oximedia_batch::utils::make_unique_filename;
 ///
-/// let unique = make_unique_filename(&PathBuf::from("/tmp/file.txt"));
-/// // If /tmp/file.txt exists, returns /tmp/file_1.txt, etc.
+/// let base = std::env::temp_dir().join("oximedia-batch-utils-unique.txt");
+/// let unique = make_unique_filename(&base);
+/// // If `base` exists, returns a sibling with `_1`, `_2`, etc. appended.
+/// let _ = unique;
 /// ```
 #[must_use]
 pub fn make_unique_filename(path: &Path) -> PathBuf {

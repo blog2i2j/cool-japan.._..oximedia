@@ -668,13 +668,15 @@ mod tests {
         let mut buf = Vec::new();
         ts.write_to(&mut buf);
         assert_eq!(buf.len(), 8);
-        let ts2 = NtpTimestamp::read_from(&buf).unwrap();
+        let ts2 = NtpTimestamp::read_from(&buf)
+            .expect("buffer is 8 bytes, exactly NTP size");
         assert_eq!(ts, ts2);
     }
 
     #[test]
     fn test_ntp_read_too_short() {
-        let err = NtpTimestamp::read_from(&[0u8; 4]).unwrap_err();
+        let err = NtpTimestamp::read_from(&[0u8; 4])
+            .expect_err("4 bytes is shorter than NTP 8 bytes");
         assert!(matches!(err, VideoIpError::InvalidPacket(_)));
     }
 
@@ -687,7 +689,8 @@ mod tests {
             fraction: 0,
         };
         // delta = 0 ⟹ same timestamp
-        let result = rtp_to_ntp(1000, 1000, anchor_ntp, 90_000).unwrap();
+        let result = rtp_to_ntp(1000, 1000, anchor_ntp, 90_000)
+            .expect("valid clock rate and timestamps");
         assert_eq!(result, anchor_ntp);
     }
 
@@ -698,7 +701,8 @@ mod tests {
             fraction: 0,
         };
         // advance by exactly one second (90000 ticks at 90 kHz)
-        let result = rtp_to_ntp(90_000 + 1000, 1000, anchor_ntp, 90_000).unwrap();
+        let result = rtp_to_ntp(90_000 + 1000, 1000, anchor_ntp, 90_000)
+            .expect("valid clock rate and timestamps");
         // NTP seconds should increase by 1
         assert_eq!(result.seconds, anchor_ntp.seconds + 1);
     }
@@ -706,7 +710,8 @@ mod tests {
     #[test]
     fn test_rtp_to_ntp_zero_clock_rate_error() {
         let anchor = NtpTimestamp::default();
-        let err = rtp_to_ntp(0, 0, anchor, 0).unwrap_err();
+        let err = rtp_to_ntp(0, 0, anchor, 0)
+            .expect_err("zero clock rate must fail");
         assert!(matches!(err, VideoIpError::InvalidState(_)));
     }
 
@@ -743,7 +748,8 @@ mod tests {
         let mut buf = Vec::new();
         block.write_to(&mut buf);
         assert_eq!(buf.len(), ReportBlock::WIRE_SIZE);
-        let block2 = ReportBlock::read_from(&buf).unwrap();
+        let block2 = ReportBlock::read_from(&buf)
+            .expect("buffer holds a valid ReportBlock");
         assert_eq!(block, block2);
     }
 
@@ -755,9 +761,11 @@ mod tests {
             seconds: 3_900_000_000,
             fraction: 0xAAAA_BBBB,
         };
-        let sr = SenderReport::new(0x1234_5678, ntp, 90000, 600, 1_200_000, vec![]).unwrap();
+        let sr = SenderReport::new(0x1234_5678, ntp, 90000, 600, 1_200_000, vec![])
+            .expect("valid SR with no report blocks");
         let encoded = sr.encode();
-        let decoded = SenderReport::decode(&encoded).unwrap();
+        let decoded = SenderReport::decode(&encoded)
+            .expect("encoded SR is valid");
         assert_eq!(decoded.ssrc, sr.ssrc);
         assert_eq!(decoded.ntp_timestamp, sr.ntp_timestamp);
         assert_eq!(decoded.rtp_timestamp, sr.rtp_timestamp);
@@ -783,8 +791,9 @@ mod tests {
         };
         let sr =
             SenderReport::new(0xABCD_EF01, ntp, 180000, 1200, 2_400_000, vec![block.clone()])
-                .unwrap();
-        let decoded = SenderReport::decode(&sr.encode()).unwrap();
+                .expect("valid SR with one report block");
+        let decoded = SenderReport::decode(&sr.encode())
+            .expect("encoded SR is valid");
         assert_eq!(decoded.report_blocks.len(), 1);
         assert_eq!(decoded.report_blocks[0], block);
     }
@@ -819,9 +828,11 @@ mod tests {
             last_sr: 0x0000_ABCD,
             delay_since_last_sr: 512,
         };
-        let rr = ReceiverReport::new(0x5555_6666, vec![block.clone()]).unwrap();
+        let rr = ReceiverReport::new(0x5555_6666, vec![block.clone()])
+            .expect("valid RR with one report block");
         let encoded = rr.encode();
-        let decoded = ReceiverReport::decode(&encoded).unwrap();
+        let decoded = ReceiverReport::decode(&encoded)
+            .expect("encoded RR is valid");
         assert_eq!(decoded.ssrc, rr.ssrc);
         assert_eq!(decoded.report_blocks.len(), 1);
         assert_eq!(decoded.report_blocks[0], block);
@@ -835,11 +846,14 @@ mod tests {
             seconds: 3_900_000_002,
             fraction: 0,
         };
-        let sr = SenderReport::new(0xAAAA_AAAA, ntp, 0, 0, 0, vec![]).unwrap();
-        let rr = ReceiverReport::new(0xBBBB_BBBB, vec![]).unwrap();
+        let sr = SenderReport::new(0xAAAA_AAAA, ntp, 0, 0, 0, vec![])
+            .expect("valid SR with no blocks");
+        let rr = ReceiverReport::new(0xBBBB_BBBB, vec![])
+            .expect("valid RR with no blocks");
         let mut compound = sr.encode();
         compound.extend_from_slice(&rr.encode());
-        let packets = parse_compound_rtcp(&compound).unwrap();
+        let packets = parse_compound_rtcp(&compound)
+            .expect("compound RTCP is valid");
         assert_eq!(packets.len(), 2);
         assert!(matches!(packets[0], RtcpPacket::Sr(_)));
         assert!(matches!(packets[1], RtcpPacket::Rr(_)));

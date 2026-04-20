@@ -81,12 +81,14 @@ impl BlockDecisionEngine {
         intra_ctx: &IntraPredContext,
         is_keyframe: bool,
     ) -> BlockDecision {
-        if is_keyframe || reference.is_none() {
-            // Keyframe: only intra modes
+        let Some(reference) = reference else {
+            // Keyframe or no reference: only intra modes
+            return self.decide_intra_mode(current, intra_ctx);
+        };
+
+        if is_keyframe {
             return self.decide_intra_mode(current, intra_ctx);
         }
-
-        let reference = reference.expect("reference is Some: checked is_none() above");
 
         // Try both intra and inter modes
         let intra_decision = self.decide_intra_mode(current, intra_ctx);

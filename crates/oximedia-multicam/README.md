@@ -1,6 +1,6 @@
 # oximedia-multicam
 
-**Status: [Stable]** | Version: 0.1.3 | Updated: 2026-04-15
+**Status: [Stable]** | Version: 0.1.4 | Tests: 648 | Updated: 2026-04-20
 
 Multi-camera synchronization, switching, and editing for OxiMedia. Provides comprehensive multi-camera production capabilities including temporal synchronization, AI-based automatic switching, multi-view composition, color matching, and spatial alignment.
 
@@ -33,7 +33,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-multicam = "0.1.3"
+oximedia-multicam = "0.1.4"
 ```
 
 ```rust

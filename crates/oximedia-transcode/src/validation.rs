@@ -449,8 +449,9 @@ mod tests {
 
     #[test]
     fn test_output_path_validation() {
-        // Test with /tmp which should exist and be writable
-        let result = OutputValidator::validate_path("/tmp/test_output.mp4", false);
+        // Test with temp_dir which should exist and be writable
+        let out = std::env::temp_dir().join("oximedia-transcode-validation-test_output.mp4");
+        let result = OutputValidator::validate_path(out.to_string_lossy().as_ref(), false);
         assert!(result.is_ok());
     }
 

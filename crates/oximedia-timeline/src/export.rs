@@ -1007,7 +1007,7 @@ mod tests {
             .expect("should succeed in test");
         let mut clip = Clip::new(
             "clip1".to_string(),
-            MediaSource::file(PathBuf::from("/tmp/c.mov")),
+            MediaSource::file(std::env::temp_dir().join("oximedia-timeline-export-c.mov")),
             Position::new(0),
             Position::new(24),
             Position::new(0),

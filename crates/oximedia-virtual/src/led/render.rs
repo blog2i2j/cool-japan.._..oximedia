@@ -122,19 +122,15 @@ impl LedRenderer {
         source_height: usize,
         timestamp_ns: u64,
     ) -> Result<RenderOutput> {
-        let (output_width, output_height) = self
+        let led_wall = self
             .led_wall
             .as_ref()
-            .ok_or_else(|| VirtualProductionError::LedWall("No LED wall configured".to_string()))?
-            .total_resolution();
+            .ok_or_else(|| VirtualProductionError::LedWall("No LED wall configured".to_string()))?;
+
+        let (output_width, output_height) = led_wall.total_resolution();
 
         // Collect panel data to avoid borrow conflict with render_panel
-        let panels: Vec<_> = self
-            .led_wall
-            .as_ref()
-            .expect("invariant: led_wall checked via ok_or_else just above")
-            .panels
-            .clone();
+        let panels: Vec<_> = led_wall.panels.clone();
 
         let mut output =
             RenderOutput::new(output_width, output_height, self.frame_number, timestamp_ns);

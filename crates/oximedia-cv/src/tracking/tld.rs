@@ -313,11 +313,12 @@ impl TldTracker {
 
         // If tracking failed but we have detections, use best detection
         if !detected.is_empty() {
-            let best_detection = detected
+            if let Some(best_detection) = detected
                 .iter()
                 .max_by(|a, b| a.1.partial_cmp(&b.1).unwrap_or(std::cmp::Ordering::Equal))
-                .expect("checked non-empty");
-            return Ok(*best_detection);
+            {
+                return Ok(*best_detection);
+            }
         }
 
         // Fall back to tracking even if confidence is low

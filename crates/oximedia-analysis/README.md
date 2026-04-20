@@ -6,6 +6,8 @@ Comprehensive media analysis and quality assessment tools for OxiMedia.
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
+Version: 0.1.4 — 2026-04-20 — 575 tests
+
 ## Overview
 
 `oximedia-analysis` provides professional-grade tools for analyzing video and audio content, detecting quality issues, classifying content types, and generating detailed reports. It is designed for broadcast quality control, content verification, and automated media inspection workflows.
@@ -43,7 +45,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-analysis = "0.1.3"
+oximedia-analysis = "0.1.4"
 ```
 
 ### Quick Start

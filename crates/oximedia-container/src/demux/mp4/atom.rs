@@ -118,6 +118,16 @@ impl<'a> Mp4Atom<'a> {
         Ok(self.read_u32()? as i32)
     }
 
+    /// Reads a signed 64-bit integer (big-endian).
+    ///
+    /// # Errors
+    ///
+    /// Returns `UnexpectedEof` if fewer than 8 bytes remain.
+    #[allow(clippy::cast_possible_wrap)]
+    pub fn read_i64(&mut self) -> OxiResult<i64> {
+        Ok(self.read_u64()? as i64)
+    }
+
     /// Reads a 16.16 fixed-point number as `f64`.
     ///
     /// The value is interpreted as a signed 16-bit integer part

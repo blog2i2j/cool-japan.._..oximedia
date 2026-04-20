@@ -638,7 +638,7 @@ mod tests {
     #[test]
     fn test_pool_config_builder() {
         let cfg = PoolConfig::builder()
-            .db_path("/tmp/test.db")
+            .db_path(std::env::temp_dir().join("oximedia-monitor-pool-test.db"))
             .pool_size(8)
             .acquire_timeout(Duration::from_secs(30))
             .enable_wal(true)

@@ -280,6 +280,13 @@ pub fn sidecar_path(media_path: &str, format: SidecarFormat) -> String {
 mod tests {
     use super::*;
 
+    fn tmp_path(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-metadata-sidecar-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_sidecar_format_extension() {
         assert_eq!(SidecarFormat::XmpSidecar.extension(), "xmp");
@@ -298,14 +305,15 @@ mod tests {
 
     #[test]
     fn test_sidecar_new_empty() {
-        let s = SidecarFile::new("/tmp/test.xmp", SidecarFormat::XmpSidecar);
-        assert_eq!(s.path, "/tmp/test.xmp");
+        let p = tmp_path("test.xmp");
+        let s = SidecarFile::new(&p, SidecarFormat::XmpSidecar);
+        assert_eq!(s.path, p);
         assert!(s.content.is_empty());
     }
 
     #[test]
     fn test_sidecar_set_get() {
-        let mut s = SidecarFile::new("/tmp/test.json", SidecarFormat::JsonSidecar);
+        let mut s = SidecarFile::new(&tmp_path("test.json"), SidecarFormat::JsonSidecar);
         s.set("title", "My Video");
         assert_eq!(s.get("title"), Some("My Video"));
         assert_eq!(s.get("missing"), None);
@@ -313,7 +321,7 @@ mod tests {
 
     #[test]
     fn test_serialize_json() {
-        let mut s = SidecarFile::new("/tmp/test.json", SidecarFormat::JsonSidecar);
+        let mut s = SidecarFile::new(&tmp_path("test.json"), SidecarFormat::JsonSidecar);
         s.set("title", "Test");
         let out = s.serialize();
         assert!(out.contains("\"title\""));
@@ -322,7 +330,7 @@ mod tests {
 
     #[test]
     fn test_serialize_yaml() {
-        let mut s = SidecarFile::new("/tmp/test.yaml", SidecarFormat::YamlSidecar);
+        let mut s = SidecarFile::new(&tmp_path("test.yaml"), SidecarFormat::YamlSidecar);
         s.set("author", "Alice");
         let out = s.serialize();
         assert!(out.contains("author: Alice"));
@@ -330,7 +338,7 @@ mod tests {
 
     #[test]
     fn test_serialize_csv() {
-        let mut s = SidecarFile::new("/tmp/test.csv", SidecarFormat::CsvSidecar);
+        let mut s = SidecarFile::new(&tmp_path("test.csv"), SidecarFormat::CsvSidecar);
         s.set("title", "Movie");
         s.set("year", "2024");
         let out = s.serialize();
@@ -340,7 +348,7 @@ mod tests {
 
     #[test]
     fn test_serialize_xmp() {
-        let mut s = SidecarFile::new("/tmp/test.xmp", SidecarFormat::XmpSidecar);
+        let mut s = SidecarFile::new(&tmp_path("test.xmp"), SidecarFormat::XmpSidecar);
         s.set("title", "Test Movie");
         let out = s.serialize();
         assert!(out.contains("<dc:title>Test Movie</dc:title>"));
@@ -349,7 +357,7 @@ mod tests {
 
     #[test]
     fn test_xmp_escaping() {
-        let mut s = SidecarFile::new("/tmp/test.xmp", SidecarFormat::XmpSidecar);
+        let mut s = SidecarFile::new(&tmp_path("test.xmp"), SidecarFormat::XmpSidecar);
         s.set("description", "A & B <example>");
         let out = s.serialize();
         assert!(out.contains("&amp;"));
@@ -374,7 +382,7 @@ mod tests {
 
     #[test]
     fn test_from_str_xmp_roundtrip() {
-        let mut s = SidecarFile::new("/tmp/r.xmp", SidecarFormat::XmpSidecar);
+        let mut s = SidecarFile::new(&tmp_path("r.xmp"), SidecarFormat::XmpSidecar);
         s.set("title", "Roundtrip");
         s.set("creator", "Alice");
         let serialized = s.serialize();

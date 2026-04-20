@@ -101,13 +101,12 @@ pub struct GeoLatency {
 impl GeoLatency {
     /// Adds a latency sample for a region.
     pub fn add_sample(&mut self, region: Region, latency: Duration, window_size: usize) {
-        self.by_region
+        // In a real implementation, we'd track samples and recalculate
+        // For now, we update the average using the entry API directly.
+        let metrics = self
+            .by_region
             .entry(region)
             .or_insert_with(LatencyMetrics::default);
-
-        // In a real implementation, we'd track samples and recalculate
-        // For now, we update the average
-        let metrics = self.by_region.get_mut(&region).expect("Entry exists");
         let new_avg = (metrics.avg + latency) / 2;
         metrics.avg = new_avg;
         metrics.min = metrics.min.min(latency);

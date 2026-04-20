@@ -300,15 +300,14 @@ impl MmrReranker {
             selected_order.push(chosen_idx);
         }
 
-        // Reconstruct the reranked list preserving ownership
+        // Reconstruct the reranked list preserving ownership.
+        // Each idx in selected_order is unique (derived from remaining.remove), so
+        // every take() returns Some.  Filter-map makes the None branch unreachable
+        // without panicking.
         let mut boxed: Vec<Option<Recommendation>> = candidates.into_iter().map(Some).collect();
         selected_order
             .into_iter()
-            .map(|idx| {
-                boxed[idx]
-                    .take()
-                    .expect("each index is selected exactly once")
-            })
+            .filter_map(|idx| boxed[idx].take())
             .collect()
     }
 }

@@ -198,7 +198,11 @@ mod tests {
     use super::*;
 
     fn make_meta(kind: EssenceKind, rate: EditRate, duration: u64) -> TrackFileMetadata {
-        TrackFileMetadata::new(Uuid::new_v4(), kind, rate, duration, "/tmp/track.mxf", 1024)
+        let track = std::env::temp_dir()
+            .join("oximedia-imf-trackfile-track.mxf")
+            .to_string_lossy()
+            .into_owned();
+        TrackFileMetadata::new(Uuid::new_v4(), kind, rate, duration, track, 1024)
     }
 
     #[test]

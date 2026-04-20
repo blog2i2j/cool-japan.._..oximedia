@@ -101,7 +101,7 @@ impl RaftNode {
         last_log_index: u64,
         last_log_term: u64,
     ) -> VoteResponse {
-        let mut state = self.state.lock().expect("raft state mutex poisoned");
+        let mut state = self.state.lock().unwrap_or_else(|e| e.into_inner());
 
         // If we see a higher term, update and clear our vote.
         if term > state.current_term {
@@ -154,7 +154,7 @@ impl RaftNode {
     pub fn current_term(&self) -> u64 {
         self.state
             .lock()
-            .expect("raft state mutex poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .current_term
     }
 
@@ -162,7 +162,7 @@ impl RaftNode {
     pub fn voted_for(&self) -> Option<u64> {
         self.state
             .lock()
-            .expect("raft state mutex poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .voted_for
     }
 }
@@ -690,7 +690,7 @@ impl ServiceRegistry {
         };
         self.entries
             .lock()
-            .expect("service registry lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .insert(service_id, entry);
     }
 
@@ -698,7 +698,7 @@ impl ServiceRegistry {
     ///
     /// Returns `None` if the service is not registered or has expired.
     pub fn discover(&self, service_id: u64) -> Option<String> {
-        let mut guard = self.entries.lock().expect("service registry lock poisoned");
+        let mut guard = self.entries.lock().unwrap_or_else(|e| e.into_inner());
         match guard.get(&service_id) {
             Some(entry) if entry.expires_at > Instant::now() => Some(entry.addr.clone()),
             Some(_) => {
@@ -713,10 +713,7 @@ impl ServiceRegistry {
     /// Number of (potentially expired) registered services.
     #[must_use]
     pub fn registered_count(&self) -> usize {
-        self.entries
-            .lock()
-            .expect("service registry lock poisoned")
-            .len()
+        self.entries.lock().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Purge all expired entries.
@@ -724,7 +721,7 @@ impl ServiceRegistry {
         let now = Instant::now();
         self.entries
             .lock()
-            .expect("service registry lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .retain(|_, e| e.expires_at > now);
     }
 }

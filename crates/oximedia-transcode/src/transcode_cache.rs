@@ -41,7 +41,8 @@
 //! assert!(cache.get(&key).is_none());
 //!
 //! // Insert after transcoding.
-//! cache.insert(key.clone(), "/tmp/output.webm".into(), 20_000_000).unwrap();
+//! let output_path = std::env::temp_dir().join("oximedia-transcode-cache-output.webm");
+//! cache.insert(key.clone(), output_path, 20_000_000).unwrap();
 //!
 //! // Second lookup – hit.
 //! assert!(cache.get(&key).is_some());
@@ -468,6 +469,13 @@ mod tests {
         CacheKey::new(src, &params)
     }
 
+    fn tmp_path(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-transcode-cache-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_cache_miss_on_empty() {
         let mut cache = TranscodeCache::with_defaults();
@@ -480,9 +488,10 @@ mod tests {
     fn test_insert_and_hit() {
         let mut cache = TranscodeCache::with_defaults();
         let key = make_key(42, "av1", 3_000_000);
-        cache.insert(key.clone(), "/tmp/out.webm".into(), 10_000).unwrap();
+        let out = tmp_path("out.webm");
+        cache.insert(key.clone(), out.clone(), 10_000).unwrap();
         let entry = cache.get(&key).expect("should be a hit");
-        assert_eq!(entry.output_path, "/tmp/out.webm");
+        assert_eq!(entry.output_path, out);
         assert_eq!(cache.stats().hits, 1);
         assert_eq!(cache.stats().total_inserts, 1);
     }
@@ -491,7 +500,7 @@ mod tests {
     fn test_remove_entry() {
         let mut cache = TranscodeCache::with_defaults();
         let key = make_key(7, "opus", 128_000);
-        cache.insert(key.clone(), "/tmp/audio.ogg".into(), 512).unwrap();
+        cache.insert(key.clone(), tmp_path("audio.ogg"), 512).unwrap();
         assert!(cache.remove(&key));
         assert!(cache.get(&key).is_none());
     }
@@ -506,7 +515,7 @@ mod tests {
         let mut cache = TranscodeCache::new(cfg);
         for i in 0u64..5 {
             let key = make_key(i, "vp9", i * 1000);
-            cache.insert(key, format!("/tmp/out{i}.webm"), 100).unwrap();
+            cache.insert(key, tmp_path(&format!("out{i}.webm")), 100).unwrap();
         }
         // Only 3 entries should remain after 5 inserts.
         assert_eq!(cache.len(), 3, "LRU eviction should cap at max_entries");
@@ -523,7 +532,7 @@ mod tests {
         let mut cache = TranscodeCache::new(cfg);
         for i in 0u64..4 {
             let key = make_key(i, "av1", i * 500);
-            cache.insert(key, format!("/tmp/lfu{i}.webm"), 200).unwrap();
+            cache.insert(key, tmp_path(&format!("lfu{i}.webm")), 200).unwrap();
         }
         assert_eq!(cache.len(), 2);
     }
@@ -539,10 +548,10 @@ mod tests {
         let k0 = make_key(0, "vp9", 1000);
         let k1 = make_key(1, "vp9", 2000);
         let k2 = make_key(2, "vp9", 3000);
-        cache.insert(k0.clone(), "/tmp/a.webm".into(), 100).unwrap();
-        cache.insert(k1.clone(), "/tmp/b.webm".into(), 500).unwrap();
+        cache.insert(k0.clone(), tmp_path("a.webm"), 100).unwrap();
+        cache.insert(k1.clone(), tmp_path("b.webm"), 500).unwrap();
         // This should evict the largest entry (k1, 500 bytes).
-        cache.insert(k2.clone(), "/tmp/c.webm".into(), 200).unwrap();
+        cache.insert(k2.clone(), tmp_path("c.webm"), 200).unwrap();
         assert_eq!(cache.len(), 2);
         assert!(cache.get(&k1).is_none(), "largest entry should have been evicted");
     }
@@ -558,7 +567,7 @@ mod tests {
         // Insert entries totalling >1000 bytes.
         for i in 0u64..5 {
             let key = make_key(i, "av1", i);
-            cache.insert(key, format!("/tmp/b{i}.webm"), 300).unwrap();
+            cache.insert(key, tmp_path(&format!("b{i}.webm")), 300).unwrap();
         }
         // Current bytes should be <=1000 after evictions.
         assert!(
@@ -573,7 +582,7 @@ mod tests {
         let mut cache = TranscodeCache::with_defaults();
         for i in 0u64..5 {
             let key = make_key(i, "flac", i);
-            cache.insert(key, format!("/tmp/f{i}.flac"), 400).unwrap();
+            cache.insert(key, tmp_path(&format!("f{i}.flac")), 400).unwrap();
         }
         cache.clear();
         assert!(cache.is_empty());
@@ -584,7 +593,7 @@ mod tests {
     fn test_hit_ratio_calculation() {
         let mut cache = TranscodeCache::with_defaults();
         let key = make_key(99, "opus", 192_000);
-        cache.insert(key.clone(), "/tmp/o.opus".into(), 1024).unwrap();
+        cache.insert(key.clone(), tmp_path("o.opus"), 1024).unwrap();
         let _ = cache.get(&key); // hit
         let _ = cache.get(&make_key(0, "unknown", 0)); // miss
         let ratio = cache.stats().hit_ratio();
@@ -602,7 +611,7 @@ mod tests {
     fn test_insert_zero_bytes_returns_error() {
         let mut cache = TranscodeCache::with_defaults();
         let key = make_key(2, "av1", 2000);
-        assert!(cache.insert(key, "/tmp/x.webm".into(), 0).is_err());
+        assert!(cache.insert(key, tmp_path("x.webm"), 0).is_err());
     }
 
     #[test]
@@ -638,7 +647,7 @@ mod tests {
         let mut cache = TranscodeCache::with_defaults();
         for i in 0u64..3 {
             let key = make_key(i, "vp9", i);
-            cache.insert(key, format!("/tmp/t{i}.webm"), 100).unwrap();
+            cache.insert(key, tmp_path(&format!("t{i}.webm")), 100).unwrap();
         }
         // Evict anything older than a very short duration. Since entries were
         // just inserted this should not evict all of them, but evicting with

@@ -1,59 +1,45 @@
 //! Advanced encoding preset library for OxiMedia.
 //!
-//! This crate provides a comprehensive collection of encoding presets for various platforms,
-//! broadcast standards, streaming protocols, and quality tiers.
+//! Provides a comprehensive collection of encoding presets for platforms, broadcast standards,
+//! streaming protocols, quality tiers, and delivery workflows, with auto-selection, validation,
+//! lazy loading, and import/export.
 //!
 //! # Features
 //!
-//! - **200+ Professional Presets**: Comprehensive preset library covering major platforms
-//! - **Platform Presets**: YouTube, Vimeo, Facebook, Instagram, TikTok, Twitter
-//! - **Broadcast Standards**: ATSC, DVB, ISDB
-//! - **Streaming Protocols**: HLS, DASH, SmoothStreaming ABR ladders
-//! - **Archive Formats**: Lossless and mezzanine presets
-//! - **Mobile Optimization**: iOS and Android specific presets
-//! - **Quality Tiers**: Low, medium, high, and highest quality options
-//! - **Auto-selection**: Suggest presets based on source media
-//! - **Validation**: Verify preset correctness and compatibility
-//! - **Import/Export**: Share presets via JSON
+//! - **Platform presets** — YouTube, Vimeo, Facebook, Instagram, TikTok, Twitter, LinkedIn
+//! - **Broadcast standards** — ATSC, DVB, ISDB
+//! - **Streaming ABR ladders** — HLS, DASH, SmoothStreaming, RTMP, SRT
+//! - **Archive formats** — lossless and mezzanine
+//! - **Mobile optimization** — iOS and Android specific presets
+//! - **Quality tiers** — low, medium, high, highest
+//! - **Lazy loading** — `PresetLibrary::global()` cached singleton via `OnceLock`;
+//!   per-category `LazyPresetCategory` loads on first access
+//! - **Auto-selection** — `OptimalPresetSelector::select(criteria, library)` picks the best
+//!   scored preset; falls back to smallest available when target bitrate has no match
+//! - **Text search** — `InvertedIndex` AND-semantics tokenized search across name, description,
+//!   tags, and ID fields in `PresetRegistry`
+//! - **Fuzzy lookup** — `PresetRegistry` with alias map and Levenshtein-based fuzzy name search
+//! - **ABR ladders** — `AbrLadder` / `AbrRung` (height, bitrate, preset)
+//! - **Validation** — verify preset correctness and compatibility
+//! - **Import/Export** — share presets via JSON; preset versioning and diff
 //!
 //! # Quick Start
 //!
 //! ```rust
 //! use oximedia_presets::{PresetLibrary, PresetCategory};
 //!
-//! // Get all YouTube presets
 //! let library = PresetLibrary::new();
-//! let youtube_presets = library.find_by_category(PresetCategory::Platform("YouTube".to_string()));
-//!
-//! // Get a specific preset
+//! let youtube_presets = library.find_by_category(
+//!     PresetCategory::Platform("YouTube".to_string())
+//! );
 //! let preset = library.get("youtube-1080p-60fps");
 //! ```
-//!
-//! # Platform-Specific Presets
-//!
-//! ## YouTube
-//! - Multiple quality tiers (360p to 8K)
-//! - HDR support
-//! - 60fps variants
-//! - VP9 and H.264 options
-//!
-//! ## Instagram
-//! - Feed posts (1:1, 4:5)
-//! - Stories (9:16)
-//! - Reels (9:16)
-//! - Duration and size limits
-//!
-//! ## TikTok
-//! - Vertical video optimization
-//! - High-quality audio
-//! - Optimal bitrates
 //!
 //! # Streaming ABR Ladders
 //!
 //! ```rust
 //! use oximedia_presets::streaming::hls;
 //!
-//! // Get complete HLS ABR ladder
 //! let ladder = hls::hls_abr_ladder();
 //! for rung in ladder.rungs {
 //!     println!("{}p @ {} kbps", rung.height, rung.bitrate / 1000);

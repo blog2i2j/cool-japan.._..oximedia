@@ -255,11 +255,10 @@ impl TsbpdScheduler {
         let mut ready = Vec::new();
         while let Some((&key, entry)) = self.queue.iter().next() {
             if entry.deliver_at <= now {
-                let entry = self
-                    .queue
-                    .remove(&key)
-                    .expect("invariant: key exists (just obtained from iter)");
-                ready.push(entry.data);
+                // Key was obtained directly from the iterator; removal is infallible.
+                if let Some(entry) = self.queue.remove(&key) {
+                    ready.push(entry.data);
+                }
             } else {
                 break;
             }

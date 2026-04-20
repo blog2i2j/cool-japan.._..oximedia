@@ -916,7 +916,10 @@ mod tests {
             version: 1,
             assets: vec![AssetRecord {
                 id: "test-001".to_string(),
-                path: "/tmp/test.mkv".to_string(),
+                path: std::env::temp_dir()
+                    .join("test.mkv")
+                    .to_string_lossy()
+                    .to_string(),
                 filename: "test.mkv".to_string(),
                 format: "mkv".to_string(),
                 size_bytes: 1024,

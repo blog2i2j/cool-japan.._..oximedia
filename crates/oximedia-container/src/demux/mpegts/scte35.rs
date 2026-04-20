@@ -4,6 +4,45 @@
 //! used for ad insertion, content replacement, and other signalling
 //! in broadcast and OTT streams.
 //!
+//! SCTE-35 is the ANSI/SCTE standard for signalling ad insertion cue points
+//! in MPEG-TS streams.  A `splice_info_section` is carried on a dedicated PID
+//! (conventional default: auto-detected from PMT, configurable via [`Scte35Config`]).
+//!
+//! ## Event Types
+//!
+//! | Command | Use Case |
+//! |---------|----------|
+//! | `SpliceNull` | Keep-alive with no action |
+//! | `SpliceInsert` | Mark start/end of an ad break |
+//! | `TimeSignal` | Carry a PTS timestamp for downstream processing |
+//! | `BandwidthReservation` | Reserve bandwidth for future cue messages |
+//! | `SpliceSchedule` | Pre-announce future splices by wall-clock time |
+//! | `PrivateCommand` | Vendor-specific extensions |
+//!
+//! ## PID Convention
+//!
+//! By convention, SCTE-35 sections are discovered via the Program Map Table (PMT)
+//! rather than a fixed PID.  [`Scte35Config::with_pid`] allows overriding the PID
+//! per-stream when it is known in advance.
+//!
+//! ## CRC Validation
+//!
+//! All parsed sections are validated against the MPEG-2 CRC32 polynomial
+//! (`0x04C11DB7`) when [`Scte35Config::without_crc_check`] is not applied.
+//!
+//! ## Example
+//!
+//! ```no_run
+//! use oximedia_container::demux::mpegts::scte35::parse_splice_info_section;
+//!
+//! fn handle_packet(data: &[u8]) {
+//!     match parse_splice_info_section(data) {
+//!         Ok(event) => println!("SCTE-35: {:?}", event.splice_command),
+//!         Err(e) => eprintln!("parse error: {e}"),
+//!     }
+//! }
+//! ```
+//!
 //! # Supported splice commands
 //!
 //! - `splice_null` (0x00)
@@ -12,20 +51,6 @@
 //! - `time_signal` (0x06) — full parse
 //! - `bandwidth_reservation` (0x07)
 //! - `private_command` (0xFF) — opaque payload
-//!
-//! # Example
-//!
-//! ```ignore
-//! use oximedia_container::demux::mpegts::scte35::{Scte35Parser, Scte35Config};
-//!
-//! let parser = Scte35Parser::new(Scte35Config::default());
-//! if let Ok(section) = parser.parse(&raw_section_data) {
-//!     println!("Command: {:?}", section.splice_command);
-//!     for desc in &section.descriptors {
-//!         println!("Descriptor tag={}, len={}", desc.tag, desc.data.len());
-//!     }
-//! }
-//! ```
 
 use oximedia_core::{OxiError, OxiResult};
 
@@ -609,6 +634,21 @@ fn compute_crc32(data: &[u8]) -> u32 {
         }
     }
     crc
+}
+
+// ─── Convenience free function ───────────────────────────────────────────────
+
+/// Parses a raw SCTE-35 `splice_info_section` byte slice using the default parser
+/// configuration (CRC verification enabled, auto-detect PID).
+///
+/// This is a convenience wrapper around [`Scte35Parser::default_parser`] followed by
+/// [`Scte35Parser::parse`].
+///
+/// # Errors
+///
+/// Returns an error if the section is malformed, too short, or fails CRC verification.
+pub fn parse_splice_info_section(data: &[u8]) -> OxiResult<SpliceInfoSection> {
+    Scte35Parser::default_parser().parse(data)
 }
 
 // ─── Tests ──────────────────────────────────────────────────────────────────

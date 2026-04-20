@@ -13,16 +13,17 @@
 //! # Box Layout (Fragmented MP4)
 //!
 //! ```text
-//! [ftyp][moov[mvhd][mvex[trex]][trak...]][moof[mfhd][traf[tfhd][tfdt][trun]]][mdat]...
+//! [ftyp][moov[mvhd][mvex[trex]][trak(empty stbl)...]]
+//!   ([sidx][moof[mfhd][traf[tfhd][tfdt][trun]]][mdat])...
 //! ```
 //!
 //! # Example
 //!
 //! ```ignore
-//! use oximedia_container::mux::mp4::{Mp4Muxer, Mp4Config, Mp4Mode};
+//! use oximedia_container::mux::mp4::{Mp4Muxer, Mp4Config, Mp4FragmentMode};
 //! use oximedia_container::{StreamInfo, Packet};
 //!
-//! let config = Mp4Config::new().with_mode(Mp4Mode::Progressive);
+//! let config = Mp4Config::new().with_mode(Mp4FragmentMode::Progressive);
 //! let mut muxer = Mp4Muxer::new(config);
 //!
 //! // Add streams, write packets, finalize
@@ -34,6 +35,7 @@
 
 #![forbid(unsafe_code)]
 
+mod av1c;
 mod basic;
 pub mod simple;
 mod writer;
@@ -43,4 +45,4 @@ pub use simple::{
     AudioCodecInfo, FourCC, Mp4Sample, Mp4TrackWriter, SimpleMp4Config, SimpleMp4Error,
     SimpleMp4Muxer, TrackCodec, VideoCodecInfo,
 };
-pub use writer::{Mp4Config, Mp4Mode, Mp4Muxer, Mp4SampleEntry, Mp4TrackState};
+pub use writer::{Mp4Config, Mp4FragmentMode, Mp4Mode, Mp4Muxer, Mp4SampleEntry, Mp4TrackState};

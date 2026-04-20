@@ -546,10 +546,7 @@ fn find_connected_components(binary: &[u8], width: u32, height: u32) -> Vec<Sali
                     labels[y * w + x] = next_label;
                     next_label += 1;
                 } else {
-                    labels[y * w + x] = *neighbors
-                        .iter()
-                        .min()
-                        .expect("neighbors is non-empty by construction");
+                    labels[y * w + x] = neighbors.iter().copied().min().unwrap_or(next_label);
                 }
             }
         }

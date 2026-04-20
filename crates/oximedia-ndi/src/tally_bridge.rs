@@ -502,34 +502,44 @@ mod tests {
     #[test]
     fn test_aggregator_register_and_update() {
         let mut agg = MultiSourceTallyAggregator::new();
-        agg.register("Cam1", TallySourcePriority::Normal).unwrap();
-        agg.update("Cam1", GenericTallyState::Program).unwrap();
+        agg.register("Cam1", TallySourcePriority::Normal)
+            .expect("source not yet registered");
+        agg.update("Cam1", GenericTallyState::Program)
+            .expect("source exists");
         assert_eq!(agg.source_state("Cam1"), Some(GenericTallyState::Program));
     }
 
     #[test]
     fn test_aggregator_any_wins_program() {
         let mut agg = MultiSourceTallyAggregator::new();
-        agg.register("A", TallySourcePriority::Normal).unwrap();
-        agg.register("B", TallySourcePriority::Normal).unwrap();
-        agg.update("A", GenericTallyState::Off).unwrap();
-        agg.update("B", GenericTallyState::Program).unwrap();
+        agg.register("A", TallySourcePriority::Normal)
+            .expect("source not yet registered");
+        agg.register("B", TallySourcePriority::Normal)
+            .expect("source not yet registered");
+        agg.update("A", GenericTallyState::Off)
+            .expect("source A exists");
+        agg.update("B", GenericTallyState::Program)
+            .expect("source B exists");
         assert_eq!(agg.aggregate(), GenericTallyState::Program);
     }
 
     #[test]
     fn test_aggregator_all_off() {
         let mut agg = MultiSourceTallyAggregator::new();
-        agg.register("A", TallySourcePriority::Normal).unwrap();
-        agg.register("B", TallySourcePriority::Normal).unwrap();
+        agg.register("A", TallySourcePriority::Normal)
+            .expect("source not yet registered");
+        agg.register("B", TallySourcePriority::Normal)
+            .expect("source not yet registered");
         assert_eq!(agg.aggregate(), GenericTallyState::Off);
     }
 
     #[test]
     fn test_aggregator_events_emitted_on_change() {
         let mut agg = MultiSourceTallyAggregator::new();
-        agg.register("Cam1", TallySourcePriority::Normal).unwrap();
-        agg.update("Cam1", GenericTallyState::Program).unwrap();
+        agg.register("Cam1", TallySourcePriority::Normal)
+            .expect("source not yet registered");
+        agg.update("Cam1", GenericTallyState::Program)
+            .expect("source exists");
         let events = agg.drain_events();
         assert_eq!(events.len(), 1);
         assert_eq!(events[0].new_state, GenericTallyState::Program);
@@ -539,18 +549,23 @@ mod tests {
     #[test]
     fn test_aggregator_no_event_on_same_state() {
         let mut agg = MultiSourceTallyAggregator::new();
-        agg.register("Cam1", TallySourcePriority::Normal).unwrap();
-        agg.update("Cam1", GenericTallyState::Program).unwrap();
+        agg.register("Cam1", TallySourcePriority::Normal)
+            .expect("source not yet registered");
+        agg.update("Cam1", GenericTallyState::Program)
+            .expect("source exists");
         agg.drain_events();
-        agg.update("Cam1", GenericTallyState::Program).unwrap();
+        agg.update("Cam1", GenericTallyState::Program)
+            .expect("source exists");
         assert!(agg.drain_events().is_empty());
     }
 
     #[test]
     fn test_aggregator_update_from_byte() {
         let mut agg = MultiSourceTallyAggregator::new();
-        agg.register("Cam1", TallySourcePriority::Normal).unwrap();
-        agg.update_from_byte("Cam1", 0x01).unwrap();
+        agg.register("Cam1", TallySourcePriority::Normal)
+            .expect("source not yet registered");
+        agg.update_from_byte("Cam1", 0x01)
+            .expect("source exists and byte 0x01 is valid");
         assert_eq!(agg.source_state("Cam1"), Some(GenericTallyState::Program));
     }
 
@@ -560,12 +575,16 @@ mod tests {
         cfg.any_program_wins = false;
         let mut agg = MultiSourceTallyAggregator::with_config(cfg);
 
-        agg.register("Low", TallySourcePriority::Low).unwrap();
-        agg.register("High", TallySourcePriority::High).unwrap();
+        agg.register("Low", TallySourcePriority::Low)
+            .expect("source not yet registered");
+        agg.register("High", TallySourcePriority::High)
+            .expect("source not yet registered");
 
         // Low source says Program; High source says Off
-        agg.update("Low", GenericTallyState::Program).unwrap();
-        agg.update("High", GenericTallyState::Off).unwrap();
+        agg.update("Low", GenericTallyState::Program)
+            .expect("source Low exists");
+        agg.update("High", GenericTallyState::Off)
+            .expect("source High exists");
 
         // With priority-based, only the High source controls outcome
         assert_eq!(agg.aggregate(), GenericTallyState::Off);
@@ -574,8 +593,10 @@ mod tests {
     #[test]
     fn test_aggregator_reset() {
         let mut agg = MultiSourceTallyAggregator::new();
-        agg.register("Cam1", TallySourcePriority::Normal).unwrap();
-        agg.update("Cam1", GenericTallyState::Program).unwrap();
+        agg.register("Cam1", TallySourcePriority::Normal)
+            .expect("source not yet registered");
+        agg.update("Cam1", GenericTallyState::Program)
+            .expect("source exists");
         agg.reset();
         assert_eq!(agg.source_state("Cam1"), Some(GenericTallyState::Off));
         assert_eq!(agg.aggregate(), GenericTallyState::Off);
@@ -585,12 +606,18 @@ mod tests {
     #[test]
     fn test_aggregator_program_and_preview_sources() {
         let mut agg = MultiSourceTallyAggregator::new();
-        agg.register("A", TallySourcePriority::Normal).unwrap();
-        agg.register("B", TallySourcePriority::Normal).unwrap();
-        agg.register("C", TallySourcePriority::Normal).unwrap();
-        agg.update("A", GenericTallyState::Program).unwrap();
-        agg.update("B", GenericTallyState::Preview).unwrap();
-        agg.update("C", GenericTallyState::Off).unwrap();
+        agg.register("A", TallySourcePriority::Normal)
+            .expect("source not yet registered");
+        agg.register("B", TallySourcePriority::Normal)
+            .expect("source not yet registered");
+        agg.register("C", TallySourcePriority::Normal)
+            .expect("source not yet registered");
+        agg.update("A", GenericTallyState::Program)
+            .expect("source A exists");
+        agg.update("B", GenericTallyState::Preview)
+            .expect("source B exists");
+        agg.update("C", GenericTallyState::Off)
+            .expect("source C exists");
 
         let prog = agg.program_sources();
         let prev = agg.preview_sources();
@@ -603,7 +630,8 @@ mod tests {
     #[test]
     fn test_aggregator_unregister() {
         let mut agg = MultiSourceTallyAggregator::new();
-        agg.register("Cam1", TallySourcePriority::Normal).unwrap();
+        agg.register("Cam1", TallySourcePriority::Normal)
+            .expect("source not yet registered");
         agg.unregister("Cam1");
         assert_eq!(agg.source_count(), 0);
         assert!(agg.source_state("Cam1").is_none());

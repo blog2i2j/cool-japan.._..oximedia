@@ -116,9 +116,7 @@ impl QualityMonitor {
         self.encode_times.push_back(encode_time_us);
 
         // Remove old samples outside window
-        let cutoff = now
-            .checked_sub(self.window_size)
-            .expect("invariant: window_size fits within Instant range");
+        let cutoff = now.checked_sub(self.window_size).unwrap_or(now);
         while let Some(&time) = self.frame_times.front() {
             if time < cutoff {
                 self.frame_times.pop_front();
@@ -151,14 +149,10 @@ impl QualityMonitor {
     #[must_use]
     pub fn calculate_metrics(&self) -> QualityMetrics {
         let actual_fps = if self.frame_times.len() >= 2 {
-            let first = self
-                .frame_times
-                .front()
-                .expect("invariant: len >= 2 checked above");
-            let last = self
-                .frame_times
-                .back()
-                .expect("invariant: len >= 2 checked above");
+            let (Some(first), Some(last)) = (self.frame_times.front(), self.frame_times.back())
+            else {
+                return QualityMetrics::default();
+            };
             let duration = last.duration_since(*first).as_secs_f64();
 
             if duration > 0.0 {

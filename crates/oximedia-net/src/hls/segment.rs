@@ -355,16 +355,10 @@ impl PrefetchQueue {
     pub fn pop_ready(&mut self) -> Option<(String, Bytes)> {
         if let Some(front) = self.entries.front() {
             if front.status == PrefetchStatus::Ready {
-                let entry = self
-                    .entries
-                    .pop_front()
-                    .expect("invariant: front exists (just checked with if let Some)");
-                return Some((
-                    entry.uri,
-                    entry
-                        .data
-                        .expect("invariant: entry data is Some when status is Ready"),
-                ));
+                // Front was confirmed by `if let Some(front)`.
+                let entry = self.entries.pop_front()?;
+                let data = entry.data?;
+                return Some((entry.uri, data));
             }
         }
         None
@@ -555,7 +549,9 @@ impl SegmentFetcher {
                 .map_err(|e| NetError::connection(format!("Failed to build HTTP client: {e}")))?;
             self.client = Some(c);
         }
-        Ok(self.client.as_ref().expect("client initialised above"))
+        self.client
+            .as_ref()
+            .ok_or_else(|| NetError::connection("HTTP client failed to initialise"))
     }
 
     /// Creates a fetcher with a base URL.
@@ -621,8 +617,7 @@ impl SegmentFetcher {
         let is_partial = byte_range.is_some();
 
         // Ensure the HTTP client is initialised (lazy init on first call).
-        self.client()?;
-        let client = self.client.as_ref().expect("client initialised above");
+        let client = self.client()?;
         let mut request = client.get(&url).timeout(self.config.timeout);
 
         if let Some(range) = byte_range {

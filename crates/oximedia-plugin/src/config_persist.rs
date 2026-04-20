@@ -312,13 +312,17 @@ mod tests {
     // 7. JSON serialisation round-trip.
     #[test]
     fn test_json_roundtrip() {
+        let data_path = std::env::temp_dir()
+            .join("oximedia-plugin-cfg-data")
+            .to_string_lossy()
+            .into_owned();
         let mut cfg = PluginConfig::new("round-trip");
-        cfg.set_str("path", "/tmp/data");
+        cfg.set_str("path", data_path.clone());
         cfg.set_int("threads", 4);
         let json = cfg.to_json().expect("to_json");
         let parsed = PluginConfig::from_json(&json).expect("from_json");
         assert_eq!(parsed.plugin_name, "round-trip");
-        assert_eq!(parsed.get_str("path"), Some("/tmp/data"));
+        assert_eq!(parsed.get_str("path"), Some(data_path.as_str()));
         assert_eq!(parsed.get_int("threads"), Some(4));
     }
 

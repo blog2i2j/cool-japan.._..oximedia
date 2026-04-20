@@ -773,13 +773,13 @@ mod tests {
     #[tokio::test]
     async fn test_content_manager_creation() {
         let config = ContentConfig {
-            content_root: PathBuf::from("/tmp/oximedia_test_content"),
+            content_root: std::env::temp_dir().join("oximedia-playout-content-test-content"),
             watch_folders: vec![],
             auto_ingest: false,
             qc_enabled: false,
             proxy_settings: ProxySettings::default(),
             thumbnail_settings: ThumbnailSettings::default(),
-            database_path: PathBuf::from("/tmp/oximedia_test.db"),
+            database_path: std::env::temp_dir().join("oximedia-playout-content-test.db"),
         };
 
         // Clean up first
@@ -792,13 +792,13 @@ mod tests {
     #[tokio::test]
     async fn test_content_item_operations() {
         let config = ContentConfig {
-            content_root: PathBuf::from("/tmp/oximedia_test_content2"),
+            content_root: std::env::temp_dir().join("oximedia-playout-content-test-content2"),
             watch_folders: vec![],
             auto_ingest: false,
             qc_enabled: false,
             proxy_settings: ProxySettings::default(),
             thumbnail_settings: ThumbnailSettings::default(),
-            database_path: PathBuf::from("/tmp/oximedia_test2.db"),
+            database_path: std::env::temp_dir().join("oximedia-playout-content-test2.db"),
         };
 
         let _ = fs::remove_dir_all(&config.content_root).await;
@@ -809,7 +809,7 @@ mod tests {
         let item = ContentItem {
             id: Uuid::new_v4(),
             title: "Test Content".to_string(),
-            file_path: PathBuf::from("/tmp/test.mp4"),
+            file_path: std::env::temp_dir().join("oximedia-playout-content-test.mp4"),
             file_size: 1024000,
             content_type: ContentType::Video,
             duration_ms: 60000,

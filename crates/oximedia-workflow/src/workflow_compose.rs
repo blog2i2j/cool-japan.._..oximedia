@@ -662,11 +662,15 @@ mod tests {
     #[test]
     fn test_shared_variables() {
         let mut meta = MetaWorkflow::new("pipeline");
-        meta.set_variable("input_path", serde_json::json!("/tmp/input.mp4"));
+        let input = std::env::temp_dir()
+            .join("oximedia-workflow-compose-input.mp4")
+            .to_string_lossy()
+            .into_owned();
+        meta.set_variable("input_path", serde_json::json!(input));
 
         assert_eq!(
             meta.shared_variables.get("input_path"),
-            Some(&serde_json::json!("/tmp/input.mp4"))
+            Some(&serde_json::json!(input))
         );
     }
 

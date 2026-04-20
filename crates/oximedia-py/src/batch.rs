@@ -212,11 +212,18 @@ pub fn estimate_completion_ms(queue: &PyBatchQueue, avg_job_ms: u64) -> u64 {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-py-batch-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     fn make_job(priority: i32) -> PyBatchJob {
         PyBatchJob::new(
             0, // id will be overwritten by submit()
             vec!["a.mp4".to_string(), "b.mp4".to_string()],
-            "/tmp/out",
+            &tmp_str("out"),
             "medium",
             priority,
         )
@@ -243,7 +250,7 @@ mod tests {
     #[test]
     fn test_job_status_completed() {
         let s = PyJobStatus::Completed {
-            output_path: "/tmp/out/result.mkv".to_string(),
+            output_path: tmp_str("out-result.mkv"),
         };
         assert!(s.is_completed());
         assert!(!s.is_failed());
@@ -293,7 +300,7 @@ mod tests {
         let r = PyBatchResult::new(
             7,
             PyJobStatus::Completed {
-                output_path: "/tmp/out.mkv".to_string(),
+                output_path: tmp_str("out.mkv"),
             },
             5000,
         );

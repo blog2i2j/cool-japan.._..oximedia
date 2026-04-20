@@ -343,7 +343,7 @@ impl WatermarkEmbedder {
             key: self.config.key,
         };
 
-        let embedder = SpreadSpectrumEmbedder::new(config, self.sample_rate, 2048);
+        let embedder = SpreadSpectrumEmbedder::new(config, self.sample_rate, 2048)?;
         embedder.embed(samples, payload)
     }
 
@@ -368,7 +368,7 @@ impl WatermarkEmbedder {
             kernel_size: 512,
         };
 
-        let embedder = EchoEmbedder::new(config);
+        let embedder = EchoEmbedder::new(config)?;
         embedder.embed(samples, payload)
     }
 
@@ -398,7 +398,7 @@ impl WatermarkEmbedder {
             bins_per_bit: 5,
         };
 
-        let embedder = PhaseEmbedder::new(config);
+        let embedder = PhaseEmbedder::new(config)?;
         embedder.embed(samples, payload)
     }
 
@@ -421,7 +421,7 @@ impl WatermarkEmbedder {
             key: self.config.key,
         };
 
-        let embedder = LsbEmbedder::new(config);
+        let embedder = LsbEmbedder::new(config)?;
         embedder.embed(samples, payload)
     }
 
@@ -444,7 +444,7 @@ impl WatermarkEmbedder {
             key: self.config.key,
         };
 
-        let embedder = PatchworkEmbedder::new(config);
+        let embedder = PatchworkEmbedder::new(config)?;
         embedder.embed(samples, payload)
     }
 
@@ -470,7 +470,7 @@ impl WatermarkEmbedder {
             end_bin: 500,
         };
 
-        let embedder = QimEmbedder::new(config);
+        let embedder = QimEmbedder::new(config)?;
         embedder.embed(samples, payload)
     }
 
@@ -497,8 +497,10 @@ impl WatermarkEmbedder {
                     key: self.config.key,
                 };
 
-                let embedder = SpreadSpectrumEmbedder::new(config, self.sample_rate, 2048);
-                embedder.capacity(sample_count)
+                match SpreadSpectrumEmbedder::new(config, self.sample_rate, 2048) {
+                    Ok(embedder) => embedder.capacity(sample_count),
+                    Err(_) => 0,
+                }
             }
             Algorithm::Echo => sample_count / 512,
             Algorithm::Phase => (sample_count / 1024) * 19,
@@ -561,7 +563,7 @@ impl WatermarkDetector {
             key: self.config.key,
         };
 
-        let detector = SpreadSpectrumDetector::new(config);
+        let detector = SpreadSpectrumDetector::new(config)?;
         detector.detect(samples, expected_bits)
     }
 
@@ -586,7 +588,7 @@ impl WatermarkDetector {
             kernel_size: 512,
         };
 
-        let detector = EchoDetector::new(config);
+        let detector = EchoDetector::new(config)?;
         detector.detect(samples, expected_bits)
     }
 
@@ -616,7 +618,7 @@ impl WatermarkDetector {
             bins_per_bit: 5,
         };
 
-        let detector = PhaseDetector::new(config);
+        let detector = PhaseDetector::new(config)?;
         detector.detect(samples, expected_bits)
     }
 
@@ -639,7 +641,7 @@ impl WatermarkDetector {
             key: self.config.key,
         };
 
-        let embedder = LsbEmbedder::new(config);
+        let embedder = LsbEmbedder::new(config)?;
         embedder.extract(samples, expected_bits)
     }
 
@@ -662,7 +664,7 @@ impl WatermarkDetector {
             key: self.config.key,
         };
 
-        let embedder = PatchworkEmbedder::new(config);
+        let embedder = PatchworkEmbedder::new(config)?;
         embedder.detect(samples, expected_bits)
     }
 
@@ -688,7 +690,7 @@ impl WatermarkDetector {
             end_bin: 500,
         };
 
-        let detector = QimDetector::new(config);
+        let detector = QimDetector::new(config)?;
         detector.detect(samples, expected_bits)
     }
 }

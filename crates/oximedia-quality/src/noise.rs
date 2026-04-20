@@ -140,10 +140,7 @@ impl NoiseEstimator {
 
         // Use robust estimator (median absolute deviation)
         let mut sorted = noise_values.clone();
-        sorted.sort_by(|a, b| {
-            a.partial_cmp(b)
-                .expect("invariant: noise values are finite f64")
-        });
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 
         let median = sorted[sorted.len() / 2];
 

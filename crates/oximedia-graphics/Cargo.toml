@@ -37,6 +37,12 @@ pollster = { version = "0.4", optional = true }
 # Template and control
 tera = "1"
 
+# getrandom v0.2 (via palette -> phf -> rand 0.8) requires "js" feature on wasm32
+# getrandom v0.4 (via rand 0.10) requires "wasm_js" feature on wasm32
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom02 = { workspace = true }
+getrandom = { workspace = true }
+
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { workspace = true, optional = true }
 axum = { version = "0.8", optional = true }
@@ -47,5 +53,5 @@ gpu = ["dep:wgpu", "dep:pollster"]
 server = ["dep:tokio", "dep:axum"]
 
 [dev-dependencies]
-criterion = "0.8"
+criterion = { workspace = true }
 tempfile.workspace = true

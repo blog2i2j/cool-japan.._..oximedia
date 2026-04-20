@@ -36,6 +36,7 @@
 //! ```
 
 mod pes;
+pub mod scte35;
 
 use async_trait::async_trait;
 use oximedia_core::{CodecId, OxiError, OxiResult};

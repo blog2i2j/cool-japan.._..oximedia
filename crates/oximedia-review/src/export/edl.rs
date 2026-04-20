@@ -108,12 +108,15 @@ mod tests {
         let comments: Vec<Comment> = Vec::new();
         let config = EdlExportConfig::default();
 
-        let temp_file = "/tmp/test_markers.edl";
-        let result = export_to_edl(session_id, &comments, config, temp_file).await;
+        let temp_file = std::env::temp_dir()
+            .join("oximedia-review-edl-test_markers.edl")
+            .to_string_lossy()
+            .into_owned();
+        let result = export_to_edl(session_id, &comments, config, &temp_file).await;
         assert!(result.is_ok());
 
         // Clean up
-        let _ = std::fs::remove_file(temp_file);
+        let _ = std::fs::remove_file(&temp_file);
     }
 
     #[test]

@@ -399,7 +399,10 @@ mod tests {
             Priority::Low,
             JobPayload::Thumbnail(ThumbnailParams {
                 input: "in.mp4".to_string(),
-                output_dir: "/tmp/thumbs".to_string(),
+                output_dir: std::env::temp_dir()
+                    .join("oximedia-jobs-batch-thumbs")
+                    .to_string_lossy()
+                    .into_owned(),
                 count: 5,
                 width: 320,
                 height: 180,

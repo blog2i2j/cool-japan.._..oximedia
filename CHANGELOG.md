@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-04-20
+
+### Added
+- **MJPEG codec end-to-end wiring**: encoder, decoder, MP4/MOV sample entry (`jpeg` fourcc), Matroska `V_MJPEG` codec ID, proxy codec integration in `oximedia-multicam`, transcode dispatch in `oximedia-transcode`
+- **APV codec end-to-end wiring**: encoder, decoder, MP4 sample entry (`apv1` fourcc), Matroska `V_MS/VFW/FOURCC` with BITMAPINFOHEADER CodecPrivate, compat-ffmpeg pass-through, transcode dispatch
+- **AVI container (Wave 3)**: AVI v3 OpenDML support for files >1 GB; PCM audio muxing; H264/RGB24 codec arms in RIFF-AVI muxer (`mux/avi/writer.rs`) and demuxer (`demux/avi/reader.rs`); hdrl + movi + idx1 index
+- **AJXL ISOBMFF animated container**: `AnimatedJxlEncoder::finish_isobmff()` emits spec-conformant `ftyp` + `jxll` + `jxlp*` box chain (ISO/IEC 18181-2); shared ISOBMFF helper module (`make_box`, `make_full_box`, `BoxIter<R: Read>`)
+- **AJXL streaming decoder**: `JxlStreamingDecoder<R: Read>: Iterator<Item = CodecResult<JxlFrame>>` with auto-detection of ISOBMFF vs OxiMedia native format; lazy `jxlp` box parsing; memory-bounded (one frame in-flight)
+- **`CodecId::FromStr` + `FourCc`**: 24-alias `FromStr` implementation and `canonical_name()` for all codec IDs; `FourCc` struct with 31 predefined constants in `oximedia-core` (`types/fourcc.rs`)
+- **CLI MJPEG/APV support**: `VideoCodec::{Mjpeg, Apv}` variants with `is_intra_only()`, `default_crf()`, `validate_crf()`; intra-codec fast path in `TranscodePipeline`
+- **WASM32 platform gating**: `oximedia-batch` and `oximedia-convert` `mio` dependency cfg-gated for WASM; `oximedia-gpu` and `oximedia-graphics` `GpuAccelerator` Send+Sync WASM cfg-gate; `oximedia-colormgmt`, `oximedia-workflow`, `oximedia-farm` also pass `cargo check --target wasm32-unknown-unknown` cleanly; tokio/tonic/rusqlite deps target-gated in `oximedia-farm`
+- **MP4 muxer fragment modes (Wave 3)**: `Mp4FragmentMode` enum (Progressive/Fragmented); AV1 `av1C` config box emission; MJPEG/APV codec arms in MP4 sample entry
+- **Matroska enhancements (Wave 3 + Wave 4)**: `seek_sample_accurate()` in Matroska demuxer; `preroll_samples`/`padding_samples` fields in MP4 elst box; `BlockAdditionMapping` support in MKV muxer
+- **DASH/CMAF streaming (Wave 3 + Wave 4)**: DASH MPD manifest emitter (`dash/manifest.rs`); CMAF-LL chunked DASH MPD emitter for low-latency delivery; cross-format `seek_sample_accurate()` trait
+- **FFmpeg compat extensions (Wave 3)**: `filter_complex.rs` — FilterGraph parser for `-filter_complex` arguments; `stream_spec.rs` — `StreamSelector` for FFmpeg stream specifiers; `seek.rs` — `parse_duration` for FFmpeg duration strings; `ffprobe_output.rs` — `FfprobeOutputFormat` output struct
+- **FFmpeg compat quality flags (Wave 4)**: `OnceLock`-cached codec-map for zero-cost repeated lookups; `-crf`/`-b:v`/`-maxrate`/`-bufsize` arguments translated to `EncoderQuality`; `-vf`/`-af` filter chain parsing; two-pass encoding support (`-pass 1`/`-pass 2`)
+- **APV codec aliases (Wave 3)**: APV codec aliases added to `codec_map.rs` and `codec_mapping.rs` in `oximedia-compat-ffmpeg`; 4 pre-existing failing tests fixed
+- **Dolby Atmos channel layouts (Wave 4)**: `oximedia-core` gains 7.1.2, 5.1.4, 7.1.4, 9.1.6, and binaural Dolby Atmos channel layout variants
+- **Color metadata types (Wave 4)**: `ColorPrimaries`, `TransferCharacteristics`, and `MatrixCoefficients` enums plus `ColorMetadata` struct added to `oximedia-core`
+- **Timestamp arithmetic (Wave 4)**: arithmetic operator impls (`Add`, `Sub`, `Mul`, `Div`) on `Timestamp` in `oximedia-core`
+
+### Fixed
+- **JPEG encoder spec-compliance**: DQT table now serialized in zigzag order per JPEG spec; EOB marker emitted only when trailing-zero AC run exists; dequantization ordering corrected. MJPEG round-trip PSNR at Q85: 6.16 dB → 32.53 dB
+- **Matroska MJPEG/APV codec IDs**: `codec_id_string` now returns `V_MJPEG` / `V_MS/VFW/FOURCC` instead of falling through to `V_UNCOMPRESSED`
+- **MP4 muxer APV/MJPEG validation**: `validate_codec` now accepts royalty-free codecs APV and MJPEG; `codec_to_fourcc` maps them to `apv1`/`jpeg`
+
+### Improved
+- **87,387 tests passing** (up from 80,901 in Wave 3; 80,901 up from ~80,500 pre-Wave 3); zero clippy warnings
+- **Docs sweep (Wave 3 + Wave 4)**: rustdoc updated for 10 crates (gpu, storage, routing, collab, presets, switcher, automation, core, codec, compat-ffmpeg) plus codec, io, and bitstream crates; 20 TODO markers resolved
+
 ## [0.1.3] - 2026-04-15
 
 ### Added

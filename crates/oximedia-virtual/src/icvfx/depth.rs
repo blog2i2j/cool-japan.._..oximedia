@@ -56,7 +56,10 @@ impl DepthProcessor {
 
 impl Default for DepthProcessor {
     fn default() -> Self {
-        Self::new().expect("invariant: DepthProcessor::new is infallible")
+        Self {
+            near_depth: 0.1,
+            far_depth: 100.0,
+        }
     }
 }
 

@@ -204,7 +204,7 @@ mod tests {
     #[test]
     fn test_image_sequence_creation() {
         let seq = ImageSequence::new(
-            PathBuf::from("/tmp/frames"),
+            std::env::temp_dir().join("oximedia-convert-frames"),
             "frame_%04d.png".to_string(),
             ImageFormat::Png,
             30.0,
@@ -217,7 +217,7 @@ mod tests {
     #[test]
     fn test_image_sequence_frame_path() {
         let seq = ImageSequence::new(
-            PathBuf::from("/tmp/frames"),
+            std::env::temp_dir().join("oximedia-convert-frames"),
             "frame_%04d.png".to_string(),
             ImageFormat::Png,
             30.0,
@@ -230,7 +230,7 @@ mod tests {
     #[test]
     fn test_image_sequence_builder() {
         let seq = ImageSequence::new(
-            PathBuf::from("/tmp/frames"),
+            std::env::temp_dir().join("oximedia-convert-frames"),
             "frame_%04d.png".to_string(),
             ImageFormat::Png,
             30.0,

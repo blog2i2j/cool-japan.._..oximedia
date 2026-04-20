@@ -430,3 +430,359 @@ mod tests {
         assert_eq!(s.to_string(), "p:10:0");
     }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// StreamSelector — extended `-map` argument parsing
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Error type for stream-selector parsing.
+#[derive(Debug, thiserror::Error)]
+pub enum StreamSpecError {
+    /// The stream-type letter was not recognized.
+    #[error("unknown stream type letter '{0}'")]
+    UnknownStreamType(String),
+
+    /// A numeric field could not be parsed as an integer.
+    #[error("invalid integer in stream specifier: {0}")]
+    InvalidInteger(#[from] std::num::ParseIntError),
+
+    /// The specifier string was syntactically malformed.
+    #[error("malformed stream specifier '{0}': {1}")]
+    Malformed(String, String),
+
+    /// A metadata key=value pair was missing the `=` separator.
+    #[error("metadata specifier missing '=': '{0}'")]
+    MissingMetadataEquals(String),
+}
+
+/// High-level stream selector produced from a `-map` argument.
+///
+/// FFmpeg's `-map` syntax:
+///
+/// ```text
+/// -map 0           — all streams from input 0
+/// -map 0:v         — all video streams from input 0
+/// -map 0:v:0       — first video stream from input 0
+/// -map 0:a:1       — second audio stream from input 0
+/// -map [label]     — output pad of a filter_complex
+/// -map 0:m:language:eng — streams with metadata tag language=eng
+/// -map -0:a:1      — exclude (negative map)
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StreamSelector {
+    /// Select all streams (optionally filtered by type) from a given input file.
+    ///
+    /// `file_idx`: index into the `-i` input list.
+    /// `stream_type`: `None` means all streams; `Some(t)` limits by media type.
+    /// `stream_idx`: further positional refinement within `stream_type`.
+    All {
+        /// Input file index.
+        file_idx: usize,
+        /// Optional media-type filter.
+        stream_type: Option<StreamType>,
+        /// Optional positional index within the type group.
+        stream_idx: Option<usize>,
+    },
+
+    /// Select streams by metadata key/value pair.
+    ///
+    /// Corresponds to `-map 0:m:key:value`.
+    ByMetadata {
+        /// Input file index.
+        file_idx: usize,
+        /// Optional media-type pre-filter.
+        stream_type: Option<StreamType>,
+        /// Metadata tag name.
+        key: String,
+        /// Metadata tag value.
+        value: String,
+    },
+
+    /// Select a filter-complex output pad by its label.
+    ///
+    /// Corresponds to `-map [label]`.
+    ByLabel {
+        /// The pad label (the string between `[` and `]`).
+        label: String,
+    },
+
+    /// Negative (exclusion) map — wraps another selector.
+    ///
+    /// Corresponds to the `-map -…` prefix.
+    Exclude(Box<StreamSelector>),
+}
+
+impl StreamSelector {
+    /// Parse a `-map` argument value into a [`StreamSelector`].
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use oximedia_compat_ffmpeg::stream_spec::StreamSelector;
+    ///
+    /// let sel = StreamSelector::parse("0:v:0").expect("ok");
+    /// let sel_neg = StreamSelector::parse("-0:a:1").expect("ok");
+    /// let sel_lbl = StreamSelector::parse("[out_v]").expect("ok");
+    /// let sel_meta = StreamSelector::parse("0:m:language:eng").expect("ok");
+    /// ```
+    pub fn parse(s: &str) -> Result<Self, StreamSpecError> {
+        let s = s.trim();
+
+        // ── Negative prefix ────────────────────────────────────────────────
+        if let Some(rest) = s.strip_prefix('-') {
+            // The rest must not itself start with `-` (double negative is invalid).
+            let inner = Self::parse_positive(rest)?;
+            return Ok(Self::Exclude(Box::new(inner)));
+        }
+
+        Self::parse_positive(s)
+    }
+
+    /// Parse a positive (non-negated) selector.
+    fn parse_positive(s: &str) -> Result<Self, StreamSpecError> {
+        // ── Filter-complex label: [label] ──────────────────────────────────
+        if s.starts_with('[') {
+            if let Some(inner) = s.strip_prefix('[').and_then(|t| t.strip_suffix(']')) {
+                if inner.is_empty() {
+                    return Err(StreamSpecError::Malformed(
+                        s.to_string(),
+                        "empty label".to_string(),
+                    ));
+                }
+                return Ok(Self::ByLabel {
+                    label: inner.to_string(),
+                });
+            }
+            return Err(StreamSpecError::Malformed(
+                s.to_string(),
+                "unclosed '['".to_string(),
+            ));
+        }
+
+        // All remaining forms start with a file index.
+        let parts: Vec<&str> = s.splitn(4, ':').collect();
+
+        let file_idx: usize = parts[0]
+            .parse()
+            .map_err(|e: std::num::ParseIntError| StreamSpecError::InvalidInteger(e))?;
+
+        if parts.len() == 1 {
+            // "0" — all streams from file 0
+            return Ok(Self::All {
+                file_idx,
+                stream_type: None,
+                stream_idx: None,
+            });
+        }
+
+        // Second segment: stream type letter or 'm' (metadata)
+        match parts[1] {
+            "m" => {
+                // Metadata specifier: 0:m:key:value
+                let key = parts.get(2).copied().unwrap_or("").to_string();
+                let value = parts.get(3).copied().unwrap_or("").to_string();
+                if key.is_empty() {
+                    return Err(StreamSpecError::Malformed(
+                        s.to_string(),
+                        "metadata key is empty".to_string(),
+                    ));
+                }
+                Ok(Self::ByMetadata {
+                    file_idx,
+                    stream_type: None,
+                    key,
+                    value,
+                })
+            }
+            type_str => {
+                // Check if it is a valid stream type
+                let st = parse_stream_selector_type(type_str)
+                    .ok_or_else(|| StreamSpecError::UnknownStreamType(type_str.to_string()))?;
+
+                // Third segment: optional positional index
+                let stream_idx = if let Some(idx_str) = parts.get(2) {
+                    if idx_str.is_empty() {
+                        None
+                    } else {
+                        let n: usize = idx_str.parse().map_err(|e: std::num::ParseIntError| {
+                            StreamSpecError::InvalidInteger(e)
+                        })?;
+                        Some(n)
+                    }
+                } else {
+                    None
+                };
+
+                Ok(Self::All {
+                    file_idx,
+                    stream_type: Some(st),
+                    stream_idx,
+                })
+            }
+        }
+    }
+}
+
+/// Parse a stream-type letter into [`StreamType`], returning `None` for unknown letters.
+fn parse_stream_selector_type(s: &str) -> Option<StreamType> {
+    match s {
+        "v" | "V" => Some(StreamType::Video),
+        "a" => Some(StreamType::Audio),
+        "s" => Some(StreamType::Subtitle),
+        "d" => Some(StreamType::Data),
+        "t" => Some(StreamType::Attachment),
+        _ => None,
+    }
+}
+
+impl std::fmt::Display for StreamSelector {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::All {
+                file_idx,
+                stream_type,
+                stream_idx,
+            } => {
+                write!(f, "{}", file_idx)?;
+                if let Some(st) = stream_type {
+                    write!(f, ":{}", st)?;
+                }
+                if let Some(idx) = stream_idx {
+                    write!(f, ":{}", idx)?;
+                }
+                Ok(())
+            }
+            Self::ByMetadata {
+                file_idx,
+                stream_type,
+                key,
+                value,
+            } => {
+                write!(f, "{}:", file_idx)?;
+                if let Some(st) = stream_type {
+                    write!(f, "{}:", st)?;
+                }
+                write!(f, "m:{}:{}", key, value)
+            }
+            Self::ByLabel { label } => write!(f, "[{}]", label),
+            Self::Exclude(inner) => write!(f, "-{}", inner),
+        }
+    }
+}
+
+#[cfg(test)]
+mod stream_selector_tests {
+    use super::*;
+
+    #[test]
+    fn test_all_streams_from_file() {
+        let sel = StreamSelector::parse("0").expect("parse 0");
+        assert_eq!(
+            sel,
+            StreamSelector::All {
+                file_idx: 0,
+                stream_type: None,
+                stream_idx: None
+            }
+        );
+    }
+
+    #[test]
+    fn test_all_video_streams() {
+        let sel = StreamSelector::parse("0:v").expect("parse 0:v");
+        assert_eq!(
+            sel,
+            StreamSelector::All {
+                file_idx: 0,
+                stream_type: Some(StreamType::Video),
+                stream_idx: None
+            }
+        );
+    }
+
+    #[test]
+    fn test_first_video_stream() {
+        let sel = StreamSelector::parse("0:v:0").expect("parse 0:v:0");
+        assert_eq!(
+            sel,
+            StreamSelector::All {
+                file_idx: 0,
+                stream_type: Some(StreamType::Video),
+                stream_idx: Some(0)
+            }
+        );
+    }
+
+    #[test]
+    fn test_second_audio_stream_from_file1() {
+        let sel = StreamSelector::parse("1:a:1").expect("parse 1:a:1");
+        assert_eq!(
+            sel,
+            StreamSelector::All {
+                file_idx: 1,
+                stream_type: Some(StreamType::Audio),
+                stream_idx: Some(1)
+            }
+        );
+    }
+
+    #[test]
+    fn test_negative_map() {
+        let sel = StreamSelector::parse("-0:a:1").expect("parse -0:a:1");
+        if let StreamSelector::Exclude(inner) = &sel {
+            assert_eq!(
+                **inner,
+                StreamSelector::All {
+                    file_idx: 0,
+                    stream_type: Some(StreamType::Audio),
+                    stream_idx: Some(1)
+                }
+            );
+        } else {
+            panic!("expected Exclude variant");
+        }
+    }
+
+    #[test]
+    fn test_filter_label() {
+        let sel = StreamSelector::parse("[out_v]").expect("parse [out_v]");
+        assert_eq!(
+            sel,
+            StreamSelector::ByLabel {
+                label: "out_v".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_metadata() {
+        let sel = StreamSelector::parse("0:m:language:eng").expect("parse 0:m:language:eng");
+        assert_eq!(
+            sel,
+            StreamSelector::ByMetadata {
+                file_idx: 0,
+                stream_type: None,
+                key: "language".to_string(),
+                value: "eng".to_string()
+            }
+        );
+    }
+
+    #[test]
+    fn test_display_roundtrip() {
+        for spec in &["0", "0:v", "0:v:0", "1:a:1", "[out_v]", "0:m:language:eng"] {
+            let sel = StreamSelector::parse(spec).expect("parse");
+            assert_eq!(&sel.to_string(), spec, "roundtrip failed for {}", spec);
+        }
+    }
+
+    #[test]
+    fn test_invalid_file_idx() {
+        assert!(StreamSelector::parse("x:v").is_err());
+    }
+
+    #[test]
+    fn test_invalid_type_letter() {
+        assert!(StreamSelector::parse("0:z").is_err());
+    }
+}

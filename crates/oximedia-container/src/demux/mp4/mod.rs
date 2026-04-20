@@ -48,6 +48,7 @@ use oximedia_core::{CodecId, OxiError, OxiResult, Rational, Timestamp};
 use oximedia_io::MediaSource;
 
 use crate::demux::Demuxer;
+use crate::DecodeSkipCursor;
 use crate::{CodecParams, ContainerFormat, Metadata, Packet, PacketFlags, ProbeResult, StreamInfo};
 
 /// MP4/ISOBMFF demuxer supporting AV1 and VP9 only.
@@ -180,6 +181,14 @@ impl<R> Mp4Demuxer<R> {
     #[must_use]
     pub const fn moov(&self) -> Option<&MoovBox> {
         self.moov.as_ref()
+    }
+
+    /// Returns a slice of parsed `TrakBox` entries from the `moov` box.
+    ///
+    /// Returns an empty slice if headers have not been parsed yet.
+    #[must_use]
+    pub fn traks(&self) -> &[TrakBox] {
+        self.moov.as_ref().map_or(&[], |m| m.traks.as_slice())
     }
 }
 
@@ -461,6 +470,86 @@ impl<R: MediaSource> Mp4Demuxer<R> {
         }
 
         best.map(|(i, _)| i)
+    }
+
+    fn sample_dts(track: &TrackState, sample_index: usize) -> u64 {
+        track.samples[..sample_index]
+            .iter()
+            .map(|s| u64::from(s.duration))
+            .sum()
+    }
+
+    fn sample_pts(track: &TrackState, sample_index: usize) -> Option<i64> {
+        let sample = track.samples.get(sample_index)?;
+        let dts = Self::sample_dts(track, sample_index);
+        let dts_i64 = i64::try_from(dts).ok()?;
+        Some(dts_i64 + i64::from(sample.cts_offset))
+    }
+
+    fn sample_accurate_cursor_for_track(
+        &self,
+        track: &TrackState,
+        target_pts: u64,
+    ) -> OxiResult<DecodeSkipCursor> {
+        if track.samples.is_empty() {
+            return Err(OxiError::InvalidData("Track has no samples".into()));
+        }
+
+        let target_pts_i64 = i64::try_from(target_pts)
+            .map_err(|_| OxiError::InvalidData("Target PTS is out of range".into()))?;
+
+        let target_index = track
+            .samples
+            .iter()
+            .enumerate()
+            .find_map(|(index, _)| {
+                Self::sample_pts(track, index)
+                    .filter(|&pts| pts >= target_pts_i64)
+                    .map(|_| index)
+            })
+            .unwrap_or(track.samples.len().saturating_sub(1));
+
+        let keyframe_index = (0..=target_index)
+            .rev()
+            .find(|&index| track.samples[index].is_sync)
+            .unwrap_or(0);
+
+        let byte_offset = track.samples[keyframe_index].offset;
+        let skip_samples = u32::try_from(target_index.saturating_sub(keyframe_index))
+            .map_err(|_| OxiError::InvalidData("Sample skip count is out of range".into()))?;
+
+        Ok(DecodeSkipCursor {
+            byte_offset,
+            sample_index: keyframe_index,
+            skip_samples,
+            target_pts: target_pts_i64,
+        })
+    }
+
+    /// Plans a sample-accurate seek for the default video track, or the first track.
+    ///
+    /// Returns a cursor describing the keyframe offset and the number of samples
+    /// that must be decoded and discarded to reach `target_pts`.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if headers have not been parsed or no decodable track exists.
+    pub async fn seek_sample_accurate(&mut self, target_pts: u64) -> OxiResult<DecodeSkipCursor> {
+        if !self.header_parsed {
+            self.parse_headers().await?;
+        }
+
+        let track_index = self
+            .streams
+            .iter()
+            .position(StreamInfo::is_video)
+            .unwrap_or(0);
+        let track = self
+            .tracks
+            .get(track_index)
+            .ok_or_else(|| OxiError::InvalidData("No MP4 tracks available".into()))?;
+
+        self.sample_accurate_cursor_for_track(track, target_pts)
     }
 }
 

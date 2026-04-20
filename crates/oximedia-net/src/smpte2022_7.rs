@@ -20,7 +20,7 @@
 #![allow(dead_code)]
 
 use std::collections::BTreeMap;
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::time::{Duration, Instant};
 
 // ─── Path Identifier ─────────────────────────────────────────────────────────
@@ -74,8 +74,8 @@ impl Default for St2022Config {
             prefer_primary: true,
             fail_threshold: 10,
             restore_threshold: 5,
-            primary_addr: "0.0.0.0:5000".parse().expect("valid addr"),
-            secondary_addr: "0.0.0.0:5002".parse().expect("valid addr"),
+            primary_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 5000),
+            secondary_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 5002),
         }
     }
 }

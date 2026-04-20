@@ -13,6 +13,36 @@
 //! - [`BandwidthEstimator`] - Sophisticated bandwidth estimation
 //! - `QualitySelector` - Quality selection with smooth transitions
 //!
+//! ## BBA-1: Buffer-Based Rate Adaptation
+//!
+//! The BBA-1 algorithm (Huang et al., 2014) selects the video bitrate variant
+//! based on the client's current buffer fill level rather than measured throughput.
+//! This avoids the rebuffering oscillation that bandwidth-based ABR exhibits on
+//! live streams with variable throughput.  The implementation lives in
+//! [`bba1::select_variant`].
+//!
+//! ### Regions
+//!
+//! ```text
+//! Buffer level
+//! ┌──────────────────────────────────────────────────────────────┐ ← capacity (B = 30s)
+//! │                                                              │
+//! │                    UPPER REGION                              │ → always highest variant
+//! │                                                              │
+//! ├────────────────────────────────────────────────────── r+c ───┤ (reservoir + cushion = 30s)
+//! │                                                              │
+//! │                    CUSHION REGION (c = 20s)                  │ → linear interpolation
+//! │                                                              │
+//! ├───────────────────────────────────────────────────── r ──────┤ (reservoir = 10s)
+//! │                                                              │
+//! │                    RESERVOIR REGION                          │ → always lowest variant
+//! │                                                              │
+//! └──────────────────────────────────────────────────────────────┘ ← 0 (empty)
+//! ```
+//!
+//! Default parameters: `B = 30s`, `r = 10s`, `c = 20s`.
+//! These can be customised via [`bba1::BbaParams`].
+//!
 //! # Example
 //!
 //! ```ignore
@@ -1034,12 +1064,14 @@ impl AdaptiveBitrateController for SimpleThroughputAbr {
     }
 }
 
+pub mod bba1;
 pub mod bola;
 pub mod dash_ctrl;
 pub mod history;
 pub mod mpc;
 pub mod streaming;
 
+pub use bba1::{select_variant as bba1_select_variant, BbaParams};
 pub use bola::BolaBbrController;
 pub use dash_ctrl::{DashAbrController, DashSegmentAvailability};
 pub use history::{DownloadWindowStats, SegmentDownloadHistory, SegmentDownloadRecord};

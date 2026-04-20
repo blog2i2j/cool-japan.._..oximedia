@@ -61,7 +61,7 @@ impl SdpSession {
             origin_address,
             session_id: std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
-                .expect("invariant: system time is after UNIX_EPOCH")
+                .unwrap_or(std::time::Duration::ZERO)
                 .as_secs(),
             session_version: 1,
             media: Vec::new(),

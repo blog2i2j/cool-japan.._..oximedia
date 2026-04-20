@@ -345,6 +345,13 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-py-proxy-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_proxy_config_scale() {
         let cfg = PyProxyConfig::new("quarter", "medium", "vp9", 0);
@@ -371,8 +378,8 @@ mod tests {
     fn test_proxy_file_compression() {
         let pf = PyProxyFile {
             id: "proxy-001".to_string(),
-            original_path: "/tmp/orig.mov".to_string(),
-            proxy_path: "/tmp/proxy.webm".to_string(),
+            original_path: tmp_str("orig.mov"),
+            proxy_path: tmp_str("proxy.webm"),
             resolution: "quarter".to_string(),
             quality: "medium".to_string(),
             codec: "vp9".to_string(),
@@ -388,8 +395,8 @@ mod tests {
     fn test_proxy_file_zero_size() {
         let pf = PyProxyFile {
             id: "proxy-002".to_string(),
-            original_path: "/tmp/orig.mov".to_string(),
-            proxy_path: "/tmp/proxy.webm".to_string(),
+            original_path: tmp_str("orig.mov"),
+            proxy_path: tmp_str("proxy.webm"),
             resolution: "quarter".to_string(),
             quality: "medium".to_string(),
             codec: "vp9".to_string(),

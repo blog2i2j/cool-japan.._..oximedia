@@ -133,8 +133,9 @@ impl TokenAuth {
 
     fn compute_hmac_token(&self, path: &str, expires: u64) -> String {
         let message = format!("{path}:{expires}");
-        let mut mac =
-            HmacSha256::new_from_slice(&self.secret).expect("HMAC accepts any key length");
+        // HMAC-SHA-256 accepts any key length; this branch is unreachable.
+        let mut mac = HmacSha256::new_from_slice(&self.secret)
+            .unwrap_or_else(|_| unreachable!("HMAC-SHA-256 accepts any key length"));
         mac.update(message.as_bytes());
         let result = mac.finalize().into_bytes();
         token_auth_hex_encode(&result)

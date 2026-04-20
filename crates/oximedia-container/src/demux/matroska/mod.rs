@@ -30,6 +30,7 @@
 //! ```
 
 pub mod ebml;
+pub mod matroska_v4;
 pub mod parser;
 pub mod types;
 
@@ -42,6 +43,7 @@ use oximedia_core::{OxiError, OxiResult, Rational, Timestamp};
 use oximedia_io::MediaSource;
 
 use crate::demux::Demuxer;
+use crate::DecodeSkipCursor;
 use crate::{CodecParams, ContainerFormat, Metadata, Packet, PacketFlags, ProbeResult, StreamInfo};
 
 use ebml::element_id;
@@ -130,6 +132,12 @@ pub struct MatroskaDemuxer<R> {
 
     /// Detected format.
     format: Option<ContainerFormat>,
+
+    /// Sample-accurate seek target: skip packets with pts < this value.
+    ///
+    /// Set by [`seek_sample_accurate`](MatroskaDemuxer::seek_sample_accurate) and
+    /// cleared once a matching packet is found in [`read_packet`].
+    skip_until: Option<u64>,
 }
 
 impl<R> MatroskaDemuxer<R> {
@@ -157,6 +165,7 @@ impl<R> MatroskaDemuxer<R> {
             eof: false,
             header_parsed: false,
             format: None,
+            skip_until: None,
         }
     }
 
@@ -293,18 +302,12 @@ impl<R: MediaSource> MatroskaDemuxer<R> {
         self.consume_buffer(consumed);
 
         // Determine format from DocType
-        // Safety: `self.ebml_header` was just set to `Some(header)` on the line above.
-        self.format = Some(
-            match self
-                .ebml_header
-                .as_ref()
-                .expect("ebml_header was set immediately before this line")
-                .doc_type
-            {
+        if let Some(ref hdr) = self.ebml_header {
+            self.format = Some(match hdr.doc_type {
                 DocType::WebM => ContainerFormat::WebM,
                 DocType::Matroska => ContainerFormat::Matroska,
-            },
-        );
+            });
+        }
 
         // Parse segment element header
         self.ensure_buffer(12).await?;
@@ -461,6 +464,7 @@ impl<R: MediaSource> MatroskaDemuxer<R> {
             if let Some(ref private) = track.codec_private {
                 stream.codec_params.extradata = Some(Bytes::copy_from_slice(private));
             }
+            stream.codec_params.block_addition_mappings = track.block_addition_mappings.clone();
 
             // Set metadata
             if let Some(ref name) = track.name {
@@ -682,6 +686,136 @@ impl<R: MediaSource> MatroskaDemuxer<R> {
         best_cue
     }
 
+    /// Seeks to the exact sample with the given presentation timestamp (PTS).
+    ///
+    /// This performs sample-accurate seeking, which guarantees that the next
+    /// call to [`read_packet`](crate::Demuxer::read_packet) returns the packet
+    /// with `pts == target_pts` (for the default stream), or the first packet
+    /// with `pts >= target_pts` if no exact match is found.
+    ///
+    /// # Algorithm
+    ///
+    /// 1. Use Cue Points (if available) to seek to the cluster containing or
+    ///    preceding `target_pts`.
+    /// 2. Fall back to the segment start if no Cues are present.
+    /// 3. Scan forward block-by-block looking for the first block from any
+    ///    stream whose `pts == target_pts` (considering the default/first
+    ///    stream).  If an exact match is found, the demuxer is positioned
+    ///    *just before* that block, so the next `read_packet` returns it.
+    /// 4. If no exact match is reached before a block with
+    ///    `pts > target_pts`, set `skip_until = target_pts` so that
+    ///    `read_packet` discards earlier-timestamped packets transparently.
+    ///
+    /// # Arguments
+    ///
+    /// * `target_pts` - Target PTS in timecode-scale units (same units used by
+    ///   [`Packet::timestamp`](crate::Packet::timestamp)).
+    ///
+    /// # Errors
+    ///
+    /// - `OxiError::InvalidData` – headers have not been parsed yet, or the
+    ///   source is not seekable.
+    /// - Propagates I/O errors from the underlying `MediaSource`.
+    #[allow(clippy::cast_possible_wrap, clippy::cast_sign_loss)]
+    pub async fn seek_sample_accurate(&mut self, target_pts: u64) -> OxiResult<DecodeSkipCursor> {
+        if !self.source.is_seekable() {
+            return Err(OxiError::unsupported("Source is not seekable"));
+        }
+        if !self.header_parsed {
+            return Err(OxiError::InvalidData(
+                "Cannot seek before probing".to_string(),
+            ));
+        }
+
+        // Determine the reference track number (prefer video, else first track).
+        let ref_track_number: u64 = {
+            let video_track = self
+                .tracks
+                .iter()
+                .find(|t| t.track_type == types::TrackType::Video)
+                .or_else(|| self.tracks.first());
+            video_track.map_or(1, |t| t.number)
+        };
+
+        // Step 1: Position via Cue Points (best-effort).
+        let seek_pos = if let Some((cluster_pos, _)) =
+            self.find_cue_point(target_pts, ref_track_number, true)
+        {
+            cluster_pos
+        } else {
+            // No Cues — start linear scan from segment start.
+            self.segment_start
+        };
+
+        self.seek_to_position(seek_pos).await?;
+        self.skip_until = None;
+        let mut skip_samples = 0u32;
+
+        // Step 2: Scan forward to find exact position.
+        // We keep track of the last cluster/source position so we can
+        // rewind to it when we overshoot.
+        loop {
+            let result = self.read_next_block().await;
+            match result {
+                Ok((block, cluster_time)) => {
+                    // Only consider blocks from the reference track.
+                    let is_ref = block.header.track_number == ref_track_number;
+                    if !is_ref {
+                        continue;
+                    }
+
+                    let block_pts = cluster_time as i64 + i64::from(block.header.timecode);
+                    #[allow(clippy::cast_possible_truncation)]
+                    let block_pts_u64 = if block_pts < 0 {
+                        0u64
+                    } else {
+                        block_pts as u64
+                    };
+
+                    if block_pts_u64 >= target_pts {
+                        // Reached or overshot the target.  Always rewind to
+                        // the cluster start (`seek_pos`) so that the CLUSTER
+                        // header and TIMESTAMP are re-parsed, ensuring
+                        // `current_cluster` is properly initialized before
+                        // the next `read_packet` call.  This avoids the
+                        // `cluster_time = 0` default that would occur if we
+                        // rewound to a mid-cluster position with
+                        // `current_cluster = None`.
+                        //
+                        // `skip_until = target_pts` discards all blocks with
+                        // `pts < target_pts`, so regardless of whether we
+                        // found an exact match or overshot, the first packet
+                        // returned by `read_packet` will have
+                        // `pts >= target_pts`.
+                        self.seek_to_position(seek_pos).await?;
+                        self.skip_until = Some(target_pts);
+                        return Ok(DecodeSkipCursor {
+                            byte_offset: seek_pos,
+                            sample_index: 0,
+                            skip_samples,
+                            target_pts: i64::try_from(target_pts).unwrap_or(i64::MAX),
+                        });
+                    }
+                    // block_pts_u64 < target_pts → keep scanning.
+                    skip_samples = skip_samples.saturating_add(1);
+                }
+                Err(OxiError::Eof) => {
+                    // Reached EOF without finding the exact timestamp.
+                    // Rewind to the last cluster and use skip_until.
+                    self.seek_to_position(seek_pos).await?;
+                    self.skip_until = Some(target_pts);
+                    return Ok(DecodeSkipCursor {
+                        byte_offset: seek_pos,
+                        sample_index: 0,
+                        skip_samples,
+                        target_pts: i64::try_from(target_pts).unwrap_or(i64::MAX),
+                    });
+                }
+                Err(e) => return Err(e),
+            }
+        }
+    }
+
     /// Performs a seek operation using cue points and cluster scanning.
     ///
     /// This implements a multi-stage seeking algorithm:
@@ -839,6 +973,7 @@ impl<R: MediaSource> Demuxer for MatroskaDemuxer<R> {
     ///
     /// - Returns `OxiError::Eof` when there are no more packets
     /// - Returns other errors for parse failures or I/O errors
+    #[allow(clippy::cast_sign_loss, clippy::cast_possible_wrap)]
     async fn read_packet(&mut self) -> OxiResult<Packet> {
         if !self.header_parsed {
             self.parse_headers().await?;
@@ -858,6 +993,23 @@ impl<R: MediaSource> Demuxer for MatroskaDemuxer<R> {
             // Skip invisible blocks
             if block.header.invisible {
                 continue;
+            }
+
+            // Honor sample-accurate seek: discard packets before the target PTS.
+            if let Some(skip_until) = self.skip_until {
+                let block_pts = cluster_time as i64 + i64::from(block.header.timecode);
+                #[allow(clippy::cast_possible_truncation)]
+                let block_pts_u64 = if block_pts < 0 {
+                    0u64
+                } else {
+                    block_pts as u64
+                };
+
+                if block_pts_u64 < skip_until {
+                    continue;
+                }
+                // We have reached or passed the target — clear the flag.
+                self.skip_until = None;
             }
 
             return self.block_to_packet(&block, cluster_time);

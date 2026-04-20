@@ -71,7 +71,7 @@ impl HttpSessionPool {
     /// and returned (counted as a reuse).  Otherwise a new session is created.
     pub fn acquire(&self) -> HttpSession {
         // Evict any expired entries at the front of the queue.
-        let mut idle = self.idle.lock().expect("HttpSessionPool mutex poisoned");
+        let mut idle = self.idle.lock().unwrap_or_else(|e| e.into_inner());
         while let Some(front) = idle.front() {
             let age_secs = front.created_at.elapsed().as_secs();
             if age_secs >= self.max_lifetime_secs {
@@ -107,7 +107,7 @@ impl HttpSessionPool {
             return;
         }
 
-        let mut idle = self.idle.lock().expect("HttpSessionPool mutex poisoned");
+        let mut idle = self.idle.lock().unwrap_or_else(|e| e.into_inner());
         if idle.len() < self.max_idle {
             session.requests_served += 1;
             idle.push_back(session);
@@ -117,10 +117,7 @@ impl HttpSessionPool {
 
     /// Return the number of sessions currently sitting idle in the pool.
     pub fn idle_count(&self) -> usize {
-        self.idle
-            .lock()
-            .expect("HttpSessionPool mutex poisoned")
-            .len()
+        self.idle.lock().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Total number of sessions created (new allocations, not reuses).

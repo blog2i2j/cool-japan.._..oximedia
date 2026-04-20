@@ -254,21 +254,25 @@ impl SyncProtocol {
         let msg_type =
             MessageType::from_byte(buf[1]).ok_or(ProtocolError::UnknownMessageType(buf[1]))?;
         let sequence = u16::from_le_bytes([buf[2], buf[3]]);
-        let origin_ns = i64::from_le_bytes(
-            buf[4..12]
-                .try_into()
-                .expect("invariant: slice is exactly 8 bytes"),
-        );
-        let receive_ns = i64::from_le_bytes(
-            buf[12..20]
-                .try_into()
-                .expect("invariant: slice is exactly 8 bytes"),
-        );
-        let correction_ns = i64::from_le_bytes(
-            buf[20..28]
-                .try_into()
-                .expect("invariant: slice is exactly 8 bytes"),
-        );
+        let origin_ns = i64::from_le_bytes(<[u8; 8]>::try_from(&buf[4..12]).map_err(|_| {
+            ProtocolError::BufferTooSmall {
+                needed: 12,
+                got: buf.len(),
+            }
+        })?);
+        let receive_ns = i64::from_le_bytes(<[u8; 8]>::try_from(&buf[12..20]).map_err(|_| {
+            ProtocolError::BufferTooSmall {
+                needed: 20,
+                got: buf.len(),
+            }
+        })?);
+        let correction_ns =
+            i64::from_le_bytes(<[u8; 8]>::try_from(&buf[20..28]).map_err(|_| {
+                ProtocolError::BufferTooSmall {
+                    needed: 28,
+                    got: buf.len(),
+                }
+            })?);
         Ok(SyncMessage {
             version,
             msg_type,

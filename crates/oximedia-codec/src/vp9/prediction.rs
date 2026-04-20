@@ -539,25 +539,11 @@ pub fn subpel_interp_horiz(
     let coeffs = get_filter_coeffs(filter_type, subpel_x);
 
     if filter_type.is_bilinear() {
-        interp_horiz_bilinear(
-            src,
-            src_stride,
-            coeffs.try_into().expect("bilinear filter has 2 taps"),
-            width,
-            height,
-            output,
-            output_stride,
-        );
-    } else {
-        interp_horiz_8tap(
-            src,
-            src_stride,
-            coeffs.try_into().expect("8-tap filter has 8 taps"),
-            width,
-            height,
-            output,
-            output_stride,
-        );
+        if let Ok(f) = coeffs.try_into() {
+            interp_horiz_bilinear(src, src_stride, f, width, height, output, output_stride);
+        }
+    } else if let Ok(f) = coeffs.try_into() {
+        interp_horiz_8tap(src, src_stride, f, width, height, output, output_stride);
     }
 }
 
@@ -597,25 +583,11 @@ pub fn subpel_interp_vert(
     let coeffs = get_filter_coeffs(filter_type, subpel_y);
 
     if filter_type.is_bilinear() {
-        interp_vert_bilinear(
-            src,
-            src_stride,
-            coeffs.try_into().expect("bilinear filter has 2 taps"),
-            width,
-            height,
-            output,
-            output_stride,
-        );
-    } else {
-        interp_vert_8tap(
-            src,
-            src_stride,
-            coeffs.try_into().expect("8-tap filter has 8 taps"),
-            width,
-            height,
-            output,
-            output_stride,
-        );
+        if let Ok(f) = coeffs.try_into() {
+            interp_vert_bilinear(src, src_stride, f, width, height, output, output_stride);
+        }
+    } else if let Ok(f) = coeffs.try_into() {
+        interp_vert_8tap(src, src_stride, f, width, height, output, output_stride);
     }
 }
 

@@ -17,7 +17,7 @@ workspace = true
 oximedia-core = { workspace = true }
 oximedia-audio = { workspace = true }
 thiserror = { workspace = true }
-oxifft = "0.2.0"
+oxifft = { workspace = true }
 rayon = { workspace = true }
 
 [dev-dependencies]

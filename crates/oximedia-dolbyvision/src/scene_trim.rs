@@ -131,10 +131,9 @@ impl SceneTrimMetadata {
         if target_nits <= sorted[0].target_nits {
             return sorted[0].clone();
         }
-        // Above the highest target
-        let last = sorted
-            .last()
-            .expect("sorted is non-empty: element 0 accessed above");
+        // Above the highest target.
+        // sorted is non-empty: sorted[0] was accessed above without panicking.
+        let last = &sorted[sorted.len() - 1];
         if target_nits >= last.target_nits {
             return last.clone();
         }

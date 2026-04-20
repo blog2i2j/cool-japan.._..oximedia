@@ -98,7 +98,9 @@ impl ColorCurve {
         if x <= self.points[0].input {
             return self.points[0].output;
         }
-        let last = self.points.last().expect("should succeed in test");
+        let Some(last) = self.points.last() else {
+            return x;
+        };
         if x >= last.input {
             return last.output;
         }

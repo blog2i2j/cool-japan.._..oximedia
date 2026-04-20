@@ -367,6 +367,7 @@ impl WorkflowTemplate {
     }
 
     fn build_quality_check() -> Self {
+        let tmp = std::env::temp_dir();
         let steps = vec![
             TemplateStep::new("probe", "Probe Media", "probe")
                 .with_config("input", "{media_path}")
@@ -390,7 +391,9 @@ impl WorkflowTemplate {
             TemplateParameter::optional(
                 "probe_output",
                 "Path for probe JSON output",
-                "/tmp/probe.json",
+                tmp.join("oximedia-probe.json")
+                    .to_string_lossy()
+                    .into_owned(),
             ),
             TemplateParameter::optional(
                 "qc_profile",
@@ -415,6 +418,7 @@ impl WorkflowTemplate {
     }
 
     fn build_archive_and_proxy() -> Self {
+        let tmp = std::env::temp_dir();
         let steps = vec![
             TemplateStep::new("proxy", "Transcode Proxy", "transcode")
                 .with_config("input", "{source_path}")
@@ -443,7 +447,9 @@ impl WorkflowTemplate {
             TemplateParameter::optional(
                 "proxy_output",
                 "Path for the proxy file",
-                "/tmp/proxy.mp4",
+                tmp.join("oximedia-proxy.mp4")
+                    .to_string_lossy()
+                    .into_owned(),
             ),
             TemplateParameter::optional("metadata_tags", "Comma-separated metadata tags", ""),
         ];
@@ -457,6 +463,7 @@ impl WorkflowTemplate {
     }
 
     fn build_broadcast_delivery() -> Self {
+        let tmp = std::env::temp_dir();
         let steps = vec![
             TemplateStep::new("normalize", "Normalize Audio/Video", "normalize")
                 .with_config("input", "{source_path}")
@@ -495,12 +502,16 @@ impl WorkflowTemplate {
             TemplateParameter::optional(
                 "package_output",
                 "Packaged output path",
-                "/tmp/broadcast.mxf",
+                tmp.join("oximedia-broadcast.mxf")
+                    .to_string_lossy()
+                    .into_owned(),
             ),
             TemplateParameter::optional(
                 "work_path",
                 "Intermediate transcode output path",
-                "/tmp/broadcast_work.mxf",
+                tmp.join("oximedia-broadcast-work.mxf")
+                    .to_string_lossy()
+                    .into_owned(),
             ),
         ];
         Self {
@@ -514,6 +525,7 @@ impl WorkflowTemplate {
     }
 
     fn build_social_media_package() -> Self {
+        let tmp = std::env::temp_dir();
         let steps = vec![
             TemplateStep::new("transcode_16_9", "Transcode 16:9", "transcode")
                 .with_config("input", "{source_path}")
@@ -555,13 +567,33 @@ impl WorkflowTemplate {
             TemplateParameter::required("source_path", "Source video path"),
             TemplateParameter::required("platform", "Social platform (youtube, instagram, tiktok)"),
             TemplateParameter::required("platform_api_key", "Platform API key for upload"),
-            TemplateParameter::optional("output_16_9", "16:9 output path", "/tmp/social_16_9.mp4"),
-            TemplateParameter::optional("output_1_1", "1:1 output path", "/tmp/social_1_1.mp4"),
-            TemplateParameter::optional("output_9_16", "9:16 output path", "/tmp/social_9_16.mp4"),
+            TemplateParameter::optional(
+                "output_16_9",
+                "16:9 output path",
+                tmp.join("oximedia-social-16-9.mp4")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+            TemplateParameter::optional(
+                "output_1_1",
+                "1:1 output path",
+                tmp.join("oximedia-social-1-1.mp4")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+            TemplateParameter::optional(
+                "output_9_16",
+                "9:16 output path",
+                tmp.join("oximedia-social-9-16.mp4")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
             TemplateParameter::optional(
                 "thumbnail_path",
                 "Thumbnail image path",
-                "/tmp/thumbnail.jpg",
+                tmp.join("oximedia-thumbnail.jpg")
+                    .to_string_lossy()
+                    .into_owned(),
             ),
         ];
         Self {
@@ -576,6 +608,7 @@ impl WorkflowTemplate {
     }
 
     fn build_audio_podcast() -> Self {
+        let tmp = std::env::temp_dir();
         let steps = vec![
             TemplateStep::new("normalize_audio", "Normalize Audio", "normalize")
                 .with_config("input", "{source_audio}")
@@ -615,8 +648,20 @@ impl WorkflowTemplate {
             TemplateParameter::optional("loudness_lufs", "Target loudness in LUFS", "-16"),
             TemplateParameter::optional("mp3_bitrate", "MP3 bitrate (kbps)", "128k"),
             TemplateParameter::optional("aac_bitrate", "AAC bitrate (kbps)", "96k"),
-            TemplateParameter::optional("mp3_output", "MP3 output path", "/tmp/episode.mp3"),
-            TemplateParameter::optional("aac_output", "AAC output path", "/tmp/episode.m4a"),
+            TemplateParameter::optional(
+                "mp3_output",
+                "MP3 output path",
+                tmp.join("oximedia-episode.mp3")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
+            TemplateParameter::optional(
+                "aac_output",
+                "AAC output path",
+                tmp.join("oximedia-episode.m4a")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
             TemplateParameter::optional("chapter_file", "Chapter marker file path", ""),
         ];
         Self {
@@ -631,6 +676,7 @@ impl WorkflowTemplate {
     }
 
     fn build_newsroom_fast() -> Self {
+        let tmp = std::env::temp_dir();
         let steps = vec![
             TemplateStep::new("proxy", "Quick Proxy", "transcode")
                 .with_config("input", "{source_path}")
@@ -655,12 +701,20 @@ impl WorkflowTemplate {
         let parameters = vec![
             TemplateParameter::required("source_path", "Source media file path"),
             TemplateParameter::required("publish_destination", "Publishing endpoint URL"),
-            TemplateParameter::optional("proxy_output", "Proxy output path", "/tmp/proxy_fast.mp4"),
+            TemplateParameter::optional(
+                "proxy_output",
+                "Proxy output path",
+                tmp.join("oximedia-proxy-fast.mp4")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
             TemplateParameter::optional("caption_language", "Caption language code", "en"),
             TemplateParameter::optional(
                 "caption_file",
                 "Caption file output path",
-                "/tmp/captions.vtt",
+                tmp.join("oximedia-captions.vtt")
+                    .to_string_lossy()
+                    .into_owned(),
             ),
         ];
         Self {
@@ -674,6 +728,7 @@ impl WorkflowTemplate {
     }
 
     fn build_live_event_clip() -> Self {
+        let tmp = std::env::temp_dir();
         let steps = vec![
             TemplateStep::new("clip", "Clip Segment", "clip")
                 .with_config("input", "{source_path}")
@@ -708,11 +763,17 @@ impl WorkflowTemplate {
             TemplateParameter::required("cdn_url", "CDN ingest URL"),
             TemplateParameter::required("clip_start", "Clip start timecode (HH:MM:SS or frames)"),
             TemplateParameter::required("clip_end", "Clip end timecode (HH:MM:SS or frames)"),
-            TemplateParameter::optional("clip_output", "Raw clip output path", "/tmp/raw_clip.mp4"),
+            TemplateParameter::optional(
+                "clip_output",
+                "Raw clip output path",
+                tmp.join("oximedia-raw-clip.mp4")
+                    .to_string_lossy()
+                    .into_owned(),
+            ),
             TemplateParameter::optional(
                 "transcode_output",
                 "Transcoded clip output path",
-                "/tmp/clip.mp4",
+                tmp.join("oximedia-clip.mp4").to_string_lossy().into_owned(),
             ),
             TemplateParameter::optional("clip_preset", "Transcode preset for clip", "web_h264"),
             TemplateParameter::optional("clip_title", "Clip title for metadata", ""),

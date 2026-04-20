@@ -1,23 +1,82 @@
-//! # `OxiMedia` Routing
+//! Professional audio/video routing and patching system for OxiMedia.
 //!
-//! Professional audio routing and patching system for `OxiMedia`.
+//! Provides any-to-any crosspoint matrices, virtual patch bays, complex channel
+//! mapping, ST 2110 IP media routing, NMOS IS-04/05/07/08/09/11 REST APIs, and
+//! sub-frame routing automation.
 //!
-//! ## Features
+//! # NMOS support
 //!
-//! - **Crosspoint Matrix**: Full any-to-any audio routing
-//! - **Virtual Patch Bay**: Input/output management with flexible patching
-//! - **Channel Mapping**: Complex channel mapping and remapping (e.g., 5.1 to stereo)
-//! - **Signal Flow**: Signal flow graph visualization and validation
-//! - **Audio Embedding**: Audio embedding/de-embedding for SDI
-//! - **Format Conversion**: Sample rate, bit depth, and channel count conversion
-//! - **Gain Staging**: Per-channel gain control with metering
-//! - **Monitoring**: AFL/PFL/Solo monitoring systems
-//! - **Preset Management**: Save/load routing configurations
-//! - **MADI Support**: 64-channel MADI routing
-//! - **Dante Integration**: Dante audio-over-IP metadata (respects Audinate IP)
-//! - **Automation**: Time-based routing changes with timecode
+//! The `nmos` module implements the AMWA NMOS specifications.  Enable the
+//! relevant Cargo features to activate HTTP servers and mDNS discovery:
 //!
-//! ## Usage
+//! | Cargo feature | What it enables |
+//! |---------------|-----------------|
+//! | `nmos-http`   | REST API server (`NmosHttpServer`, requires `hyper` + `tokio`) |
+//! | `nmos-discovery` | mDNS/DNS-SD registry discovery (implies `nmos-http`) |
+//!
+//! ## NMOS REST APIs
+//!
+//! | Specification | Version | Base path |
+//! |---------------|---------|-----------|
+//! | IS-04 Node API | v1.3 | `/x-nmos/node/v1.3/` |
+//! | IS-05 Connection API | v1.1 | `/x-nmos/connection/v1.1/` |
+//! | IS-07 Events API | v1.0 | `/x-nmos/events/v1.0/` |
+//! | IS-08 Channel Mapping API | v1.0 | `/x-nmos/channelmapping/v1.0/` |
+//! | IS-09 System API | v1.0 | `/x-nmos/system/v1.0/` |
+//! | IS-11 Stream Compatibility | — | `/x-nmos/streamcompatibility/` |
+//!
+//! IS-07 (`nmos::is07`) emits JSON events with a monotonically increasing
+//! sequence number for dropped-event detection.
+//!
+//! ## mDNS / DNS-SD discovery
+//!
+//! `NmosDiscovery` (feature `nmos-discovery`) browses three mDNS service types
+//! using the `mdns-sd` crate:
+//! - `_nmos-node._tcp.local.`
+//! - `_nmos-query._tcp.local.`
+//! - `_nmos-registration._tcp.local.`
+//!
+//! Browse timeout is 500 ms.  `NmosRegistryInfo` carries name, host, port, and
+//! priority parsed from the TXT `pri` record.
+//!
+//! # ValidateCache — topology-version caching
+//!
+//! `validate_cache::ValidateCache` wraps `flow::SignalFlowGraph` with a `u64`
+//! version counter.  `validate()` returns the cached `ValidationResult` when the
+//! topology is unchanged; it recomputes only when the version counter has
+//! incremented.  Mutating methods (`add_input`, `add_output`, `connect`,
+//! `remove_node`, `remove_edge`) each bump the version.
+//!
+//! # ZeroLatencyOptimizer — Dijkstra path selection
+//!
+//! `zero_latency::ZeroLatencyOptimizer` runs Dijkstra's algorithm on the signal
+//! graph using a `BinaryHeap<QueueEntry>` with reverse ordering (min-heap).
+//! Edge weights are expressed in samples so the optimizer is sample-rate aware.
+//! `find_lowest_latency(src, dst)` returns `Option<MonitorPath>`.
+//!
+//! Configuration options:
+//! - `avoid_categories` — skip node categories that add high latency
+//! - `max_latency_samples` — hard budget (0 = unlimited)
+//!
+//! # Sub-frame timeline — supported frame rates
+//!
+//! `automation::timeline::FrameRate` supports the following timecode standards:
+//!
+//! | Variant | Rate |
+//! |---------|------|
+//! | `Fps24` | 24 fps (film) |
+//! | `Fps25` | 25 fps (PAL) |
+//! | `Fps2997Df` | 29.97 fps drop-frame (NTSC) |
+//! | `Fps2997Ndf` | 29.97 fps non-drop (NTSC) |
+//! | `Fps30` | 30 fps |
+//! | `Fps50` | 50 fps |
+//! | `Fps5994` | 59.94 fps |
+//! | `Fps60` | 60 fps |
+//!
+//! `AutomationTimeline` schedules routing changes at sample-accurate `Timecode`
+//! positions using these frame rates.
+//!
+//! # Quick start
 //!
 //! ```
 //! use oximedia_routing::matrix::CrosspointMatrix;
@@ -31,20 +90,6 @@
 //! // Check if connected
 //! assert!(matrix.is_connected(0, 0));
 //! ```
-//!
-//! ## Routing Scenarios
-//!
-//! ### Live Production
-//! Route microphones to mixer, mixer to multitrack recorder
-//!
-//! ### Post-Production
-//! Route editor to monitors, create submixes for stems
-//!
-//! ### Broadcast
-//! Route studios to transmission, implement backup routing
-//!
-//! ### Multitrack Recording
-//! Route 64+ channels from stage to recording system
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]

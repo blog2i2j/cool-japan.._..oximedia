@@ -780,8 +780,8 @@ mod tests {
     fn test_renderfarm_command_submit() {
         let cmd = RenderfarmCommand::Submit {
             cluster: "localhost:9200".to_string(),
-            project: std::path::PathBuf::from("/tmp/project.blend"),
-            output_dir: std::path::PathBuf::from("/tmp/output"),
+            project: std::env::temp_dir().join("project.blend"),
+            output_dir: std::env::temp_dir().join("output"),
             frames: Some("1-100".to_string()),
             priority: "high".to_string(),
             name: Some("Test Render".to_string()),

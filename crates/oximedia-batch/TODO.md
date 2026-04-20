@@ -45,3 +45,6 @@
 - [ ] Document REST API endpoints in `api` module with request/response examples
 - [ ] Add guide for creating custom `template` configurations for common transcode workflows
 - [ ] Document `watch` folder setup including supported file patterns and polling intervals
+
+## Wave 4 Progress (2026-04-18)
+- [x] wasm-mio-fix: cfg-gate tokio deps for wasm32 target compatibility — Wave 4 Slice A

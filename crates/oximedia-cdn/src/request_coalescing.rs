@@ -178,7 +178,7 @@ impl CoalesceHandle {
     /// the payload.
     pub fn complete(self, payload: Vec<u8>) {
         {
-            let mut state = self.slot.state.lock().expect("lock ok");
+            let mut state = self.slot.state.lock().unwrap_or_else(|e| e.into_inner());
             *state = SlotState::Done(payload);
         }
         self.slot.signal.notify_all();
@@ -190,7 +190,7 @@ impl CoalesceHandle {
     /// All waiting followers will be woken and receive `CoalescingError::FetchFailed`.
     pub fn fail(self, reason: impl Into<String>) {
         {
-            let mut state = self.slot.state.lock().expect("lock ok");
+            let mut state = self.slot.state.lock().unwrap_or_else(|e| e.into_inner());
             *state = SlotState::Failed(reason.into());
         }
         self.slot.signal.notify_all();
@@ -205,7 +205,7 @@ impl CoalesceHandle {
         let timeout = self.wait_timeout;
         let deadline = Instant::now() + timeout;
 
-        let mut guard = self.slot.state.lock().expect("lock ok");
+        let mut guard = self.slot.state.lock().unwrap_or_else(|e| e.into_inner());
         loop {
             match &*guard {
                 SlotState::Done(payload) => return Ok(payload.clone()),
@@ -224,7 +224,7 @@ impl CoalesceHandle {
                 .slot
                 .signal
                 .wait_timeout(guard, remaining)
-                .expect("condvar ok");
+                .unwrap_or_else(|e| e.into_inner());
             guard = new_guard;
             if result.timed_out() {
                 // Double-check: the signal might have been missed just at the deadline.
@@ -248,7 +248,7 @@ impl CoalesceHandle {
 
     /// Number of requests coalesced into this slot (includes this caller).
     pub fn coalesced_count(&self) -> usize {
-        *self.slot.coalesced_count.lock().expect("lock ok")
+        *self.slot.coalesced_count.lock().unwrap_or_else(|e| e.into_inner())
     }
 }
 
@@ -297,7 +297,7 @@ impl CoalescingRegistry {
     /// The caller is responsible for checking the role and acting accordingly.
     pub fn acquire(&self, raw_key: &str) -> Result<CoalesceHandle, CoalescingError> {
         let key = self.normalise(raw_key);
-        let mut slots = self.inner.slots.lock().expect("lock ok");
+        let mut slots = self.inner.slots.lock().unwrap_or_else(|e| e.into_inner());
 
         if let Some(existing) = slots.get(&key) {
             // Increment coalesced count.

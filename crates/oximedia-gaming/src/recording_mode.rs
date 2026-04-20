@@ -827,6 +827,10 @@ mod tests {
 
     #[test]
     fn test_config_builder_custom() {
+        let out_dir = std::env::temp_dir()
+            .join("oximedia-gaming-recmode-recordings")
+            .to_string_lossy()
+            .into_owned();
         let config = RecordingConfig::builder()
             .quality(RecordingQuality::Lossless)
             .resolution(3840, 2160)
@@ -834,7 +838,7 @@ mod tests {
             .audio_quality(AudioRecordingQuality::Uncompressed)
             .audio_sample_rate(96000)
             .audio_channels(6)
-            .output_dir("/tmp/recordings")
+            .output_dir(&out_dir)
             .filename_prefix("gameplay")
             .build()
             .expect("valid config");

@@ -4,9 +4,12 @@ use oximedia_transcode::*;
 
 #[test]
 fn test_transcoder_creation() {
+    let tmp = std::env::temp_dir();
+    let i = tmp.join("oximedia-transcode-integration-input.mp4");
+    let o = tmp.join("oximedia-transcode-integration-output.mp4");
     let transcoder = Transcoder::new()
-        .input("/tmp/test_input.mp4")
-        .output("/tmp/test_output.mp4")
+        .input(i.to_string_lossy().as_ref())
+        .output(o.to_string_lossy().as_ref())
         .video_codec("vp9")
         .audio_codec("opus");
 
@@ -47,7 +50,8 @@ fn test_progress_tracker() {
 
 #[test]
 fn test_multipass_config() {
-    let config = MultiPassConfig::new(MultiPassMode::TwoPass, "/tmp/stats.log");
+    let stats = std::env::temp_dir().join("oximedia-transcode-integration-stats.log");
+    let config = MultiPassConfig::new(MultiPassMode::TwoPass, stats.to_string_lossy().as_ref());
     assert_eq!(config.mode, MultiPassMode::TwoPass);
     assert!(config.mode.requires_stats());
 }

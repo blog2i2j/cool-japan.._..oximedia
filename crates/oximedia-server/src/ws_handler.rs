@@ -334,13 +334,13 @@ impl BroadcastHub {
 
     /// Registers a new connection
     pub fn register(&self, conn: WsConnection) {
-        let mut map = self.connections.lock().expect("connections mutex poisoned");
+        let mut map = self.connections.lock().unwrap_or_else(|e| e.into_inner());
         map.insert(conn.id.clone(), conn);
     }
 
     /// Removes a connection by ID
     pub fn remove(&self, id: &str) {
-        let mut map = self.connections.lock().expect("connections mutex poisoned");
+        let mut map = self.connections.lock().unwrap_or_else(|e| e.into_inner());
         map.remove(id);
     }
 
@@ -348,14 +348,14 @@ impl BroadcastHub {
     pub fn connection_count(&self) -> usize {
         self.connections
             .lock()
-            .expect("connections mutex poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .len()
     }
 
     /// Broadcasts a frame to all connections subscribed to a topic.
     /// Returns the count of connections that received the frame.
     pub fn broadcast_to_topic(&self, topic: &str, frame: WsFrame) -> usize {
-        let mut map = self.connections.lock().expect("connections mutex poisoned");
+        let mut map = self.connections.lock().unwrap_or_else(|e| e.into_inner());
         let mut count = 0;
         for conn in map.values_mut() {
             if conn.state == ConnectionState::Open && conn.is_subscribed(topic) {
@@ -369,7 +369,7 @@ impl BroadcastHub {
     /// Broadcasts a frame to all open connections.
     /// Returns the count of connections that received the frame.
     pub fn broadcast_all(&self, frame: WsFrame) -> usize {
-        let mut map = self.connections.lock().expect("connections mutex poisoned");
+        let mut map = self.connections.lock().unwrap_or_else(|e| e.into_inner());
         let mut count = 0;
         for conn in map.values_mut() {
             if conn.state == ConnectionState::Open {
@@ -382,7 +382,7 @@ impl BroadcastHub {
 
     /// Sends a frame to a specific connection by ID
     pub fn send_to(&self, id: &str, frame: WsFrame) -> bool {
-        let mut map = self.connections.lock().expect("connections mutex poisoned");
+        let mut map = self.connections.lock().unwrap_or_else(|e| e.into_inner());
         if let Some(conn) = map.get_mut(id) {
             if conn.state == ConnectionState::Open {
                 conn.send(frame);
@@ -394,7 +394,7 @@ impl BroadcastHub {
 
     /// Returns IDs of all connections subscribed to a topic
     pub fn subscribers(&self, topic: &str) -> Vec<String> {
-        let map = self.connections.lock().expect("connections mutex poisoned");
+        let map = self.connections.lock().unwrap_or_else(|e| e.into_inner());
         map.values()
             .filter(|c| c.is_subscribed(topic))
             .map(|c| c.id.clone())

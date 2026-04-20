@@ -36,7 +36,7 @@ impl TranscodeProgress {
 
         let style = ProgressStyle::default_bar()
             .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} frames ({percent}%) {msg}")
-            .expect("Failed to create progress style")
+            .unwrap_or_else(|_| ProgressStyle::default_bar())
             .progress_chars("=>-");
 
         bar.set_style(style);
@@ -60,7 +60,7 @@ impl TranscodeProgress {
 
         let style = ProgressStyle::default_spinner()
             .template("{spinner:.green} [{elapsed_precise}] {pos} frames {msg}")
-            .expect("Failed to create spinner style");
+            .unwrap_or_else(|_| ProgressStyle::default_spinner());
 
         bar.set_style(style);
 
@@ -234,7 +234,7 @@ impl BatchProgress {
 
         let style = ProgressStyle::default_bar()
             .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} files ({percent}%) {msg}")
-            .expect("Failed to create progress style")
+            .unwrap_or_else(|_| ProgressStyle::default_bar())
             .progress_chars("=>-");
 
         bar.set_style(style);

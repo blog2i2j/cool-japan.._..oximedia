@@ -157,10 +157,7 @@ impl VmafTracker {
         }
         let p_clamped = p.clamp(0.0, 100.0);
         let mut sorted: Vec<f64> = self.scores.iter().map(|s| s.score).collect();
-        sorted.sort_by(|a, b| {
-            a.partial_cmp(b)
-                .expect("invariant: VMAF score values are finite f64")
-        });
+        sorted.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
         let idx = ((p_clamped / 100.0) * (sorted.len() - 1) as f64).round() as usize;
         Some(sorted[idx.min(sorted.len() - 1)])
     }
@@ -196,7 +193,7 @@ impl VmafTracker {
         self.scores.iter().min_by(|a, b| {
             a.score
                 .partial_cmp(&b.score)
-                .expect("invariant: VMAF score values are finite f64")
+                .unwrap_or(std::cmp::Ordering::Equal)
         })
     }
 

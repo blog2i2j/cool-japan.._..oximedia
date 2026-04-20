@@ -19,6 +19,7 @@ oximedia-audio = { workspace = true }
 oximedia-timecode = { workspace = true }
 oximedia-align = { workspace = true }
 oximedia-analysis = { workspace = true }
+oximedia-codec = { workspace = true, features = ["mjpeg"] }
 oximedia-cv = { workspace = true }
 oximedia-image = { workspace = true }
 oxifft = { workspace = true }

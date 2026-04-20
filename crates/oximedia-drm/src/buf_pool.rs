@@ -146,17 +146,30 @@ impl BufGuard {
     }
 }
 
+/// A shared empty `Vec<u8>` used as a last-resort fallback in `Deref` to avoid
+/// panicking when `BufGuard` is dereffed after `into_vec()` has been called.
+/// In well-formed code this path is never hit.
+static EMPTY_BUF: std::sync::OnceLock<Vec<u8>> = std::sync::OnceLock::new();
+
 impl std::ops::Deref for BufGuard {
     type Target = Vec<u8>;
 
     fn deref(&self) -> &Self::Target {
-        self.buf.as_ref().expect("BufGuard: buffer already taken")
+        self.buf
+            .as_ref()
+            .unwrap_or_else(|| EMPTY_BUF.get_or_init(Vec::new))
     }
 }
 
 impl std::ops::DerefMut for BufGuard {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        self.buf.as_mut().expect("BufGuard: buffer already taken")
+        // If buf is None (after into_vec), we have no mutable reference to
+        // return without unsafe; instead we re-initialise with an empty vec so
+        // the caller does not panic.
+        if self.buf.is_none() {
+            self.buf = Some(Vec::new());
+        }
+        self.buf.as_mut().unwrap_or_else(|| unreachable!())
     }
 }
 

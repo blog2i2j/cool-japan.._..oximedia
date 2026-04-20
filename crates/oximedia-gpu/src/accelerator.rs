@@ -47,7 +47,137 @@ use rayon::prelude::*;
 /// All operations have CPU fallback implementations so that callers do not
 /// need to handle the absence of a GPU.  The trait is object-safe; you can
 /// store it behind `Box<dyn GpuAccelerator>` or `Arc<dyn GpuAccelerator>`.
-pub trait GpuAccelerator: Send + Sync {
+#[cfg(not(target_arch = "wasm32"))]
+pub trait GpuAccelerator: Send + Sync + 'static {
+    /// Human-readable backend name (e.g. `"Vulkan"`, `"CPU SIMD"`).
+    fn name(&self) -> &str;
+
+    /// Whether this accelerator uses dedicated GPU hardware.
+    fn is_gpu(&self) -> bool;
+
+    /// Convert packed RGBA data to packed YUVA using BT.601 coefficients.
+    ///
+    /// Both slices must have length `width * height * 4`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`GpuError::InvalidBufferSize`] if slice lengths do not match
+    /// `width * height * 4`.
+    fn rgb_to_yuv(&self, input: &[u8], output: &mut [u8], width: u32, height: u32) -> Result<()>;
+
+    /// Convert packed YUVA data to packed RGBA using BT.601 coefficients.
+    ///
+    /// Both slices must have length `width * height * 4`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`GpuError::InvalidBufferSize`] if slice lengths do not match.
+    fn yuv_to_rgb(&self, input: &[u8], output: &mut [u8], width: u32, height: u32) -> Result<()>;
+
+    /// Resize packed RGBA image using bilinear interpolation.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if buffer sizes are inconsistent with the given
+    /// dimensions.
+    #[allow(clippy::too_many_arguments)]
+    fn scale_bilinear(
+        &self,
+        input: &[u8],
+        src_width: u32,
+        src_height: u32,
+        output: &mut [u8],
+        dst_width: u32,
+        dst_height: u32,
+    ) -> Result<()>;
+
+    /// Apply a separable Gaussian blur to a packed RGBA image.
+    ///
+    /// `sigma` is the standard deviation of the Gaussian kernel in pixels.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `input.len() != output.len()` or if either length
+    /// does not equal `width * height * 4`.
+    fn gaussian_blur(
+        &self,
+        input: &[u8],
+        output: &mut [u8],
+        width: u32,
+        height: u32,
+        sigma: f32,
+    ) -> Result<()>;
+
+    /// Detect edges using the Sobel operator on a packed RGBA image.
+    ///
+    /// The output contains per-pixel gradient magnitudes.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if buffer sizes are inconsistent.
+    fn edge_detect(&self, input: &[u8], output: &mut [u8], width: u32, height: u32) -> Result<()>;
+
+    /// Sharpen a packed RGBA image using an unsharp mask.
+    ///
+    /// `amount` controls the sharpening strength (typical range 0.0–2.0).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if buffer sizes are inconsistent.
+    fn sharpen(
+        &self,
+        input: &[u8],
+        output: &mut [u8],
+        width: u32,
+        height: u32,
+        amount: f32,
+    ) -> Result<()>;
+
+    /// Compute the 2-D Type-II DCT on a grid of `f32` values.
+    ///
+    /// Both `width` and `height` must be multiples of 8.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if dimensions are not multiples of 8 or if slice
+    /// lengths do not equal `width * height`.
+    fn dct_2d(&self, input: &[f32], output: &mut [f32], width: u32, height: u32) -> Result<()>;
+
+    /// Compute the 2-D Type-III IDCT (inverse of [`dct_2d`]).
+    ///
+    /// # Errors
+    ///
+    /// Returns the same errors as [`dct_2d`].
+    ///
+    /// [`dct_2d`]: GpuAccelerator::dct_2d
+    fn idct_2d(&self, input: &[f32], output: &mut [f32], width: u32, height: u32) -> Result<()>;
+
+    /// Compute the per-pixel absolute difference between two RGBA images.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if any buffer length differs from `width * height * 4`.
+    fn pixel_diff(
+        &self,
+        a: &[u8],
+        b: &[u8],
+        output: &mut [u8],
+        width: u32,
+        height: u32,
+    ) -> Result<()>;
+
+    /// Compute the mean squared error between two RGBA images.
+    ///
+    /// Returns the average squared per-channel difference (range 0.0–65 025.0).
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if buffer lengths do not equal `width * height * 4`.
+    fn mse(&self, a: &[u8], b: &[u8], width: u32, height: u32) -> Result<f64>;
+}
+
+#[cfg(target_arch = "wasm32")]
+pub trait GpuAccelerator: 'static {
     /// Human-readable backend name (e.g. `"Vulkan"`, `"CPU SIMD"`).
     fn name(&self) -> &str;
 

@@ -340,7 +340,7 @@ mod tests {
 
     #[test]
     fn test_validate_path() {
-        assert!(validate_path(Path::new("/tmp/file.mp4")).is_ok());
+        assert!(validate_path(&std::env::temp_dir().join("oximedia-batch-file.mp4")).is_ok());
         assert!(validate_path(Path::new("/tmp/../etc/passwd")).is_err());
     }
 

@@ -97,7 +97,7 @@ impl JobRegistry {
         let id = job.id;
         self.inner
             .lock()
-            .expect("registry lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .insert(id, job);
         id
     }
@@ -107,7 +107,7 @@ impl JobRegistry {
     pub fn get(&self, id: Uuid) -> Option<Job> {
         self.inner
             .lock()
-            .expect("registry lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .get(&id)
             .cloned()
     }
@@ -117,14 +117,14 @@ impl JobRegistry {
     pub fn remove(&self, id: Uuid) -> Option<Job> {
         self.inner
             .lock()
-            .expect("registry lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .remove(&id)
     }
 
     /// Update a job (replaces existing entry). Returns `false` if not found.
     #[must_use]
     pub fn update(&self, job: Job) -> bool {
-        let mut guard = self.inner.lock().expect("registry lock poisoned");
+        let mut guard = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         if let std::collections::hash_map::Entry::Occupied(mut e) = guard.entry(job.id) {
             e.insert(job);
             true
@@ -138,7 +138,7 @@ impl JobRegistry {
     pub fn by_status(&self, status: JobStatus) -> Vec<Job> {
         self.inner
             .lock()
-            .expect("registry lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .values()
             .filter(|j| j.status == status)
             .cloned()
@@ -148,7 +148,7 @@ impl JobRegistry {
     /// Total number of registered jobs.
     #[must_use]
     pub fn len(&self) -> usize {
-        self.inner.lock().expect("registry lock poisoned").len()
+        self.inner.lock().unwrap_or_else(|e| e.into_inner()).len()
     }
 
     /// Returns `true` if no jobs are registered.
@@ -162,7 +162,7 @@ impl JobRegistry {
     pub fn all(&self) -> Vec<Job> {
         self.inner
             .lock()
-            .expect("registry lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .values()
             .cloned()
             .collect()
@@ -173,7 +173,7 @@ impl JobRegistry {
     pub fn contains(&self, id: Uuid) -> bool {
         self.inner
             .lock()
-            .expect("registry lock poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .contains_key(&id)
     }
 }

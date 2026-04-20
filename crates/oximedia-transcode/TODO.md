@@ -8,12 +8,12 @@
 
 ## Enhancements
 - [x] Add stream copy mode to `Transcoder` (passthrough without re-encoding when codecs match)
-- [ ] Implement actual frame-level pipeline execution in `TranscodePipeline::execute()` connecting decoder/encoder through filter graph
+- [x] Implement actual frame-level pipeline execution in `TranscodePipeline::execute()` connecting decoder/encoder through filter graph
 - [x] Extend `codec_config` to support JPEG-XL still image encoding parameters alongside video codecs
 - [x] Add per-codec tune presets to `codec_profile` (e.g., film, animation, grain for AV1/VP9)
 - [x] Make `PresetConfig` support audio channel layout (mono, stereo, 5.1, 7.1) not just bitrate
 - [ ] Add HDR metadata passthrough/conversion (HDR10, HLG, Dolby Vision mapping) to the transcode pipeline
-- [ ] Implement actual content in `hw_accel::detect_available_hw_accel` for macOS VideoToolbox and Linux VAAPI
+- [x] Implement actual content in `hw_accel::detect_available_hw_accel` for macOS VideoToolbox and Linux VAAPI
 - [ ] Add Dolby Atmos / spatial audio passthrough support in `audio_transcode`
 - [ ] Extend `concat_transcode` to handle mixed-resolution/mixed-codec input sources with automatic re-encoding
 

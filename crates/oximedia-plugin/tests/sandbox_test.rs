@@ -269,36 +269,39 @@ use std::path::Path;
 /// A filesystem path within the allow-list is permitted.
 #[test]
 fn test_path_enforcement_allowed_path_succeeds() {
+    let tmp = std::env::temp_dir();
     let ctx = SandboxContext::new(SandboxConfig {
         permissions: PermissionSet::new()
             .grant(PERM_FILESYSTEM)
-            .allow_path("/tmp/plugin-work"),
+            .allow_path(tmp.join("plugin-work")),
         ..SandboxConfig::default()
     });
     assert!(ctx
-        .check_path(Path::new("/tmp/plugin-work/output.bin"))
+        .check_path(&tmp.join("plugin-work").join("output.bin"))
         .is_ok());
 }
 
 /// An exact match on the allowed path is also permitted.
 #[test]
 fn test_path_enforcement_exact_match_succeeds() {
+    let tmp = std::env::temp_dir();
     let ctx = SandboxContext::new(SandboxConfig {
         permissions: PermissionSet::new()
             .grant(PERM_FILESYSTEM)
-            .allow_path("/tmp/plugin-work"),
+            .allow_path(tmp.join("plugin-work")),
         ..SandboxConfig::default()
     });
-    assert!(ctx.check_path(Path::new("/tmp/plugin-work")).is_ok());
+    assert!(ctx.check_path(&tmp.join("plugin-work")).is_ok());
 }
 
 /// A path outside the allow-list is denied even with PERM_FILESYSTEM.
 #[test]
 fn test_path_enforcement_path_outside_allowlist_denied() {
+    let tmp = std::env::temp_dir();
     let ctx = SandboxContext::new(SandboxConfig {
         permissions: PermissionSet::new()
             .grant(PERM_FILESYSTEM)
-            .allow_path("/tmp/plugin-work"),
+            .allow_path(tmp.join("plugin-work")),
         ..SandboxConfig::default()
     });
     let err = ctx
@@ -313,12 +316,15 @@ fn test_path_enforcement_path_outside_allowlist_denied() {
 /// Without PERM_FILESYSTEM the path check returns PermissionDenied.
 #[test]
 fn test_path_enforcement_no_fs_perm_gives_permission_denied() {
+    let tmp = std::env::temp_dir();
     let ctx = SandboxContext::new(SandboxConfig {
-        permissions: PermissionSet::new().allow_path("/tmp").grant(PERM_NETWORK),
+        permissions: PermissionSet::new()
+            .allow_path(tmp.clone())
+            .grant(PERM_NETWORK),
         ..SandboxConfig::default()
     });
     let err = ctx
-        .check_path(Path::new("/tmp/allowed-looking-file"))
+        .check_path(&tmp.join("allowed-looking-file"))
         .expect_err("must be denied");
     assert!(
         matches!(err, SandboxError::PermissionDenied { .. }),
@@ -329,14 +335,15 @@ fn test_path_enforcement_no_fs_perm_gives_permission_denied() {
 /// Multiple allowed paths — each is accessible, others are not.
 #[test]
 fn test_path_enforcement_multiple_allowlist_entries() {
+    let tmp = std::env::temp_dir();
     let ctx = SandboxContext::new(SandboxConfig {
         permissions: PermissionSet::new()
             .grant(PERM_FILESYSTEM)
-            .allow_path("/tmp/media")
+            .allow_path(tmp.join("media"))
             .allow_path("/var/cache/oximedia"),
         ..SandboxConfig::default()
     });
-    assert!(ctx.check_path(Path::new("/tmp/media/frame.png")).is_ok());
+    assert!(ctx.check_path(&tmp.join("media").join("frame.png")).is_ok());
     assert!(ctx
         .check_path(Path::new("/var/cache/oximedia/segment.ts"))
         .is_ok());
@@ -346,20 +353,21 @@ fn test_path_enforcement_multiple_allowlist_entries() {
 /// deny_path removes an entry from the allow-list.
 #[test]
 fn test_path_enforcement_deny_path_revokes_access() {
+    let tmp = std::env::temp_dir();
     let perms = PermissionSet::new()
         .grant(PERM_FILESYSTEM)
-        .allow_path("/tmp/a")
-        .allow_path("/tmp/b")
-        .deny_path(Path::new("/tmp/a"));
+        .allow_path(tmp.join("a"))
+        .allow_path(tmp.join("b"))
+        .deny_path(&tmp.join("a"));
     let ctx = SandboxContext::new(SandboxConfig {
         permissions: perms,
         ..SandboxConfig::default()
     });
     assert!(
-        ctx.check_path(Path::new("/tmp/a/file.bin")).is_err(),
-        "/tmp/a must be revoked"
+        ctx.check_path(&tmp.join("a").join("file.bin")).is_err(),
+        "tmp/a must be revoked"
     );
-    assert!(ctx.check_path(Path::new("/tmp/b/file.bin")).is_ok());
+    assert!(ctx.check_path(&tmp.join("b").join("file.bin")).is_ok());
 }
 
 /// Empty allow-list (with PERM_FILESYSTEM) permits any path.
@@ -454,20 +462,22 @@ fn test_combined_perm_ok_but_memory_exceeded_blocks() {
 /// All checks pass in a carefully configured sandbox.
 #[test]
 fn test_combined_all_checks_pass_in_configured_sandbox() {
+    let tmp = std::env::temp_dir();
     let sb = PluginSandbox::new(SandboxConfig {
         permissions: PermissionSet::new()
             .grant(PERM_FILESYSTEM)
             .grant(PERM_NETWORK)
-            .allow_path("/tmp"),
+            .allow_path(tmp.clone()),
         max_memory_mb: 256,
         max_cpu_ns: 10_000_000,
         timeout_ms: 60_000,
         max_cpu_percent: 100,
     });
+    let output_path = tmp.join("output");
     let result = sb.run(|ctx| {
         ctx.check_permission(PERM_FILESYSTEM)?;
         ctx.check_permission(PERM_NETWORK)?;
-        ctx.check_path(Path::new("/tmp/output"))?;
+        ctx.check_path(&output_path)?;
         ctx.check_memory(1024)?;
         ctx.charge_cpu_ns(5_000)?;
         ctx.check_timeout()?;

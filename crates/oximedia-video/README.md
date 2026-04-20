@@ -145,3 +145,5 @@ All modules share a common `VideoError` type. No unsafe code is used anywhere in
 Licensed under the terms specified in the workspace root.
 
 Copyright (c) COOLJAPAN OU (Team Kitasan)
+
+Version: 0.1.4 — 2026-04-20 — 801 tests

@@ -50,7 +50,7 @@ use chrono::{DateTime, Utc};
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::net::SocketAddr;
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::{broadcast, mpsc};
@@ -127,7 +127,7 @@ pub struct LiveServerConfig {
 impl Default for LiveServerConfig {
     fn default() -> Self {
         Self {
-            bind_addr: "0.0.0.0:8080".parse().expect("valid address"),
+            bind_addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 8080),
             segment_duration: Duration::from_secs(2),
             dvr_window: Duration::from_secs(3600),
             max_streams: 1000,
@@ -793,7 +793,7 @@ async fn handle_request(
         return Ok(response
             .status(200)
             .body(Full::new(Bytes::new()))
-            .expect("invariant: HTTP response builder is valid"));
+            .unwrap_or_else(|_| hyper::Response::new(Full::new(Bytes::new()))));
     }
 
     // Route HLS requests
@@ -819,7 +819,7 @@ async fn handle_request(
     Ok(response
         .status(404)
         .body(Full::new(Bytes::from("Not Found")))
-        .expect("invariant: HTTP response builder is valid"))
+        .unwrap_or_else(|_| hyper::Response::new(Full::new(Bytes::from("Not Found")))))
 }
 
 /// Handles API requests.
@@ -834,18 +834,17 @@ async fn handle_api_request(
 
     if path == "/api/streams" && req.method() == hyper::Method::GET {
         let streams = registry.list_streams();
-        let json = serde_json::to_string(&streams)
-            .expect("invariant: streams serialization always succeeds");
+        let json = serde_json::to_string(&streams).unwrap_or_else(|_| String::from("[]"));
 
         return Ok(response
             .status(200)
             .header("Content-Type", "application/json")
             .body(Full::new(Bytes::from(json)))
-            .expect("invariant: HTTP response builder is valid"));
+            .unwrap_or_else(|_| hyper::Response::new(Full::new(Bytes::from("[]")))));
     }
 
     Ok(response
         .status(404)
         .body(Full::new(Bytes::from("Not Found")))
-        .expect("invariant: HTTP response builder is valid"))
+        .unwrap_or_else(|_| hyper::Response::new(Full::new(Bytes::from("Not Found")))))
 }

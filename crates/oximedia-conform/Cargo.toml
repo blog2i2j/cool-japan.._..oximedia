@@ -57,7 +57,7 @@ pathdiff = "0.2"
 
 [dev-dependencies]
 tempfile.workspace = true
-criterion = "0.8"
+criterion = { workspace = true }
 
 [features]
 default = []

@@ -25,10 +25,18 @@ pub enum AudioChannel {
     SideLeft,
     /// Side right.
     SideRight,
+    /// Front wide left.
+    FrontWideLeft,
+    /// Front wide right.
+    FrontWideRight,
     /// Top front left (Atmos height channel).
     TopFrontLeft,
     /// Top front right (Atmos height channel).
     TopFrontRight,
+    /// Top middle left (Atmos height channel).
+    TopMiddleLeft,
+    /// Top middle right (Atmos height channel).
+    TopMiddleRight,
     /// Top back left (Atmos height channel).
     TopBackLeft,
     /// Top back right (Atmos height channel).
@@ -50,8 +58,12 @@ impl AudioChannel {
             Self::BackRight => "BR",
             Self::SideLeft => "SL",
             Self::SideRight => "SR",
+            Self::FrontWideLeft => "FWL",
+            Self::FrontWideRight => "FWR",
             Self::TopFrontLeft => "TFL",
             Self::TopFrontRight => "TFR",
+            Self::TopMiddleLeft => "TML",
+            Self::TopMiddleRight => "TMR",
             Self::TopBackLeft => "TBL",
             Self::TopBackRight => "TBR",
             Self::BackCenter => "BC",
@@ -69,8 +81,12 @@ impl AudioChannel {
                 | Self::BackRight
                 | Self::SideLeft
                 | Self::SideRight
+                | Self::FrontWideLeft
+                | Self::FrontWideRight
                 | Self::TopFrontLeft
                 | Self::TopFrontRight
+                | Self::TopMiddleLeft
+                | Self::TopMiddleRight
                 | Self::TopBackLeft
                 | Self::TopBackRight
                 | Self::BackCenter
@@ -82,7 +98,12 @@ impl AudioChannel {
     pub fn is_height_channel(self) -> bool {
         matches!(
             self,
-            Self::TopFrontLeft | Self::TopFrontRight | Self::TopBackLeft | Self::TopBackRight
+            Self::TopFrontLeft
+                | Self::TopFrontRight
+                | Self::TopMiddleLeft
+                | Self::TopMiddleRight
+                | Self::TopBackLeft
+                | Self::TopBackRight
         )
     }
 }
@@ -112,10 +133,16 @@ pub enum ChannelLayoutKind {
     Surround51,
     /// 7.1 (8 channels: FL, FR, FC, LFE, BL, BR, SL, SR).
     Surround71,
+    /// 7.1.4 (11 channels: FL, FR, FC, LFE, BL, BR, SL, SR, TFL, TFR, TBL/TBR shared pair omitted).
+    Surround714,
+    /// 9.1.6 (16 channels).
+    Surround916,
     /// 5.1.4 Dolby Atmos (10 channels: FL FR FC LFE BL BR TFL TFR TBL TBR).
     Atmos514,
     /// 7.1.4 Dolby Atmos (12 channels: FL FR FC LFE BL BR SL SR TFL TFR TBL TBR).
     Atmos714,
+    /// 9.1.6 Dolby Atmos bed (16 channels).
+    DolbyAtmosBed9_1_6,
     /// Custom layout (channels described separately).
     Custom,
 }
@@ -133,6 +160,8 @@ impl ChannelLayoutKind {
             Self::Quad | Self::Surround40 => 4,
             Self::Surround51 => 6,
             Self::Surround71 => 8,
+            Self::Surround714 => 11,
+            Self::Surround916 | Self::DolbyAtmosBed9_1_6 => 16,
             Self::Atmos514 => 10,
             Self::Atmos714 => 12,
             Self::Custom => 0,
@@ -186,6 +215,37 @@ impl ChannelLayoutKind {
                 AudioChannel::BackRight,
                 AudioChannel::SideLeft,
                 AudioChannel::SideRight,
+            ],
+            Self::Surround714 => &[
+                AudioChannel::FrontLeft,
+                AudioChannel::FrontRight,
+                AudioChannel::FrontCenter,
+                AudioChannel::LowFrequency,
+                AudioChannel::BackLeft,
+                AudioChannel::BackRight,
+                AudioChannel::SideLeft,
+                AudioChannel::SideRight,
+                AudioChannel::TopFrontLeft,
+                AudioChannel::TopFrontRight,
+                AudioChannel::TopBackLeft,
+            ],
+            Self::Surround916 | Self::DolbyAtmosBed9_1_6 => &[
+                AudioChannel::FrontLeft,
+                AudioChannel::FrontRight,
+                AudioChannel::FrontCenter,
+                AudioChannel::LowFrequency,
+                AudioChannel::BackLeft,
+                AudioChannel::BackRight,
+                AudioChannel::SideLeft,
+                AudioChannel::SideRight,
+                AudioChannel::FrontWideLeft,
+                AudioChannel::FrontWideRight,
+                AudioChannel::TopFrontLeft,
+                AudioChannel::TopFrontRight,
+                AudioChannel::TopMiddleLeft,
+                AudioChannel::TopMiddleRight,
+                AudioChannel::TopBackLeft,
+                AudioChannel::TopBackRight,
             ],
             Self::Atmos514 => &[
                 AudioChannel::FrontLeft,
@@ -261,8 +321,11 @@ impl ChannelLayoutKind {
             Self::Surround40 => "4.0",
             Self::Surround51 => "5.1",
             Self::Surround71 => "7.1",
+            Self::Surround714 => "7.1.4",
+            Self::Surround916 => "9.1.6",
             Self::Atmos514 => "5.1.4 Atmos",
             Self::Atmos714 => "7.1.4 Atmos",
+            Self::DolbyAtmosBed9_1_6 => "9.1.6 Atmos Bed",
             Self::Custom => "Custom",
         }
     }
@@ -424,8 +487,11 @@ mod tests {
         assert_eq!(ChannelLayoutKind::Surround40.channel_count(), 4);
         assert_eq!(ChannelLayoutKind::Surround51.channel_count(), 6);
         assert_eq!(ChannelLayoutKind::Surround71.channel_count(), 8);
+        assert_eq!(ChannelLayoutKind::Surround714.channel_count(), 11);
+        assert_eq!(ChannelLayoutKind::Surround916.channel_count(), 16);
         assert_eq!(ChannelLayoutKind::Atmos514.channel_count(), 10);
         assert_eq!(ChannelLayoutKind::Atmos714.channel_count(), 12);
+        assert_eq!(ChannelLayoutKind::DolbyAtmosBed9_1_6.channel_count(), 16);
         assert_eq!(ChannelLayoutKind::Custom.channel_count(), 0);
     }
 
@@ -435,8 +501,11 @@ mod tests {
         assert!(ChannelLayoutKind::Surround21.has_lfe());
         assert!(ChannelLayoutKind::Surround51.has_lfe());
         assert!(ChannelLayoutKind::Surround71.has_lfe());
+        assert!(ChannelLayoutKind::Surround714.has_lfe());
+        assert!(ChannelLayoutKind::Surround916.has_lfe());
         assert!(ChannelLayoutKind::Atmos514.has_lfe());
         assert!(ChannelLayoutKind::Atmos714.has_lfe());
+        assert!(ChannelLayoutKind::DolbyAtmosBed9_1_6.has_lfe());
         assert!(!ChannelLayoutKind::Stereo.has_lfe());
         assert!(!ChannelLayoutKind::Mono.has_lfe());
         assert!(!ChannelLayoutKind::Quad.has_lfe());
@@ -449,6 +518,9 @@ mod tests {
     fn test_layout_kind_has_height_channels() {
         assert!(ChannelLayoutKind::Atmos514.has_height_channels());
         assert!(ChannelLayoutKind::Atmos714.has_height_channels());
+        assert!(ChannelLayoutKind::Surround714.has_height_channels());
+        assert!(ChannelLayoutKind::Surround916.has_height_channels());
+        assert!(ChannelLayoutKind::DolbyAtmosBed9_1_6.has_height_channels());
         assert!(!ChannelLayoutKind::Surround71.has_height_channels());
         assert!(!ChannelLayoutKind::Surround51.has_height_channels());
         assert!(!ChannelLayoutKind::Stereo.has_height_channels());
@@ -459,6 +531,12 @@ mod tests {
     fn test_height_channel_count() {
         assert_eq!(ChannelLayoutKind::Atmos514.height_channel_count(), 4);
         assert_eq!(ChannelLayoutKind::Atmos714.height_channel_count(), 4);
+        assert_eq!(ChannelLayoutKind::Surround714.height_channel_count(), 3);
+        assert_eq!(ChannelLayoutKind::Surround916.height_channel_count(), 6);
+        assert_eq!(
+            ChannelLayoutKind::DolbyAtmosBed9_1_6.height_channel_count(),
+            6
+        );
         assert_eq!(ChannelLayoutKind::Surround71.height_channel_count(), 0);
         assert_eq!(ChannelLayoutKind::Stereo.height_channel_count(), 0);
     }
@@ -468,6 +546,12 @@ mod tests {
     fn test_bed_channel_count() {
         assert_eq!(ChannelLayoutKind::Atmos514.bed_channel_count(), 6);
         assert_eq!(ChannelLayoutKind::Atmos714.bed_channel_count(), 8);
+        assert_eq!(ChannelLayoutKind::Surround714.bed_channel_count(), 8);
+        assert_eq!(ChannelLayoutKind::Surround916.bed_channel_count(), 10);
+        assert_eq!(
+            ChannelLayoutKind::DolbyAtmosBed9_1_6.bed_channel_count(),
+            10
+        );
         assert_eq!(ChannelLayoutKind::Surround71.bed_channel_count(), 8);
         assert_eq!(ChannelLayoutKind::Stereo.bed_channel_count(), 2);
     }
@@ -638,6 +722,12 @@ mod tests {
     fn test_layout_name() {
         assert_eq!(ChannelLayoutKind::Atmos514.name(), "5.1.4 Atmos");
         assert_eq!(ChannelLayoutKind::Atmos714.name(), "7.1.4 Atmos");
+        assert_eq!(ChannelLayoutKind::Surround714.name(), "7.1.4");
+        assert_eq!(ChannelLayoutKind::Surround916.name(), "9.1.6");
+        assert_eq!(
+            ChannelLayoutKind::DolbyAtmosBed9_1_6.name(),
+            "9.1.6 Atmos Bed"
+        );
         assert_eq!(ChannelLayoutKind::Surround71.name(), "7.1");
         assert_eq!(ChannelLayoutKind::Binaural.name(), "Binaural");
         assert_eq!(ChannelLayoutKind::Quad.name(), "Quad");
@@ -661,6 +751,25 @@ mod tests {
         assert!(AudioChannel::TopBackRight.is_surround());
         assert!(AudioChannel::TopBackLeft.is_height_channel());
         assert!(AudioChannel::TopBackRight.is_height_channel());
+    }
+
+    #[test]
+    fn test_surround916_layout() {
+        let layout = ChannelLayout::standard(ChannelLayoutKind::Surround916);
+        assert_eq!(layout.channel_count(), 16);
+        assert!(layout.contains(AudioChannel::FrontWideLeft));
+        assert!(layout.contains(AudioChannel::FrontWideRight));
+        assert!(layout.contains(AudioChannel::TopMiddleLeft));
+        assert!(layout.contains(AudioChannel::TopMiddleRight));
+    }
+
+    #[test]
+    fn test_dolby_atmos_bed_9_1_6_layout() {
+        let layout = ChannelLayout::standard(ChannelLayoutKind::DolbyAtmosBed9_1_6);
+        assert_eq!(layout.channel_count(), 16);
+        assert!(layout.has_height_channels());
+        assert_eq!(layout.height_channel_count(), 6);
+        assert_eq!(layout.name(), "9.1.6 Atmos Bed");
     }
 
     // 29. BackCenter is surround but not height

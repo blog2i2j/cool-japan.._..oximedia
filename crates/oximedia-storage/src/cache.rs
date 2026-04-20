@@ -69,7 +69,7 @@ pub struct CacheConfig {
 impl Default for CacheConfig {
     fn default() -> Self {
         Self {
-            cache_dir: PathBuf::from("/tmp/oximedia-cache"),
+            cache_dir: std::env::temp_dir().join("oximedia-cache"),
             max_size: DEFAULT_CACHE_SIZE,
             max_entries: DEFAULT_CACHE_ENTRIES,
             write_policy: WritePolicy::WriteThrough,

@@ -171,6 +171,10 @@ mod tests {
         PathBuf::from(s)
     }
 
+    fn tmp_path(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("oximedia-clips-proxy-link-{name}"))
+    }
+
     #[test]
     fn test_megapixels_quarter() {
         let mp = ProxyResolution::Quarter.megapixels();
@@ -205,33 +209,33 @@ mod tests {
 
     #[test]
     fn test_proxy_link_not_verified_initially() {
-        let link = ProxyLink::new(1, path("/tmp/proxy.mov"), ProxyResolution::Half);
+        let link = ProxyLink::new(1, tmp_path("proxy.mov"), ProxyResolution::Half);
         assert!(!link.has_proxy());
     }
 
     #[test]
     fn test_proxy_link_verified_after_verify() {
-        let mut link = ProxyLink::new(1, path("/tmp/proxy.mov"), ProxyResolution::Half);
+        let mut link = ProxyLink::new(1, tmp_path("proxy.mov"), ProxyResolution::Half);
         link.verify();
         assert!(link.has_proxy());
     }
 
     #[test]
     fn test_proxy_link_offline_edit_suitable_quarter() {
-        let link = ProxyLink::new(1, path("/tmp/q.mov"), ProxyResolution::Quarter);
+        let link = ProxyLink::new(1, tmp_path("q.mov"), ProxyResolution::Quarter);
         assert!(link.is_offline_edit_suitable());
     }
 
     #[test]
     fn test_proxy_link_full_not_offline_edit_suitable() {
-        let link = ProxyLink::new(1, path("/tmp/f.mov"), ProxyResolution::Full);
+        let link = ProxyLink::new(1, tmp_path("f.mov"), ProxyResolution::Full);
         assert!(!link.is_offline_edit_suitable());
     }
 
     #[test]
     fn test_registry_link_and_find() {
         let mut reg = ProxyLinkRegistry::new();
-        let proxy = ProxyLink::new(42, path("/tmp/42_half.mov"), ProxyResolution::Half);
+        let proxy = ProxyLink::new(42, tmp_path("42_half.mov"), ProxyResolution::Half);
         reg.link(proxy);
         assert!(reg.find_proxy(42, &ProxyResolution::Half).is_some());
     }

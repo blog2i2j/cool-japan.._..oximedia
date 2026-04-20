@@ -409,7 +409,10 @@ fn make_test_segment(
         end_time_us: end_us,
         byte_size: 1024 * (index as u64 + 1),
         worker_id: Some(format!("worker-{index}")),
-        storage_path: format!("/tmp/seg_{index}.ts"),
+        storage_path: std::env::temp_dir()
+            .join(format!("oximedia-distributed-segmerge-seg_{index}.ts"))
+            .to_string_lossy()
+            .into_owned(),
         validated: true,
     }
 }
@@ -421,6 +424,13 @@ fn make_test_segment(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-distributed-segmerge-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
 
     fn setup_manifest(count: u32, gap_us: i64) -> SegmentManifest {
         let job_id = Uuid::new_v4();
@@ -486,7 +496,7 @@ mod tests {
     fn test_merge_no_gaps() {
         let manifest = setup_manifest(4, 0);
         let merger = SegmentMerger::new(MergeConfig {
-            output_path: "/tmp/output.mp4".to_string(),
+            output_path: tmp_str("output.mp4"),
             ..MergeConfig::default()
         });
         let result = merger.merge(&manifest).expect("merge ok");
@@ -501,7 +511,7 @@ mod tests {
         // Default tolerance is 1000us; set gap to 500us
         let manifest = setup_manifest(3, 500);
         let merger = SegmentMerger::new(MergeConfig {
-            output_path: "/tmp/output.mp4".to_string(),
+            output_path: tmp_str("output.mp4"),
             gap_policy: GapPolicy::AllowGaps { tolerance_us: 1000 },
             ..MergeConfig::default()
         });
@@ -514,7 +524,7 @@ mod tests {
         let manifest = setup_manifest(2, 100);
         let merger = SegmentMerger::new(MergeConfig {
             gap_policy: GapPolicy::Strict,
-            output_path: "/tmp/output.mp4".to_string(),
+            output_path: tmp_str("output.mp4"),
             ..MergeConfig::default()
         });
         let result = merger.merge(&manifest);
@@ -543,7 +553,7 @@ mod tests {
 
         let merger = SegmentMerger::new(MergeConfig {
             require_validation: true,
-            output_path: "/tmp/out.mp4".to_string(),
+            output_path: tmp_str("out.mp4"),
             ..MergeConfig::default()
         });
         let result = merger.merge(&manifest);
@@ -555,7 +565,7 @@ mod tests {
         let manifest = setup_manifest(2, 999_999);
         let merger = SegmentMerger::new(MergeConfig {
             gap_policy: GapPolicy::Ignore,
-            output_path: "/tmp/output.mp4".to_string(),
+            output_path: tmp_str("output.mp4"),
             ..MergeConfig::default()
         });
         let result = merger.merge(&manifest).expect("merge ok");

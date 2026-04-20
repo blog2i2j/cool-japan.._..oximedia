@@ -1125,8 +1125,8 @@ mod tests {
 
     #[test]
     fn test_workflow_def_load_nonexistent_returns_err() {
-        let path = std::path::Path::new("/tmp/oximedia_no_such_file_xyz.json");
-        let result = WorkflowDef::load(path);
+        let path = std::env::temp_dir().join("oximedia_no_such_file_xyz.json");
+        let result = WorkflowDef::load(&path);
         assert!(result.is_err());
     }
 

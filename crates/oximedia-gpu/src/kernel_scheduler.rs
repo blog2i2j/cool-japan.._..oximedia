@@ -470,165 +470,180 @@ mod tests {
     // ── KernelScheduler – add / basic queries ─────────────────────────────────
 
     #[test]
-    fn test_add_kernel_and_count() {
+    fn test_add_kernel_and_count() -> Result<(), SchedulerError> {
         let mut sched = KernelScheduler::new();
-        sched.add_kernel(make_spec(1, 4, 64)).unwrap();
-        sched.add_kernel(make_spec(2, 4, 64)).unwrap();
+        sched.add_kernel(make_spec(1, 4, 64))?;
+        sched.add_kernel(make_spec(2, 4, 64))?;
         assert_eq!(sched.kernel_count(), 2);
+        Ok(())
     }
 
     #[test]
-    fn test_add_duplicate_kernel_error() {
+    fn test_add_duplicate_kernel_error() -> Result<(), SchedulerError> {
         let mut sched = KernelScheduler::new();
-        sched.add_kernel(make_spec(1, 4, 64)).unwrap();
+        sched.add_kernel(make_spec(1, 4, 64))?;
         let err = sched.add_kernel(make_spec(1, 8, 128));
         assert!(matches!(err, Err(SchedulerError::DuplicateKernel(1))));
+        Ok(())
     }
 
     // ── launch_order ──────────────────────────────────────────────────────────
 
     #[test]
-    fn test_launch_order_single_kernel() {
+    fn test_launch_order_single_kernel() -> Result<(), SchedulerError> {
         let mut sched = KernelScheduler::new();
-        sched.add_kernel(make_spec(7, 1, 64)).unwrap();
-        let order = sched.launch_order().unwrap();
+        sched.add_kernel(make_spec(7, 1, 64))?;
+        let order = sched.launch_order()?;
         assert_eq!(order, vec![7]);
+        Ok(())
     }
 
     #[test]
-    fn test_launch_order_linear_chain() {
+    fn test_launch_order_linear_chain() -> Result<(), SchedulerError> {
         // 1 → 2 → 3  (1 must run before 2, 2 before 3)
         let mut sched = KernelScheduler::new();
         for id in [1, 2, 3] {
-            sched.add_kernel(make_spec(id, 1, 64)).unwrap();
+            sched.add_kernel(make_spec(id, 1, 64))?;
         }
-        sched.add_dependency(2, 1).unwrap(); // 2 waits for 1
-        sched.add_dependency(3, 2).unwrap(); // 3 waits for 2
-        let order = sched.launch_order().unwrap();
+        sched.add_dependency(2, 1)?; // 2 waits for 1
+        sched.add_dependency(3, 2)?; // 3 waits for 2
+        let order = sched.launch_order()?;
         assert_eq!(order, vec![1, 2, 3]);
+        Ok(())
     }
 
     #[test]
-    fn test_launch_order_diamond() {
+    fn test_launch_order_diamond() -> Result<(), SchedulerError> {
         // 1 → 2, 1 → 3, 2 → 4, 3 → 4
         let mut sched = KernelScheduler::new();
         for id in [1, 2, 3, 4] {
-            sched.add_kernel(make_spec(id, 1, 64)).unwrap();
+            sched.add_kernel(make_spec(id, 1, 64))?;
         }
-        sched.add_dependency(2, 1).unwrap();
-        sched.add_dependency(3, 1).unwrap();
-        sched.add_dependency(4, 2).unwrap();
-        sched.add_dependency(4, 3).unwrap();
-        let order = sched.launch_order().unwrap();
+        sched.add_dependency(2, 1)?;
+        sched.add_dependency(3, 1)?;
+        sched.add_dependency(4, 2)?;
+        sched.add_dependency(4, 3)?;
+        let order = sched.launch_order()?;
         // 1 must be first, 4 must be last
         assert_eq!(order[0], 1);
         assert_eq!(order[3], 4);
         // 2 and 3 must appear between them
         assert!(order.contains(&2));
         assert!(order.contains(&3));
+        Ok(())
     }
 
     #[test]
-    fn test_launch_order_independent_kernels_sorted_by_id() {
+    fn test_launch_order_independent_kernels_sorted_by_id() -> Result<(), SchedulerError> {
         let mut sched = KernelScheduler::new();
         for id in [5, 3, 1, 4, 2] {
-            sched.add_kernel(make_spec(id, 1, 64)).unwrap();
+            sched.add_kernel(make_spec(id, 1, 64))?;
         }
-        let order = sched.launch_order().unwrap();
+        let order = sched.launch_order()?;
         assert_eq!(order, vec![1, 2, 3, 4, 5]);
+        Ok(())
     }
 
     // ── add_dependency errors ─────────────────────────────────────────────────
 
     #[test]
-    fn test_add_dependency_unknown_dependent() {
+    fn test_add_dependency_unknown_dependent() -> Result<(), SchedulerError> {
         let mut sched = KernelScheduler::new();
-        sched.add_kernel(make_spec(1, 1, 64)).unwrap();
+        sched.add_kernel(make_spec(1, 1, 64))?;
         let err = sched.add_dependency(99, 1);
         assert!(matches!(err, Err(SchedulerError::KernelNotFound(99))));
+        Ok(())
     }
 
     #[test]
-    fn test_add_dependency_unknown_dependency() {
+    fn test_add_dependency_unknown_dependency() -> Result<(), SchedulerError> {
         let mut sched = KernelScheduler::new();
-        sched.add_kernel(make_spec(1, 1, 64)).unwrap();
+        sched.add_kernel(make_spec(1, 1, 64))?;
         let err = sched.add_dependency(1, 99);
         assert!(matches!(err, Err(SchedulerError::KernelNotFound(99))));
+        Ok(())
     }
 
     #[test]
-    fn test_add_dependency_cycle_detected() {
+    fn test_add_dependency_cycle_detected() -> Result<(), SchedulerError> {
         let mut sched = KernelScheduler::new();
-        sched.add_kernel(make_spec(1, 1, 64)).unwrap();
-        sched.add_kernel(make_spec(2, 1, 64)).unwrap();
-        sched.add_dependency(2, 1).unwrap(); // 2 waits for 1
-                                             // Trying to make 1 wait for 2 would create a cycle.
+        sched.add_kernel(make_spec(1, 1, 64))?;
+        sched.add_kernel(make_spec(2, 1, 64))?;
+        sched.add_dependency(2, 1)?; // 2 waits for 1
+                                     // Trying to make 1 wait for 2 would create a cycle.
         let err = sched.add_dependency(1, 2);
         assert!(matches!(err, Err(SchedulerError::CyclicDependency { .. })));
+        Ok(())
     }
 
     // ── occupancy via scheduler ───────────────────────────────────────────────
 
     #[test]
-    fn test_scheduler_occupancy() {
+    fn test_scheduler_occupancy() -> Result<(), SchedulerError> {
         let mut sched = KernelScheduler::new();
-        sched.add_kernel(make_spec(1, 4, 128)).unwrap(); // 4 warps/group, 4 groups → 16 warps
-        let est = sched.occupancy(1, 64, 32).unwrap();
+        sched.add_kernel(make_spec(1, 4, 128))?; // 4 warps/group, 4 groups → 16 warps
+        let est = sched.occupancy(1, 64, 32)?;
         assert_eq!(est.active_warps, 16);
+        Ok(())
     }
 
     #[test]
-    fn test_scheduler_occupancy_unknown_kernel() {
+    fn test_scheduler_occupancy_unknown_kernel() -> Result<(), SchedulerError> {
         let sched = KernelScheduler::new();
         let err = sched.occupancy(42, 64, 32);
         assert!(matches!(err, Err(SchedulerError::KernelNotFound(42))));
+        Ok(())
     }
 
     // ── simulate_warp_stats ───────────────────────────────────────────────────
 
     #[test]
-    fn test_simulate_warp_stats_basic() {
+    fn test_simulate_warp_stats_basic() -> Result<(), SchedulerError> {
         let mut sched = KernelScheduler::new();
-        sched.add_kernel(make_spec(1, 2, 64)).unwrap(); // 4 warps total
-        sched.add_kernel(make_spec(2, 1, 64)).unwrap(); // 2 warps total
-        sched.add_dependency(2, 1).unwrap();
-        let stats = sched.simulate_warp_stats(32, 32).unwrap();
+        sched.add_kernel(make_spec(1, 2, 64))?; // 4 warps total
+        sched.add_kernel(make_spec(2, 1, 64))?; // 2 warps total
+        sched.add_dependency(2, 1)?;
+        let stats = sched.simulate_warp_stats(32, 32)?;
         assert_eq!(stats.len(), 2);
         assert_eq!(stats[0].kernel_id, 1);
         assert_eq!(stats[1].kernel_id, 2);
+        Ok(())
     }
 
     #[test]
-    fn test_simulate_warp_stats_overflow_clamps() {
+    fn test_simulate_warp_stats_overflow_clamps() -> Result<(), SchedulerError> {
         let mut sched = KernelScheduler::new();
         // 1000 work groups × 256 threads/group → 8000 warps; SM limit = 64
-        sched.add_kernel(make_spec(1, 1000, 256)).unwrap();
-        let stats = sched.simulate_warp_stats(64, 32).unwrap();
+        sched.add_kernel(make_spec(1, 1000, 256))?;
+        let stats = sched.simulate_warp_stats(64, 32)?;
         assert_eq!(stats[0].active_warps, 64);
         assert!(stats[0].stalled_warps > 0);
         assert!(stats[0].utilisation < 1.0 || stats[0].stalled_warps == 0);
+        Ok(())
     }
 
     // ── dependencies_of ───────────────────────────────────────────────────────
 
     #[test]
-    fn test_dependencies_of() {
+    fn test_dependencies_of() -> Result<(), SchedulerError> {
         let mut sched = KernelScheduler::new();
         for id in [1, 2, 3] {
-            sched.add_kernel(make_spec(id, 1, 64)).unwrap();
+            sched.add_kernel(make_spec(id, 1, 64))?;
         }
-        sched.add_dependency(3, 1).unwrap();
-        sched.add_dependency(3, 2).unwrap();
-        let mut deps = sched.dependencies_of(3).unwrap();
+        sched.add_dependency(3, 1)?;
+        sched.add_dependency(3, 2)?;
+        let mut deps = sched.dependencies_of(3)?;
         deps.sort_unstable();
         assert_eq!(deps, vec![1, 2]);
+        Ok(())
     }
 
     #[test]
-    fn test_dependencies_of_no_deps() {
+    fn test_dependencies_of_no_deps() -> Result<(), SchedulerError> {
         let mut sched = KernelScheduler::new();
-        sched.add_kernel(make_spec(1, 1, 64)).unwrap();
-        let deps = sched.dependencies_of(1).unwrap();
+        sched.add_kernel(make_spec(1, 1, 64))?;
+        let deps = sched.dependencies_of(1)?;
         assert!(deps.is_empty());
+        Ok(())
     }
 }

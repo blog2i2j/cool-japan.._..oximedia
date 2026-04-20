@@ -6,7 +6,7 @@ Content rights and licensing management for OxiMedia. Provides comprehensive rig
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.3 — 2026-04-15
+Version: 0.1.4 | Tests: 998 — 2026-04-20
 
 ## Features
 
@@ -33,7 +33,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-rights = "0.1.3"
+oximedia-rights = "0.1.4"
 ```
 
 ```rust

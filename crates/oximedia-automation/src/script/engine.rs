@@ -458,7 +458,18 @@ impl ScriptEngine {
 
 impl Default for ScriptEngine {
     fn default() -> Self {
-        Self::new().expect("Failed to create script engine")
+        // Lua::new() is infallible; apply_sandbox strips OS/IO functions which
+        // is always successful on supported platforms. Fall back to an
+        // unsandboxed engine only if sandboxing unexpectedly fails.
+        let lua = Lua::new();
+        if let Err(e) = Self::apply_sandbox(&lua) {
+            error!("ScriptEngine sandboxing failed, using unsandboxed engine: {e}");
+        }
+        Self {
+            lua,
+            context: ScriptContext::default(),
+            cache: ScriptCache::new(SCRIPT_CACHE_CAPACITY),
+        }
     }
 }
 

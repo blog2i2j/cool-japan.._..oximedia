@@ -206,7 +206,8 @@ pub fn compute_adaptation_matrix(
     ];
 
     // Full CAT = Mcat^-1 * Scale * Mcat
-    let mcat_inv = mat3_inv(&mcat).expect("CAT matrix should be invertible");
+    // Standard CAT matrices (Bradford, Von Kries, CAT02, XYZ) are always invertible.
+    let mcat_inv = mat3_inv(&mcat).unwrap_or([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]);
     let scaled = mat3_mul(&scale, &mcat);
     mat3_mul(&mcat_inv, &scaled)
 }
@@ -379,9 +380,8 @@ impl MultiIlluminantAdapter {
     /// Returns the destination illuminant (last in the chain).
     #[must_use]
     pub fn destination_illuminant(&self) -> &WhitePoint {
-        self.illuminants
-            .last()
-            .expect("must have at least 2 illuminants")
+        // The constructor guarantees at least 2 illuminants; use len()-1 to access last.
+        &self.illuminants[self.illuminants.len() - 1]
     }
 }
 

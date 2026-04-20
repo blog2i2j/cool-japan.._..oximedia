@@ -37,4 +37,9 @@ rustc-ice-*.txt
 # glibc compat object (pre-compiled, not needed in Pure Rust builds)
 compat/glibc_compat.o
 
+# Stale wasm-pack output (regenerated fresh by `wasm-pack build`)
+/oximedia-wasm/pkg-node/
+/oximedia-wasm/pkg-bundler/
+/oximedia-wasm/pkg-web/
+
 

@@ -1,3 +1,7 @@
+// The library crate is named `oximedia_bitstream`; use the alias that
+// all downstream test code expects so files need not be rewritten.
+extern crate oximedia_bitstream as bitstream_io;
+
 use bitstream_io::{BigEndian, BitRead, BitReader, Endianness, LittleEndian};
 use std::io::{self, Cursor, SeekFrom};
 

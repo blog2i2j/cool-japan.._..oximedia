@@ -683,7 +683,12 @@ mod tests {
     fn test_simulate_with_outputs() {
         let (dag, _, _, _) = make_linear_dag();
         let mut outputs = HashMap::new();
-        outputs.insert("path".to_string(), serde_json::json!("/tmp/out.mp4"));
+        outputs.insert(
+            "path".to_string(),
+            serde_json::json!(std::env::temp_dir()
+                .join("oximedia-workflow-sim-out.mp4")
+                .to_string_lossy()),
+        );
         let config = SimulationConfig::new().with_outputs("ingest", outputs);
         let sim = WorkflowSimulator::new(config);
         let result = sim.simulate(&dag).expect("simulate");

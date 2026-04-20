@@ -6,6 +6,10 @@
 // option. This file may not be copied, modified, or distributed
 // except according to those terms.
 
+// The library crate is named `oximedia_bitstream`; use the alias that
+// all downstream test code expects so files need not be rewritten.
+extern crate oximedia_bitstream as bitstream_io;
+
 use bitstream_io::{
     BigEndian, BitRead, BitReader, BitWrite, BitWriter, Endianness, Integer, LittleEndian,
     Primitive,
@@ -282,12 +286,12 @@ fn unary<E: Endianness>() {
 
 #[test]
 fn test_unary_roundtrip_be() {
-    unary::<BigEndian>()
+    unary::<BigEndian>();
 }
 
 #[test]
 fn test_unary_roundtrip_le() {
-    unary::<LittleEndian>()
+    unary::<LittleEndian>();
 }
 
 fn float<E, P>()
@@ -315,22 +319,22 @@ where
 
 #[test]
 fn test_f32_roundtrip_be() {
-    float::<BigEndian, f32>()
+    float::<BigEndian, f32>();
 }
 
 #[test]
 fn test_f64_roundtrip_be() {
-    float::<BigEndian, f64>()
+    float::<BigEndian, f64>();
 }
 
 #[test]
 fn test_f32_roundtrip_le() {
-    float::<LittleEndian, f32>()
+    float::<LittleEndian, f32>();
 }
 
 #[test]
 fn test_f64_roundtrip_le() {
-    float::<LittleEndian, f64>()
+    float::<LittleEndian, f64>();
 }
 
 #[test]
@@ -475,10 +479,10 @@ fn test_primitives<E: Endianness>() {
 
 #[test]
 fn test_primitives_be() {
-    test_primitives::<BigEndian>()
+    test_primitives::<BigEndian>();
 }
 
 #[test]
 fn test_primitives_le() {
-    test_primitives::<LittleEndian>()
+    test_primitives::<LittleEndian>();
 }

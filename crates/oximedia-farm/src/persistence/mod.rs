@@ -657,15 +657,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_database_creation() {
-        let db = Database::in_memory().unwrap();
-        let stats = db.get_job_stats().unwrap();
+    fn test_database_creation() -> Result<()> {
+        let db = Database::in_memory()?;
+        let stats = db.get_job_stats()?;
         assert_eq!(stats.total, 0);
+        Ok(())
     }
 
     #[test]
-    fn test_job_insertion() {
-        let db = Database::in_memory().unwrap();
+    fn test_job_insertion() -> Result<()> {
+        let db = Database::in_memory()?;
         let job = JobRecord {
             id: JobId::new(),
             job_type: JobType::VideoTranscode,
@@ -681,15 +682,18 @@ mod tests {
             deadline: None,
         };
 
-        db.insert_job(&job).unwrap();
-        let retrieved = db.get_job(job.id).unwrap().unwrap();
+        db.insert_job(&job)?;
+        let retrieved = db
+            .get_job(job.id)?
+            .ok_or_else(|| FarmError::NotFound(format!("Job {} not found", job.id)))?;
         assert_eq!(retrieved.id, job.id);
         assert_eq!(retrieved.state, JobState::Pending);
+        Ok(())
     }
 
     #[test]
-    fn test_job_state_update() {
-        let db = Database::in_memory().unwrap();
+    fn test_job_state_update() -> Result<()> {
+        let db = Database::in_memory()?;
         let job = JobRecord {
             id: JobId::new(),
             job_type: JobType::VideoTranscode,
@@ -705,17 +709,20 @@ mod tests {
             deadline: None,
         };
 
-        db.insert_job(&job).unwrap();
-        db.update_job_state(job.id, JobState::Running).unwrap();
+        db.insert_job(&job)?;
+        db.update_job_state(job.id, JobState::Running)?;
 
-        let retrieved = db.get_job(job.id).unwrap().unwrap();
+        let retrieved = db
+            .get_job(job.id)?
+            .ok_or_else(|| FarmError::NotFound(format!("Job {} not found", job.id)))?;
         assert_eq!(retrieved.state, JobState::Running);
         assert!(retrieved.started_at.is_some());
+        Ok(())
     }
 
     #[test]
-    fn test_task_insertion() {
-        let db = Database::in_memory().unwrap();
+    fn test_task_insertion() -> Result<()> {
+        let db = Database::in_memory()?;
 
         // Create a job first to satisfy foreign key constraint
         let job_id = JobId::new();
@@ -733,7 +740,7 @@ mod tests {
             started_at: None,
             completed_at: None,
         };
-        db.insert_job(&job).unwrap();
+        db.insert_job(&job)?;
 
         let task = TaskRecord {
             id: TaskId::new(),
@@ -748,15 +755,16 @@ mod tests {
             retry_count: 0,
         };
 
-        db.insert_task(&task).unwrap();
-        let tasks = db.get_pending_tasks(10).unwrap();
+        db.insert_task(&task)?;
+        let tasks = db.get_pending_tasks(10)?;
         assert_eq!(tasks.len(), 1);
         assert_eq!(tasks[0].id, task.id);
+        Ok(())
     }
 
     #[test]
-    fn test_task_priority_ordering() {
-        let db = Database::in_memory().unwrap();
+    fn test_task_priority_ordering() -> Result<()> {
+        let db = Database::in_memory()?;
 
         // Create a job first to satisfy foreign key constraint
         let job_id = JobId::new();
@@ -774,7 +782,7 @@ mod tests {
             started_at: None,
             completed_at: None,
         };
-        db.insert_job(&job).unwrap();
+        db.insert_job(&job)?;
 
         let task_low = TaskRecord {
             id: TaskId::new(),
@@ -802,17 +810,19 @@ mod tests {
             retry_count: 0,
         };
 
-        db.insert_task(&task_low).unwrap();
-        db.insert_task(&task_high).unwrap();
+        db.insert_task(&task_low)?;
+        db.insert_task(&task_high)?;
 
-        let tasks = db.get_pending_tasks(10).unwrap();
+        let tasks = db.get_pending_tasks(10)?;
         assert_eq!(tasks.len(), 2);
         assert_eq!(tasks[0].priority, Priority::High);
         assert_eq!(tasks[1].priority, Priority::Low);
+        Ok(())
     }
+
     #[test]
-    fn test_retry_count() {
-        let db = Database::in_memory().unwrap();
+    fn test_retry_count() -> Result<()> {
+        let db = Database::in_memory()?;
 
         // Create a job first to satisfy foreign key constraint
         let job_id = JobId::new();
@@ -830,7 +840,7 @@ mod tests {
             started_at: None,
             completed_at: None,
         };
-        db.insert_job(&job).unwrap();
+        db.insert_job(&job)?;
 
         let task = TaskRecord {
             id: TaskId::new(),
@@ -845,11 +855,12 @@ mod tests {
             retry_count: 0,
         };
 
-        db.insert_task(&task).unwrap();
-        let count1 = db.increment_task_retry(task.id).unwrap();
+        db.insert_task(&task)?;
+        let count1 = db.increment_task_retry(task.id)?;
         assert_eq!(count1, 1);
 
-        let count2 = db.increment_task_retry(task.id).unwrap();
+        let count2 = db.increment_task_retry(task.id)?;
         assert_eq!(count2, 2);
+        Ok(())
     }
 }

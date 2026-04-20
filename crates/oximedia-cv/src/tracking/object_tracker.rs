@@ -227,11 +227,12 @@ impl ObjectTracker {
         // Extract search region
         let search_patch = extract_patch(frame, w, h, &search_bbox, (64, 64))?;
 
-        // Correlate with template
-        let template = self
-            .template
-            .as_ref()
-            .expect("template initialized before tracking");
+        // Correlate with template — initialized in initialize(), checked there
+        let Some(template) = self.template.as_ref() else {
+            return Err(CvError::detection_failed(
+                "template not initialized before tracking",
+            ));
+        };
         let response = compute_correlation(&search_patch, template, (64, 64), self.template_size);
 
         // Find peak
@@ -276,10 +277,11 @@ impl ObjectTracker {
         let search_bbox = self.bbox.expand(self.bbox.width * 0.2);
         let search_patch = extract_patch(frame, w, h, &search_bbox, (48, 48))?;
 
-        let template = self
-            .template
-            .as_ref()
-            .expect("template initialized before tracking");
+        let Some(template) = self.template.as_ref() else {
+            return Err(CvError::detection_failed(
+                "template not initialized before tracking",
+            ));
+        };
         let response = compute_correlation(&search_patch, template, (48, 48), self.template_size);
 
         let (max_idx, _max_val, psr) = find_peak_with_psr(&response, (48, 48));
@@ -364,10 +366,11 @@ impl ObjectTracker {
         let search_bbox = self.bbox.expand(self.bbox.width * 0.3);
         let search_patch = extract_patch(frame, w, h, &search_bbox, (64, 64))?;
 
-        let template = self
-            .template
-            .as_ref()
-            .expect("template initialized before tracking");
+        let Some(template) = self.template.as_ref() else {
+            return Err(CvError::detection_failed(
+                "template not initialized before tracking",
+            ));
+        };
         let response = compute_correlation(&search_patch, template, (64, 64), self.template_size);
 
         let (max_idx, _max_val, psr) = find_peak_with_psr(&response, (64, 64));

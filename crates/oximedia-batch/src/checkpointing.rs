@@ -416,10 +416,15 @@ mod tests {
 
     #[test]
     fn test_checkpoint_with_meta() {
-        let cp = CheckpointData::new(&jid("j"), "lbl", 1, 5).with_meta("last_file", "/tmp/foo.mp4");
+        let tmp_file = std::env::temp_dir()
+            .join("oximedia-batch-checkpoint-foo.mp4")
+            .to_string_lossy()
+            .into_owned();
+        let cp =
+            CheckpointData::new(&jid("j"), "lbl", 1, 5).with_meta("last_file", tmp_file.as_str());
         assert_eq!(
             cp.metadata.get("last_file").expect("failed to get value"),
-            "/tmp/foo.mp4"
+            &tmp_file
         );
     }
 

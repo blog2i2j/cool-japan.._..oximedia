@@ -752,9 +752,16 @@ mod cross_provider_tests {
         }
     }
 
+    fn local_target_path() -> String {
+        std::env::temp_dir()
+            .join("oximedia-storage-repl-replica")
+            .to_string_lossy()
+            .into_owned()
+    }
+
     fn local_target() -> ProviderTarget {
         ProviderTarget::Local {
-            path: "/tmp/replica".to_string(),
+            path: local_target_path(),
         }
     }
 
@@ -778,7 +785,8 @@ mod cross_provider_tests {
 
     #[test]
     fn test_provider_target_description_local() {
-        assert!(local_target().description().contains("/tmp/replica"));
+        let expected = local_target_path();
+        assert!(local_target().description().contains(&expected));
     }
 
     #[test]

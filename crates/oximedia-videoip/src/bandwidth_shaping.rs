@@ -604,9 +604,13 @@ mod tests {
     #[test]
     fn test_admit_within_rate() {
         let mut shaper = BandwidthShaper::new(0);
-        shaper.register_stream("cam1", default_config(1_000_000)).unwrap();
+        shaper
+            .register_stream("cam1", default_config(1_000_000))
+            .expect("stream not yet registered");
         shaper.set_time_us(0);
-        let decision = shaper.submit_packet("cam1", vec![0u8; 1000]).unwrap();
+        let decision = shaper
+            .submit_packet("cam1", vec![0u8; 1000])
+            .expect("stream exists");
         assert_eq!(decision, AdmissionDecision::Admitted);
     }
 
@@ -621,12 +625,18 @@ mod tests {
             max_queue_depth: 16,
             ..Default::default()
         };
-        shaper.register_stream("cam1", cfg).unwrap();
+        shaper
+            .register_stream("cam1", cfg)
+            .expect("stream not yet registered");
         shaper.set_time_us(0);
         // First 100-byte packet consumes bucket.
-        shaper.submit_packet("cam1", vec![0u8; 100]).unwrap();
+        shaper
+            .submit_packet("cam1", vec![0u8; 100])
+            .expect("stream exists");
         // Second packet should be queued.
-        let d = shaper.submit_packet("cam1", vec![0u8; 10]).unwrap();
+        let d = shaper
+            .submit_packet("cam1", vec![0u8; 10])
+            .expect("stream exists");
         assert_eq!(d, AdmissionDecision::Queued);
     }
 
@@ -640,22 +650,34 @@ mod tests {
             max_queue_depth: 16,
             ..Default::default()
         };
-        shaper.register_stream("cam1", cfg).unwrap();
+        shaper
+            .register_stream("cam1", cfg)
+            .expect("stream not yet registered");
         shaper.set_time_us(0);
-        shaper.submit_packet("cam1", vec![0u8; 50]).unwrap();
-        let d = shaper.submit_packet("cam1", vec![0u8; 10]).unwrap();
+        shaper
+            .submit_packet("cam1", vec![0u8; 50])
+            .expect("stream exists");
+        let d = shaper
+            .submit_packet("cam1", vec![0u8; 10])
+            .expect("stream exists");
         assert_eq!(d, AdmissionDecision::Dropped);
     }
 
     #[test]
     fn test_drain_ready_after_refill() {
         let mut shaper = BandwidthShaper::new(0);
-        shaper.register_stream("cam1", default_config(1000)).unwrap();
+        shaper
+            .register_stream("cam1", default_config(1000))
+            .expect("stream not yet registered");
         shaper.set_time_us(0);
         // Exhaust bucket.
-        shaper.submit_packet("cam1", vec![0u8; 1000]).unwrap();
+        shaper
+            .submit_packet("cam1", vec![0u8; 1000])
+            .expect("stream exists");
         // Queue one more packet.
-        let d = shaper.submit_packet("cam1", vec![0u8; 100]).unwrap();
+        let d = shaper
+            .submit_packet("cam1", vec![0u8; 100])
+            .expect("stream exists");
         assert_eq!(d, AdmissionDecision::Queued);
         // Advance 1 second → bucket refills.
         shaper.set_time_us(1_000_000);
@@ -666,8 +688,12 @@ mod tests {
     #[test]
     fn test_update_rate() {
         let mut shaper = BandwidthShaper::new(0);
-        shaper.register_stream("cam1", default_config(1000)).unwrap();
-        shaper.update_rate("cam1", 2000).unwrap();
+        shaper
+            .register_stream("cam1", default_config(1000))
+            .expect("stream not yet registered");
+        shaper
+            .update_rate("cam1", 2000)
+            .expect("stream exists");
         let stats = shaper.stream_stats("cam1");
         assert!(stats.is_ok());
     }
@@ -682,7 +708,9 @@ mod tests {
     #[test]
     fn test_duplicate_stream_rejected() {
         let mut shaper = BandwidthShaper::new(0);
-        shaper.register_stream("cam1", default_config(1000)).unwrap();
+        shaper
+            .register_stream("cam1", default_config(1000))
+            .expect("stream not yet registered");
         let result = shaper.register_stream("cam1", default_config(1000));
         assert!(matches!(result, Err(ShaperError::StreamExists(_))));
     }
@@ -696,10 +724,16 @@ mod tests {
     #[test]
     fn test_stream_count() {
         let mut shaper = BandwidthShaper::new(0);
-        shaper.register_stream("a", default_config(1000)).unwrap();
-        shaper.register_stream("b", default_config(1000)).unwrap();
+        shaper
+            .register_stream("a", default_config(1000))
+            .expect("stream not yet registered");
+        shaper
+            .register_stream("b", default_config(1000))
+            .expect("stream b not yet registered");
         assert_eq!(shaper.stream_count(), 2);
-        shaper.unregister_stream("a").unwrap();
+        shaper
+            .unregister_stream("a")
+            .expect("stream a exists");
         assert_eq!(shaper.stream_count(), 1);
     }
 

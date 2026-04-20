@@ -6,13 +6,21 @@
 - Modules: arg_parser, argument_builder, codec_map, codec_mapping, diagnostics, filter_graph, filter_lex, stream_spec, translator
 
 ## Enhancements
-- [ ] Extend `codec_map.rs` to cover all common FFmpeg codec aliases (e.g., h264_nvenc, hevc_amf -> av1 equivalents)
+- [x] Extend `codec_map.rs` to cover all common FFmpeg codec aliases (e.g., h264_nvenc, hevc_amf -> av1 equivalents)
 - [ ] Add support for `-filter_complex` multi-input/output filter graph parsing in `filter_lex.rs`
 - [ ] Improve `diagnostics.rs` with suggestion-based error messages ("did you mean..." for mistyped codecs)
 - [ ] Extend `stream_spec.rs` to handle complex stream specifiers like `0:v:0`, `0:a:#0x1100`
 - [ ] Add `-map` flag with negative mapping support (e.g., `-map 0 -map -0:s`) in `arg_parser.rs`
 - [ ] Implement `-ss` / `-to` / `-t` seeking/duration options in `arg_parser.rs`
 - [ ] Add `-preset` / `-tune` / `-profile` translation in `codec_mapping.rs`
+- [x] APV aliases added to codec_map.rs + codec_mapping.rs — Slice A of /ultra Wave 3 (2026-04-17) DONE
+- [x] FFmpeg compat Wave 3: filter_complex, -map stream_spec, -ss/-to/-t, ffprobe output — Slice G of /ultra Wave 3 (2026-04-17)
+
+## Wave 4 Progress (2026-04-18)
+- [x] codec-map-cache: OnceLock singleton for codec_map + codec_mapping registries — Wave 4 Slice E
+- [x] encoder-quality-args: -preset/-tune/-profile:v parsing → EncoderQualityOptions — Wave 4 Slice E
+- [x] filter-shorthand: -vf/-af parsing → single-chain FilterGraph (reuses filter_complex AST) — Wave 4 Slice E
+- [x] two-pass: -pass 1/-pass 2 → PassPhase::First/Second with JSON stats file — Wave 4 Slice E
 
 ## New Features
 - [ ] Implement `ffprobe`-compatible output mode (JSON/XML/CSV format info)

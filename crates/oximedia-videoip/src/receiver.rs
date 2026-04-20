@@ -84,7 +84,9 @@ impl VideoIpReceiver {
     ///
     /// Returns an error if the receiver cannot be created.
     pub async fn new(video_codec: VideoCodec, audio_codec: AudioCodec) -> VideoIpResult<Self> {
-        let bind_addr = "0.0.0.0:0".parse().expect("hardcoded value is valid");
+        let bind_addr = "0.0.0.0:0"
+            .parse()
+            .map_err(|e: std::net::AddrParseError| VideoIpError::Transport(e.to_string()))?;
         let transport = UdpTransport::bind(bind_addr).await?;
 
         let video_decoder = create_video_decoder(video_codec)?;

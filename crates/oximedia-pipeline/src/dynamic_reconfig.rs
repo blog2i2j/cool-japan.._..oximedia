@@ -584,7 +584,7 @@ mod tests {
             .scale(1280, 720)
             .sink("out", SinkConfig::Null)
             .build()
-            .unwrap()
+            .expect("base pipeline build should succeed")
     }
 
     #[test]
@@ -596,7 +596,7 @@ mod tests {
         let tx = dp
             .begin()
             .insert_filter_after_name("scale", "hflip", FilterConfig::Hflip);
-        dp.commit(tx).unwrap();
+        dp.commit(tx).expect("commit insert_filter_after should succeed");
 
         assert_eq!(dp.graph().node_count(), before + 1);
     }
@@ -610,7 +610,7 @@ mod tests {
         let tx = dp
             .begin()
             .insert_filter_before_name("scale", "vflip", FilterConfig::Vflip);
-        dp.commit(tx).unwrap();
+        dp.commit(tx).expect("commit insert_filter_before should succeed");
 
         assert_eq!(dp.graph().node_count(), before + 1);
     }
@@ -622,7 +622,7 @@ mod tests {
         let mut dp = DynamicPipeline::new(g);
 
         let tx = dp.begin().remove_node_by_name("scale");
-        dp.commit(tx).unwrap();
+        dp.commit(tx).expect("commit remove_node should succeed");
 
         assert_eq!(dp.graph().node_count(), before - 1);
         // Source and sink should still be connected via a bypass edge
@@ -632,14 +632,14 @@ mod tests {
             .iter()
             .find(|(_, s)| s.name == "in")
             .map(|(&id, _)| id)
-            .unwrap();
+            .expect("source node 'in' should still exist after scale removal");
         let sink_id = dp
             .graph()
             .nodes
             .iter()
             .find(|(_, s)| s.name == "out")
             .map(|(&id, _)| id)
-            .unwrap();
+            .expect("sink node 'out' should still exist after scale removal");
         let connected = dp
             .graph()
             .edges
@@ -657,7 +657,7 @@ mod tests {
         let tx = dp
             .begin()
             .insert_filter_after_name("scale", "hflip", FilterConfig::Hflip);
-        dp.commit(tx).unwrap();
+        dp.commit(tx).expect("commit should succeed and increment generation");
         assert_eq!(dp.generation(), 1);
     }
 
@@ -690,14 +690,14 @@ mod tests {
             .iter()
             .find(|(_, s)| s.name == "scale")
             .map(|(&id, _)| id)
-            .unwrap();
+            .expect("scale node should exist in base graph");
 
         let tx = dp
             .begin()
             .replace_node_type(scale_id, NodeType::Filter(FilterConfig::Hflip));
-        dp.commit(tx).unwrap();
+        dp.commit(tx).expect("commit replace_node_type should succeed");
 
-        let updated_spec = dp.graph().nodes.get(&scale_id).unwrap();
+        let updated_spec = dp.graph().nodes.get(&scale_id).expect("scale node should still exist after type replacement");
         assert!(matches!(
             updated_spec.node_type,
             NodeType::Filter(FilterConfig::Hflip)
@@ -717,7 +717,7 @@ mod tests {
             .insert_filter_after_name("hflip", "vflip", FilterConfig::Vflip)
             .remove_node_by_name("scale");
 
-        let event = dp.commit(tx).unwrap();
+        let event = dp.commit(tx).expect("multi-op commit should succeed");
         // Net: +2 inserted, -1 removed = before + 1
         assert_eq!(dp.graph().node_count(), before + 1);
         assert_eq!(event.total_ops, 3);
@@ -733,15 +733,15 @@ mod tests {
         let fired = Arc::new(Mutex::new(false));
         let fired_clone = Arc::clone(&fired);
         dp.on_reconfig(move |_event| {
-            *fired_clone.lock().unwrap() = true;
+            *fired_clone.lock().expect("lock should not be poisoned") = true;
         });
 
         let tx = dp
             .begin()
             .insert_filter_after_name("scale", "hflip", FilterConfig::Hflip);
-        dp.commit(tx).unwrap();
+        dp.commit(tx).expect("commit should succeed and fire callback");
 
-        assert!(*fired.lock().unwrap(), "callback should have fired");
+        assert!(*fired.lock().expect("lock should not be poisoned"), "callback should have fired");
     }
 
     #[test]
@@ -755,7 +755,7 @@ mod tests {
             new_node_name: "hflip".to_string(),
             filter_config: FilterConfig::Hflip,
         })
-        .unwrap();
+        .expect("apply single op should succeed");
 
         assert_eq!(dp.graph().node_count(), before + 1);
     }
@@ -772,14 +772,14 @@ mod tests {
             .iter()
             .find(|(_, s)| s.name == "in")
             .map(|(&id, _)| id)
-            .unwrap();
+            .expect("source node 'in' should exist in base graph");
         let scale_id = dp
             .graph()
             .nodes
             .iter()
             .find(|(_, s)| s.name == "scale")
             .map(|(&id, _)| id)
-            .unwrap();
+            .expect("scale node should exist in base graph");
 
         let before_edges = dp.graph().edges.len();
 
@@ -790,7 +790,7 @@ mod tests {
             to_node: scale_id,
             to_pad: "default".to_string(),
         });
-        dp.commit(tx2).unwrap();
+        dp.commit(tx2).expect("commit remove_edge should succeed");
 
         assert!(dp.graph().edges.len() < before_edges);
     }

@@ -470,37 +470,41 @@ impl MetricsCollector {
 
         // Update latency metrics (compute values first to avoid borrow issue)
         let (avg, p50, p95, p99) = {
-            let samples = state.latency_samples.get(&provider_id_string).expect(
-                "invariant: latency_samples entry exists (just inserted via or_insert above)",
-            );
-            if samples.is_empty() {
+            if let Some(samples) = state.latency_samples.get(&provider_id_string) {
+                if samples.is_empty() {
+                    (
+                        Duration::ZERO,
+                        Duration::ZERO,
+                        Duration::ZERO,
+                        Duration::ZERO,
+                    )
+                } else {
+                    let mut sorted: Vec<_> = samples.iter().copied().collect();
+                    sorted.sort();
+                    let sum: Duration = sorted.iter().sum();
+                    let avg = sum / sorted.len() as u32;
+                    let p50 = sorted[sorted.len() / 2];
+                    let p95 = sorted[sorted.len() * 95 / 100];
+                    let p99 = sorted[sorted.len() * 99 / 100];
+                    (avg, p50, p95, p99)
+                }
+            } else {
                 (
                     Duration::ZERO,
                     Duration::ZERO,
                     Duration::ZERO,
                     Duration::ZERO,
                 )
-            } else {
-                let mut sorted: Vec<_> = samples.iter().copied().collect();
-                sorted.sort();
-                let sum: Duration = sorted.iter().sum();
-                let avg = sum / sorted.len() as u32;
-                let p50 = sorted[sorted.len() / 2];
-                let p95 = sorted[sorted.len() * 95 / 100];
-                let p99 = sorted[sorted.len() * 99 / 100];
-                (avg, p50, p95, p99)
             }
         };
 
         // Now update metrics with computed values
-        let metrics = state
-            .metrics
-            .get_mut(&provider_id_string)
-            .expect("invariant: metrics entry exists for registered provider");
-        metrics.avg_latency = avg;
-        metrics.p50_latency = p50;
-        metrics.p95_latency = p95;
-        metrics.p99_latency = p99;
+        if let Some(metrics) = state.metrics.get_mut(&provider_id_string) {
+            metrics.avg_latency = avg;
+            metrics.p50_latency = p50;
+            metrics.p95_latency = p95;
+            metrics.p99_latency = p99;
+        }
 
         // Add request log
         state.request_logs.push_back(RequestLog {

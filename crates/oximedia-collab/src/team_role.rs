@@ -285,10 +285,11 @@ impl RoleManager {
         if role.built_in {
             return Err(RoleError::BuiltInRole(name.to_string()));
         }
-        Ok(self
-            .roles
+        // The key's existence was verified by get() above; remove() is always
+        // Some here.  ok_or_else provides a safe fallback without panicking.
+        self.roles
             .remove(name)
-            .expect("role key exists: verified by get() above"))
+            .ok_or_else(|| RoleError::NotFound(name.to_string()))
     }
 
     /// Get a role by name.

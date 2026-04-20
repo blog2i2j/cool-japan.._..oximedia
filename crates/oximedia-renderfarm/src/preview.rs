@@ -109,7 +109,7 @@ mod tests {
         let preview = PreviewResult {
             job_id,
             frame: 1,
-            output_path: PathBuf::from("/tmp/preview_1.jpg"),
+            output_path: std::env::temp_dir().join("oximedia-renderfarm-preview_1.jpg"),
             render_time: 0.5,
             created_at: Utc::now(),
         };
@@ -126,7 +126,7 @@ mod tests {
         let preview = PreviewResult {
             job_id,
             frame: 1,
-            output_path: PathBuf::from("/tmp/preview_1.jpg"),
+            output_path: std::env::temp_dir().join("oximedia-renderfarm-preview_1.jpg"),
             render_time: 0.5,
             created_at: Utc::now(),
         };

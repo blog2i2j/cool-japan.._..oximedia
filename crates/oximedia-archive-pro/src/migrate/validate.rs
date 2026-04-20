@@ -174,7 +174,7 @@ mod tests {
     fn test_validate_successful_migration() {
         let result = MigrationResult {
             source: PathBuf::from("test.mp4"),
-            outputs: vec![PathBuf::from("/tmp/test_output.mkv")],
+            outputs: vec![std::env::temp_dir().join("oximedia-archive-pro-test-output.mkv")],
             success: true,
             error: None,
             duration_ms: 1000,

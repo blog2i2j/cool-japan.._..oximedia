@@ -260,7 +260,6 @@ impl Default for TemplateProcessor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::path::PathBuf;
 
     #[test]
     fn test_template_context_creation() {
@@ -279,7 +278,7 @@ mod tests {
     #[test]
     fn test_context_from_file() {
         let mut context = TemplateContext::new();
-        let path = PathBuf::from("/tmp/test.mp4");
+        let path = std::env::temp_dir().join("test.mp4");
 
         context.from_file(&path).ok();
 
@@ -291,7 +290,7 @@ mod tests {
     #[test]
     fn test_context_from_media() {
         let mut context = TemplateContext::new();
-        let path = PathBuf::from("/tmp/test.mp4");
+        let path = std::env::temp_dir().join("test.mp4");
 
         context.from_media(&path).ok();
 

@@ -6,6 +6,8 @@ Professional broadcast automation and control system for 24/7 operation with Lua
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
+Version: 0.1.4 — 2026-04-20 — 688 tests
+
 ## Overview
 
 `oximedia-automation` provides comprehensive broadcast automation with master control orchestration, multi-channel playout, device control, failover, emergency alert system (EAS) integration, and remote monitoring.
@@ -25,9 +27,9 @@ Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a c
 - Event triggers for automated responses
 
 ### Device Control
-- **VDCP Protocol** — Video Disk Control Protocol (IEEE 1394) support
-- **Sony 9-pin** — RS-422 VTR control implementation via tokio-serial
-- **GPI/GPO** — General Purpose Interface triggers and outputs
+- **VDCP Protocol** — Video Disk Control Protocol; frame: `[STX=0x02][LEN][CMD][DATA][CHK][ETX=0x03]`; wrapping-add checksum
+- **Sony 9-pin** — RS-422 VTR control via tokio-serial; 7-byte frame (`SONY_CMD1_TRANSPORT=0x20`); Stop/Play/Record/FF/Rewind
+- **GPI/GPO** — General Purpose Interface triggers and outputs with debounce
 - **Serial Communication** — Abstracted serial port interface
 
 ### Failover and Redundancy
@@ -59,6 +61,8 @@ Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a c
 
 ### Scripting
 - Embedded Lua 5.4 scripting engine (mlua, vendored)
+- Sandbox limits: 1 M instructions, 32 MiB memory, 5 s max duration
+- FIFO script cache of 64 entries
 - Comprehensive automation API exposed to scripts
 - Custom workflows and event handlers
 
@@ -68,7 +72,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-automation = "0.1.3"
+oximedia-automation = "0.1.4"
 ```
 
 ### Basic Example
@@ -152,21 +156,21 @@ let script = r#"
 engine.execute(script)?;
 ```
 
-## Architecture (79 source files, 950 public items)
+## Architecture
 
 ```
 Master Control
     ├── Channel Automation (per channel)
-    │   ├── Playlist Executor + Pre-roll Manager
+    │   ├── Playlist Executor (PlaylistArena bump allocator) + Pre-roll Manager
     │   ├── Device Controllers (VDCP, Sony 9-pin, GPI, GPO)
     │   └── Live Switcher
     └── Shared Services
         ├── Failover Manager (Health Monitor, Failover Switch)
-        ├── EAS System (Alert Manager, Crawl Generator, Audio Insertion)
-        ├── Logging (As-run Logger, Event Logger)
-        ├── Monitoring (System Monitor, Metrics Collector)
+        ├── EAS System (EasPlayoutController, Crawl Generator, Audio Insertion)
+        ├── Logging (BatchedAsRunLogger, Event Logger)
+        ├── Monitoring (SystemMonitor, Metrics Collector, HttpSessionPool)
         ├── Remote Control (REST API via axum, WebSocket)
-        └── Script Engine (Lua 5.4 via mlua)
+        └── Script Engine (Lua 5.4 via mlua, sandboxed)
 ```
 
 ## Safety

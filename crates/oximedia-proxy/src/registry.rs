@@ -254,6 +254,10 @@ mod tests {
     use super::*;
     use crate::spec::{ProxyResolutionMode, ProxySpec};
 
+    fn tmp_path(name: &str) -> PathBuf {
+        std::env::temp_dir().join(format!("oximedia-proxy-registry-{name}"))
+    }
+
     fn make_spec(name: &str) -> ProxySpec {
         ProxySpec::new(
             name,
@@ -265,15 +269,16 @@ mod tests {
 
     #[test]
     fn test_proxy_entry_new() {
-        let entry = ProxyEntry::new(PathBuf::from("/tmp/proxy.mp4"), make_spec("Test"));
-        assert_eq!(entry.proxy_path, PathBuf::from("/tmp/proxy.mp4"));
+        let p = tmp_path("proxy.mp4");
+        let entry = ProxyEntry::new(p.clone(), make_spec("Test"));
+        assert_eq!(entry.proxy_path, p);
         assert_eq!(entry.spec.name, "Test");
         assert!(!entry.verified);
     }
 
     #[test]
     fn test_proxy_entry_codec() {
-        let entry = ProxyEntry::new(PathBuf::from("/tmp/p.mp4"), make_spec("Q"));
+        let entry = ProxyEntry::new(tmp_path("p.mp4"), make_spec("Q"));
         assert_eq!(entry.codec(), &ProxyCodec::H264);
     }
 

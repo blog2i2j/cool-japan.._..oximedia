@@ -681,6 +681,241 @@ fn compute_score(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// FormatCost trait + FormatNegotiator
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Describes the cost of converting between two instances of the same format
+/// type (e.g., two [`PixelFormat`] values or two [`SampleFormat`] values).
+///
+/// Implementors return `Some(cost)` where the ordinal indicates relative
+/// expense:
+/// - `0` — identical formats (no conversion)
+/// - `1` — same family, trivial re-interpretation (e.g., NV12 ↔ NV21)
+/// - `2` — same colour space, different subsampling or bit-depth
+/// - `3` — different colour space (e.g., YUV ↔ RGB)
+/// - `4` — any other cross-family conversion
+///
+/// Return `None` to indicate that no conversion path exists at all.
+pub trait FormatCost: Clone + PartialEq {
+    /// Returns the conversion cost from `self` to `target`, or `None` if no
+    /// conversion path is available.
+    fn conversion_cost(&self, target: &Self) -> Option<u32>;
+}
+
+// ── PixelFormat ──────────────────────────────────────────────────────────────
+
+/// Helper — returns `true` if `f` belongs to the YUV 4:2:0 family.
+fn pf_is_yuv420(f: &PixelFormat) -> bool {
+    matches!(
+        f,
+        PixelFormat::Yuv420p | PixelFormat::Nv12 | PixelFormat::Nv21
+    )
+}
+
+/// Helper — returns `true` if `f` belongs to the YUV 4:2:2 family.
+fn pf_is_yuv422(f: &PixelFormat) -> bool {
+    matches!(f, PixelFormat::Yuv422p)
+}
+
+/// Helper — returns `true` if `f` belongs to the YUV 4:4:4 family.
+fn pf_is_yuv444(f: &PixelFormat) -> bool {
+    matches!(f, PixelFormat::Yuv444p)
+}
+
+/// Helper — returns `true` if `f` is a packed / planar RGB/RGBA format.
+fn pf_is_rgb(f: &PixelFormat) -> bool {
+    matches!(f, PixelFormat::Rgb24 | PixelFormat::Rgba32)
+}
+
+/// Helper — returns `true` if `f` is a greyscale format.
+fn pf_is_gray(f: &PixelFormat) -> bool {
+    matches!(f, PixelFormat::Gray8 | PixelFormat::Gray16)
+}
+
+/// Helper — returns `true` if `f` is a high-bit-depth YUV semi-planar format.
+fn pf_is_hbd_yuv(f: &PixelFormat) -> bool {
+    matches!(
+        f,
+        PixelFormat::Yuv420p10le | PixelFormat::Yuv420p12le | PixelFormat::P010 | PixelFormat::P016
+    )
+}
+
+impl FormatCost for PixelFormat {
+    fn conversion_cost(&self, target: &Self) -> Option<u32> {
+        if self == target {
+            return Some(0);
+        }
+
+        // Same family — cost 1
+        if (pf_is_yuv420(self) && pf_is_yuv420(target))
+            || (pf_is_yuv422(self) && pf_is_yuv422(target))
+            || (pf_is_yuv444(self) && pf_is_yuv444(target))
+            || (pf_is_rgb(self) && pf_is_rgb(target))
+            || (pf_is_gray(self) && pf_is_gray(target))
+            || (pf_is_hbd_yuv(self) && pf_is_hbd_yuv(target))
+        {
+            return Some(1);
+        }
+
+        let self_yuv =
+            pf_is_yuv420(self) || pf_is_yuv422(self) || pf_is_yuv444(self) || pf_is_hbd_yuv(self);
+        let target_yuv = pf_is_yuv420(target)
+            || pf_is_yuv422(target)
+            || pf_is_yuv444(target)
+            || pf_is_hbd_yuv(target);
+
+        // Same colour space (YUV), different subsampling — cost 2
+        if self_yuv && target_yuv {
+            return Some(2);
+        }
+
+        // RGB ↔ YUV — cost 3
+        if (pf_is_rgb(self) && target_yuv) || (self_yuv && pf_is_rgb(target)) {
+            return Some(3);
+        }
+
+        // Any other cross-family conversion — cost 4
+        Some(4)
+    }
+}
+
+// ── SampleFormat ─────────────────────────────────────────────────────────────
+
+impl FormatCost for SampleFormat {
+    fn conversion_cost(&self, target: &Self) -> Option<u32> {
+        if self == target {
+            return Some(0);
+        }
+
+        // Interleaved ↔ planar of same width & encoding — cost 1
+        // (self.to_packed() == target.to_packed() covers e.g. S16 ↔ S16p)
+        if self.to_packed() == target.to_packed() {
+            return Some(1);
+        }
+
+        // Same numeric family (both int or both float), different bit-depth — cost 2
+        let self_float = self.is_float();
+        let target_float = target.is_float();
+        if self_float == target_float {
+            return Some(2);
+        }
+
+        // Integer ↔ float — cost 3
+        Some(3)
+    }
+}
+
+// ── FormatConversionResult ────────────────────────────────────────────────────
+
+/// Result of a [`FormatNegotiator`] negotiation run.
+///
+/// Discriminates between a direct match (no conversion needed), a conversion
+/// with an associated cost ordinal, and a fully incompatible pair.
+///
+/// # Examples
+///
+/// ```
+/// use oximedia_core::codec_negotiation::{FormatNegotiator, FormatConversionResult};
+/// use oximedia_core::types::PixelFormat;
+///
+/// let neg = FormatNegotiator::<PixelFormat> {
+///     decoder_produces: &[PixelFormat::Yuv420p],
+///     encoder_accepts: &[PixelFormat::Yuv420p],
+/// };
+/// assert_eq!(neg.negotiate(), FormatConversionResult::Direct(PixelFormat::Yuv420p));
+/// ```
+#[derive(Debug, Clone, PartialEq)]
+pub enum FormatConversionResult<F> {
+    /// Encoder directly accepts what the decoder produces — no conversion needed.
+    Direct(F),
+    /// A conversion is required.  `cost` is an ordinal (0 = identity, higher =
+    /// more expensive).
+    Convert {
+        /// The format the decoder produces.
+        from: F,
+        /// The format the encoder accepts.
+        to: F,
+        /// Conversion cost ordinal.
+        cost: u32,
+    },
+    /// No compatible conversion path exists.
+    Incompatible,
+}
+
+// ── FormatNegotiator ──────────────────────────────────────────────────────────
+
+/// Automatically selects the best [`PixelFormat`] or [`SampleFormat`] that
+/// bridges what a decoder produces and what an encoder accepts.
+///
+/// The negotiator first looks for a **direct match** (zero-cost); if none
+/// exists it picks the conversion with the **lowest cost** as determined by
+/// [`FormatCost::conversion_cost`].  If no conversion path exists it returns
+/// [`FormatConversionResult::Incompatible`].
+///
+/// # Examples
+///
+/// ```
+/// use oximedia_core::codec_negotiation::{FormatNegotiator, FormatConversionResult};
+/// use oximedia_core::types::PixelFormat;
+///
+/// let neg = FormatNegotiator::<PixelFormat> {
+///     decoder_produces: &[PixelFormat::Yuv422p],
+///     encoder_accepts: &[PixelFormat::Yuv420p],
+/// };
+/// match neg.negotiate() {
+///     FormatConversionResult::Convert { from, to, cost } => {
+///         assert_eq!(from, PixelFormat::Yuv422p);
+///         assert_eq!(to, PixelFormat::Yuv420p);
+///         assert!(cost >= 1);
+///     }
+///     other => panic!("unexpected: {other:?}"),
+/// }
+/// ```
+pub struct FormatNegotiator<'a, F> {
+    /// Pixel / sample formats the decoder is able to output.
+    pub decoder_produces: &'a [F],
+    /// Pixel / sample formats the encoder is able to accept as input.
+    pub encoder_accepts: &'a [F],
+}
+
+impl<F> FormatNegotiator<'_, F>
+where
+    F: FormatCost + std::fmt::Debug,
+{
+    /// Runs the negotiation and returns the best [`FormatConversionResult`].
+    #[must_use]
+    pub fn negotiate(&self) -> FormatConversionResult<F> {
+        // Pass 1: direct match (identity — cost 0)
+        for prod in self.decoder_produces {
+            for acc in self.encoder_accepts {
+                if prod == acc {
+                    return FormatConversionResult::Direct(prod.clone());
+                }
+            }
+        }
+
+        // Pass 2: cheapest conversion
+        let mut best: Option<(F, F, u32)> = None;
+        for prod in self.decoder_produces {
+            for acc in self.encoder_accepts {
+                if let Some(cost) = prod.conversion_cost(acc) {
+                    let is_better = best.as_ref().map_or(true, |(_, _, bc)| cost < *bc);
+                    if is_better {
+                        best = Some((prod.clone(), acc.clone(), cost));
+                    }
+                }
+            }
+        }
+
+        if let Some((from, to, cost)) = best {
+            FormatConversionResult::Convert { from, to, cost }
+        } else {
+            FormatConversionResult::Incompatible
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Tests
 // ─────────────────────────────────────────────────────────────────────────────
 

@@ -6,7 +6,7 @@ Professional video stabilization for OxiMedia. Provides comprehensive video stab
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.3 — 2026-04-15
+Version: 0.1.4 — 2026-04-20 — 467 tests
 
 ## Features
 
@@ -37,7 +37,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-stabilize = "0.1.3"
+oximedia-stabilize = "0.1.4"
 ```
 
 ```rust

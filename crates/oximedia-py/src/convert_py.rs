@@ -169,22 +169,22 @@ impl PyMediaProperties {
     }
 
     /// Return all properties as a dictionary.
-    fn to_dict(&self) -> HashMap<String, Py<PyAny>> {
-        Python::attach(|py| {
+    fn to_dict(&self) -> PyResult<HashMap<String, Py<PyAny>>> {
+        Python::attach(|py| -> PyResult<HashMap<String, Py<PyAny>>> {
             let mut map = HashMap::new();
             map.insert(
                 "format".to_string(),
                 self.format
                     .clone()
                     .into_pyobject(py)
-                    .expect("str conv")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
             map.insert(
                 "duration_secs".to_string(),
                 self.duration_secs
                     .into_pyobject(py)
-                    .expect("opt f64 conv")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
             map.insert(
@@ -192,7 +192,7 @@ impl PyMediaProperties {
                 self.video_codec
                     .clone()
                     .into_pyobject(py)
-                    .expect("opt str conv")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
             map.insert(
@@ -200,46 +200,52 @@ impl PyMediaProperties {
                 self.audio_codec
                     .clone()
                     .into_pyobject(py)
-                    .expect("opt str conv")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
             map.insert(
                 "width".to_string(),
-                self.width.into_pyobject(py).expect("opt u32 conv").into(),
+                self.width
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             map.insert(
                 "height".to_string(),
-                self.height.into_pyobject(py).expect("opt u32 conv").into(),
+                self.height
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             map.insert(
                 "frame_rate".to_string(),
                 self.frame_rate
                     .into_pyobject(py)
-                    .expect("opt f64 conv")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
             map.insert(
                 "sample_rate".to_string(),
                 self.sample_rate
                     .into_pyobject(py)
-                    .expect("opt u32 conv")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
             map.insert(
                 "channels".to_string(),
                 self.channels
                     .into_pyobject(py)
-                    .expect("opt u32 conv")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
             map.insert(
                 "bitrate_kbps".to_string(),
                 self.bitrate_kbps
                     .into_pyobject(py)
-                    .expect("opt u32 conv")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
-            map
+            Ok(map)
         })
     }
 }

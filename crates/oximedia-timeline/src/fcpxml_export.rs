@@ -358,7 +358,7 @@ mod tests {
             .expect("should succeed in test");
         let clip = Clip::new(
             "Clip1".to_string(),
-            MediaSource::file(PathBuf::from("/tmp/test.mov")),
+            MediaSource::file(std::env::temp_dir().join("oximedia-timeline-fcpxml-test.mov")),
             Position::new(0),
             Position::new(100),
             Position::new(0),

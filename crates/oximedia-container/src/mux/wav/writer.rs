@@ -669,6 +669,36 @@ mod tests {
         assert!(result.is_ok());
     }
 
+    /// Regression test for GitHub issue #7:
+    /// WavFormatConfig must be publicly constructable so that callers of
+    /// `WavMuxer::with_format` can actually pass a configured value.
+    #[test]
+    fn test_issue_7_wav_format_config_public() {
+        // Float constructor: used in the reporter's minimal repro
+        let float_cfg = WavFormatConfig::float(16_000, 1, 32);
+        assert_eq!(float_cfg.sample_rate, 16_000);
+        assert_eq!(float_cfg.channels, 1);
+        assert_eq!(float_cfg.bits_per_sample, 32);
+        assert_eq!(float_cfg.format, WavFormat::Float);
+        assert_eq!(float_cfg.format_code(), FORMAT_IEEE_FLOAT);
+        assert_eq!(float_cfg.block_align(), 4); // 1 ch * 4 bytes
+        assert_eq!(float_cfg.byte_rate(), 64_000); // 16000 * 4
+
+        // PCM constructor: the only variant accessible before the fix
+        let pcm_cfg = WavFormatConfig::pcm(16_000, 1, 16);
+        assert_eq!(pcm_cfg.sample_rate, 16_000);
+        assert_eq!(pcm_cfg.channels, 1);
+        assert_eq!(pcm_cfg.bits_per_sample, 16);
+        assert_eq!(pcm_cfg.format, WavFormat::Pcm);
+        assert_eq!(pcm_cfg.format_code(), FORMAT_PCM);
+        assert_eq!(pcm_cfg.block_align(), 2); // 1 ch * 2 bytes
+        assert_eq!(pcm_cfg.byte_rate(), 32_000); // 16000 * 2
+
+        // Channel-mask builder is also public
+        let with_mask = WavFormatConfig::float(48_000, 2, 32).with_channel_mask(0x0003);
+        assert_eq!(with_mask.channel_mask, Some(0x0003));
+    }
+
     #[tokio::test]
     async fn test_muxer_with_format() {
         let sink = MemorySource::new_writable(4096);

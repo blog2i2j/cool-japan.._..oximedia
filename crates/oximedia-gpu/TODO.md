@@ -58,3 +58,6 @@
 - [ ] Document supported GPU backends and their feature differences
 - [ ] Add performance benchmarks table comparing GPU vs CPU for each operation
 - [ ] Document the shader compilation and caching pipeline
+
+## Wave 4 Progress (2026-04-18)
+- [x] wasm-send-sync-fix: cfg-gate GpuAccelerator Send+Sync bounds for wasm32 — Wave 4 Slice B

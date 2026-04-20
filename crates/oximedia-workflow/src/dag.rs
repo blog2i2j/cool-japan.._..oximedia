@@ -942,17 +942,25 @@ mod tests {
 
     #[test]
     fn test_node_with_input_and_parameter() {
+        let in_path = std::env::temp_dir()
+            .join("oximedia-workflow-dag-in.mp4")
+            .to_string_lossy()
+            .into_owned();
         let node = make_node("encode")
-            .with_input("src", serde_json::json!("/tmp/in.mp4"))
+            .with_input("src", serde_json::json!(in_path))
             .with_parameter("preset", serde_json::json!("slow"));
-        assert_eq!(node.inputs["src"], serde_json::json!("/tmp/in.mp4"));
+        assert_eq!(node.inputs["src"], serde_json::json!(in_path));
         assert_eq!(node.parameters["preset"], serde_json::json!("slow"));
     }
 
     #[test]
     fn test_node_set_output() {
         let mut node = make_node("transcode");
-        node.set_output("dst", serde_json::json!("/tmp/out.mp4"));
+        let out_path = std::env::temp_dir()
+            .join("oximedia-workflow-dag-out.mp4")
+            .to_string_lossy()
+            .into_owned();
+        node.set_output("dst", serde_json::json!(out_path));
         assert!(node.outputs.contains_key("dst"));
     }
 

@@ -292,6 +292,8 @@ Compressed media packet.
 
 Apache-2.0
 
+Version: 0.1.4 — 2026-04-20 — 505 tests
+
 ## See Also
 
 - [OxiMedia](https://github.com/cool-japan/oximedia) - The main Rust library

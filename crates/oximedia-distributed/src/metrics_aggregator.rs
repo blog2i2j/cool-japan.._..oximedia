@@ -116,12 +116,8 @@ impl MetricAggregator {
         let result = match agg {
             AggregationFn::Sum => values.iter().sum(),
             AggregationFn::Mean => values.iter().sum::<f64>() / values.len() as f64,
-            AggregationFn::Min => *values
-                .first()
-                .expect("values non-empty: is_empty check returned above"),
-            AggregationFn::Max => *values
-                .last()
-                .expect("values non-empty: is_empty check returned above"),
+            AggregationFn::Min => *values.first().unwrap_or(&0.0),
+            AggregationFn::Max => *values.last().unwrap_or(&0.0),
             AggregationFn::P50 => percentile(&values, 50.0),
             AggregationFn::P95 => percentile(&values, 95.0),
             AggregationFn::P99 => percentile(&values, 99.0),

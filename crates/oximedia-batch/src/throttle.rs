@@ -256,11 +256,12 @@ impl SlidingWindowCounter {
     /// Record a request and return `true` if within the rate limit.
     pub fn record(&self) -> bool {
         let now = Instant::now();
-        let cutoff = now
-            .checked_sub(self.window)
-            .expect("window duration does not exceed Instant range");
         let mut reqs = self.requests.lock();
-        reqs.retain(|&t| t > cutoff);
+        if let Some(cutoff) = now.checked_sub(self.window) {
+            reqs.retain(|&t| t > cutoff);
+        }
+        // If checked_sub overflows (window > process uptime), keep all — they are
+        // all within the window by definition.
         if (reqs.len() as u64) < self.limit {
             reqs.push(now);
             true
@@ -273,11 +274,12 @@ impl SlidingWindowCounter {
     #[must_use]
     pub fn count_in_window(&self) -> usize {
         let now = Instant::now();
-        let cutoff = now
-            .checked_sub(self.window)
-            .expect("window duration does not exceed Instant range");
         let mut reqs = self.requests.lock();
-        reqs.retain(|&t| t > cutoff);
+        if let Some(cutoff) = now.checked_sub(self.window) {
+            reqs.retain(|&t| t > cutoff);
+        }
+        // If checked_sub overflows (window > process uptime), keep all — they are
+        // all within the window by definition.
         reqs.len()
     }
 }

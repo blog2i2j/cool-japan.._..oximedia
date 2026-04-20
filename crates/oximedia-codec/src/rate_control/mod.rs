@@ -111,6 +111,108 @@
 //!
 //! // Encode with optimal bit allocation
 //! ```
+//!
+//! ## Rate Control Tuning Guide
+//!
+//! OxiMedia exposes four rate control modes through [`RcConfig`]. Each mode targets
+//! a different encoding scenario:
+//!
+//! ### CBR (Constant Bit Rate)
+//!
+//! Best for: live streaming, video conferencing, broadcast contribution links.
+//! The encoder fills a virtual decoder buffer at a fixed pace; frame quality fluctuates
+//! to keep the bitrate steady.
+//!
+//! ```ignore
+//! use oximedia_codec::rate_control::{CbrController, RcConfig};
+//!
+//! // 4 Mbps CBR with a 1-second VBV buffer (buffer_size = target_bitrate by default)
+//! let config = RcConfig::cbr(4_000_000);
+//! let mut controller = CbrController::new(&config);
+//! ```
+//!
+//! Key fields in [`RcConfig`] for CBR:
+//!
+//! - `target_bitrate` — bits per second; set by `RcConfig::cbr(bitrate)`.
+//! - `buffer_size` — VBV/HRD buffer size in bits; defaults to 1× `target_bitrate` (1-second buffer).
+//! - `initial_buffer_fullness` — buffer fill at start of encode (0.0–1.0, default 0.75).
+//!
+//! Increase `buffer_size` to allow larger peaks before the encoder is forced to drop quality.
+//! A 2-second buffer (`2 × target_bitrate`) gives more headroom for complex scenes.
+//!
+//! ### VBR (Variable Bit Rate)
+//!
+//! Best for: VOD encoding where average bitrate matters but short-term peaks are allowed.
+//!
+//! ```ignore
+//! use oximedia_codec::rate_control::{VbrController, RcConfig};
+//!
+//! // Target 3 Mbps average, allow up to 6 Mbps peaks on complex scenes
+//! let config = RcConfig::vbr(3_000_000, 6_000_000);
+//! let mut controller = VbrController::new(&config);
+//! ```
+//!
+//! Key fields in [`RcConfig`] for VBR:
+//!
+//! - `target_bitrate` — average target bitrate.
+//! - `max_bitrate` — peak bitrate ceiling (`Some(max)` set by `RcConfig::vbr`).
+//! - `min_bitrate` — minimum bitrate floor (`None` by default; set manually for ABR).
+//!
+//! Two-pass VBR (`pass1.set_pass(1)` → `pass2.set_pass(2)`) gives better bit allocation
+//! across the whole file by analyzing content complexity in the first pass.
+//!
+//! ### CRF (Constant Rate Factor)
+//!
+//! Best for: archival, high-quality mastering, and any use case where file size should
+//! vary with content complexity to maintain consistent perceptual quality.
+//!
+//! ```ignore
+//! use oximedia_codec::rate_control::{CrfController, RcConfig};
+//!
+//! // CRF 23 — good general-purpose quality (0 = lossless, 63 = worst)
+//! let config = RcConfig::crf(23.0);
+//! let mut controller = CrfController::new(&config);
+//!
+//! // Near-lossless archival: lower CRF = higher quality + larger file
+//! let archival_config = RcConfig::crf(12.0);
+//! ```
+//!
+//! CRF scale reference (AV1/VP9):
+//!
+//! | CRF | Typical use |
+//! |-----|-------------|
+//! | 0–10 | Lossless / near-lossless archival |
+//! | 18–23 | High quality (streaming masters) |
+//! | 24–32 | Good quality (distribution, web) |
+//! | 33–50 | Acceptable quality (preview, mobile) |
+//! | 51–63 | Low quality (thumbnails, drafts) |
+//!
+//! ### CQP (Constant Quantization Parameter)
+//!
+//! Best for: per-frame quality control, frame-level quality analysis, and hardware
+//! encoders that operate in fixed-QP mode.
+//!
+//! ```ignore
+//! use oximedia_codec::rate_control::{CqpController, RcConfig};
+//!
+//! // QP 25: balanced quality (0 = lossless, 63 = worst quality)
+//! let config = RcConfig::cqp(25);
+//! let mut controller = CqpController::new(&config);
+//! ```
+//!
+//! The `initial_qp` field in [`RcConfig`] controls the quantization parameter applied
+//! to all frames. Unlike CRF, there is no buffer feedback — the bitrate varies freely
+//! with content complexity.
+//!
+//! ### Mode Selection Summary
+//!
+//! | Use Case | Mode | `RcConfig` factory |
+//! |----------|------|--------------------|
+//! | Live stream (Twitch/YouTube RTMP) | CBR | `RcConfig::cbr(bitrate)` |
+//! | VOD (Netflix, streaming) | VBR | `RcConfig::vbr(target, max)` |
+//! | Archival master | CRF 12–18 | `RcConfig::crf(15.0)` |
+//! | Frame-level QP control | CQP | `RcConfig::cqp(qp)` |
+//! | Adaptive bitrate ladder | ABR/VBR | `RcConfig::vbr` + `AbrController` |
 
 #![forbid(unsafe_code)]
 

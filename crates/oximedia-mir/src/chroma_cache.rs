@@ -198,8 +198,13 @@ impl ChromaCache {
             );
             self.cache = Some(cached);
         }
-        // Safe: we just set it above if it was None
-        self.cache.as_ref().expect("cache was just populated")
+        // Safe: the branch above always sets `self.cache` to `Some` when it was
+        // `None`, so by here `self.cache` is guaranteed to be `Some`.
+        if let Some(ref c) = self.cache {
+            c
+        } else {
+            unreachable!("cache was just populated in the branch above")
+        }
     }
 
     /// Whether the cache has been populated.

@@ -8,6 +8,8 @@
 
 Part of the [OxiMedia](https://github.com/cool-japan/oximedia) sovereign media framework.
 
+Version: 0.1.4 — 2026-04-20 — 544 tests
+
 ## Features
 
 - Equirectangular, spherical, and cubemap coordinate transforms with bilinear sampling

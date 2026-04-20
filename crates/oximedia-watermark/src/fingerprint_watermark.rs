@@ -30,7 +30,7 @@
 //! };
 //!
 //! let config = FingerprintWatermarkConfig::default();
-//! let wm = FingerprintWatermarker::new(config, 44100);
+//! let wm = FingerprintWatermarker::new(config, 44100).expect("codec ok");
 //!
 //! let samples: Vec<f32> = vec![0.0; 73728];
 //! let payload = b"OwnerID:42";
@@ -146,7 +146,7 @@ impl FingerprintWatermarker {
     /// # Errors
     ///
     /// Returns [`WatermarkError`] if internal codec setup fails.
-    pub fn new(config: FingerprintWatermarkConfig, sample_rate: u32) -> Self {
+    pub fn new(config: FingerprintWatermarkConfig, sample_rate: u32) -> WatermarkResult<Self> {
         let wm_config = WatermarkConfig::default()
             .with_algorithm(config.algorithm)
             .with_strength(config.strength)
@@ -156,16 +156,16 @@ impl FingerprintWatermarker {
         let embedder = WatermarkEmbedder::new(wm_config.clone(), sample_rate);
         let detector = WatermarkDetector::new(wm_config);
         let hasher = PerceptualHasher::new(config.hasher_config.clone());
-        let codec = PayloadCodec::new(16, 8).expect("RS codec init");
+        let codec = PayloadCodec::new(16, 8)?;
 
-        Self {
+        Ok(Self {
             config,
             embedder,
             detector,
             hasher,
             codec,
             sample_rate,
-        }
+        })
     }
 
     /// Embed `payload` into `samples` and compute both the original and
@@ -378,7 +378,7 @@ mod tests {
 
     #[test]
     fn test_fingerprint_watermarker_new() {
-        let wm = FingerprintWatermarker::new(FingerprintWatermarkConfig::default(), 44100);
+        let wm = FingerprintWatermarker::new(FingerprintWatermarkConfig::default(), 44100).unwrap();
         assert_eq!(wm.sample_rate(), 44100);
         assert_eq!(wm.algorithm(), Algorithm::SpreadSpectrum);
         assert!(wm.fingerprint_threshold() > 0.0);
@@ -386,7 +386,7 @@ mod tests {
 
     #[test]
     fn test_embed_produces_watermarked_and_fingerprint() {
-        let wm = FingerprintWatermarker::new(FingerprintWatermarkConfig::default(), 44100);
+        let wm = FingerprintWatermarker::new(FingerprintWatermarkConfig::default(), 44100).unwrap();
         let samples = test_signal(73728);
         let payload = b"FP-Test";
 
@@ -404,7 +404,8 @@ mod tests {
                 ..Default::default()
             },
             44100,
-        );
+        )
+        .unwrap();
         let samples = test_signal(73728);
         let payload = b"Low strength";
 
@@ -421,7 +422,7 @@ mod tests {
 
     #[test]
     fn test_fingerprint_is_deterministic() {
-        let wm = FingerprintWatermarker::new(FingerprintWatermarkConfig::default(), 44100);
+        let wm = FingerprintWatermarker::new(FingerprintWatermarkConfig::default(), 44100).unwrap();
         let samples = test_signal(4096);
         let fp1 = wm.fingerprint(&samples);
         let fp2 = wm.fingerprint(&samples);
@@ -430,13 +431,13 @@ mod tests {
 
     #[test]
     fn test_capacity_nonzero() {
-        let wm = FingerprintWatermarker::new(FingerprintWatermarkConfig::default(), 44100);
+        let wm = FingerprintWatermarker::new(FingerprintWatermarkConfig::default(), 44100).unwrap();
         assert!(wm.capacity(73728) > 0);
     }
 
     #[test]
     fn test_verify_fingerprint_similar_after_embed() {
-        let wm = FingerprintWatermarker::new(FingerprintWatermarkConfig::default(), 44100);
+        let wm = FingerprintWatermarker::new(FingerprintWatermarkConfig::default(), 44100).unwrap();
         let samples = test_signal(73728);
         let payload = b"Owner";
 
@@ -466,7 +467,8 @@ mod tests {
                 ..Default::default()
             },
             44100,
-        );
+        )
+        .unwrap();
         let original = test_signal(73728);
         let completely_different: Vec<f32> = (0..73728_usize)
             .map(|i| ((i as f32) * 0.5).cos() * 0.8)
@@ -483,7 +485,7 @@ mod tests {
     #[test]
     fn test_database_store_and_retrieve() {
         let mut db = FingerprintWatermarkDatabase::new();
-        let wm = FingerprintWatermarker::new(FingerprintWatermarkConfig::default(), 44100);
+        let wm = FingerprintWatermarker::new(FingerprintWatermarkConfig::default(), 44100).unwrap();
         let samples = test_signal(73728);
         let payload = b"Asset-001";
 
@@ -505,7 +507,7 @@ mod tests {
     #[test]
     fn test_database_find_by_fingerprint() {
         let mut db = FingerprintWatermarkDatabase::new();
-        let wm = FingerprintWatermarker::new(FingerprintWatermarkConfig::default(), 44100);
+        let wm = FingerprintWatermarker::new(FingerprintWatermarkConfig::default(), 44100).unwrap();
         let samples = test_signal(73728);
         let payload = b"X";
 

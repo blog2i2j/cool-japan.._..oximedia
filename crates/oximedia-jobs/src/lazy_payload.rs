@@ -295,7 +295,13 @@ mod tests {
     }
 
     fn sample_thumbnail_json() -> String {
-        r#"{"Thumbnail":{"input":"video.mp4","output_dir":"/tmp/thumbs","count":10,"width":320,"height":180,"quality":85}}"#.to_string()
+        let thumbs_dir = std::env::temp_dir()
+            .join("oximedia-jobs-lazy-thumbs")
+            .to_string_lossy()
+            .into_owned();
+        format!(
+            r#"{{"Thumbnail":{{"input":"video.mp4","output_dir":"{thumbs_dir}","count":10,"width":320,"height":180,"quality":85}}}}"#
+        )
     }
 
     #[test]

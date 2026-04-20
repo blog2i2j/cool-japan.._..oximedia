@@ -6,6 +6,8 @@ Multi-cloud storage and media services integration for OxiMedia, supporting AWS,
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
+Version: 0.1.4 — 2026-04-20 — 505 tests
+
 ## Features
 
 - **Multi-cloud Storage Abstraction** — Unified API for AWS S3, Azure Blob, and Google Cloud Storage
@@ -28,7 +30,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-cloud = "0.1.3"
+oximedia-cloud = "0.1.4"
 ```
 
 ```rust

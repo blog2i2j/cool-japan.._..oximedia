@@ -39,6 +39,8 @@ use std::f32::consts::PI;
 use oxifft::api::{Direction, Flags, Plan};
 use oxifft::Complex;
 
+use crate::error::{AudioError, AudioResult};
+
 // ── Window functions ──────────────────────────────────────────────────────────
 
 /// Window function applied to each STFT frame.
@@ -138,19 +140,31 @@ pub struct Stft {
 impl Stft {
     /// Create a new STFT processor with the given configuration.
     ///
+    /// Returns an error if the FFT plan cannot be created (e.g., `fft_size` is zero).
+    /// Under normal usage `StftConfig::new` already enforces `fft_size > 0`.
+    pub fn try_new(config: StftConfig) -> AudioResult<Self> {
+        let window = make_window(config.window, config.fft_size);
+        let fft_plan =
+            Plan::<f64>::dft_1d(config.fft_size, Direction::Forward, Flags::MEASURE)
+                .or_else(|| Plan::<f64>::dft_1d(config.fft_size, Direction::Forward, Flags::ESTIMATE))
+                .ok_or_else(|| AudioError::InvalidParameter(format!(
+                    "Failed to create FFT plan for fft_size={}",
+                    config.fft_size
+                )))?;
+        Ok(Self { config, window, fft_plan })
+    }
+
+    /// Create a new STFT processor with the given configuration.
+    ///
     /// # Panics
     ///
-    /// Panics if the FFT plan cannot be created for the given `fft_size`.
+    /// Panics if the FFT plan cannot be created. This only happens when
+    /// `fft_size` is zero, which `StftConfig::new` already rejects via assert.
     #[must_use]
     pub fn new(config: StftConfig) -> Self {
-        let window = make_window(config.window, config.fft_size);
-        // MEASURE flag allows the planner to pick an efficient algorithm.
-        let fft_plan = Plan::<f64>::dft_1d(config.fft_size, Direction::Forward, Flags::MEASURE)
-            .or_else(|| {
-                Plan::<f64>::dft_1d(config.fft_size, Direction::Forward, Flags::ESTIMATE)
-            })
-            .expect("Failed to create FFT plan — fft_size must be non-zero");
-        Self { config, window, fft_plan }
+        Self::try_new(config).unwrap_or_else(|e| {
+            panic!("Stft::new failed (use try_new for recoverable error handling): {e}")
+        })
     }
 
     /// Returns a reference to the active configuration.
@@ -247,18 +261,30 @@ pub struct Istft {
 impl Istft {
     /// Create a new ISTFT processor matching the given configuration.
     ///
+    /// Returns an error if the inverse FFT plan cannot be created (e.g., `fft_size` is zero).
+    pub fn try_new(config: StftConfig) -> AudioResult<Self> {
+        let window = make_window(config.window, config.fft_size);
+        let ifft_plan =
+            Plan::<f64>::dft_1d(config.fft_size, Direction::Backward, Flags::MEASURE)
+                .or_else(|| Plan::<f64>::dft_1d(config.fft_size, Direction::Backward, Flags::ESTIMATE))
+                .ok_or_else(|| AudioError::InvalidParameter(format!(
+                    "Failed to create IFFT plan for fft_size={}",
+                    config.fft_size
+                )))?;
+        Ok(Self { config, window, ifft_plan })
+    }
+
+    /// Create a new ISTFT processor matching the given configuration.
+    ///
     /// # Panics
     ///
-    /// Panics if the inverse FFT plan cannot be created for the given `fft_size`.
+    /// Panics if the inverse FFT plan cannot be created. This only happens when
+    /// `fft_size` is zero, which `StftConfig::new` already rejects via assert.
     #[must_use]
     pub fn new(config: StftConfig) -> Self {
-        let window = make_window(config.window, config.fft_size);
-        let ifft_plan = Plan::<f64>::dft_1d(config.fft_size, Direction::Backward, Flags::MEASURE)
-            .or_else(|| {
-                Plan::<f64>::dft_1d(config.fft_size, Direction::Backward, Flags::ESTIMATE)
-            })
-            .expect("Failed to create IFFT plan — fft_size must be non-zero");
-        Self { config, window, ifft_plan }
+        Self::try_new(config).unwrap_or_else(|e| {
+            panic!("Istft::new failed (use try_new for recoverable error handling): {e}")
+        })
     }
 
     /// Reconstruct the time-domain signal from spectral frames.

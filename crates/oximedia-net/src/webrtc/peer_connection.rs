@@ -193,7 +193,7 @@ impl MediaTrack {
         let packet = self
             .rtp_session
             .lock()
-            .expect("rtp_session mutex poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .create_packet(payload_type, timestamp, payload);
         Ok(packet)
     }
@@ -211,7 +211,7 @@ impl MediaTrack {
     pub fn stats(&self) -> super::rtp::Statistics {
         self.rtp_session
             .lock()
-            .expect("rtp_session mutex poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .stats()
             .clone()
     }
@@ -269,7 +269,7 @@ impl PeerConnection {
         *self
             .signaling_state
             .lock()
-            .expect("signaling_state mutex poisoned") = SignalingState::HaveLocalOffer;
+            .unwrap_or_else(|e| e.into_inner()) = SignalingState::HaveLocalOffer;
 
         // Create ICE agent
         let ice_config = IceAgentConfig {
@@ -281,11 +281,11 @@ impl PeerConnection {
         let ice_agent = IceAgent::new(ice_config.clone());
         let local_candidates = ice_agent.gather_candidates().await?;
 
-        *self.ice_agent.lock().expect("ice_agent mutex poisoned") = Some(ice_agent);
+        *self.ice_agent.lock().unwrap_or_else(|e| e.into_inner()) = Some(ice_agent);
         *self
             .pending_local_candidates
             .lock()
-            .expect("pending_local_candidates mutex poisoned") = local_candidates.clone();
+            .unwrap_or_else(|e| e.into_inner()) = local_candidates.clone();
 
         // Create DTLS config
         let dtls_config = DtlsConfig::new_self_signed(DtlsRole::Server)?;
@@ -329,12 +329,12 @@ impl PeerConnection {
         *self
             .signaling_state
             .lock()
-            .expect("signaling_state mutex poisoned") = SignalingState::HaveLocalAnswer;
+            .unwrap_or_else(|e| e.into_inner()) = SignalingState::HaveLocalAnswer;
 
         let remote_desc = self
             .remote_description
             .lock()
-            .expect("remote_description mutex poisoned");
+            .unwrap_or_else(|e| e.into_inner());
         let remote_desc = remote_desc
             .as_ref()
             .ok_or_else(|| NetError::invalid_state("No remote description"))?;
@@ -366,11 +366,11 @@ impl PeerConnection {
         let ice_agent = IceAgent::new(ice_config.clone());
         let local_candidates = ice_agent.gather_candidates().await?;
 
-        *self.ice_agent.lock().expect("ice_agent mutex poisoned") = Some(ice_agent);
+        *self.ice_agent.lock().unwrap_or_else(|e| e.into_inner()) = Some(ice_agent);
         *self
             .pending_local_candidates
             .lock()
-            .expect("pending_local_candidates mutex poisoned") = local_candidates.clone();
+            .unwrap_or_else(|e| e.into_inner()) = local_candidates.clone();
 
         // Create DTLS config
         let dtls_config = DtlsConfig::new_self_signed(DtlsRole::Client)?;
@@ -416,20 +416,20 @@ impl PeerConnection {
         *self
             .local_description
             .lock()
-            .expect("local_description mutex poisoned") = Some(sdp);
+            .unwrap_or_else(|e| e.into_inner()) = Some(sdp);
 
         match desc.sdp_type {
             SdpType::Offer => {
                 *self
                     .signaling_state
                     .lock()
-                    .expect("signaling_state mutex poisoned") = SignalingState::HaveLocalOffer;
+                    .unwrap_or_else(|e| e.into_inner()) = SignalingState::HaveLocalOffer;
             }
             SdpType::Answer => {
                 *self
                     .signaling_state
                     .lock()
-                    .expect("signaling_state mutex poisoned") = SignalingState::Stable;
+                    .unwrap_or_else(|e| e.into_inner()) = SignalingState::Stable;
             }
             _ => {}
         }
@@ -448,7 +448,7 @@ impl PeerConnection {
                     if let Some(ref value) = attr.value {
                         if let Ok(candidate) = IceCandidate::parse(value) {
                             if let Some(ref ice_agent) =
-                                *self.ice_agent.lock().expect("ice_agent mutex poisoned")
+                                *self.ice_agent.lock().unwrap_or_else(|e| e.into_inner())
                             {
                                 ice_agent.add_remote_candidate(candidate);
                             }
@@ -461,20 +461,20 @@ impl PeerConnection {
         *self
             .remote_description
             .lock()
-            .expect("remote_description mutex poisoned") = Some(sdp);
+            .unwrap_or_else(|e| e.into_inner()) = Some(sdp);
 
         match desc.sdp_type {
             SdpType::Offer => {
                 *self
                     .signaling_state
                     .lock()
-                    .expect("signaling_state mutex poisoned") = SignalingState::HaveRemoteOffer;
+                    .unwrap_or_else(|e| e.into_inner()) = SignalingState::HaveRemoteOffer;
             }
             SdpType::Answer => {
                 *self
                     .signaling_state
                     .lock()
-                    .expect("signaling_state mutex poisoned") = SignalingState::Stable;
+                    .unwrap_or_else(|e| e.into_inner()) = SignalingState::Stable;
                 // Start connection process
                 self.start_connection().await?;
             }
@@ -486,10 +486,10 @@ impl PeerConnection {
 
     /// Starts the connection process.
     async fn start_connection(&self) -> NetResult<()> {
-        *self.state.lock().expect("state mutex poisoned") = PeerConnectionState::Connecting;
+        *self.state.lock().unwrap_or_else(|e| e.into_inner()) = PeerConnectionState::Connecting;
 
         // Perform ICE connectivity checks
-        if let Some(ref ice_agent) = *self.ice_agent.lock().expect("ice_agent mutex poisoned") {
+        if let Some(ref ice_agent) = *self.ice_agent.lock().unwrap_or_else(|e| e.into_inner()) {
             ice_agent.check_connectivity().await?;
 
             if ice_agent.state() == IceConnectionState::Connected {
@@ -504,20 +504,20 @@ impl PeerConnection {
                     *self
                         .dtls_connection
                         .lock()
-                        .expect("dtls_connection mutex poisoned") = Some(dtls_conn.clone());
+                        .unwrap_or_else(|e| e.into_inner()) = Some(dtls_conn.clone());
 
                     // Create SCTP association
                     let sctp_assoc = Arc::new(Association::new(5000, 5000));
                     *self
                         .sctp_association
                         .lock()
-                        .expect("sctp_association mutex poisoned") = Some(sctp_assoc.clone());
+                        .unwrap_or_else(|e| e.into_inner()) = Some(sctp_assoc.clone());
 
                     // Create data channel manager
                     let dc_manager = DataChannelManager::new(sctp_assoc, dtls_conn);
-                    *self.dc_manager.lock().expect("dc_manager mutex poisoned") = Some(dc_manager);
+                    *self.dc_manager.lock().unwrap_or_else(|e| e.into_inner()) = Some(dc_manager);
 
-                    *self.state.lock().expect("state mutex poisoned") =
+                    *self.state.lock().unwrap_or_else(|e| e.into_inner()) =
                         PeerConnectionState::Connected;
                 }
             }
@@ -528,7 +528,7 @@ impl PeerConnection {
 
     /// Adds an ICE candidate.
     pub async fn add_ice_candidate(&self, candidate: IceCandidate) -> NetResult<()> {
-        if let Some(ref ice_agent) = *self.ice_agent.lock().expect("ice_agent mutex poisoned") {
+        if let Some(ref ice_agent) = *self.ice_agent.lock().unwrap_or_else(|e| e.into_inner()) {
             ice_agent.add_remote_candidate(candidate);
         }
         Ok(())
@@ -541,7 +541,7 @@ impl PeerConnection {
     ) -> NetResult<Arc<DataChannel>> {
         let config = DataChannelConfig::new(label);
 
-        let dc_manager = self.dc_manager.lock().expect("dc_manager mutex poisoned");
+        let dc_manager = self.dc_manager.lock().unwrap_or_else(|e| e.into_inner());
         let dc_manager = dc_manager
             .as_ref()
             .ok_or_else(|| NetError::invalid_state("Connection not established"))?;
@@ -553,20 +553,23 @@ impl PeerConnection {
     pub fn add_track(&self, track: Arc<MediaTrack>) {
         self.tracks
             .lock()
-            .expect("tracks mutex poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .push(track);
     }
 
     /// Gets all tracks.
     #[must_use]
     pub fn tracks(&self) -> Vec<Arc<MediaTrack>> {
-        self.tracks.lock().expect("tracks mutex poisoned").clone()
+        self.tracks
+            .lock()
+            .unwrap_or_else(|e| e.into_inner())
+            .clone()
     }
 
     /// Gets the connection state.
     #[must_use]
     pub fn state(&self) -> PeerConnectionState {
-        *self.state.lock().expect("state mutex poisoned")
+        *self.state.lock().unwrap_or_else(|e| e.into_inner())
     }
 
     /// Gets the signaling state.
@@ -575,7 +578,7 @@ impl PeerConnection {
         *self
             .signaling_state
             .lock()
-            .expect("signaling_state mutex poisoned")
+            .unwrap_or_else(|e| e.into_inner())
     }
 
     /// Gets the local description.
@@ -583,7 +586,7 @@ impl PeerConnection {
     pub fn local_description(&self) -> Option<SessionDescription> {
         self.local_description
             .lock()
-            .expect("local_description mutex poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
     }
 
@@ -592,17 +595,17 @@ impl PeerConnection {
     pub fn remote_description(&self) -> Option<SessionDescription> {
         self.remote_description
             .lock()
-            .expect("remote_description mutex poisoned")
+            .unwrap_or_else(|e| e.into_inner())
             .clone()
     }
 
     /// Closes the peer connection.
     pub async fn close(&self) -> NetResult<()> {
-        *self.state.lock().expect("state mutex poisoned") = PeerConnectionState::Closed;
+        *self.state.lock().unwrap_or_else(|e| e.into_inner()) = PeerConnectionState::Closed;
         *self
             .signaling_state
             .lock()
-            .expect("signaling_state mutex poisoned") = SignalingState::Closed;
+            .unwrap_or_else(|e| e.into_inner()) = SignalingState::Closed;
 
         Ok(())
     }

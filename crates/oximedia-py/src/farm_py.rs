@@ -138,50 +138,71 @@ impl PyRenderNode {
     }
 
     /// Convert to a Python dict.
-    fn to_dict(&self) -> HashMap<String, Py<PyAny>> {
-        Python::attach(|py| {
+    fn to_dict(&self) -> PyResult<HashMap<String, Py<PyAny>>> {
+        Python::attach(|py| -> PyResult<HashMap<String, Py<PyAny>>> {
             let mut m: HashMap<String, Py<PyAny>> = HashMap::new();
             m.insert(
                 "id".to_string(),
-                self.id.clone().into_pyobject(py).expect("str").into(),
+                self.id
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "hostname".to_string(),
-                self.hostname.clone().into_pyobject(py).expect("str").into(),
+                self.hostname
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "status".to_string(),
-                self.status.clone().into_pyobject(py).expect("str").into(),
+                self.status
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "cpu_cores".to_string(),
-                self.cpu_cores.into_pyobject(py).expect("int").into(),
+                self.cpu_cores
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "memory_gb".to_string(),
-                self.memory_gb.into_pyobject(py).expect("float").into(),
+                self.memory_gb
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "gpu_available".to_string(),
                 self.gpu_available
                     .into_pyobject(py)
-                    .expect("bool")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .to_owned()
                     .into(),
             );
             m.insert(
                 "load_percent".to_string(),
-                self.load_percent.into_pyobject(py).expect("float").into(),
+                self.load_percent
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "supported_codecs".to_string(),
                 self.supported_codecs
                     .clone()
                     .into_pyobject(py)
-                    .expect("list")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
-            m
+            Ok(m)
         })
     }
 
@@ -267,35 +288,54 @@ impl PyRenderJob {
     }
 
     /// Convert to a Python dict.
-    fn to_dict(&self) -> HashMap<String, Py<PyAny>> {
-        Python::attach(|py| {
+    fn to_dict(&self) -> PyResult<HashMap<String, Py<PyAny>>> {
+        Python::attach(|py| -> PyResult<HashMap<String, Py<PyAny>>> {
             let mut m: HashMap<String, Py<PyAny>> = HashMap::new();
             m.insert(
                 "id".to_string(),
-                self.id.clone().into_pyobject(py).expect("str").into(),
+                self.id
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "name".to_string(),
-                self.name.clone().into_pyobject(py).expect("str").into(),
+                self.name
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "status".to_string(),
-                self.status.clone().into_pyobject(py).expect("str").into(),
+                self.status
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "progress".to_string(),
-                self.progress.into_pyobject(py).expect("float").into(),
+                self.progress
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "priority".to_string(),
-                self.priority.clone().into_pyobject(py).expect("str").into(),
+                self.priority
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "input_path".to_string(),
                 self.input_path
                     .clone()
                     .into_pyobject(py)
-                    .expect("str")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
             m.insert(
@@ -303,7 +343,7 @@ impl PyRenderJob {
                 self.output_path
                     .clone()
                     .into_pyobject(py)
-                    .expect("str")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
             m.insert(
@@ -311,22 +351,26 @@ impl PyRenderJob {
                 self.submitted_at
                     .clone()
                     .into_pyobject(py)
-                    .expect("str")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
             m.insert(
                 "job_type".to_string(),
-                self.job_type.clone().into_pyobject(py).expect("str").into(),
+                self.job_type
+                    .clone()
+                    .into_pyobject(py)
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
+                    .into(),
             );
             m.insert(
                 "dependencies".to_string(),
                 self.dependencies
                     .clone()
                     .into_pyobject(py)
-                    .expect("list")
+                    .map_err(|e| PyRuntimeError::new_err(e.to_string()))?
                     .into(),
             );
-            m
+            Ok(m)
         })
     }
 
@@ -687,6 +731,13 @@ pub fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
 mod tests {
     use super::*;
 
+    fn tmp_str(name: &str) -> String {
+        std::env::temp_dir()
+            .join(format!("oximedia-py-farm-{name}"))
+            .to_string_lossy()
+            .into_owned()
+    }
+
     #[test]
     fn test_farm_config_default() {
         let config = PyFarmConfig::new(None);
@@ -734,8 +785,8 @@ mod tests {
         let job_id = farm
             .submit_job(
                 "Test Render",
-                "/tmp/in.mkv",
-                "/tmp/out.webm",
+                &tmp_str("in.mkv"),
+                &tmp_str("out.webm"),
                 None,
                 Some("high"),
                 None,

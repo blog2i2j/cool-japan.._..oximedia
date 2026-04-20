@@ -281,7 +281,7 @@ impl KeyGenerator {
         // In production, use a proper RNG
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .expect("invariant: system time is after UNIX_EPOCH")
+            .unwrap_or_default()
             .as_nanos();
 
         let mut key = Vec::with_capacity(16);

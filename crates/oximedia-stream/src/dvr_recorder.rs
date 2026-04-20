@@ -27,7 +27,7 @@ impl Default for DvrConfig {
         Self {
             window_duration_secs: 7200,
             segment_duration_secs: 2,
-            storage_path: PathBuf::from("/tmp/dvr"),
+            storage_path: std::env::temp_dir().join("oximedia-dvr"),
             max_storage_bytes: 4 * 1024 * 1024 * 1024, // 4 GiB
         }
     }
@@ -268,7 +268,7 @@ mod tests {
         DvrConfig {
             window_duration_secs: 10, // 10 s window
             segment_duration_secs: 2,
-            storage_path: PathBuf::from("/tmp/dvr_test"),
+            storage_path: std::env::temp_dir().join("oximedia-dvr-test"),
             max_storage_bytes: 1024 * 1024 * 100, // 100 MiB
         }
     }
@@ -365,7 +365,7 @@ mod tests {
         let config = DvrConfig {
             window_duration_secs: 3600,
             segment_duration_secs: 2,
-            storage_path: PathBuf::from("/tmp/dvr_test"),
+            storage_path: std::env::temp_dir().join("oximedia-dvr-test"),
             max_storage_bytes: 500, // very tight cap
         };
         let mut rec = DvrRecorder::new(config);
@@ -492,7 +492,7 @@ mod tests {
         let config = DvrConfig {
             window_duration_secs: 4, // 4 s window → 360_000 pts ticks
             segment_duration_secs: 2,
-            storage_path: PathBuf::from("/tmp/dvr_test"),
+            storage_path: std::env::temp_dir().join("oximedia-dvr-test"),
             max_storage_bytes: 1024 * 1024,
         };
         let mut rec = DvrRecorder::new(config);

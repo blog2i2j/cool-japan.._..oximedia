@@ -46,18 +46,12 @@ impl AggregatedMetrics {
         let min = values
             .iter()
             .copied()
-            .min_by(|a, b| {
-                a.partial_cmp(b)
-                    .expect("invariant: quality metric values are finite f64")
-            })
+            .min_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .unwrap_or(0.0);
         let max = values
             .iter()
             .copied()
-            .max_by(|a, b| {
-                a.partial_cmp(b)
-                    .expect("invariant: quality metric values are finite f64")
-            })
+            .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
             .unwrap_or(0.0);
 
         let variance = values

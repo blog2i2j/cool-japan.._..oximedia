@@ -138,19 +138,19 @@ impl BatchProcessor {
                     };
 
                     if file_passed {
-                        *passed.lock().expect("passed mutex poisoned") += 1;
+                        *passed.lock().unwrap_or_else(|e| e.into_inner()) += 1;
                     } else {
-                        *failed.lock().expect("failed mutex poisoned") += 1;
+                        *failed.lock().unwrap_or_else(|e| e.into_inner()) += 1;
                     }
 
                     reports
                         .lock()
-                        .expect("reports mutex poisoned")
+                        .unwrap_or_else(|e| e.into_inner())
                         .push(batch_report);
                 }
                 Err(e) => {
                     tracing::error!(file = %path_str, error = %e, "Validation failed");
-                    *errors.lock().expect("errors mutex poisoned") += 1;
+                    *errors.lock().unwrap_or_else(|e| e.into_inner()) += 1;
 
                     let batch_report = BatchFileReport {
                         file_path: path_str,
@@ -163,7 +163,7 @@ impl BatchProcessor {
 
                     reports
                         .lock()
-                        .expect("reports mutex poisoned")
+                        .unwrap_or_else(|e| e.into_inner())
                         .push(batch_report);
                 }
             }
@@ -171,12 +171,12 @@ impl BatchProcessor {
 
         let total_duration = start_time.elapsed().as_secs_f64();
         let reports = match Arc::try_unwrap(reports) {
-            Ok(mutex) => mutex.into_inner().expect("reports mutex poisoned"),
-            Err(arc) => arc.lock().expect("reports mutex poisoned").clone(),
+            Ok(mutex) => mutex.into_inner().unwrap_or_else(|e| e.into_inner()),
+            Err(arc) => arc.lock().unwrap_or_else(|e| e.into_inner()).clone(),
         };
-        let passed = *passed.lock().expect("passed mutex poisoned");
-        let failed = *failed.lock().expect("failed mutex poisoned");
-        let errors = *errors.lock().expect("errors mutex poisoned");
+        let passed = *passed.lock().unwrap_or_else(|e| e.into_inner());
+        let failed = *failed.lock().unwrap_or_else(|e| e.into_inner());
+        let errors = *errors.lock().unwrap_or_else(|e| e.into_inner());
 
         Ok(BatchResults {
             total_files: file_paths.len(),

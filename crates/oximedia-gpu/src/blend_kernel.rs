@@ -23,8 +23,8 @@
 //!
 //! let src = vec![200u8, 100, 50, 255];   // opaque orange
 //! let mut dst = vec![0u8, 128, 255, 255]; // opaque blue
-//! BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::AlphaComposite, 255)
-//!     .expect("blend failed");
+//! BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::AlphaComposite, 255)?;
+//! # Ok::<(), oximedia_gpu::blend_kernel::BlendError>(())
 //! ```
 
 use rayon::prelude::*;
@@ -516,205 +516,219 @@ mod tests {
     // ── Opacity=0 preserves destination ──────────────────────────────────────
 
     #[test]
-    fn test_opacity_zero_preserves_dst() {
+    fn test_opacity_zero_preserves_dst() -> Result<(), BlendError> {
         let src: Vec<u8> = vec![255, 0, 0, 255]; // opaque red
         let original_dst = vec![0u8, 128, 255, 255]; // opaque blue
         let mut dst = original_dst.clone();
-        BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::AlphaComposite, 0).unwrap();
+        BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::AlphaComposite, 0)?;
         // With opacity=0 the src contributes nothing; dst should be almost unchanged.
         for (orig, &out) in original_dst.iter().zip(dst.iter()) {
             let diff = (*orig as i16 - out as i16).abs();
             assert!(diff <= 1, "channel diff={diff}");
         }
+        Ok(())
     }
 
     // ── Opacity=255 opaque source covers destination (AlphaComposite) ─────────
 
     #[test]
-    fn test_alpha_composite_fully_opaque_src() {
+    fn test_alpha_composite_fully_opaque_src() -> Result<(), BlendError> {
         let src = vec![200u8, 100, 50, 255]; // fully opaque
         let mut dst = vec![0u8, 0, 0, 255];
-        BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::AlphaComposite, 255).unwrap();
+        BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::AlphaComposite, 255)?;
         assert_eq!(dst[0], 200);
         assert_eq!(dst[1], 100);
         assert_eq!(dst[2], 50);
         assert_eq!(dst[3], 255);
+        Ok(())
     }
 
     // ── Additive ──────────────────────────────────────────────────────────────
 
     #[test]
-    fn test_additive_blend_clamps_to_255() {
+    fn test_additive_blend_clamps_to_255() -> Result<(), BlendError> {
         let src = vec![200u8, 200, 200, 255];
         let mut dst = vec![100u8, 100, 100, 255];
-        BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::Additive, 255).unwrap();
+        BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::Additive, 255)?;
         assert_eq!(dst[0], 255, "200+100=300 → clamp to 255");
+        Ok(())
     }
 
     #[test]
-    fn test_additive_blend_zero_src() {
+    fn test_additive_blend_zero_src() -> Result<(), BlendError> {
         let src = vec![0u8, 0, 0, 255];
         let original = vec![100u8, 150, 200, 255];
         let mut dst = original.clone();
-        BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::Additive, 255).unwrap();
+        BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::Additive, 255)?;
         assert_eq!(dst[..3], original[..3]);
+        Ok(())
     }
 
     // ── Multiply ──────────────────────────────────────────────────────────────
 
     #[test]
-    fn test_multiply_with_white_src_unchanged() {
+    fn test_multiply_with_white_src_unchanged() -> Result<(), BlendError> {
         let src = vec![255u8, 255, 255, 255]; // white multiplier
         let original = vec![100u8, 150, 200, 255];
         let mut dst = original.clone();
-        BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::Multiply, 255).unwrap();
+        BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::Multiply, 255)?;
         // Multiply with white → dst * 255/255 = dst
         for c in 0..3 {
             let diff = (original[c] as i16 - dst[c] as i16).abs();
             assert!(diff <= 1, "channel {c}: diff={diff}");
         }
+        Ok(())
     }
 
     #[test]
-    fn test_multiply_with_black_src_yields_zero() {
+    fn test_multiply_with_black_src_yields_zero() -> Result<(), BlendError> {
         let src = vec![0u8, 0, 0, 255]; // black multiplier
         let mut dst = vec![200u8, 150, 100, 255];
-        BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::Multiply, 255).unwrap();
+        BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::Multiply, 255)?;
         // Multiply with black → 0
         for c in 0..3 {
             assert_eq!(dst[c], 0, "channel {c} should be 0");
         }
+        Ok(())
     }
 
     // ── Screen ────────────────────────────────────────────────────────────────
 
     #[test]
-    fn test_screen_with_black_src_unchanged() {
+    fn test_screen_with_black_src_unchanged() -> Result<(), BlendError> {
         let src = vec![0u8, 0, 0, 255]; // black screen → no change
         let original = vec![100u8, 150, 200, 255];
         let mut dst = original.clone();
-        BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::Screen, 255).unwrap();
+        BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::Screen, 255)?;
         for c in 0..3 {
             let diff = (original[c] as i16 - dst[c] as i16).abs();
             assert!(diff <= 1, "channel {c}: diff={diff}");
         }
+        Ok(())
     }
 
     #[test]
-    fn test_screen_with_white_src_yields_white() {
+    fn test_screen_with_white_src_yields_white() -> Result<(), BlendError> {
         let src = vec![255u8, 255, 255, 255]; // white screen → white
         let mut dst = vec![100u8, 150, 200, 255];
-        BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::Screen, 255).unwrap();
+        BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::Screen, 255)?;
         for c in 0..3 {
             assert_eq!(
                 dst[c], 255,
                 "channel {c} should be 255 after screen with white"
             );
         }
+        Ok(())
     }
 
     // ── Difference ────────────────────────────────────────────────────────────
 
     #[test]
-    fn test_difference_with_same_src_dst_yields_black() {
+    fn test_difference_with_same_src_dst_yields_black() -> Result<(), BlendError> {
         let src = vec![100u8, 150, 200, 255];
         let mut dst = vec![100u8, 150, 200, 255];
-        BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::Difference, 255).unwrap();
+        BlendKernel::blend(&src, &mut dst, 1, 1, BlendMode::Difference, 255)?;
         for c in 0..3 {
             assert_eq!(dst[c], 0, "difference of equal values should be 0");
         }
+        Ok(())
     }
 
     // ── Masked blend ──────────────────────────────────────────────────────────
 
     #[test]
-    fn test_masked_blend_all_opaque() {
+    fn test_masked_blend_all_opaque() -> Result<(), BlendError> {
         let w = 2u32;
         let h = 2u32;
         let src = vec![255u8; (w * h * 4) as usize];
         let mut dst = vec![0u8; (w * h * 4) as usize];
         let mask = vec![255u8; (w * h) as usize]; // fully opaque mask
-        BlendKernel::blend_masked(&src, &mut dst, &mask, w, h, BlendMode::AlphaComposite, 255)
-            .unwrap();
+        BlendKernel::blend_masked(&src, &mut dst, &mask, w, h, BlendMode::AlphaComposite, 255)?;
         // All dst pixels should become white (src is all 255 opaque)
         for &v in &dst {
             assert_eq!(v, 255);
         }
+        Ok(())
     }
 
     #[test]
-    fn test_masked_blend_all_transparent_preserves_dst() {
+    fn test_masked_blend_all_transparent_preserves_dst() -> Result<(), BlendError> {
         let w = 2u32;
         let h = 2u32;
         let src = vec![255u8; (w * h * 4) as usize];
         let original_dst = vec![100u8; (w * h * 4) as usize];
         let mut dst = original_dst.clone();
         let mask = vec![0u8; (w * h) as usize]; // fully transparent mask
-        BlendKernel::blend_masked(&src, &mut dst, &mask, w, h, BlendMode::AlphaComposite, 255)
-            .unwrap();
+        BlendKernel::blend_masked(&src, &mut dst, &mask, w, h, BlendMode::AlphaComposite, 255)?;
         // With mask=0, alpha=0, dst should be unchanged
         assert_eq!(dst, original_dst);
+        Ok(())
     }
 
     // ── Layer compositing ─────────────────────────────────────────────────────
 
     #[test]
-    fn test_composite_layers_empty_returns_transparent() {
-        let result = BlendKernel::composite_layers(&[], 4, 4).unwrap();
+    fn test_composite_layers_empty_returns_transparent() -> Result<(), BlendError> {
+        let result = BlendKernel::composite_layers(&[], 4, 4)?;
         assert_eq!(result.len(), 4 * 4 * 4);
         assert!(result.iter().all(|&v| v == 0));
+        Ok(())
     }
 
     #[test]
-    fn test_composite_layers_single_opaque() {
+    fn test_composite_layers_single_opaque() -> Result<(), BlendError> {
         let layer = vec![200u8, 100, 50, 255]; // 1×1 opaque orange
-        let result = BlendKernel::composite_layers(&[(&layer, 255)], 1, 1).unwrap();
+        let result = BlendKernel::composite_layers(&[(&layer, 255)], 1, 1)?;
         assert_eq!(result.len(), 4);
         // Should match the layer
         assert_eq!(result[0], 200);
         assert_eq!(result[1], 100);
         assert_eq!(result[2], 50);
+        Ok(())
     }
 
     // ── Tint ──────────────────────────────────────────────────────────────────
 
     #[test]
-    fn test_apply_tint_white_tint_unchanged() {
+    fn test_apply_tint_white_tint_unchanged() -> Result<(), BlendError> {
         let src = vec![100u8, 150, 200, 255];
         let mut dst = vec![0u8; 4];
-        BlendKernel::apply_tint(&src, &mut dst, 1, 1, [255, 255, 255, 255]).unwrap();
+        BlendKernel::apply_tint(&src, &mut dst, 1, 1, [255, 255, 255, 255])?;
         for c in 0..3 {
             let diff = (src[c] as i16 - dst[c] as i16).abs();
             assert!(diff <= 1, "channel {c}: diff={diff}");
         }
+        Ok(())
     }
 
     #[test]
-    fn test_apply_tint_black_tint_yields_black() {
+    fn test_apply_tint_black_tint_yields_black() -> Result<(), BlendError> {
         let src = vec![200u8, 150, 100, 255];
         let mut dst = vec![0u8; 4];
-        BlendKernel::apply_tint(&src, &mut dst, 1, 1, [0, 0, 0, 0]).unwrap();
+        BlendKernel::apply_tint(&src, &mut dst, 1, 1, [0, 0, 0, 0])?;
         assert_eq!(dst[0], 0);
         assert_eq!(dst[1], 0);
         assert_eq!(dst[2], 0);
+        Ok(())
     }
 
     // ── Premultiply / unpremultiply ───────────────────────────────────────────
 
     #[test]
-    fn test_premultiply_alpha_full_opaque() {
+    fn test_premultiply_alpha_full_opaque() -> Result<(), BlendError> {
         let mut buf = vec![200u8, 100, 50, 255];
-        BlendKernel::premultiply_alpha(&mut buf, 1, 1).unwrap();
+        BlendKernel::premultiply_alpha(&mut buf, 1, 1)?;
         // With alpha=255, channels stay the same
         assert_eq!(buf[0], 200);
         assert_eq!(buf[1], 100);
         assert_eq!(buf[2], 50);
+        Ok(())
     }
 
     #[test]
-    fn test_premultiply_alpha_half_opacity() {
+    fn test_premultiply_alpha_half_opacity() -> Result<(), BlendError> {
         let mut buf = vec![200u8, 200, 200, 128];
-        BlendKernel::premultiply_alpha(&mut buf, 1, 1).unwrap();
+        BlendKernel::premultiply_alpha(&mut buf, 1, 1)?;
         // ~200 * 128 / 255 ≈ 100
         let expected = (200u32 * 128 + 127) / 255;
         let diff = (buf[0] as i32 - expected as i32).abs();
@@ -724,22 +738,24 @@ mod tests {
             buf[0],
             expected
         );
+        Ok(())
     }
 
     #[test]
-    fn test_unpremultiply_alpha_zero_alpha() {
+    fn test_unpremultiply_alpha_zero_alpha() -> Result<(), BlendError> {
         let mut buf = vec![100u8, 100, 100, 0]; // fully transparent
-        BlendKernel::unpremultiply_alpha(&mut buf, 1, 1).unwrap();
+        BlendKernel::unpremultiply_alpha(&mut buf, 1, 1)?;
         // alpha=0 → no change (stays 0)
         assert_eq!(buf[0], 100); // left unchanged when alpha=0
+        Ok(())
     }
 
     #[test]
-    fn test_premultiply_unpremultiply_roundtrip() {
+    fn test_premultiply_unpremultiply_roundtrip() -> Result<(), BlendError> {
         let original = vec![200u8, 150, 100, 200];
         let mut buf = original.clone();
-        BlendKernel::premultiply_alpha(&mut buf, 1, 1).unwrap();
-        BlendKernel::unpremultiply_alpha(&mut buf, 1, 1).unwrap();
+        BlendKernel::premultiply_alpha(&mut buf, 1, 1)?;
+        BlendKernel::unpremultiply_alpha(&mut buf, 1, 1)?;
         for c in 0..3 {
             let diff = (original[c] as i16 - buf[c] as i16).abs();
             assert!(
@@ -749,17 +765,19 @@ mod tests {
                 buf[c]
             );
         }
+        Ok(())
     }
 
     // ── Stats ─────────────────────────────────────────────────────────────────
 
     #[test]
-    fn test_blend_stats_returned() {
+    fn test_blend_stats_returned() -> Result<(), BlendError> {
         let src = vec![0u8; 4 * 4 * 4];
         let mut dst = vec![0u8; 4 * 4 * 4];
-        let stats = BlendKernel::blend(&src, &mut dst, 4, 4, BlendMode::Screen, 200).unwrap();
+        let stats = BlendKernel::blend(&src, &mut dst, 4, 4, BlendMode::Screen, 200)?;
         assert_eq!(stats.pixels_blended, 16);
         assert_eq!(stats.mode, Some(BlendMode::Screen));
         assert_eq!(stats.opacity, 200);
+        Ok(())
     }
 }

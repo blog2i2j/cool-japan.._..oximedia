@@ -942,7 +942,8 @@ mod tests {
 
     #[test]
     fn test_watch_config_new() {
-        let cfg = WatchConfig::new("/tmp/watch");
+        let cfg =
+            WatchConfig::new(std::env::temp_dir().join("oximedia-transcode-watch-folder-watch"));
         assert!(!cfg.accepted_extensions.is_empty());
         assert_eq!(cfg.max_concurrent, 2);
         assert_eq!(cfg.poll_interval_ms, 5_000);
@@ -1281,7 +1282,9 @@ mod tests {
     #[test]
     fn test_retry_tracker() {
         let cfg = RetryConfig::new().max_retries(3);
-        let mut tracker = RetryTracker::new(PathBuf::from("/tmp/test.mp4"));
+        let mut tracker = RetryTracker::new(
+            std::env::temp_dir().join("oximedia-transcode-watch-folder-test.mp4"),
+        );
 
         assert!(tracker.can_retry(&cfg));
         assert_eq!(tracker.attempts, 0);

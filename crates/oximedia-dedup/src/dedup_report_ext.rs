@@ -410,7 +410,7 @@ mod tests {
     fn test_filter_by_path() {
         let entries = vec![
             DuplicateEntry::new(PathBuf::from("/archive/a.mp4"), 100, "h1"),
-            DuplicateEntry::new(PathBuf::from("/tmp/b.mp4"), 100, "h1"),
+            DuplicateEntry::new(PathBuf::from("/other/b.mp4"), 100, "h1"),
         ];
         let mut builder = ReportBuilder::new();
         builder.add_entries(entries);

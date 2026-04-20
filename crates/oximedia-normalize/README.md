@@ -1,6 +1,6 @@
 # oximedia-normalize
 
-**Status: [Stable]** | Version: 0.1.3 | Updated: 2026-04-15
+**Status: [Stable]** | Version: 0.1.4 | Tests: 554 | Updated: 2026-04-20
 
 Professional broadcast loudness normalization for OxiMedia.
 
@@ -50,7 +50,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-normalize = "0.1.3"
+oximedia-normalize = "0.1.4"
 ```
 
 ## Quick Start

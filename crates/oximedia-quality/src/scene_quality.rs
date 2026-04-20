@@ -88,7 +88,7 @@ impl QualityTimeline {
         self.windows.iter().max_by(|a, b| {
             a.mean_score
                 .partial_cmp(&b.mean_score)
-                .expect("invariant: mean_score is finite f64")
+                .unwrap_or(std::cmp::Ordering::Equal)
         })
     }
 }

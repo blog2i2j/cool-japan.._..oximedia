@@ -12,9 +12,16 @@ description = "High-level transcoding pipeline for OxiMedia"
 [lints]
 workspace = true
 
+[features]
+default = ["mjpeg", "apv"]
+## Enable MJPEG (Motion JPEG) intra-frame codec via `make_video_encoder`.
+mjpeg = ["oximedia-codec/mjpeg"]
+## Enable APV (Advanced Professional Video) intra-frame codec via `make_video_encoder`.
+apv = ["oximedia-codec/apv"]
+
 [dependencies]
 oximedia-core = { workspace = true }
-oximedia-codec = { workspace = true, default-features = true }
+oximedia-codec = { workspace = true }
 oximedia-container = { workspace = true }
 oximedia-io = { workspace = true }
 oximedia-graph = { workspace = true }
@@ -33,3 +40,4 @@ tokio = { workspace = true }
 [dev-dependencies]
 tokio = { workspace = true, features = ["test-util"] }
 oximedia-audio = { workspace = true }
+async-trait = { workspace = true }
