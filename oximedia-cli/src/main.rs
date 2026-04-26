@@ -82,6 +82,7 @@ mod farm_cmd;
 mod ffcompat_cmd;
 mod filter_cmd;
 mod forensics_cmd;
+mod frame_extract;
 mod gaming_cmd;
 mod graphics_cmd;
 mod handlers;
@@ -207,7 +208,7 @@ async fn main() -> Result<()> {
         }
 
         Commands::Version => {
-            show_version();
+            show_version(cli.json);
             Ok(())
         }
 

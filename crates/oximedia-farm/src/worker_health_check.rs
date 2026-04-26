@@ -386,9 +386,32 @@ impl HealthCheckRegistry {
         Ok(())
     }
 
-    // Placeholder — not actually used; exists only to satisfy type checker.
-    fn find_worker_by_heartbeat_time(&self, _: Instant) -> crate::Result<WorkerId> {
-        Err(FarmError::NotFound("not implemented".into()))
+    /// Find the worker whose last heartbeat timestamp is closest to `target`.
+    ///
+    /// Performs a linear scan over all registered workers and returns the
+    /// `WorkerId` of the one whose `last_heartbeat` differs least from `target`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`FarmError::NotFound`] when no workers are registered or when
+    /// none of the registered workers has ever sent a heartbeat.
+    pub fn find_worker_by_heartbeat_time(&self, target: Instant) -> crate::Result<WorkerId> {
+        self.workers
+            .iter()
+            .filter_map(|(id, rec)| {
+                rec.last_heartbeat.map(|hb| {
+                    // Compute absolute distance as a Duration regardless of order.
+                    let dist = if hb >= target {
+                        hb.duration_since(target)
+                    } else {
+                        target.duration_since(hb)
+                    };
+                    (dist, id)
+                })
+            })
+            .min_by_key(|(dist, _)| *dist)
+            .map(|(_, id)| id.clone())
+            .ok_or_else(|| FarmError::NotFound("no worker with a recorded heartbeat found".into()))
     }
 
     // ------------------------------------------------------------------
@@ -792,5 +815,69 @@ mod tests {
             ..HealthCheckConfig::default()
         };
         assert!(HealthCheckRegistry::new(cfg2).is_err());
+    }
+
+    #[test]
+    fn test_find_worker_by_heartbeat_time_no_workers() {
+        let reg = default_registry();
+        // No workers registered → NotFound.
+        assert!(matches!(
+            reg.find_worker_by_heartbeat_time(Instant::now()),
+            Err(FarmError::NotFound(_))
+        ));
+    }
+
+    #[test]
+    fn test_find_worker_by_heartbeat_time_no_heartbeat() {
+        let mut reg = default_registry();
+        let w = worker(1);
+        reg.register(w.clone())
+            .expect("registration should succeed");
+        // Worker registered but never sent a heartbeat → NotFound.
+        assert!(matches!(
+            reg.find_worker_by_heartbeat_time(Instant::now()),
+            Err(FarmError::NotFound(_))
+        ));
+    }
+
+    #[test]
+    fn test_find_worker_by_heartbeat_time_closest_match() {
+        let mut reg = default_registry();
+        let w1 = worker(10);
+        let w2 = worker(11);
+        reg.register(w1.clone())
+            .expect("registration should succeed");
+        reg.register(w2.clone())
+            .expect("registration should succeed");
+
+        // Give w1 a heartbeat now.
+        let beat_time = Instant::now();
+        reg.record_worker_heartbeat(
+            &w1,
+            HeartbeatSample {
+                received_at: beat_time,
+                latency: None,
+                worker_self_report_healthy: true,
+            },
+        )
+        .expect("heartbeat should be recorded");
+
+        // Sleep briefly so w2's heartbeat is measurably later.
+        std::thread::sleep(Duration::from_millis(20));
+        reg.record_worker_heartbeat(
+            &w2,
+            HeartbeatSample {
+                received_at: Instant::now(),
+                latency: None,
+                worker_self_report_healthy: true,
+            },
+        )
+        .expect("heartbeat should be recorded");
+
+        // Searching for beat_time should return w1 (closest match).
+        let found = reg
+            .find_worker_by_heartbeat_time(beat_time)
+            .expect("should find a worker");
+        assert_eq!(found, w1);
     }
 }

@@ -8,6 +8,7 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Lightweight neural network inference for media processing — pure Rust tensor ops, conv2d, and pre-defined media models"
+readme = "README.md"
 keywords = ["neural-network", "inference", "multimedia", "super-resolution", "computer-vision"]
 categories = ["multimedia", "science", "algorithms"]
 

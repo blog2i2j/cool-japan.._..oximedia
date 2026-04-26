@@ -5,6 +5,7 @@ authors.workspace = true
 edition.workspace = true
 license.workspace = true
 description = "Game streaming and screen capture optimization for OxiMedia"
+readme = "README.md"
 homepage.workspace = true
 repository.workspace = true
 keywords = ["game", "streaming", "capture", "screen", "recording"]

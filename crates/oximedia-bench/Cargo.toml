@@ -8,17 +8,20 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Comprehensive codec benchmarking suite for OxiMedia"
+keywords = ["benchmark", "codec", "performance", "multimedia", "video"]
+categories = ["multimedia", "development-tools"]
+readme = "README.md"
 
 [lints]
 workspace = true
 
 [features]
-default = ["vmaf"]
-vmaf = []
+default = []
 
 [dependencies]
 oximedia-core.workspace = true
 oximedia-codec = { workspace = true, default-features = true }
+oximedia-quality = { workspace = true }
 oximedia-graph.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
@@ -28,6 +31,7 @@ csv = "1"
 statistical = "1.0"
 rayon.workspace = true
 bytes.workspace = true
+sysinfo = "0.38"
 
 [dev-dependencies]
 tempfile.workspace = true

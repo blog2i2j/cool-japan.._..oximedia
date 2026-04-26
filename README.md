@@ -4,10 +4,10 @@
 
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![Rust](https://img.shields.io/badge/rust-1.85+-orange.svg)](https://www.rust-lang.org)
-[![Version](https://img.shields.io/badge/version-v0.1.5-green.svg)](https://github.com/cool-japan/oximedia)
-[![Released](https://img.shields.io/badge/released-2026--04--21-brightgreen.svg)](https://github.com/cool-japan/oximedia)
+[![Version](https://img.shields.io/badge/version-v0.1.6-green.svg)](https://github.com/cool-japan/oximedia)
+[![Released](https://img.shields.io/badge/released-2026--04--26-brightgreen.svg)](https://github.com/cool-japan/oximedia)
 [![Crates](https://img.shields.io/badge/crates-108-blue.svg)](https://github.com/cool-japan/oximedia)
-[![SLOC](https://img.shields.io/badge/SLOC-~2.67M-blueviolet.svg)](https://github.com/cool-japan/oximedia)
+[![SLOC](https://img.shields.io/badge/SLOC-~2.69M-blueviolet.svg)](https://github.com/cool-japan/oximedia)
 
 ## Vision
 
@@ -55,22 +55,22 @@ Computer vision (object detection, motion tracking, video enhancement, quality a
 
 ## Project Scale
 
-OxiMedia is a **production-grade** framework at **v0.1.5** (active cycle, 2026-04-21):
+OxiMedia is a **production-grade** framework at **v0.1.6** (active cycle, 2026-04-26):
 
 | Metric | Value |
 |--------|-------|
 | Total crates | 108 |
-| Total SLOC (Rust) | ~2,677,000 |
-| Tests passing | 81,383 (0 failures, 245 skipped — `cargo nextest run --workspace --all-features`) |
+| Total SLOC (Rust) | ~2,687,000 |
+| Tests passing | 81,582 (0 failures, 245 skipped — `cargo nextest run --workspace --all-features`) |
 | Stable crates | 108 |
 | Alpha crates | 0 |
 | Partial crates | 0 |
 | License | Apache 2.0 |
 | MSRV | Rust 1.85+ |
 
-## Sovereign ML Pipelines (v0.1.5)
+## Sovereign ML Pipelines (v0.1.6)
 
-OxiMedia 0.1.5 adds the [`oximedia-ml`](crates/oximedia-ml/) crate — a typed
+OxiMedia 0.1.6 adds the [`oximedia-ml`](crates/oximedia-ml/) crate — a typed
 ML pipeline layer built atop the Pure-Rust [OxiONNX](https://crates.io/crates/oxionnx)
 runtime. Inference is entirely opt-in; the default `oximedia` build still
 pulls in **zero** ONNX symbols and stays C/Fortran-free.
@@ -89,7 +89,7 @@ pulls in **zero** ONNX symbols and stays C/Fortran-free.
 
 ```toml
 [dependencies]
-oximedia = { version = "0.1.5", features = ["ml", "ml-scene-classifier", "ml-onnx"] }
+oximedia = { version = "0.1.6", features = ["ml", "ml-scene-classifier", "ml-onnx"] }
 ```
 
 ```rust,ignore
@@ -139,9 +139,19 @@ See [`docs/ml_guide.md`](docs/ml_guide.md) for the full feature matrix,
 per-pipeline I/O contracts, device selection details, WASM support
 matrix, and roadmap.
 
+## What's New in v0.1.6
+
+Active cycle starting 2026-04-26. Theme: **Stub resolution, codec completeness, and internal refactoring**.
+
+- **13 stubs resolved**: `oximedia-accel` color-conversion stubs filled in (RGB↔YUV, RGBA↔BGRA, NV12 paths); Vorbis codebook decode re-wired to active path; ACES ODT variants (D60, D65, P3-D65) now produce real output; DASH HTTP segment fetch replaced from placeholder; system font loading implemented for `oximedia-graphics`.
+- **`exr.rs` refactored into 9 modules** via splitrs: `header.rs`, `compression.rs`, `tiles.rs`, `channels.rs`, `attributes.rs`, `read.rs`, `write.rs`, `deep.rs`, `multipart.rs` — keeps all files under the 2,000-line policy.
+- **`oxifft` upgraded to 0.3.0**: All FFT usage across the workspace migrated to the new OxiFFT 0.3 API (breaking plan/execute split); zero performance regressions on spectral-flux and MIR benchmarks.
+- **81,582 tests passing** (0 failures, 245 skipped — `cargo nextest run --workspace --all-features`).
+- **Zero clippy warnings** workspace-wide; WASM check clean.
+
 ## What's New in v0.1.5
 
-Active cycle starting 2026-04-21. Theme: **Full ONNX Runtime integration via the Pure-Rust OxiONNX stack** (previously slated for 0.3.0). All inference is feature-gated; the pure-Rust default build stays C/Fortran-free.
+Released 2026-04-21. Theme: **Full ONNX Runtime integration via the Pure-Rust OxiONNX stack** (previously slated for 0.3.0). All inference is feature-gated; the pure-Rust default build stays C/Fortran-free.
 
 - **Pure-Rust ONNX inference via OxiONNX**: Workspace now depends on the full OxiONNX stack (`oxionnx`, `oxionnx-ops`, `oxionnx-gpu`, `oxionnx-directml`, `oxionnx-proto`) instead of the C++ `ort` runtime — preserves the COOLJAPAN Pure-Rust Policy.
 - **New `oximedia-ml` facade crate**: Central ML layer exposing `OnnxModel`, `ModelCache` (concurrent LRU model cache with `~/.cache/oximedia/models/`), `TypedPipeline<In, Out>` trait, `DeviceType::auto()` runtime probe, `ImagePreprocessor` (ImageNet normalize + letterbox + NCHW), and `ModelZoo` registry.
@@ -548,9 +558,9 @@ Topic-focused guides live in [`docs/`](docs/):
 - [SIMD Dispatch](docs/simd_dispatch.md) — `oximedia-simd` CPU feature
   detection, AVX-512 / AVX2 / SSE4.2 / NEON / WASM tiers, and the safe
   dispatch convention.
-- [Wave 5 Deltas](docs/wave5_deltas.md) — what shipped in 0.1.5
+- [Wave 5 Deltas](docs/wave5_deltas.md) — what shipped in 0.1.5 → 0.1.6
   (transcode executor, HW-accel probes, BBA-1 ABR, SCTE-35, ErrorContext,
-  FormatNegotiator).
+  FormatNegotiator; stub resolution, exr.rs splitrs refactor, oxifft 0.3.0).
 - [ML Guide](docs/ml_guide.md) — typed ONNX pipelines, device selection,
   and the `oximedia-ml` feature matrix.
 
@@ -582,7 +592,7 @@ If you find OxiMedia useful, please consider sponsoring the project to support c
 **[https://github.com/sponsors/cool-japan](https://github.com/sponsors/cool-japan)**
 
 Your sponsorship helps us:
-- Maintain and improve 108 crates (~2.67M SLOC)
+- Maintain and improve 108 crates (~2.69M SLOC)
 - Implement new royalty-free codecs and CV algorithms
 - Keep the entire COOLJAPAN ecosystem (OxiBLAS, OxiFFT, SciRS2, etc.) 100% Pure Rust
 - Provide long-term support and security updates

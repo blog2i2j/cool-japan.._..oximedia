@@ -6,7 +6,7 @@ Scene understanding and AI-powered video analysis for OxiMedia. Provides compreh
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.5 | Tests: 781 — 2026-04-21
+Version: 0.1.6 | Tests: 781 — 2026-04-26
 
 ## Features
 
@@ -39,7 +39,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-scene = "0.1.5"
+oximedia-scene = "0.1.6"
 ```
 
 ```rust

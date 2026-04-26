@@ -8,6 +8,9 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "I/O layer for OxiMedia"
+keywords = ["io", "multimedia", "media", "file", "format"]
+categories = ["multimedia", "filesystem"]
+readme = "README.md"
 
 [lints]
 workspace = true

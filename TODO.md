@@ -1,12 +1,12 @@
 # OxiMedia — The Sovereign Media Framework: Development Roadmap
 
-**Version: 0.1.5 (active) / 0.1.4 (stable)**
-**Status as of: 2026-04-21**
-**Total SLOC: ~2,677,000 (Rust)**
-**Total Tests: 81,383 passing (cargo nextest run --workspace --all-features)**
+**Version: 0.1.6 (active) / 0.1.5 (stable)**
+**Status as of: 2026-04-26**
+**Total SLOC: ~2,687,000 (Rust)**
+**Total Tests: 81,582 passing (cargo nextest run --workspace --all-features)**
 **Total Crates: 108**
 **Crate Status: 108 Stable / 0 Alpha / 0 Partial**
-**Current Branch: 0.1.5 — Full ONNX Runtime Integration via OxiONNX**
+**Current Branch: 0.1.6 — Stub Resolution, Codec Improvements, Dependency Upgrades**
 
 ---
 
@@ -452,12 +452,55 @@ is missing, and the effort rationale.
 - [x] `crates/oximedia-codec/tests/av1_real_bitstream.rs` (`#[ignore]`; `OXIMEDIA_AV1_FIXTURE` env var; no binary fixture in repo) — executable gate for the AV1 gap; will pass when pixel reconstruction lands
 - [x] README + `crates/oximedia-codec/README.md` demoted: AV1 / VP9 / VP8 / Theora / Vorbis / AVIF labelled `Bitstream-parsing`
 - [x] `examples/decode_video.rs` rewritten to reflect the real decoder-status matrix (no fake `println!` code samples)
-- [ ] Theora pixel-copy bug-fix (small; scheduled for 0.1.6)
+- [x] Theora pixel-copy bug-fix (small; completed in 0.1.6 — 2026-04-26)
 - [ ] Opus SILK decoder (specialist; 0.2.0+)
 - [ ] AV1 reconstruction pipeline (specialist; 0.2.0+; issue #9)
 - [ ] VP9 reconstruction wiring (large; 0.2.0+)
 - [ ] VP8 real decode (large; 0.2.0+)
 - [ ] Vorbis full decode (specialist; 0.2.0+)
+
+---
+
+## 0.1.6 Changes (2026-04-26)
+
+**Theme**: Stub resolution across core crates, codec improvements, dependency upgrades, and metadata hygiene.
+
+| Item | Status |
+|------|--------|
+| Stub resolution — `oximedia-accel` color conversion stubs replaced with real BT.601/709/2020 paths | ✅ Done |
+| Stub resolution — Vorbis codebook residue/floor full decode wired (partial; bitstream-parsing promoted to Functional for floor0) | ✅ Done |
+| Stub resolution — ACES ODT (Output Device Transform) real matrix path in `oximedia-colormgmt` | ✅ Done |
+| Stub resolution — DASH segment fetch real HTTP path in `oximedia-net` (replaces `todo!()` in ABR fetch loop) | ✅ Done |
+| Stub resolution — system font loading in `oximedia-subtitle` (fontdb integration via Pure Rust path) | ✅ Done |
+| `exr.rs` splitrs refactor — file exceeded 2000 lines; split into `exr/header.rs`, `exr/tile.rs`, `exr/compress.rs` | ✅ Done |
+| OxiFFT upgrade — workspace dep bumped from 0.2.x to 0.3.0 across all consuming crates | ✅ Done |
+| wgpu 29 API update — `motion_estimation.rs` updated for breaking wgpu 29 compute-pass API | ✅ Done |
+| keywords/categories — added to every crate `Cargo.toml` that was missing them | ✅ Done |
+| readme field — added `readme = "README.md"` to all crate `Cargo.toml` files | ✅ Done |
+| RUSTSEC-2026-0104 triaged — advisory reviewed; not reachable via OxiMedia's call paths; documented in `SECURITY.md` | ✅ Done |
+| Theora pixel-copy bug-fix — replaced `to_vec()` mis-copy with direct write into `frame.planes[i].data` | ✅ Done |
+| Version bump 0.1.5 → 0.1.6 (root + all sub-crates) | ✅ Done |
+| **81,582 tests passing**, +199 from 0.1.5 baseline | ✅ Done |
+
+---
+
+## 0.1.6 Tracking
+
+Progress tracking for 0.1.6 items. `[~]` = in progress, `[x]` = complete.
+
+- [x] Stub resolution: `oximedia-accel` color conversion (BT.601/709/2020 real paths) — 2026-04-26
+- [x] Stub resolution: Vorbis codebook residue/floor partial decode — 2026-04-26
+- [x] Stub resolution: ACES ODT real matrix path in `oximedia-colormgmt` — 2026-04-26
+- [x] Stub resolution: DASH segment fetch real HTTP path in `oximedia-net` — 2026-04-26
+- [x] Stub resolution: system font loading in `oximedia-subtitle` (Pure Rust fontdb) — 2026-04-26
+- [x] `exr.rs` splitrs refactor (split into header/tile/compress sub-modules) — 2026-04-26
+- [x] OxiFFT upgrade to 0.3.0 across workspace — 2026-04-26
+- [x] wgpu 29 `motion_estimation.rs` compute-pass API update — 2026-04-26
+- [x] keywords/categories added to all crate `Cargo.toml` files — 2026-04-26
+- [x] readme field added to all crate `Cargo.toml` files — 2026-04-26
+- [x] RUSTSEC-2026-0104 triaged and documented — 2026-04-26
+- [x] Theora pixel-copy bug-fix — 2026-04-26
+- [x] Version bump 0.1.5 → 0.1.6 — 2026-04-26
 
 ---
 
@@ -557,4 +600,4 @@ All of the following must pass before any release tag:
 
 ---
 
-*Last updated: 2026-04-21 — v0.1.5 active (Full ONNX Runtime via Pure-Rust OxiONNX 0.1.2); v0.1.4 stable baseline; 108 crates, 81,383 tests verified, ~2.677M SLOC; `oximedia-ml` stable (typed pipelines: SceneClassifier, ShotBoundaryDetector, AestheticScorer, ObjectDetector, FaceEmbedder); feature-gated `onnx`/`cuda`/`webgpu`/`directml`; pure-Rust default preserved*
+*Last updated: 2026-04-26 — v0.1.6 active (stub resolution, OxiFFT 0.3.0, wgpu 29, exr.rs refactor, metadata hygiene); v0.1.5 stable baseline; 108 crates, 81,582 tests verified, ~2.687M SLOC; `oximedia-ml` stable (typed pipelines: SceneClassifier, ShotBoundaryDetector, AestheticScorer, ObjectDetector, FaceEmbedder); feature-gated `onnx`/`cuda`/`webgpu`/`directml`; pure-Rust default preserved*

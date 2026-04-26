@@ -12,8 +12,12 @@
 use crate::progress::TranscodeProgress;
 use anyhow::{anyhow, Context, Result};
 use colored::Colorize;
-use oximedia_container::{ContainerFormat, StreamInfo};
+use oximedia_container::{
+    demux::{FlacDemuxer, MatroskaDemuxer, Mp4Demuxer, OggDemuxer, WavDemuxer},
+    ContainerFormat, Demuxer, StreamInfo,
+};
 use oximedia_core::{CodecId, MediaType, Rational};
+use oximedia_io::MemorySource;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -626,11 +630,22 @@ async fn detect_container_format(path: &Path) -> Result<ContainerFormat> {
     }
 }
 
-/// Extract stream compatibility information.
-async fn extract_stream_info(_path: &Path) -> Result<Vec<StreamCompatInfo>> {
-    // Placeholder: assume standard video + audio
-    // In full implementation, would use demuxer to extract actual stream info
-    Ok(vec![
+/// Map a container `StreamInfo` to the local `StreamCompatInfo`.
+fn map_stream_info(s: &StreamInfo) -> StreamCompatInfo {
+    StreamCompatInfo {
+        codec: s.codec,
+        media_type: s.media_type,
+        timebase: s.timebase,
+        width: s.codec_params.width,
+        height: s.codec_params.height,
+        sample_rate: s.codec_params.sample_rate,
+        channels: s.codec_params.channels,
+    }
+}
+
+/// Fallback placeholder streams used when the format is not directly probe-able.
+fn placeholder_streams() -> Vec<StreamCompatInfo> {
+    vec![
         StreamCompatInfo {
             codec: CodecId::Vp9,
             media_type: MediaType::Video,
@@ -649,21 +664,149 @@ async fn extract_stream_info(_path: &Path) -> Result<Vec<StreamCompatInfo>> {
             sample_rate: Some(48000),
             channels: Some(2),
         },
-    ])
+    ]
 }
 
-/// Estimate file duration.
-async fn estimate_duration(_path: &Path) -> Result<f64> {
-    // Placeholder: return fixed duration
-    // In full implementation, would parse container metadata
-    Ok(60.0)
+/// Extract stream compatibility information by probing the container.
+async fn extract_stream_info(path: &Path) -> Result<Vec<StreamCompatInfo>> {
+    let data = tokio::fs::read(path)
+        .await
+        .context("Failed to read file for stream probe")?;
+
+    let format = match oximedia_container::probe_format(&data) {
+        Ok(r) => r.format,
+        Err(_) => return Ok(placeholder_streams()),
+    };
+
+    match format {
+        ContainerFormat::Matroska | ContainerFormat::WebM => {
+            let source = MemorySource::from_vec(data);
+            let mut demuxer = MatroskaDemuxer::new(source);
+            let _ = demuxer.probe().await.context("Matroska probe failed")?;
+            let streams = demuxer.streams().iter().map(map_stream_info).collect();
+            Ok(streams)
+        }
+        ContainerFormat::Mp4 => {
+            let source = MemorySource::from_vec(data);
+            let mut demuxer = Mp4Demuxer::new(source);
+            let _ = demuxer.probe().await.context("MP4 probe failed")?;
+            let streams = demuxer.streams().iter().map(map_stream_info).collect();
+            Ok(streams)
+        }
+        ContainerFormat::Ogg => {
+            let source = MemorySource::from_vec(data);
+            let mut demuxer = OggDemuxer::new(source);
+            let _ = demuxer.probe().await.context("Ogg probe failed")?;
+            let streams = demuxer.streams().iter().map(map_stream_info).collect();
+            Ok(streams)
+        }
+        ContainerFormat::Wav => {
+            let source = MemorySource::from_vec(data);
+            let mut demuxer = WavDemuxer::new(source);
+            let _ = demuxer.probe().await.context("WAV probe failed")?;
+            let streams = demuxer.streams().iter().map(map_stream_info).collect();
+            Ok(streams)
+        }
+        ContainerFormat::Flac => {
+            let source = MemorySource::from_vec(data);
+            let mut demuxer = FlacDemuxer::new(source);
+            let _ = demuxer.probe().await.context("FLAC probe failed")?;
+            let streams = demuxer.streams().iter().map(map_stream_info).collect();
+            Ok(streams)
+        }
+        _ => Ok(placeholder_streams()),
+    }
 }
 
-/// Extract chapters from file.
-async fn extract_chapters(_path: &Path) -> Result<Vec<Chapter>> {
-    // Placeholder: return empty chapters
-    // In full implementation, would parse chapter metadata from Matroska
-    Ok(Vec::new())
+/// Estimate file duration by probing the container.
+async fn estimate_duration(path: &Path) -> Result<f64> {
+    let data = tokio::fs::read(path)
+        .await
+        .context("Failed to read file for duration probe")?;
+
+    let format = match oximedia_container::probe_format(&data) {
+        Ok(r) => r.format,
+        Err(_) => return Ok(60.0),
+    };
+
+    let duration = match format {
+        ContainerFormat::Matroska | ContainerFormat::WebM => {
+            let source = MemorySource::from_vec(data);
+            let mut demuxer = MatroskaDemuxer::new(source);
+            let _ = demuxer.probe().await.context("Matroska probe failed")?;
+            demuxer
+                .segment_info()
+                .and_then(|s| s.duration_seconds())
+                .unwrap_or(60.0)
+        }
+        ContainerFormat::Mp4 => {
+            let source = MemorySource::from_vec(data);
+            let mut demuxer = Mp4Demuxer::new(source);
+            let _ = demuxer.probe().await.context("MP4 probe failed")?;
+            demuxer
+                .moov()
+                .and_then(|m| m.mvhd.as_ref())
+                .map(|mvhd| mvhd.duration_seconds())
+                .unwrap_or(60.0)
+        }
+        ContainerFormat::Flac => {
+            let source = MemorySource::from_vec(data);
+            let mut demuxer = FlacDemuxer::new(source);
+            let _ = demuxer.probe().await.context("FLAC probe failed")?;
+            demuxer.duration_seconds().unwrap_or(60.0)
+        }
+        ContainerFormat::Wav => {
+            let source = MemorySource::from_vec(data);
+            let mut demuxer = WavDemuxer::new(source);
+            let _ = demuxer.probe().await.context("WAV probe failed")?;
+            demuxer.duration_seconds().unwrap_or(60.0)
+        }
+        _ => 60.0,
+    };
+
+    Ok(duration)
+}
+
+/// Extract chapters from the file's container metadata.
+async fn extract_chapters(path: &Path) -> Result<Vec<Chapter>> {
+    let data = tokio::fs::read(path)
+        .await
+        .context("Failed to read file for chapter probe")?;
+
+    let format = match oximedia_container::probe_format(&data) {
+        Ok(r) => r.format,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    match format {
+        ContainerFormat::Matroska | ContainerFormat::WebM => {
+            let source = MemorySource::from_vec(data);
+            let mut demuxer = MatroskaDemuxer::new(source);
+            let _ = demuxer.probe().await.context("Matroska probe failed")?;
+
+            let mut chapters = Vec::new();
+            for edition in demuxer.editions() {
+                for ch in &edition.chapters {
+                    let start_time = ch.time_start as f64 / 1_000_000_000.0;
+                    let end_time = ch
+                        .time_end
+                        .map(|t| t as f64 / 1_000_000_000.0)
+                        .unwrap_or(start_time);
+                    let title = ch.display.first().map(|d| d.string.clone());
+                    chapters.push(Chapter {
+                        start_time,
+                        end_time,
+                        title,
+                        metadata: HashMap::new(),
+                    });
+                }
+            }
+            Ok(chapters)
+        }
+        // Mp4 chapter extraction is not supported by the demuxer (writer-only API).
+        // All other formats have no chapter support.
+        _ => Ok(Vec::new()),
+    }
 }
 
 /// Validate stream compatibility across all inputs.

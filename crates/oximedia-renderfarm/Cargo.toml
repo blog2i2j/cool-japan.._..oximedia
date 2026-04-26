@@ -1,6 +1,8 @@
 [package]
 name = "oximedia-renderfarm"
 description = "Distributed render farm management and job scheduling"
+keywords = ["workflow", "batch", "processing", "multimedia", "pipeline"]
+categories = ["multimedia", "algorithms"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

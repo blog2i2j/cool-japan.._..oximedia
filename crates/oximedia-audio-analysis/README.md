@@ -6,7 +6,7 @@ Advanced audio analysis and forensics for OxiMedia, providing comprehensive audi
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.5 — 2026-04-21 — 605 tests
+Version: 0.1.6 — 2026-04-26 — 605 tests
 
 ## Features
 
@@ -32,7 +32,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-audio-analysis = "0.1.5"
+oximedia-audio-analysis = "0.1.6"
 ```
 
 ```rust

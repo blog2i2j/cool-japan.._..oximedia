@@ -6,7 +6,7 @@ Professional video scopes (waveform, vectorscope, histogram, parade) for OxiMedi
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.5 | Tests: 697 — 2026-04-21
+Version: 0.1.6 | Tests: 697 — 2026-04-26
 
 ## Features
 
@@ -38,7 +38,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-scopes = "0.1.5"
+oximedia-scopes = "0.1.6"
 ```
 
 ```rust

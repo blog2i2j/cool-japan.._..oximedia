@@ -1,6 +1,8 @@
 [package]
 name = "oximedia-recommend"
 description = "Content recommendation engine for media libraries"
+keywords = ["machine-learning", "ai", "multimedia", "neural", "inference"]
+categories = ["multimedia", "science"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

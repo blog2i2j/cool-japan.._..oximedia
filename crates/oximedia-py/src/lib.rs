@@ -94,6 +94,8 @@ pub mod colormgmt_py;
 /// Delivery conformance checking bindings (specs, checks, reports).
 pub mod conform_py;
 mod container;
+/// Python context-manager protocol wrappers (ManagedDecoder, ManagedEncoder).
+pub mod context_manager;
 /// Media conversion bindings (format detection, profiles, batch convert).
 pub mod convert_py;
 /// Computer vision operations (face/motion detection, histogram, edge detection).
@@ -570,6 +572,9 @@ fn oximedia(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // oximedia.test submodule
     test_media::register_submodule(m)?;
+
+    // Python context-manager wrappers (ManagedDecoder, ManagedEncoder)
+    context_manager::register(m)?;
 
     // oximedia.ml submodule (feature-gated)
     #[cfg(feature = "ml")]

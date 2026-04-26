@@ -170,9 +170,14 @@ impl HardwareInfoCollector {
             neon: cfg!(target_feature = "neon"),
         };
 
-        // We cannot query OS memory without additional crates; return a
-        // placeholder that indicates 4 GiB total / 2 GiB available.
-        let memory = MemoryInfo::new(4 * 1024 * 1024 * 1024, 2 * 1024 * 1024 * 1024);
+        // Query real OS memory using sysinfo.
+        let mut sys = sysinfo::System::new_with_specifics(
+            sysinfo::RefreshKind::nothing().with_memory(sysinfo::MemoryRefreshKind::everything()),
+        );
+        sys.refresh_memory();
+        let total = sys.total_memory();
+        let available = sys.available_memory();
+        let memory = MemoryInfo::new(total, available);
 
         HardwareSnapshot {
             cpu,
@@ -319,5 +324,17 @@ mod tests {
         let snap = collector.snapshot();
         assert!(snap.parallelism >= 1);
         assert!(snap.cpu.logical_threads >= 1);
+    }
+
+    #[test]
+    fn test_memory_info_nonzero() {
+        let collector = HardwareInfoCollector::new();
+        let snap = collector.snapshot();
+        // On any real host, total memory must be > 0.
+        assert!(
+            snap.memory.total_bytes > 0,
+            "total_bytes should be > 0 (got {})",
+            snap.memory.total_bytes
+        );
     }
 }

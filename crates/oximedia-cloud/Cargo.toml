@@ -1,6 +1,8 @@
 [package]
 name = "oximedia-cloud"
 description = "Cloud storage and media services integration for AWS, Azure, and GCP"
+keywords = ["cloud", "aws", "azure", "storage", "multimedia"]
+categories = ["multimedia", "web-programming"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
@@ -26,13 +28,13 @@ chrono = { workspace = true }
 
 # AWS SDK (ring-based TLS to avoid aws-lc-sys C dependency)
 aws-config = { version = "1.8", default-features = false, features = ["rt-tokio", "credentials-process", "sso"] }
-aws-sdk-s3 = { version = "1.129", default-features = false, features = ["rustls", "rt-tokio"] }
-aws-sdk-mediaconvert = { version = "1.124", default-features = false, features = ["rustls", "rt-tokio"] }
-aws-sdk-medialive = { version = "1.133", default-features = false, features = ["rustls", "rt-tokio"] }
-aws-sdk-mediapackage = { version = "1.97", default-features = false, features = ["rustls", "rt-tokio"] }
-aws-sdk-cloudwatch = { version = "1.109", default-features = false, features = ["rustls", "rt-tokio"] }
-aws-sdk-sts = { version = "1.101", default-features = false, features = ["rustls", "rt-tokio"] }
-aws-sdk-kms = { version = "1.104", default-features = false, features = ["rustls", "rt-tokio"] }
+aws-sdk-s3 = { version = "1.131", default-features = false, features = ["rustls", "rt-tokio"] }
+aws-sdk-mediaconvert = { version = "1.126", default-features = false, features = ["rustls", "rt-tokio"] }
+aws-sdk-medialive = { version = "1.134", default-features = false, features = ["rustls", "rt-tokio"] }
+aws-sdk-mediapackage = { version = "1.98", default-features = false, features = ["rustls", "rt-tokio"] }
+aws-sdk-cloudwatch = { version = "1.110", default-features = false, features = ["rustls", "rt-tokio"] }
+aws-sdk-sts = { version = "1.103", default-features = false, features = ["rustls", "rt-tokio"] }
+aws-sdk-kms = { version = "1.105", default-features = false, features = ["rustls", "rt-tokio"] }
 aws-smithy-types = "1.4"
 aws-smithy-runtime = { version = "1", features = ["tls-rustls", "client"] }
 aws-smithy-runtime-api = "1.11"

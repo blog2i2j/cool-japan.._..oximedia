@@ -117,8 +117,37 @@ impl HardwareAccel for CpuAccel {
         dst_format: PixelFormat,
     ) -> AccelResult<Vec<u8>> {
         match (src_format, dst_format) {
+            // Identity pass-through
+            (src, dst) if src == dst => Ok(input.to_vec()),
+
+            // YUV 4:2:0 planar <-> RGB24
             (PixelFormat::Rgb24, PixelFormat::Yuv420p) => rgb_to_yuv420p(input, width, height),
             (PixelFormat::Yuv420p, PixelFormat::Rgb24) => yuv420p_to_rgb(input, width, height),
+
+            // YUV 4:2:2 planar <-> RGB24
+            (PixelFormat::Rgb24, PixelFormat::Yuv422p) => rgb_to_yuv422p(input, width, height),
+            (PixelFormat::Yuv422p, PixelFormat::Rgb24) => yuv422p_to_rgb(input, width, height),
+
+            // YUV 4:4:4 planar <-> RGB24
+            (PixelFormat::Rgb24, PixelFormat::Yuv444p) => rgb_to_yuv444p(input, width, height),
+            (PixelFormat::Yuv444p, PixelFormat::Rgb24) => yuv444p_to_rgb(input, width, height),
+
+            // NV12 (Y + interleaved UV) <-> RGB24
+            (PixelFormat::Rgb24, PixelFormat::Nv12) => rgb_to_nv12(input, width, height),
+            (PixelFormat::Nv12, PixelFormat::Rgb24) => nv12_to_rgb(input, width, height),
+
+            // NV21 (Y + interleaved VU) <-> RGB24
+            (PixelFormat::Rgb24, PixelFormat::Nv21) => rgb_to_nv21(input, width, height),
+            (PixelFormat::Nv21, PixelFormat::Rgb24) => nv21_to_rgb(input, width, height),
+
+            // RGB24 <-> RGBA32 (add/drop alpha channel)
+            (PixelFormat::Rgb24, PixelFormat::Rgba32) => rgb_to_rgba(input, width, height),
+            (PixelFormat::Rgba32, PixelFormat::Rgb24) => rgba_to_rgb(input, width, height),
+
+            // Gray8 <-> RGB24
+            (PixelFormat::Rgb24, PixelFormat::Gray8) => rgb_to_gray8(input, width, height),
+            (PixelFormat::Gray8, PixelFormat::Rgb24) => gray8_to_rgb(input, width, height),
+
             _ => Err(AccelError::Unsupported(format!(
                 "Color conversion from {src_format:?} to {dst_format:?} not implemented"
             ))),
@@ -371,6 +400,57 @@ fn scale_lanczos(
         });
 }
 
+// ─── BT.601 conversion helpers ────────────────────────────────────────────────
+// Y  =  0.299 R + 0.587 G + 0.114 B
+// Cb = -0.169 R - 0.331 G + 0.500 B  + 128
+// Cr =  0.500 R - 0.419 G - 0.081 B  + 128
+//
+// Inverse:
+// R = Y             + 1.402 Cr'
+// G = Y - 0.344 Cb' - 0.714 Cr'
+// B = Y + 1.772 Cb'
+// where Cb' = Cb - 128, Cr' = Cr - 128
+
+/// Compute BT.601 Y (luma) for a single pixel.
+#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_sign_loss)]
+#[inline]
+fn bt601_y(r: f32, g: f32, b: f32) -> u8 {
+    (0.299 * r + 0.587 * g + 0.114 * b).clamp(0.0, 255.0) as u8
+}
+
+/// Compute BT.601 Cb (U) for a single pixel.
+#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_sign_loss)]
+#[inline]
+fn bt601_cb(r: f32, g: f32, b: f32) -> u8 {
+    (-0.169 * r - 0.331 * g + 0.500 * b + 128.0).clamp(0.0, 255.0) as u8
+}
+
+/// Compute BT.601 Cr (V) for a single pixel.
+#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_sign_loss)]
+#[inline]
+fn bt601_cr(r: f32, g: f32, b: f32) -> u8 {
+    (0.500 * r - 0.419 * g - 0.081 * b + 128.0).clamp(0.0, 255.0) as u8
+}
+
+/// Convert BT.601 Y + Cb + Cr to RGB.
+#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_sign_loss)]
+#[inline]
+fn bt601_to_rgb(y: u8, cb: u8, cr: u8) -> (u8, u8, u8) {
+    let y_f = f32::from(y);
+    let cb_f = f32::from(cb) - 128.0;
+    let cr_f = f32::from(cr) - 128.0;
+    let r = (y_f + 1.402 * cr_f).clamp(0.0, 255.0) as u8;
+    let g = (y_f - 0.344 * cb_f - 0.714 * cr_f).clamp(0.0, 255.0) as u8;
+    let b = (y_f + 1.772 * cb_f).clamp(0.0, 255.0) as u8;
+    (r, g, b)
+}
+
+// ─── RGB to YUV420p ───────────────────────────────────────────────────────────
+
 /// RGB to `YUV420p` conversion (CPU implementation).
 #[allow(clippy::cast_possible_truncation)]
 #[allow(clippy::cast_sign_loss)]
@@ -398,7 +478,7 @@ fn rgb_to_yuv420p(input: &[u8], width: u32, height: u32) -> AccelResult<Vec<u8>>
         let g = f32::from(input[rgb_idx + 1]);
         let b = f32::from(input[rgb_idx + 2]);
 
-        *y = (0.299 * r + 0.587 * g + 0.114 * b).clamp(0.0, 255.0) as u8;
+        *y = bt601_y(r, g, b);
     });
 
     // Convert U and V planes (subsampled 2x2)
@@ -415,8 +495,8 @@ fn rgb_to_yuv420p(input: &[u8], width: u32, height: u32) -> AccelResult<Vec<u8>>
             let g = f32::from(input[rgb_idx + 1]);
             let b = f32::from(input[rgb_idx + 2]);
 
-            *u = (-0.169 * r - 0.331 * g + 0.500 * b + 128.0).clamp(0.0, 255.0) as u8;
-            *v = (0.500 * r - 0.419 * g - 0.081 * b + 128.0).clamp(0.0, 255.0) as u8;
+            *u = bt601_cb(r, g, b);
+            *v = bt601_cr(r, g, b);
         });
 
     Ok(output)
@@ -453,17 +533,465 @@ fn yuv420p_to_rgb(input: &[u8], width: u32, height: u32) -> AccelResult<Vec<u8>>
             let pixel_y = i as u32 / width;
             let uv_idx = ((pixel_y / 2) * (width / 2) + (pixel_x / 2)) as usize;
 
-            let y_val = f32::from(y_plane[i]);
-            let u_val = f32::from(u_plane[uv_idx]) - 128.0;
-            let v_val = f32::from(v_plane[uv_idx]) - 128.0;
-
-            let red = (y_val + 1.402 * v_val).clamp(0.0, 255.0) as u8;
-            let green = (y_val - 0.344 * u_val - 0.714 * v_val).clamp(0.0, 255.0) as u8;
-            let blue = (y_val + 1.772 * u_val).clamp(0.0, 255.0) as u8;
-
+            let (red, green, blue) = bt601_to_rgb(y_plane[i], u_plane[uv_idx], v_plane[uv_idx]);
             pixel[0] = red;
             pixel[1] = green;
             pixel[2] = blue;
+        });
+
+    Ok(output)
+}
+
+// ─── YUV 4:2:2 planar ─────────────────────────────────────────────────────────
+
+/// RGB24 to YUV422p conversion (BT.601). U/V planes are half width, full height.
+#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_sign_loss)]
+#[allow(clippy::cast_precision_loss)]
+fn rgb_to_yuv422p(input: &[u8], width: u32, height: u32) -> AccelResult<Vec<u8>> {
+    let expected_size = (width * height * 3) as usize;
+    if input.len() != expected_size {
+        return Err(AccelError::BufferSizeMismatch {
+            expected: expected_size,
+            actual: input.len(),
+        });
+    }
+
+    let y_size = (width * height) as usize;
+    let uv_size = (width / 2 * height) as usize; // half width, full height
+    let mut output = vec![0u8; y_size + uv_size * 2];
+
+    let (y_plane, uv_planes) = output.split_at_mut(y_size);
+    let (u_plane, v_plane) = uv_planes.split_at_mut(uv_size);
+
+    // Y plane: one sample per pixel
+    y_plane.par_iter_mut().enumerate().for_each(|(i, y)| {
+        let rgb_idx = i * 3;
+        let r = f32::from(input[rgb_idx]);
+        let g = f32::from(input[rgb_idx + 1]);
+        let b = f32::from(input[rgb_idx + 2]);
+        *y = bt601_y(r, g, b);
+    });
+
+    // U and V planes: sub-sampled 2x horizontally, not vertically
+    u_plane
+        .par_iter_mut()
+        .zip(v_plane.par_iter_mut())
+        .enumerate()
+        .for_each(|(i, (u, v))| {
+            let uv_x = (i as u32 % (width / 2)) * 2;
+            let uv_y = i as u32 / (width / 2);
+            let rgb_idx = ((uv_y * width + uv_x) * 3) as usize;
+            let r = f32::from(input[rgb_idx]);
+            let g = f32::from(input[rgb_idx + 1]);
+            let b = f32::from(input[rgb_idx + 2]);
+            *u = bt601_cb(r, g, b);
+            *v = bt601_cr(r, g, b);
+        });
+
+    Ok(output)
+}
+
+/// YUV422p to RGB24 conversion (BT.601).
+#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_sign_loss)]
+#[allow(clippy::cast_precision_loss)]
+fn yuv422p_to_rgb(input: &[u8], width: u32, height: u32) -> AccelResult<Vec<u8>> {
+    let y_size = (width * height) as usize;
+    let uv_size = (width / 2 * height) as usize;
+    let expected_size = y_size + uv_size * 2;
+
+    if input.len() != expected_size {
+        return Err(AccelError::BufferSizeMismatch {
+            expected: expected_size,
+            actual: input.len(),
+        });
+    }
+
+    let y_plane = &input[..y_size];
+    let u_plane = &input[y_size..y_size + uv_size];
+    let v_plane = &input[y_size + uv_size..];
+
+    let output_size = (width * height * 3) as usize;
+    let mut output = vec![0u8; output_size];
+
+    output
+        .par_chunks_exact_mut(3)
+        .enumerate()
+        .for_each(|(i, pixel)| {
+            let pixel_x = i as u32 % width;
+            let pixel_y = i as u32 / width;
+            let uv_idx = (pixel_y * (width / 2) + pixel_x / 2) as usize;
+
+            let (r, g, b) = bt601_to_rgb(y_plane[i], u_plane[uv_idx], v_plane[uv_idx]);
+            pixel[0] = r;
+            pixel[1] = g;
+            pixel[2] = b;
+        });
+
+    Ok(output)
+}
+
+// ─── YUV 4:4:4 planar ─────────────────────────────────────────────────────────
+
+/// RGB24 to YUV444p conversion (BT.601). All planes are full width x height.
+#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_sign_loss)]
+#[allow(clippy::cast_precision_loss)]
+fn rgb_to_yuv444p(input: &[u8], width: u32, height: u32) -> AccelResult<Vec<u8>> {
+    let expected_size = (width * height * 3) as usize;
+    if input.len() != expected_size {
+        return Err(AccelError::BufferSizeMismatch {
+            expected: expected_size,
+            actual: input.len(),
+        });
+    }
+
+    let plane_size = (width * height) as usize;
+    let mut output = vec![0u8; plane_size * 3];
+
+    let (y_plane, uv_planes) = output.split_at_mut(plane_size);
+    let (u_plane, v_plane) = uv_planes.split_at_mut(plane_size);
+
+    y_plane
+        .par_iter_mut()
+        .zip(u_plane.par_iter_mut())
+        .zip(v_plane.par_iter_mut())
+        .enumerate()
+        .for_each(|(i, ((y, u), v))| {
+            let rgb_idx = i * 3;
+            let r = f32::from(input[rgb_idx]);
+            let g = f32::from(input[rgb_idx + 1]);
+            let b = f32::from(input[rgb_idx + 2]);
+            *y = bt601_y(r, g, b);
+            *u = bt601_cb(r, g, b);
+            *v = bt601_cr(r, g, b);
+        });
+
+    Ok(output)
+}
+
+/// YUV444p to RGB24 conversion (BT.601).
+#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_sign_loss)]
+#[allow(clippy::cast_precision_loss)]
+fn yuv444p_to_rgb(input: &[u8], width: u32, height: u32) -> AccelResult<Vec<u8>> {
+    let plane_size = (width * height) as usize;
+    let expected_size = plane_size * 3;
+
+    if input.len() != expected_size {
+        return Err(AccelError::BufferSizeMismatch {
+            expected: expected_size,
+            actual: input.len(),
+        });
+    }
+
+    let y_plane = &input[..plane_size];
+    let u_plane = &input[plane_size..plane_size * 2];
+    let v_plane = &input[plane_size * 2..];
+
+    let output_size = plane_size * 3;
+    let mut output = vec![0u8; output_size];
+
+    output
+        .par_chunks_exact_mut(3)
+        .enumerate()
+        .for_each(|(i, pixel)| {
+            let (r, g, b) = bt601_to_rgb(y_plane[i], u_plane[i], v_plane[i]);
+            pixel[0] = r;
+            pixel[1] = g;
+            pixel[2] = b;
+        });
+
+    Ok(output)
+}
+
+// ─── NV12 (semi-planar: Y + interleaved UV) ───────────────────────────────────
+
+/// RGB24 to NV12 conversion (BT.601). Y plane full, then interleaved UV at 4:2:0.
+#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_sign_loss)]
+#[allow(clippy::cast_precision_loss)]
+fn rgb_to_nv12(input: &[u8], width: u32, height: u32) -> AccelResult<Vec<u8>> {
+    let expected_size = (width * height * 3) as usize;
+    if input.len() != expected_size {
+        return Err(AccelError::BufferSizeMismatch {
+            expected: expected_size,
+            actual: input.len(),
+        });
+    }
+
+    let y_size = (width * height) as usize;
+    // UV plane: half width x half height, 2 bytes per sample (U, V interleaved)
+    let uv_size = (width / 2 * (height / 2) * 2) as usize;
+    let mut output = vec![0u8; y_size + uv_size];
+
+    let (y_plane, uv_plane) = output.split_at_mut(y_size);
+
+    // Y plane
+    y_plane.par_iter_mut().enumerate().for_each(|(i, y)| {
+        let rgb_idx = i * 3;
+        let r = f32::from(input[rgb_idx]);
+        let g = f32::from(input[rgb_idx + 1]);
+        let b = f32::from(input[rgb_idx + 2]);
+        *y = bt601_y(r, g, b);
+    });
+
+    // UV plane (2x2 sub-sampled, U then V interleaved)
+    let uv_width = width / 2;
+    uv_plane
+        .par_chunks_exact_mut(2)
+        .enumerate()
+        .for_each(|(i, uv)| {
+            let uv_x = (i as u32 % uv_width) * 2;
+            let uv_y = (i as u32 / uv_width) * 2;
+            let rgb_idx = ((uv_y * width + uv_x) * 3) as usize;
+            let r = f32::from(input[rgb_idx]);
+            let g = f32::from(input[rgb_idx + 1]);
+            let b = f32::from(input[rgb_idx + 2]);
+            uv[0] = bt601_cb(r, g, b); // U
+            uv[1] = bt601_cr(r, g, b); // V
+        });
+
+    Ok(output)
+}
+
+/// NV12 to RGB24 conversion (BT.601).
+#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_sign_loss)]
+#[allow(clippy::cast_precision_loss)]
+fn nv12_to_rgb(input: &[u8], width: u32, height: u32) -> AccelResult<Vec<u8>> {
+    let y_size = (width * height) as usize;
+    let uv_size = (width / 2 * (height / 2) * 2) as usize;
+    let expected_size = y_size + uv_size;
+
+    if input.len() != expected_size {
+        return Err(AccelError::BufferSizeMismatch {
+            expected: expected_size,
+            actual: input.len(),
+        });
+    }
+
+    let y_plane = &input[..y_size];
+    let uv_plane = &input[y_size..];
+
+    let output_size = (width * height * 3) as usize;
+    let mut output = vec![0u8; output_size];
+
+    output
+        .par_chunks_exact_mut(3)
+        .enumerate()
+        .for_each(|(i, pixel)| {
+            let pixel_x = i as u32 % width;
+            let pixel_y = i as u32 / width;
+            // UV pair index: each UV pair covers a 2x2 block
+            let uv_pair_idx = ((pixel_y / 2) * (width / 2) + pixel_x / 2) as usize;
+            let cb = uv_plane[uv_pair_idx * 2];
+            let cr = uv_plane[uv_pair_idx * 2 + 1];
+
+            let (r, g, b) = bt601_to_rgb(y_plane[i], cb, cr);
+            pixel[0] = r;
+            pixel[1] = g;
+            pixel[2] = b;
+        });
+
+    Ok(output)
+}
+
+// ─── NV21 (semi-planar: Y + interleaved VU) ───────────────────────────────────
+
+/// RGB24 to NV21 conversion (BT.601). Same layout as NV12 but V and U are swapped.
+#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_sign_loss)]
+#[allow(clippy::cast_precision_loss)]
+fn rgb_to_nv21(input: &[u8], width: u32, height: u32) -> AccelResult<Vec<u8>> {
+    let expected_size = (width * height * 3) as usize;
+    if input.len() != expected_size {
+        return Err(AccelError::BufferSizeMismatch {
+            expected: expected_size,
+            actual: input.len(),
+        });
+    }
+
+    let y_size = (width * height) as usize;
+    let uv_size = (width / 2 * (height / 2) * 2) as usize;
+    let mut output = vec![0u8; y_size + uv_size];
+
+    let (y_plane, vu_plane) = output.split_at_mut(y_size);
+
+    // Y plane
+    y_plane.par_iter_mut().enumerate().for_each(|(i, y)| {
+        let rgb_idx = i * 3;
+        let r = f32::from(input[rgb_idx]);
+        let g = f32::from(input[rgb_idx + 1]);
+        let b = f32::from(input[rgb_idx + 2]);
+        *y = bt601_y(r, g, b);
+    });
+
+    // VU plane (V then U, opposite of NV12)
+    let uv_width = width / 2;
+    vu_plane
+        .par_chunks_exact_mut(2)
+        .enumerate()
+        .for_each(|(i, vu)| {
+            let uv_x = (i as u32 % uv_width) * 2;
+            let uv_y = (i as u32 / uv_width) * 2;
+            let rgb_idx = ((uv_y * width + uv_x) * 3) as usize;
+            let r = f32::from(input[rgb_idx]);
+            let g = f32::from(input[rgb_idx + 1]);
+            let b = f32::from(input[rgb_idx + 2]);
+            vu[0] = bt601_cr(r, g, b); // V first
+            vu[1] = bt601_cb(r, g, b); // U second
+        });
+
+    Ok(output)
+}
+
+/// NV21 to RGB24 conversion (BT.601). V and U are swapped compared to NV12.
+#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_sign_loss)]
+#[allow(clippy::cast_precision_loss)]
+fn nv21_to_rgb(input: &[u8], width: u32, height: u32) -> AccelResult<Vec<u8>> {
+    let y_size = (width * height) as usize;
+    let uv_size = (width / 2 * (height / 2) * 2) as usize;
+    let expected_size = y_size + uv_size;
+
+    if input.len() != expected_size {
+        return Err(AccelError::BufferSizeMismatch {
+            expected: expected_size,
+            actual: input.len(),
+        });
+    }
+
+    let y_plane = &input[..y_size];
+    let vu_plane = &input[y_size..];
+
+    let output_size = (width * height * 3) as usize;
+    let mut output = vec![0u8; output_size];
+
+    output
+        .par_chunks_exact_mut(3)
+        .enumerate()
+        .for_each(|(i, pixel)| {
+            let pixel_x = i as u32 % width;
+            let pixel_y = i as u32 / width;
+            let uv_pair_idx = ((pixel_y / 2) * (width / 2) + pixel_x / 2) as usize;
+            // NV21: V first, U second
+            let cr = vu_plane[uv_pair_idx * 2];
+            let cb = vu_plane[uv_pair_idx * 2 + 1];
+
+            let (r, g, b) = bt601_to_rgb(y_plane[i], cb, cr);
+            pixel[0] = r;
+            pixel[1] = g;
+            pixel[2] = b;
+        });
+
+    Ok(output)
+}
+
+// ─── RGB24 <-> RGBA32 ─────────────────────────────────────────────────────────
+
+/// RGB24 to RGBA32 conversion: add opaque alpha (255).
+fn rgb_to_rgba(input: &[u8], width: u32, height: u32) -> AccelResult<Vec<u8>> {
+    let expected_size = (width * height * 3) as usize;
+    if input.len() != expected_size {
+        return Err(AccelError::BufferSizeMismatch {
+            expected: expected_size,
+            actual: input.len(),
+        });
+    }
+
+    let output_size = (width * height * 4) as usize;
+    let mut output = vec![0u8; output_size];
+
+    output
+        .par_chunks_exact_mut(4)
+        .zip(input.par_chunks_exact(3))
+        .for_each(|(rgba, rgb)| {
+            rgba[0] = rgb[0];
+            rgba[1] = rgb[1];
+            rgba[2] = rgb[2];
+            rgba[3] = 255; // fully opaque
+        });
+
+    Ok(output)
+}
+
+/// RGBA32 to RGB24 conversion: discard alpha channel.
+fn rgba_to_rgb(input: &[u8], width: u32, height: u32) -> AccelResult<Vec<u8>> {
+    let expected_size = (width * height * 4) as usize;
+    if input.len() != expected_size {
+        return Err(AccelError::BufferSizeMismatch {
+            expected: expected_size,
+            actual: input.len(),
+        });
+    }
+
+    let output_size = (width * height * 3) as usize;
+    let mut output = vec![0u8; output_size];
+
+    output
+        .par_chunks_exact_mut(3)
+        .zip(input.par_chunks_exact(4))
+        .for_each(|(rgb, rgba)| {
+            rgb[0] = rgba[0];
+            rgb[1] = rgba[1];
+            rgb[2] = rgba[2];
+        });
+
+    Ok(output)
+}
+
+// ─── Gray8 <-> RGB24 ──────────────────────────────────────────────────────────
+
+/// RGB24 to Gray8 conversion using BT.601 luma (0.299R + 0.587G + 0.114B).
+#[allow(clippy::cast_possible_truncation)]
+#[allow(clippy::cast_sign_loss)]
+fn rgb_to_gray8(input: &[u8], width: u32, height: u32) -> AccelResult<Vec<u8>> {
+    let expected_size = (width * height * 3) as usize;
+    if input.len() != expected_size {
+        return Err(AccelError::BufferSizeMismatch {
+            expected: expected_size,
+            actual: input.len(),
+        });
+    }
+
+    let output_size = (width * height) as usize;
+    let mut output = vec![0u8; output_size];
+
+    output
+        .par_iter_mut()
+        .zip(input.par_chunks_exact(3))
+        .for_each(|(gray, rgb)| {
+            let r = f32::from(rgb[0]);
+            let g = f32::from(rgb[1]);
+            let b = f32::from(rgb[2]);
+            *gray = bt601_y(r, g, b);
+        });
+
+    Ok(output)
+}
+
+/// Gray8 to RGB24 conversion: replicate luma to all three channels.
+fn gray8_to_rgb(input: &[u8], width: u32, height: u32) -> AccelResult<Vec<u8>> {
+    let expected_size = (width * height) as usize;
+    if input.len() != expected_size {
+        return Err(AccelError::BufferSizeMismatch {
+            expected: expected_size,
+            actual: input.len(),
+        });
+    }
+
+    let output_size = (width * height * 3) as usize;
+    let mut output = vec![0u8; output_size];
+
+    output
+        .par_chunks_exact_mut(3)
+        .zip(input.par_iter())
+        .for_each(|(rgb, &gray)| {
+            rgb[0] = gray;
+            rgb[1] = gray;
+            rgb[2] = gray;
         });
 
     Ok(output)
@@ -542,4 +1070,281 @@ fn block_motion_estimation(
         .collect();
 
     motion_vectors
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::traits::HardwareAccel;
+
+    const W: u32 = 4;
+    const H: u32 = 4;
+
+    /// Build a synthetic RGB24 frame (W x H pixels).
+    /// Pixel (x,y) = (x*60, y*40, 128).
+    fn synthetic_rgb(w: u32, h: u32) -> Vec<u8> {
+        let mut buf = Vec::with_capacity((w * h * 3) as usize);
+        for y in 0..h {
+            for x in 0..w {
+                buf.push((x * 60).min(255) as u8);
+                buf.push((y * 40).min(255) as u8);
+                buf.push(128u8);
+            }
+        }
+        buf
+    }
+
+    #[test]
+    fn test_identity_passthrough() {
+        let accel = CpuAccel::new();
+        let rgb = synthetic_rgb(W, H);
+        let out = accel
+            .convert_color(&rgb, W, H, PixelFormat::Rgb24, PixelFormat::Rgb24)
+            .expect("identity passthrough failed");
+        assert_eq!(out, rgb);
+    }
+
+    #[test]
+    fn test_rgb_to_rgba_roundtrip() {
+        let accel = CpuAccel::new();
+        let rgb = synthetic_rgb(W, H);
+
+        let rgba = accel
+            .convert_color(&rgb, W, H, PixelFormat::Rgb24, PixelFormat::Rgba32)
+            .expect("rgb to rgba failed");
+        assert_eq!(rgba.len(), (W * H * 4) as usize);
+        // All alpha bytes must be 255 (opaque)
+        for chunk in rgba.chunks_exact(4) {
+            assert_eq!(chunk[3], 255, "alpha should be fully opaque");
+        }
+
+        let rgb2 = accel
+            .convert_color(&rgba, W, H, PixelFormat::Rgba32, PixelFormat::Rgb24)
+            .expect("rgba to rgb failed");
+        assert_eq!(rgb2, rgb, "RGBA to RGB roundtrip failed");
+    }
+
+    #[test]
+    fn test_rgb_rgba_size_mismatch_error() {
+        let accel = CpuAccel::new();
+        // Too short for W x H x 3
+        let short = vec![0u8; 10];
+        assert!(accel
+            .convert_color(&short, W, H, PixelFormat::Rgb24, PixelFormat::Rgba32)
+            .is_err());
+    }
+
+    #[test]
+    fn test_gray8_to_rgb_roundtrip() {
+        let accel = CpuAccel::new();
+        let rgb = synthetic_rgb(W, H);
+
+        let gray = accel
+            .convert_color(&rgb, W, H, PixelFormat::Rgb24, PixelFormat::Gray8)
+            .expect("rgb to gray8 failed");
+        assert_eq!(gray.len(), (W * H) as usize);
+
+        let rgb2 = accel
+            .convert_color(&gray, W, H, PixelFormat::Gray8, PixelFormat::Rgb24)
+            .expect("gray8 to rgb failed");
+        assert_eq!(rgb2.len(), (W * H * 3) as usize);
+        // All channels should be equal (replicated luma)
+        for chunk in rgb2.chunks_exact(3) {
+            assert_eq!(chunk[0], chunk[1]);
+            assert_eq!(chunk[1], chunk[2]);
+        }
+    }
+
+    #[test]
+    fn test_gray8_size_mismatch_error() {
+        let accel = CpuAccel::new();
+        let short = vec![0u8; 5];
+        assert!(accel
+            .convert_color(&short, W, H, PixelFormat::Gray8, PixelFormat::Rgb24)
+            .is_err());
+    }
+
+    #[test]
+    fn test_yuv420p_roundtrip() {
+        let accel = CpuAccel::new();
+        let rgb = synthetic_rgb(W, H);
+
+        let yuv = accel
+            .convert_color(&rgb, W, H, PixelFormat::Rgb24, PixelFormat::Yuv420p)
+            .expect("rgb to yuv420p failed");
+        assert_eq!(yuv.len(), (W * H * 3 / 2) as usize);
+
+        let rgb2 = accel
+            .convert_color(&yuv, W, H, PixelFormat::Yuv420p, PixelFormat::Rgb24)
+            .expect("yuv420p to rgb failed");
+        assert_eq!(rgb2.len(), (W * H * 3) as usize);
+    }
+
+    #[test]
+    fn test_yuv422p_roundtrip() {
+        let accel = CpuAccel::new();
+        let rgb = synthetic_rgb(W, H);
+
+        let yuv = accel
+            .convert_color(&rgb, W, H, PixelFormat::Rgb24, PixelFormat::Yuv422p)
+            .expect("rgb to yuv422p failed");
+        // Y: W*H, U: (W/2)*H, V: (W/2)*H
+        assert_eq!(yuv.len(), (W * H + W / 2 * H * 2) as usize);
+
+        let rgb2 = accel
+            .convert_color(&yuv, W, H, PixelFormat::Yuv422p, PixelFormat::Rgb24)
+            .expect("yuv422p to rgb failed");
+        assert_eq!(rgb2.len(), (W * H * 3) as usize);
+    }
+
+    #[test]
+    fn test_yuv422p_size_mismatch_error() {
+        let accel = CpuAccel::new();
+        let short = vec![0u8; 5];
+        assert!(accel
+            .convert_color(&short, W, H, PixelFormat::Rgb24, PixelFormat::Yuv422p)
+            .is_err());
+    }
+
+    #[test]
+    fn test_yuv444p_roundtrip() {
+        let accel = CpuAccel::new();
+        let rgb = synthetic_rgb(W, H);
+
+        let yuv = accel
+            .convert_color(&rgb, W, H, PixelFormat::Rgb24, PixelFormat::Yuv444p)
+            .expect("rgb to yuv444p failed");
+        // Y: W*H, U: W*H, V: W*H
+        assert_eq!(yuv.len(), (W * H * 3) as usize);
+
+        let rgb2 = accel
+            .convert_color(&yuv, W, H, PixelFormat::Yuv444p, PixelFormat::Rgb24)
+            .expect("yuv444p to rgb failed");
+        assert_eq!(rgb2.len(), (W * H * 3) as usize);
+    }
+
+    #[test]
+    fn test_yuv444p_size_mismatch_error() {
+        let accel = CpuAccel::new();
+        let short = vec![0u8; 5];
+        assert!(accel
+            .convert_color(&short, W, H, PixelFormat::Rgb24, PixelFormat::Yuv444p)
+            .is_err());
+    }
+
+    #[test]
+    fn test_nv12_roundtrip() {
+        let accel = CpuAccel::new();
+        let rgb = synthetic_rgb(W, H);
+
+        let nv12 = accel
+            .convert_color(&rgb, W, H, PixelFormat::Rgb24, PixelFormat::Nv12)
+            .expect("rgb to nv12 failed");
+        // Y: W*H, UV interleaved: (W/2)*(H/2)*2
+        assert_eq!(nv12.len(), (W * H + W / 2 * (H / 2) * 2) as usize);
+
+        let rgb2 = accel
+            .convert_color(&nv12, W, H, PixelFormat::Nv12, PixelFormat::Rgb24)
+            .expect("nv12 to rgb failed");
+        assert_eq!(rgb2.len(), (W * H * 3) as usize);
+    }
+
+    #[test]
+    fn test_nv12_size_mismatch_error() {
+        let accel = CpuAccel::new();
+        let short = vec![0u8; 5];
+        assert!(accel
+            .convert_color(&short, W, H, PixelFormat::Rgb24, PixelFormat::Nv12)
+            .is_err());
+    }
+
+    #[test]
+    fn test_nv21_roundtrip() {
+        let accel = CpuAccel::new();
+        let rgb = synthetic_rgb(W, H);
+
+        let nv21 = accel
+            .convert_color(&rgb, W, H, PixelFormat::Rgb24, PixelFormat::Nv21)
+            .expect("rgb to nv21 failed");
+        assert_eq!(nv21.len(), (W * H + W / 2 * (H / 2) * 2) as usize);
+
+        let rgb2 = accel
+            .convert_color(&nv21, W, H, PixelFormat::Nv21, PixelFormat::Rgb24)
+            .expect("nv21 to rgb failed");
+        assert_eq!(rgb2.len(), (W * H * 3) as usize);
+    }
+
+    #[test]
+    fn test_nv21_size_mismatch_error() {
+        let accel = CpuAccel::new();
+        let short = vec![0u8; 5];
+        assert!(accel
+            .convert_color(&short, W, H, PixelFormat::Rgb24, PixelFormat::Nv21)
+            .is_err());
+    }
+
+    #[test]
+    fn test_nv12_nv21_differ_in_uv_order() {
+        let accel = CpuAccel::new();
+        // Use a color where U != V to distinguish NV12 vs NV21
+        let rgb: Vec<u8> = vec![200u8, 50, 20].repeat((W * H) as usize);
+
+        let nv12 = accel
+            .convert_color(&rgb, W, H, PixelFormat::Rgb24, PixelFormat::Nv12)
+            .expect("nv12 conversion failed");
+        let nv21 = accel
+            .convert_color(&rgb, W, H, PixelFormat::Rgb24, PixelFormat::Nv21)
+            .expect("nv21 conversion failed");
+
+        let y_size = (W * H) as usize;
+        // Y planes should be identical
+        assert_eq!(&nv12[..y_size], &nv21[..y_size], "Y planes must match");
+        // UV/VU planes should differ (swapped order)
+        let uv_nv12 = &nv12[y_size..];
+        let vu_nv21 = &nv21[y_size..];
+        // For a uniform image the two samples should be swapped
+        if uv_nv12[0] != uv_nv12[1] {
+            assert_eq!(
+                uv_nv12[0], vu_nv21[1],
+                "NV12 U should equal NV21 second byte"
+            );
+            assert_eq!(
+                uv_nv12[1], vu_nv21[0],
+                "NV12 V should equal NV21 first byte"
+            );
+        }
+    }
+
+    #[test]
+    fn test_gray8_luma_correctness() {
+        let accel = CpuAccel::new();
+        // Pure white: all channels 255
+        let white = vec![255u8; (W * H * 3) as usize];
+        let gray = accel
+            .convert_color(&white, W, H, PixelFormat::Rgb24, PixelFormat::Gray8)
+            .expect("white gray failed");
+        assert!(
+            gray.iter().all(|&v| v >= 254),
+            "pure white should yield luma ~255"
+        );
+
+        // Pure black
+        let black = vec![0u8; (W * H * 3) as usize];
+        let gray_black = accel
+            .convert_color(&black, W, H, PixelFormat::Rgb24, PixelFormat::Gray8)
+            .expect("black gray failed");
+        assert!(
+            gray_black.iter().all(|&v| v == 0),
+            "pure black should yield luma 0"
+        );
+    }
+
+    #[test]
+    fn test_unsupported_conversion_returns_error() {
+        let accel = CpuAccel::new();
+        let yuv422 = vec![0u8; (W * H + W / 2 * H * 2) as usize];
+        // Yuv422p to Yuv444p is not directly supported
+        let result = accel.convert_color(&yuv422, W, H, PixelFormat::Yuv422p, PixelFormat::Yuv444p);
+        assert!(result.is_err(), "unsupported pair should error");
+    }
 }

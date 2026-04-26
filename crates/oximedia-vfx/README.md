@@ -6,7 +6,7 @@ Professional video effects library for OxiMedia. Provides production-quality imp
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.5 — 2026-04-21 — 750 tests
+Version: 0.1.6 — 2026-04-26 — 750 tests
 
 ## Features
 
@@ -51,7 +51,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-vfx = "0.1.5"
+oximedia-vfx = "0.1.6"
 ```
 
 ```rust

@@ -1,6 +1,6 @@
 # oximedia-metadata
 
-**Status: [Stable]** | Version: 0.1.5 | Tests: 801 | Updated: 2026-04-21
+**Status: [Stable]** | Version: 0.1.6 | Tests: 801 | Updated: 2026-04-26
 
 Comprehensive metadata standards support for OxiMedia, parsing and writing all major media metadata formats including ID3v2, Vorbis Comments, APEv2, iTunes, XMP, EXIF, IPTC, QuickTime, and Matroska.
 
@@ -40,7 +40,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-metadata = "0.1.5"
+oximedia-metadata = "0.1.6"
 ```
 
 ```rust

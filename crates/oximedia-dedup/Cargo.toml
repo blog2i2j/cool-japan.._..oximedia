@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Media deduplication and duplicate detection for OxiMedia"
+keywords = ["deduplication", "multimedia", "video", "fingerprint", "detection"]
+categories = ["multimedia", "algorithms"]
 readme = "README.md"
 
 [lints]

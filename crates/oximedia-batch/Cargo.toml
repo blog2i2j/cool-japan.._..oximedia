@@ -8,6 +8,9 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Comprehensive batch processing engine for OxiMedia"
+keywords = ["batch", "workflow", "processing", "multimedia", "pipeline"]
+categories = ["multimedia", "algorithms"]
+readme = "README.md"
 
 [lints]
 workspace = true

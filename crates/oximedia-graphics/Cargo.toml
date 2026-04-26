@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Broadcast graphics engine for OxiMedia"
+keywords = ["graphics", "rendering", "compositing", "video", "multimedia"]
+categories = ["graphics", "multimedia"]
 readme = "README.md"
 
 [lints]

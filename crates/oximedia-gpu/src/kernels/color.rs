@@ -154,13 +154,41 @@ impl ColorConversionKernel {
                 height,
                 self.color_space.into(),
             ),
-            _ => {
-                // For other conversions, we would need to implement additional kernels
-                // For now, return an error
-                Err(crate::GpuError::NotSupported(format!(
-                    "Color conversion {:?} not yet implemented",
-                    self.conversion
-                )))
+            ColorConversion::RGBtoHSV => {
+                let result = crate::ops::ColorSpaceConversion::rgb_to_hsv(input, width, height);
+                let copy_len = result.len().min(output.len());
+                output[..copy_len].copy_from_slice(&result[..copy_len]);
+                Ok(())
+            }
+            ColorConversion::HSVtoRGB => {
+                let result = crate::ops::ColorSpaceConversion::hsv_to_rgb(input, width, height);
+                let copy_len = result.len().min(output.len());
+                output[..copy_len].copy_from_slice(&result[..copy_len]);
+                Ok(())
+            }
+            ColorConversion::RGBtoLab => {
+                let result = crate::ops::ColorSpaceConversion::rgb_to_lab(input, width, height);
+                let copy_len = result.len().min(output.len());
+                output[..copy_len].copy_from_slice(&result[..copy_len]);
+                Ok(())
+            }
+            ColorConversion::LabtoRGB => {
+                let result = crate::ops::ColorSpaceConversion::lab_to_rgb(input, width, height);
+                let copy_len = result.len().min(output.len());
+                output[..copy_len].copy_from_slice(&result[..copy_len]);
+                Ok(())
+            }
+            ColorConversion::SRGBtoLinear => {
+                let result = crate::ops::ColorSpaceConversion::srgb_to_linear(input, width, height);
+                let copy_len = result.len().min(output.len());
+                output[..copy_len].copy_from_slice(&result[..copy_len]);
+                Ok(())
+            }
+            ColorConversion::LinearToSRGB => {
+                let result = crate::ops::ColorSpaceConversion::linear_to_srgb(input, width, height);
+                let copy_len = result.len().min(output.len());
+                output[..copy_len].copy_from_slice(&result[..copy_len]);
+                Ok(())
             }
         }
     }

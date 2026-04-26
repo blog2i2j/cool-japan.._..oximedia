@@ -5,6 +5,9 @@ edition.workspace = true
 authors.workspace = true
 license.workspace = true
 description = "Hand-written assembly SIMD kernels for OxiMedia video codec"
+keywords = ["simd", "performance", "codec", "video", "multimedia"]
+categories = ["multimedia", "algorithms"]
+readme = "README.md"
 homepage.workspace = true
 repository.workspace = true
 

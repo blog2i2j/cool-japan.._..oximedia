@@ -144,6 +144,63 @@ impl SrtConnection {
         }
     }
 
+    /// Creates an `SrtConnection` from an already-bound UDP socket that has
+    /// received its first inbound packet.
+    ///
+    /// The socket is connected to `peer_addr` so that `send()` / `recv()`
+    /// work without explicit addressing.  The first raw UDP datagram
+    /// (`first_packet`) is decoded and fed through the SRT state machine
+    /// (INDUCTION phase) before returning, so that callers can immediately
+    /// proceed with `accept()` for the CONCLUSION phase.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error if `socket.connect` fails or if the first packet
+    /// triggers a protocol error.
+    pub async fn from_inbound(
+        socket: UdpSocket,
+        peer_addr: SocketAddr,
+        config: SrtConfig,
+        first_packet: Vec<u8>,
+    ) -> NetResult<Self> {
+        socket.connect(peer_addr).await?;
+
+        let srt_socket = SrtSocket::new(config.clone());
+        let initial_seq = srt_socket.send_seq;
+
+        let conn = Self {
+            socket: Arc::new(socket),
+            peer_addr,
+            state: Arc::new(Mutex::new(srt_socket)),
+            congestion: Arc::new(Mutex::new(CongestionControl::new(
+                config.flow_window,
+                config.flow_window,
+            ))),
+            loss_list: Arc::new(Mutex::new(LossList::new(1000))),
+            recv_buffer: Arc::new(Mutex::new(ReceiveBuffer::new(initial_seq, 1000))),
+            send_queue: Arc::new(Mutex::new(VecDeque::new())),
+            crypto: Arc::new(Mutex::new(None)),
+            last_keepalive: Arc::new(Mutex::new(Instant::now())),
+            read_buffer: Arc::new(Mutex::new(VecDeque::new())),
+        };
+
+        // Process the INDUCTION packet that was already received on the
+        // pre-bound socket.  Any responses (e.g. INDUCTION reply) are sent
+        // immediately so the peer does not time out waiting for an answer.
+        if let Ok(packet) = SrtPacket::decode(&first_packet) {
+            let responses = {
+                let mut state = conn.state.lock().await;
+                state.process_packet(packet)?
+            };
+
+            for response in responses {
+                conn.send_packet(&response).await?;
+            }
+        }
+
+        Ok(conn)
+    }
+
     /// Accepts an incoming SRT connection (listener mode).
     ///
     /// # Errors

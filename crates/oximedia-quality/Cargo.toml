@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Video quality assessment and objective metrics for OxiMedia"
+keywords = ["quality", "video", "metrics", "multimedia", "broadcast"]
+categories = ["multimedia::video", "multimedia"]
 readme = "README.md"
 
 [lints]
@@ -15,7 +17,6 @@ workspace = true
 
 [features]
 default = []
-vmaf-ffi = []
 
 [dependencies]
 oximedia-core = { workspace = true }

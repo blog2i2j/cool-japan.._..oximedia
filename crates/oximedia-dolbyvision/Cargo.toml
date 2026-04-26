@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Dolby Vision RPU metadata parser/writer for OxiMedia (metadata-only, respects Dolby IP)"
+keywords = ["dolby-vision", "hdr", "color", "video", "multimedia"]
+categories = ["multimedia::video", "multimedia"]
 readme = "README.md"
 
 [lints]

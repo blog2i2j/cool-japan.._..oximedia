@@ -6,7 +6,7 @@ Container format mux/demux for the OxiMedia multimedia framework — MP4, MKV, M
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.5 — 2026-04-21 — 1,183 tests
+Version: 0.1.6 — 2026-04-26 — 1,183 tests
 
 ## Overview
 
@@ -42,7 +42,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-container = "0.1.5"
+oximedia-container = "0.1.6"
 ```
 
 ### Format Detection

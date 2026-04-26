@@ -456,8 +456,11 @@ impl DenoiseOperation {
     }
 
     /// Bilateral filter — CPU fallback (edge-preserving denoising).
+    ///
+    /// Exposed as `pub(crate)` so that `FilterOperation` can delegate to this
+    /// implementation without duplicating the algorithm.
     #[allow(clippy::cast_possible_truncation)]
-    fn denoise_bilateral_cpu(
+    pub(crate) fn denoise_bilateral_cpu(
         input: &[u8],
         output: &mut [u8],
         width: u32,

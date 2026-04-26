@@ -1,6 +1,8 @@
 [package]
 name = "oximedia-stabilize"
 description = "Video stabilization algorithms for shaky footage correction"
+keywords = ["stabilization", "video", "processing", "multimedia", "filter"]
+categories = ["multimedia::video", "multimedia"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

@@ -1,6 +1,6 @@
 # oximedia-pipeline
 
-**Status: [Stable]** | Version: 0.1.5 | Tests: 273 | Updated: 2026-04-21
+**Status: [Stable]** | Version: 0.1.6 | Tests: 273 | Updated: 2026-04-26
 
 [![Crates.io](https://img.shields.io/crates/v/oximedia-pipeline.svg)](https://crates.io/crates/oximedia-pipeline)
 [![Docs.rs](https://docs.rs/oximedia-pipeline/badge.svg)](https://docs.rs/oximedia-pipeline)

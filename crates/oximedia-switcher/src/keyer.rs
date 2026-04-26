@@ -3,6 +3,7 @@
 //! Keyers allow compositing multiple video layers with transparency.
 
 use crate::chroma::{ChromaKey, ChromaKeyParams};
+use crate::composite::{apply_clip_gain_invert, attach_alpha_plane, composite_over};
 use crate::luma::{LumaKey, LumaKeyParams};
 use oximedia_codec::VideoFrame;
 use serde::{Deserialize, Serialize};
@@ -196,20 +197,51 @@ impl UpstreamKeyer {
     }
 
     /// Process video through the keyer.
-    #[allow(dead_code)]
+    ///
+    /// Returns a clone of `fill` with an alpha plane appended as the last plane.
+    /// The alpha plane is generated according to the configured keyer type:
+    ///
+    /// * `Luma`    — luma-based matte extracted from `fill`.
+    /// * `Chroma`  — chroma-based matte extracted from `fill`.
+    /// * `Linear`  — takes the first plane of the supplied `key` frame as alpha.
+    /// * `Pattern` — not yet supported; returns `ProcessingError`.
     pub fn process(
         &self,
-        _fill: &VideoFrame,
-        _key: Option<&VideoFrame>,
+        fill: &VideoFrame,
+        key: Option<&VideoFrame>,
     ) -> Result<VideoFrame, KeyerError> {
-        // In a real implementation, this would:
-        // 1. Apply the appropriate key type (luma, chroma, linear, pattern)
-        // 2. Generate alpha channel
-        // 3. Composite fill over background
-        // 4. Return processed frame
-
-        // Placeholder
-        Err(KeyerError::ProcessingError("Not implemented".to_string()))
+        match self.config.keyer_type {
+            KeyerType::Luma => {
+                let alpha = self
+                    .luma_key
+                    .process_frame(fill)
+                    .map_err(|e| KeyerError::ProcessingError(e.to_string()))?;
+                Ok(attach_alpha_plane(fill, alpha))
+            }
+            KeyerType::Chroma => {
+                let alpha = self
+                    .chroma_key
+                    .process_frame(fill)
+                    .map_err(|e| KeyerError::ProcessingError(e.to_string()))?;
+                Ok(attach_alpha_plane(fill, alpha))
+            }
+            KeyerType::Linear => {
+                let key_frame = key.ok_or(KeyerError::InvalidKeySource(self.config.id))?;
+                let alpha = key_frame
+                    .planes
+                    .first()
+                    .map(|p| p.data.clone())
+                    .ok_or_else(|| {
+                        KeyerError::ProcessingError(
+                            "key frame has no planes for linear keyer".to_string(),
+                        )
+                    })?;
+                Ok(attach_alpha_plane(fill, alpha))
+            }
+            KeyerType::Pattern => Err(KeyerError::ProcessingError(
+                "Pattern key requires a configured pattern generator".to_string(),
+            )),
+        }
     }
 }
 
@@ -315,20 +347,22 @@ impl DownstreamKeyer {
     }
 
     /// Process video through the DSK.
-    #[allow(dead_code)]
+    ///
+    /// Takes the first plane of `key` as the raw alpha matte, applies
+    /// `clip`/`gain`/`invert`, then composites `fill` over `program`.
     pub fn process(
         &self,
-        _program: &VideoFrame,
-        _fill: &VideoFrame,
-        _key: &VideoFrame,
+        program: &VideoFrame,
+        fill: &VideoFrame,
+        key: &VideoFrame,
     ) -> Result<VideoFrame, KeyerError> {
-        // In a real implementation, this would:
-        // 1. Process the key signal with clip/gain/invert
-        // 2. Use key as alpha to composite fill over program
-        // 3. Return composited frame
+        let mut alpha = key.planes.first().map(|p| p.data.clone()).ok_or_else(|| {
+            KeyerError::ProcessingError("key frame has no planes for DSK".to_string())
+        })?;
 
-        // Placeholder
-        Err(KeyerError::ProcessingError("Not implemented".to_string()))
+        apply_clip_gain_invert(&mut alpha, self.clip, self.gain, self.invert);
+
+        composite_over(fill, program, &alpha)
     }
 }
 
@@ -617,6 +651,213 @@ mod tests {
 
         dsk.auto_transition(30).expect("should succeed in test");
         assert!(!dsk.is_on_air());
+    }
+
+    // -----------------------------------------------------------------------
+    // process() tests for UpstreamKeyer and DownstreamKeyer
+    // -----------------------------------------------------------------------
+
+    use oximedia_codec::{Plane, VideoFrame};
+    use oximedia_core::{PixelFormat, Rational, Timestamp};
+
+    /// Build a minimal single-plane RGB24 VideoFrame filled with `val`.
+    fn make_rgb24(w: u32, h: u32, val: u8) -> VideoFrame {
+        let mut f = VideoFrame::new(PixelFormat::Rgb24, w, h);
+        f.timestamp = Timestamp::new(0, Rational::new(1, 1000));
+        f.planes.push(Plane::with_dimensions(
+            vec![val; (w * h * 3) as usize],
+            (w * 3) as usize,
+            w,
+            h,
+        ));
+        f
+    }
+
+    /// Build a single-plane frame that carries a raw alpha matte (1 byte/pixel).
+    fn make_alpha_frame(w: u32, h: u32, val: u8) -> VideoFrame {
+        let mut f = VideoFrame::new(PixelFormat::Rgb24, w, h);
+        f.timestamp = Timestamp::new(0, Rational::new(1, 1000));
+        f.planes.push(Plane::with_dimensions(
+            vec![val; (w * h) as usize],
+            w as usize,
+            w,
+            h,
+        ));
+        f
+    }
+
+    #[test]
+    fn test_upstream_luma_returns_extra_alpha_plane() {
+        let w = 4u32;
+        let h = 4u32;
+        let fill = make_rgb24(w, h, 200);
+        let original_plane_count = fill.planes.len();
+
+        let usk = UpstreamKeyer::new(0, KeyerType::Luma, 0);
+        let result = usk
+            .process(&fill, None)
+            .expect("luma upstream must succeed");
+
+        assert_eq!(
+            result.planes.len(),
+            original_plane_count + 1,
+            "luma upstream must append exactly one alpha plane"
+        );
+    }
+
+    #[test]
+    fn test_upstream_chroma_returns_extra_alpha_plane() {
+        let w = 4u32;
+        let h = 4u32;
+        let fill = make_rgb24(w, h, 128);
+        let original_plane_count = fill.planes.len();
+
+        let usk = UpstreamKeyer::new(0, KeyerType::Chroma, 0);
+        let result = usk
+            .process(&fill, None)
+            .expect("chroma upstream must succeed");
+
+        assert_eq!(
+            result.planes.len(),
+            original_plane_count + 1,
+            "chroma upstream must append exactly one alpha plane"
+        );
+    }
+
+    #[test]
+    fn test_upstream_linear_with_explicit_key() {
+        let w = 4u32;
+        let h = 4u32;
+        let fill = make_rgb24(w, h, 100);
+        let key = make_alpha_frame(w, h, 200);
+        let original_plane_count = fill.planes.len();
+
+        let usk = UpstreamKeyer::new(0, KeyerType::Linear, 0);
+        let result = usk
+            .process(&fill, Some(&key))
+            .expect("linear upstream with key must succeed");
+
+        assert_eq!(
+            result.planes.len(),
+            original_plane_count + 1,
+            "linear upstream must append exactly one alpha plane"
+        );
+        // Alpha data must come from the key frame's first plane.
+        let alpha_plane = result.planes.last().expect("last plane must exist");
+        assert!(
+            alpha_plane.data.iter().all(|&b| b == 200),
+            "alpha plane data must match key frame values"
+        );
+    }
+
+    #[test]
+    fn test_upstream_linear_missing_key_returns_invalid_key_source() {
+        let w = 4u32;
+        let h = 4u32;
+        let fill = make_rgb24(w, h, 100);
+
+        let usk = UpstreamKeyer::new(7, KeyerType::Linear, 0);
+        let err = usk
+            .process(&fill, None)
+            .expect_err("linear upstream without key must fail");
+
+        assert!(
+            matches!(err, KeyerError::InvalidKeySource(7)),
+            "error must be InvalidKeySource with the keyer id, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_upstream_pattern_returns_processing_error() {
+        let w = 4u32;
+        let h = 4u32;
+        let fill = make_rgb24(w, h, 100);
+
+        let usk = UpstreamKeyer::new(0, KeyerType::Pattern, 0);
+        let err = usk
+            .process(&fill, None)
+            .expect_err("pattern upstream must fail with ProcessingError");
+
+        assert!(
+            matches!(err, KeyerError::ProcessingError(_)),
+            "error must be ProcessingError, got {err:?}"
+        );
+    }
+
+    #[test]
+    fn test_downstream_keyer_round_trip() {
+        let w = 4u32;
+        let h = 4u32;
+
+        // program = 50, fill = 200, key alpha = 255 (fully opaque)
+        let program = make_rgb24(w, h, 50);
+        let fill = make_rgb24(w, h, 200);
+        let key = make_alpha_frame(w, h, 255);
+
+        let mut dsk = DownstreamKeyer::new(0, 0, 0);
+        // clip=0 so no clipping, gain=1.0, invert=false
+        dsk.set_clip(0.0);
+        dsk.set_gain(1.0);
+
+        let result = dsk
+            .process(&program, &fill, &key)
+            .expect("DSK process must succeed");
+
+        // With fully-opaque alpha, result must match fill (200).
+        for byte in &result.planes[0].data {
+            assert_eq!(*byte, 200, "full alpha DSK must output fill values");
+        }
+    }
+
+    #[test]
+    fn test_downstream_keyer_zero_alpha_passes_program_through() {
+        let w = 4u32;
+        let h = 4u32;
+
+        let program = make_rgb24(w, h, 50);
+        let fill = make_rgb24(w, h, 200);
+        let key = make_alpha_frame(w, h, 0); // fully transparent
+
+        let mut dsk = DownstreamKeyer::new(0, 0, 0);
+        dsk.set_clip(0.0);
+        dsk.set_gain(1.0);
+
+        let result = dsk
+            .process(&program, &fill, &key)
+            .expect("DSK process must succeed");
+
+        // With zero alpha, result must equal program (50).
+        for byte in &result.planes[0].data {
+            assert_eq!(*byte, 50, "zero alpha DSK must output program values");
+        }
+    }
+
+    #[test]
+    fn test_downstream_keyer_invert_flips_alpha() {
+        let w = 4u32;
+        let h = 4u32;
+
+        let program = make_rgb24(w, h, 50);
+        let fill = make_rgb24(w, h, 200);
+        // key alpha = 255 (fully opaque), but invert=true → becomes 0 (transparent)
+        let key = make_alpha_frame(w, h, 255);
+
+        let mut dsk = DownstreamKeyer::new(0, 0, 0);
+        dsk.set_clip(0.0);
+        dsk.set_gain(1.0);
+        dsk.set_invert(true);
+
+        let result = dsk
+            .process(&program, &fill, &key)
+            .expect("DSK process with invert must succeed");
+
+        // After invert, alpha becomes 0 → output must equal program (50).
+        for byte in &result.planes[0].data {
+            assert_eq!(
+                *byte, 50,
+                "inverted full alpha DSK must output program values"
+            );
+        }
     }
 }
 

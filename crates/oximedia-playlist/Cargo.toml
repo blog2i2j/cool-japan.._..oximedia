@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Broadcast playlist and scheduling system for OxiMedia"
+keywords = ["streaming", "multimedia", "network", "video", "hls"]
+categories = ["multimedia", "network-programming"]
 readme = "README.md"
 
 [lints]

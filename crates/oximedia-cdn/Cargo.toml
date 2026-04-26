@@ -8,6 +8,7 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "CDN edge management, cache invalidation, and origin failover for OxiMedia"
+readme = "README.md"
 keywords = ["cdn", "edge", "cache-invalidation", "failover", "multimedia"]
 categories = ["multimedia", "network-programming", "web-programming"]
 

@@ -8,7 +8,7 @@
 
 Part of the [OxiMedia](https://github.com/cool-japan/oximedia) sovereign media framework.
 
-Version: 0.1.5 — 2026-04-21 — 544 tests
+Version: 0.1.6 — 2026-04-26 — 544 tests
 
 ## Features
 

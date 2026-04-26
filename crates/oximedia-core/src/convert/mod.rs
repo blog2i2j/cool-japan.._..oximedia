@@ -39,6 +39,8 @@
 pub mod audio;
 pub mod pixel;
 pub mod simd_pixel;
+#[cfg(target_arch = "x86_64")]
+pub(crate) mod simd_pixel_sse41;
 
 pub use audio::{
     convert_sample_format, interleaved_to_planar, planar_to_interleaved, AudioConverter,

@@ -717,6 +717,213 @@ pub fn gaussian_blur_separable_parallel(
     Ok(())
 }
 
+// ---------------------------------------------------------------------------
+// CPU-side box blur (separable sliding-sum, O(w*h) per channel)
+// ---------------------------------------------------------------------------
+
+/// CPU box blur: separable two-pass sliding-sum, O(w×h) per channel.
+///
+/// Border pixels are handled via clamped (replicate-border) indexing.
+/// The horizontal pass builds an intermediate `u32` buffer; the vertical pass
+/// writes into the final `Vec<u8>`.
+///
+/// # Errors
+///
+/// Returns an error if the buffer length does not match `width × height × channels`.
+pub fn box_blur(
+    data: &[u8],
+    width: u32,
+    height: u32,
+    channels: u32,
+    radius: u32,
+) -> crate::Result<Vec<u8>> {
+    let w = width as usize;
+    let h = height as usize;
+    let ch = channels as usize;
+    let expected = w * h * ch;
+    if data.len() != expected {
+        return Err(crate::GpuError::InvalidBufferSize {
+            expected,
+            actual: data.len(),
+        });
+    }
+    if w == 0 || h == 0 {
+        return Ok(data.to_vec());
+    }
+
+    let r = radius as isize;
+
+    // --- Horizontal pass ---
+    // For each (row, col, channel): average over columns [col-r .. col+r] (clamped).
+    // Use a sliding-sum that tracks left/right clamped edges.
+    let mut h_pass = vec![0u32; w * h * ch];
+    for row in 0..h {
+        for c in 0..ch {
+            // Build initial window sum for col = 0.
+            let right0 = r.min(w as isize - 1) as usize;
+            let mut window_sum: u32 = 0;
+            for kc in 0..=right0 {
+                window_sum += u32::from(data[(row * w + kc) * ch + c]);
+            }
+
+            for col in 0..w {
+                // Compute the actual left/right clamped boundaries for this col.
+                let left = (col as isize - r).max(0) as usize;
+                let right = (col as isize + r).min(w as isize - 1) as usize;
+
+                if col > 0 {
+                    // Previous column's boundaries.
+                    let prev_left = ((col as isize - 1) - r).max(0) as usize;
+                    let prev_right = ((col as isize - 1) + r).min(w as isize - 1) as usize;
+                    // Remove pixel that dropped off the left.
+                    if left > prev_left {
+                        window_sum -= u32::from(data[(row * w + prev_left) * ch + c]);
+                    }
+                    // Add pixel that entered on the right.
+                    if right > prev_right {
+                        window_sum += u32::from(data[(row * w + right) * ch + c]);
+                    }
+                }
+
+                let window_len = (right - left + 1) as u32;
+                // Round-to-nearest division.
+                h_pass[(row * w + col) * ch + c] = (window_sum + window_len / 2) / window_len;
+            }
+        }
+    }
+
+    // --- Vertical pass ---
+    // For each (row, col, channel): average over rows [row-r .. row+r] (clamped).
+    let mut output = vec![0u8; expected];
+    for col in 0..w {
+        for c in 0..ch {
+            // Build initial window sum for row = 0.
+            let bot0 = r.min(h as isize - 1) as usize;
+            let mut window_sum: u32 = 0;
+            for kr in 0..=bot0 {
+                window_sum += h_pass[(kr * w + col) * ch + c];
+            }
+
+            for row in 0..h {
+                let top = (row as isize - r).max(0) as usize;
+                let bot = (row as isize + r).min(h as isize - 1) as usize;
+
+                if row > 0 {
+                    let prev_top = ((row as isize - 1) - r).max(0) as usize;
+                    let prev_bot = ((row as isize - 1) + r).min(h as isize - 1) as usize;
+                    if top > prev_top {
+                        window_sum -= h_pass[(prev_top * w + col) * ch + c];
+                    }
+                    if bot > prev_bot {
+                        window_sum += h_pass[(bot * w + col) * ch + c];
+                    }
+                }
+
+                let window_len = (bot - top + 1) as u32;
+                let avg = (window_sum + window_len / 2) / window_len;
+                output[(row * w + col) * ch + c] = avg.clamp(0, 255) as u8;
+            }
+        }
+    }
+
+    Ok(output)
+}
+
+// ---------------------------------------------------------------------------
+// CPU-side median filter
+// ---------------------------------------------------------------------------
+
+/// CPU median filter: sorts a `(2r+1)×(2r+1)` neighbourhood per pixel/channel.
+///
+/// Border pixels use clamped neighbour coordinates (replicate border).
+///
+/// # Errors
+///
+/// Returns an error if the buffer length does not match `width × height × channels`.
+pub fn median_filter(
+    data: &[u8],
+    width: u32,
+    height: u32,
+    channels: u32,
+    radius: u32,
+) -> crate::Result<Vec<u8>> {
+    let w = width as usize;
+    let h = height as usize;
+    let ch = channels as usize;
+    let expected = w * h * ch;
+    if data.len() != expected {
+        return Err(crate::GpuError::InvalidBufferSize {
+            expected,
+            actual: data.len(),
+        });
+    }
+    if w == 0 || h == 0 {
+        return Ok(data.to_vec());
+    }
+
+    let r = radius as isize;
+    let window_len = ((2 * r + 1) * (2 * r + 1)) as usize;
+    let mut output = vec![0u8; expected];
+
+    for row in 0..h {
+        for col in 0..w {
+            for c in 0..ch {
+                let mut window: Vec<u8> = Vec::with_capacity(window_len);
+                for dy in -r..=r {
+                    for dx in -r..=r {
+                        let sr = (row as isize + dy).clamp(0, h as isize - 1) as usize;
+                        let sc = (col as isize + dx).clamp(0, w as isize - 1) as usize;
+                        window.push(data[(sr * w + sc) * ch + c]);
+                    }
+                }
+                window.sort_unstable();
+                output[(row * w + col) * ch + c] = window[window.len() / 2];
+            }
+        }
+    }
+
+    Ok(output)
+}
+
+// ---------------------------------------------------------------------------
+// CPU-side bilateral filter wrapper (delegates to DenoiseOperation)
+// ---------------------------------------------------------------------------
+
+/// CPU bilateral filter: edge-preserving spatial filter.
+///
+/// Delegates to `denoise_bilateral_cpu` so
+/// there is a single canonical implementation.
+///
+/// # Errors
+///
+/// Returns an error if the buffer length does not match `width × height × channels`,
+/// or if `channels != 4` (the bilateral implementation is RGBA-only).
+pub fn bilateral_filter(
+    data: &[u8],
+    width: u32,
+    height: u32,
+    channels: u32,
+    sigma_spatial: f32,
+    sigma_range: f32,
+) -> crate::Result<Vec<u8>> {
+    if channels != 4 {
+        return Err(crate::GpuError::NotSupported(format!(
+            "bilateral_filter requires channels == 4, got {channels}"
+        )));
+    }
+    utils::validate_buffer_size(data, width, height, 4)?;
+    let mut output = vec![0u8; data.len()];
+    super::DenoiseOperation::denoise_bilateral_cpu(
+        data,
+        &mut output,
+        width,
+        height,
+        sigma_spatial,
+        sigma_range,
+    )?;
+    Ok(output)
+}
+
 /// Compare two RGBA u8 buffers and return the maximum absolute channel difference.
 ///
 /// Useful for verifying that the separable serial and parallel implementations
@@ -1007,5 +1214,163 @@ mod tests {
         let b = vec![90u8, 210, 50, 255];
         let diff = max_channel_diff(&a, &b);
         assert_eq!(diff, 10);
+    }
+
+    // ── box_blur tests ────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_box_blur_uniform() {
+        // A 4×4 image filled with value 128 (3 RGB channels) should pass through
+        // unchanged — the box average of identical values is the same value.
+        let w = 4u32;
+        let h = 4u32;
+        let ch = 3u32;
+        let value: u8 = 128;
+        let input = vec![value; (w * h * ch) as usize];
+        let output = box_blur(&input, w, h, ch, 2).expect("box_blur should succeed");
+        for (i, &v) in output.iter().enumerate() {
+            assert!(
+                (v as i32 - value as i32).abs() <= 1,
+                "pixel byte {i}: expected {value}, got {v}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_box_blur_spike() {
+        // 7×7 dark image (value 0) with a single bright pixel at the centre.
+        // After box blur with radius=1 the centre value should decrease and its
+        // 8-neighbours should become > 0.
+        let w = 7u32;
+        let h = 7u32;
+        let ch = 1u32;
+        let mut input = vec![0u8; (w * h * ch) as usize];
+        let cx = 3usize;
+        let cy = 3usize;
+        input[cy * w as usize + cx] = 255;
+
+        let output = box_blur(&input, w, h, ch, 1).expect("box_blur spike should succeed");
+
+        // Centre must be reduced.
+        let centre = output[cy * w as usize + cx];
+        assert!(
+            centre < 255,
+            "centre pixel should be reduced after box blur, got {centre}"
+        );
+
+        // At least one immediate neighbour must be > 0.
+        let right = output[cy * w as usize + cx + 1];
+        let below = output[(cy + 1) * w as usize + cx];
+        assert!(
+            right > 0 || below > 0,
+            "neighbours should receive energy; right={right}, below={below}"
+        );
+    }
+
+    #[test]
+    fn test_box_blur_size_mismatch_returns_error() {
+        // Buffer length that does not match w * h * ch should return an error.
+        let result = box_blur(&[0u8; 10], 4, 4, 1, 1);
+        assert!(result.is_err(), "expected error on size mismatch");
+    }
+
+    // ── median_filter tests ───────────────────────────────────────────────────
+
+    #[test]
+    fn test_median_removes_outlier() {
+        // 5×5 single-channel image where all pixels are 100 except the centre,
+        // which is 255. Median with radius=1 over a 3×3 window of 100-values
+        // should remove the outlier (the median of [100,100,...,255] is 100).
+        let w = 5u32;
+        let h = 5u32;
+        let ch = 1u32;
+        let mut input = vec![100u8; (w * h * ch) as usize];
+        let cx = 2usize;
+        let cy = 2usize;
+        input[cy * w as usize + cx] = 255; // outlier
+
+        let output = median_filter(&input, w, h, ch, 1).expect("median_filter should succeed");
+
+        let centre = output[cy * w as usize + cx];
+        assert_eq!(
+            centre, 100,
+            "median should remove the outlier; centre={centre}"
+        );
+    }
+
+    #[test]
+    fn test_median_uniform_image() {
+        // Uniform image must be preserved exactly.
+        let w = 4u32;
+        let h = 4u32;
+        let ch = 4u32;
+        let input = vec![77u8; (w * h * ch) as usize];
+        let output = median_filter(&input, w, h, ch, 2).expect("median_filter uniform");
+        assert!(output.iter().all(|&v| v == 77));
+    }
+
+    #[test]
+    fn test_median_size_mismatch_returns_error() {
+        let result = median_filter(&[0u8; 5], 4, 4, 1, 1);
+        assert!(result.is_err(), "expected error on size mismatch");
+    }
+
+    // ── bilateral_filter tests ────────────────────────────────────────────────
+
+    #[test]
+    fn test_bilateral_edge_preserving() {
+        // Left half of a 10×10 RGBA image is black (0), right half is white (255).
+        // Bilateral filter with a large sigma_range should preserve the edge:
+        // pixels well away from the boundary should stay close to their original value.
+        let w = 10u32;
+        let h = 10u32;
+        let mut input = vec![0u8; (w * h * 4) as usize];
+        for row in 0..h as usize {
+            for col in 0..w as usize {
+                let v: u8 = if col >= 5 { 255 } else { 0 };
+                let base = (row * w as usize + col) * 4;
+                input[base] = v;
+                input[base + 1] = v;
+                input[base + 2] = v;
+                input[base + 3] = 255;
+            }
+        }
+
+        // sigma_spatial=2 (small neighbourhood), sigma_range=10 (tight range gate
+        // ⇒ edge preserved well).
+        let output =
+            bilateral_filter(&input, w, h, 4, 2.0, 10.0).expect("bilateral_filter should succeed");
+
+        // Pixels in the interior of the black half should remain close to 0.
+        for row in 0..h as usize {
+            let col = 1usize; // well inside black half
+            let base = (row * w as usize + col) * 4;
+            for c in 0..3 {
+                assert!(
+                    output[base + c] < 64,
+                    "row={row} col={col} ch={c}: expected near 0, got {}",
+                    output[base + c]
+                );
+            }
+        }
+
+        // Pixels in the interior of the white half should remain close to 255.
+        for row in 0..h as usize {
+            let col = 8usize; // well inside white half
+            let base = (row * w as usize + col) * 4;
+            for c in 0..3 {
+                assert!(
+                    output[base + c] > 191,
+                    "row={row} col={col} ch={c}: expected near 255, got {}",
+                    output[base + c]
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_bilateral_wrong_channels_returns_error() {
+        let result = bilateral_filter(&[0u8; 9], 3, 3, 1, 2.0, 30.0);
+        assert!(result.is_err(), "bilateral requires channels == 4");
     }
 }

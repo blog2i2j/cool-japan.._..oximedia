@@ -8,6 +8,9 @@ homepage.workspace = true
 repository.workspace = true
 authors.workspace = true
 description = "Distributed encoding farm coordinator for OxiMedia - production-grade job management and worker coordination"
+keywords = ["workflow", "batch", "processing", "multimedia", "pipeline"]
+categories = ["multimedia", "algorithms"]
+readme = "README.md"
 
 [lints]
 workspace = true

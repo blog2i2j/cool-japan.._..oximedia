@@ -14,7 +14,7 @@ pub mod transform;
 pub use chroma::{ChromaOps, ChromaSubsampling, YcbcrCoefficients};
 pub use colorspace::{ColorSpace, ColorSpaceConversion};
 pub use denoise::{DenoiseAlgorithm, DenoiseKernel, DenoiseOperation};
-pub use filter::FilterOperation;
+pub use filter::{bilateral_filter, box_blur, median_filter, FilterOperation};
 pub use histogram_eq::{EqualizationMode, HistogramEqualizer, HistogramEqualizerConfig};
 pub use quality_metrics::{
     compute_ms_ssim, compute_psnr, compute_ssim, MsSsimResult, PsnrResult, SsimResult,

@@ -8,6 +8,9 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Audio codec implementations for OxiMedia"
+keywords = ["audio", "codec", "sound", "dsp", "multimedia"]
+categories = ["multimedia::audio", "multimedia"]
+readme = "README.md"
 
 [lints]
 workspace = true

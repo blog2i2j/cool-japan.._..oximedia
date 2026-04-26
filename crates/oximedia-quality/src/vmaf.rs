@@ -5,8 +5,7 @@
 //! Support Vector Machine (SVM) regression model.
 //!
 //! This implementation provides a simplified pure-Rust version that approximates
-//! VMAF using VIF and other metrics. For production use, consider using libvmaf
-//! via FFI (enable the `vmaf-ffi` feature).
+//! VMAF using VIF and other metrics.
 //!
 //! # Reference
 //!
@@ -207,47 +206,6 @@ impl VmafCalculator {
 impl Default for VmafCalculator {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-/// FFI bindings to libvmaf (optional, requires `vmaf-ffi` feature).
-#[cfg(feature = "vmaf-ffi")]
-pub mod ffi {
-    //! FFI bindings to libvmaf.
-    //!
-    //! This module is only available when the `vmaf-ffi` feature is enabled.
-    //! It provides bindings to the official libvmaf library for production use.
-
-    use super::{Frame, OxiResult, QualityScore};
-
-    /// VMAF calculator using libvmaf FFI.
-    pub struct VmafFfiCalculator {
-        // Placeholder for FFI state
-        _private: (),
-    }
-
-    impl VmafFfiCalculator {
-        /// Creates a new FFI-based VMAF calculator.
-        #[must_use]
-        pub fn new() -> Self {
-            // In a real implementation, this would initialize libvmaf
-            Self { _private: () }
-        }
-
-        /// Calculates VMAF using libvmaf.
-        #[allow(dead_code)]
-        pub fn calculate(&self, _reference: &Frame, _distorted: &Frame) -> OxiResult<QualityScore> {
-            // Placeholder for FFI implementation
-            Err(oximedia_core::OxiError::Unsupported(
-                "VMAF FFI not yet implemented".to_string(),
-            ))
-        }
-    }
-
-    impl Default for VmafFfiCalculator {
-        fn default() -> Self {
-            Self::new()
-        }
     }
 }
 

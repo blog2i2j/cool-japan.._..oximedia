@@ -720,6 +720,210 @@ pub fn lens_undistort(
 }
 
 // =============================================================================
+// CPU-side geometric (pixel-level) transforms (rotate, flip, transpose)
+// =============================================================================
+
+impl TransformOperation {
+    /// Copy one pixel from `src` to `dst`, using interleaved layout.
+    ///
+    /// All coordinates are 0-indexed.  `src_w` is the *source* image width and
+    /// `dst_w` is the *destination* image width (both in pixels).  `ch` is the
+    /// number of bytes per pixel.
+    #[inline]
+    fn copy_pixel(
+        src: &[u8],
+        dst: &mut [u8],
+        src_x: u32,
+        src_y: u32,
+        dst_x: u32,
+        dst_y: u32,
+        src_w: u32,
+        dst_w: u32,
+        ch: u32,
+    ) {
+        let src_off = ((src_y * src_w + src_x) * ch) as usize;
+        let dst_off = ((dst_y * dst_w + dst_x) * ch) as usize;
+        dst[dst_off..dst_off + ch as usize].copy_from_slice(&src[src_off..src_off + ch as usize]);
+    }
+
+    /// Rotate an interleaved pixel image 90° clockwise.
+    ///
+    /// Output dimensions are swapped: `out_width = height`, `out_height = width`.
+    ///
+    /// Pixel mapping: `output(x, y) = input(y, width_out - 1 - x)` where
+    /// `width_out = height`.
+    ///
+    /// # Arguments
+    ///
+    /// * `data` – packed pixel buffer (interleaved, `channels` bytes per pixel)
+    /// * `width` – source image width in pixels
+    /// * `height` – source image height in pixels
+    /// * `channels` – bytes per pixel (e.g. 3 for RGB, 4 for RGBA)
+    ///
+    /// # Panics
+    ///
+    /// Panics in debug mode if `data.len() != width * height * channels`.
+    #[must_use]
+    pub fn rotate90(data: &[u8], width: u32, height: u32, channels: u32) -> Vec<u8> {
+        // After 90° CW: out_width = in_height, out_height = in_width
+        let out_width = height;
+        let out_height = width;
+        let mut out = vec![0u8; (out_width * out_height * channels) as usize];
+
+        for src_y in 0..height {
+            for src_x in 0..width {
+                // 90° CW: dst_x = height - 1 - src_y ... wait, let's derive carefully.
+                // Clockwise 90°: new_x = (in_height - 1 - src_y) is wrong.
+                // The standard derivation for CW 90°:
+                //   src (col=x, row=y) → dst (col=height-1-y, row=x)
+                //   i.e. dst_x = src_y, dst_y = (width - 1 - src_x)
+                // Verify: src(0,0) → dst_x=0, dst_y=width-1  ← top-left goes to bottom-left of output
+                // That matches CW rotation where (0,0) ends at bottom-left of the output.
+                // Actually let's verify with a 3x1 image rotated 90° CW:
+                //   Input (width=3, height=1):  [A B C] (row 0)
+                //   Output (width=1, height=3):  col 0: row0=C, row1=B, row2=A
+                //   So output pixel at (x=0, y=0) = input(width-1-0, 0) = input(2,0)=C ✓
+                //   using: dst_x=src_y, dst_y=(in_width-1-src_x):
+                //     src(0,0): dst_x=0, dst_y=2 → output(0,2)=A ✓ (A at row2)
+                //     src(1,0): dst_x=0, dst_y=1 → output(0,1)=B ✓
+                //     src(2,0): dst_x=0, dst_y=0 → output(0,0)=C ✓
+                let dst_x = src_y;
+                let dst_y = width - 1 - src_x;
+                Self::copy_pixel(
+                    data, &mut out, src_x, src_y, dst_x, dst_y, width, out_width, channels,
+                );
+            }
+        }
+
+        out
+    }
+
+    /// Rotate an interleaved pixel image 180°.
+    ///
+    /// Output dimensions are the same as input.
+    ///
+    /// Pixel mapping: `output(x, y) = input(width-1-x, height-1-y)`.
+    #[must_use]
+    pub fn rotate180(data: &[u8], width: u32, height: u32, channels: u32) -> Vec<u8> {
+        let mut out = vec![0u8; (width * height * channels) as usize];
+
+        for src_y in 0..height {
+            for src_x in 0..width {
+                let dst_x = width - 1 - src_x;
+                let dst_y = height - 1 - src_y;
+                Self::copy_pixel(
+                    data, &mut out, src_x, src_y, dst_x, dst_y, width, width, channels,
+                );
+            }
+        }
+
+        out
+    }
+
+    /// Rotate an interleaved pixel image 270° clockwise (= 90° counter-clockwise).
+    ///
+    /// Output dimensions are swapped: `out_width = height`, `out_height = width`.
+    ///
+    /// Pixel mapping: `output(x, y) = input(height-1-y, x)`.
+    #[must_use]
+    pub fn rotate270(data: &[u8], width: u32, height: u32, channels: u32) -> Vec<u8> {
+        // After 270° CW (= 90° CCW): out_width = in_height, out_height = in_width
+        let out_width = height;
+        let out_height = width;
+        let mut out = vec![0u8; (out_width * out_height * channels) as usize];
+
+        for src_y in 0..height {
+            for src_x in 0..width {
+                // 270° CW derivation:
+                //   src (col=x, row=y) → dst (col=in_height-1-src_y, row=src_x)
+                //   i.e. dst_x = height-1-src_y, dst_y = src_x
+                // Verify with 3x1 (width=3, height=1) rotated 270° CW:
+                //   Output (width=1, height=3): row0=A, row1=B, row2=C
+                //   src(0,0): dst_x=0, dst_y=0 → output(0,0)=A ✓
+                //   src(1,0): dst_x=0, dst_y=1 → output(0,1)=B ✓
+                //   src(2,0): dst_x=0, dst_y=2 → output(0,2)=C ✓
+                let dst_x = height - 1 - src_y;
+                let dst_y = src_x;
+                Self::copy_pixel(
+                    data, &mut out, src_x, src_y, dst_x, dst_y, width, out_width, channels,
+                );
+            }
+        }
+
+        out
+    }
+
+    /// Flip an interleaved pixel image horizontally (mirror left-right).
+    ///
+    /// Output dimensions are the same as input.
+    ///
+    /// Pixel mapping: `output(x, y) = input(width-1-x, y)`.
+    #[must_use]
+    pub fn flip_horizontal(data: &[u8], width: u32, height: u32, channels: u32) -> Vec<u8> {
+        let mut out = vec![0u8; (width * height * channels) as usize];
+
+        for src_y in 0..height {
+            for src_x in 0..width {
+                let dst_x = width - 1 - src_x;
+                Self::copy_pixel(
+                    data, &mut out, src_x, src_y, dst_x, src_y, width, width, channels,
+                );
+            }
+        }
+
+        out
+    }
+
+    /// Flip an interleaved pixel image vertically (mirror top-bottom).
+    ///
+    /// Output dimensions are the same as input.
+    ///
+    /// Pixel mapping: `output(x, y) = input(x, height-1-y)`.
+    #[must_use]
+    pub fn flip_vertical(data: &[u8], width: u32, height: u32, channels: u32) -> Vec<u8> {
+        let mut out = vec![0u8; (width * height * channels) as usize];
+
+        for src_y in 0..height {
+            for src_x in 0..width {
+                let dst_y = height - 1 - src_y;
+                Self::copy_pixel(
+                    data, &mut out, src_x, src_y, src_x, dst_y, width, width, channels,
+                );
+            }
+        }
+
+        out
+    }
+
+    /// Transpose an interleaved pixel image (swap x and y axes).
+    ///
+    /// Output dimensions are swapped: `out_width = height`, `out_height = width`.
+    ///
+    /// Pixel mapping: `output(x, y) = input(y, x)`.
+    #[must_use]
+    pub fn transpose(data: &[u8], width: u32, height: u32, channels: u32) -> Vec<u8> {
+        // After transpose: out_width = in_height, out_height = in_width
+        let out_width = height;
+        let out_height = width;
+        let mut out = vec![0u8; (out_width * out_height * channels) as usize];
+
+        for src_y in 0..height {
+            for src_x in 0..width {
+                // output(x, y) = input(y, x)
+                // dst_x = src_y, dst_y = src_x
+                let dst_x = src_y;
+                let dst_y = src_x;
+                Self::copy_pixel(
+                    data, &mut out, src_x, src_y, dst_x, dst_y, width, out_width, channels,
+                );
+            }
+        }
+
+        out
+    }
+}
+
+// =============================================================================
 // Tests for perspective transform and lens distortion (Task 8)
 // =============================================================================
 
@@ -907,5 +1111,124 @@ mod tests {
         let params = LensDistortionParams::no_distortion(4, 4);
         let result = lens_undistort(&src, 0, 4, &mut dst, &params, [0; 4]);
         assert!(result.is_err());
+    }
+
+    // ── Geometric transforms ───────────────────────────────────────────────────
+
+    /// Build a test image where every pixel has a unique value based on its
+    /// (x, y) coordinates.  Pixel at (x, y) in an image of width `w` gets
+    /// value `[y as u8, x as u8, (y*w+x) as u8]` using 3 channels.
+    fn make_test_image_3ch(w: u32, h: u32) -> Vec<u8> {
+        let mut buf = vec![0u8; (w * h * 3) as usize];
+        for y in 0..h {
+            for x in 0..w {
+                let off = ((y * w + x) * 3) as usize;
+                buf[off] = y as u8;
+                buf[off + 1] = x as u8;
+                buf[off + 2] = (y * w + x) as u8;
+            }
+        }
+        buf
+    }
+
+    #[test]
+    fn test_rotate90_dimensions() {
+        // A 3×5 image rotated 90° CW should produce a 5×3 image.
+        let img = make_test_image_3ch(3, 5);
+        let out = TransformOperation::rotate90(&img, 3, 5, 3);
+        // out_width = in_height = 5, out_height = in_width = 3
+        assert_eq!(
+            out.len(),
+            (5 * 3 * 3) as usize,
+            "output buffer size mismatch"
+        );
+    }
+
+    #[test]
+    fn test_rotate90_corner() {
+        // Source image 4×2 (width=4, height=2), 3-channel.
+        // After 90° CW: out_width=2, out_height=4.
+        // src(0,0) → dst_x=src_y=0, dst_y=width-1-src_x=3 → dst(0,3)
+        let w: u32 = 4;
+        let h: u32 = 2;
+        let ch: u32 = 3;
+        let mut img = vec![0u8; (w * h * ch) as usize];
+        // Mark src pixel (0,0) distinctively.
+        img[0] = 1;
+        img[1] = 2;
+        img[2] = 3;
+
+        let out = TransformOperation::rotate90(&img, w, h, ch);
+        let out_width = h; // 2
+                           // Expected: dst(dst_x=0, dst_y=3) holds [1,2,3]
+        let dst_off = ((3 * out_width + 0) * ch) as usize;
+        assert_eq!(
+            &out[dst_off..dst_off + 3],
+            &[1, 2, 3],
+            "rotate90 corner pixel wrong"
+        );
+    }
+
+    #[test]
+    fn test_rotate180_roundtrip() {
+        // Rotating 180° twice must reproduce the original image.
+        let w: u32 = 4;
+        let h: u32 = 3;
+        let img = make_test_image_3ch(w, h);
+        let once = TransformOperation::rotate180(&img, w, h, 3);
+        let twice = TransformOperation::rotate180(&once, w, h, 3);
+        assert_eq!(img, twice, "rotate180 twice must equal original");
+    }
+
+    #[test]
+    fn test_flip_horizontal_reverses_row() {
+        // Flip a 4×2 image horizontally; the first row of the output should be
+        // the reverse of the first row of the input.
+        let w: u32 = 4;
+        let h: u32 = 2;
+        let ch: u32 = 3;
+        let img = make_test_image_3ch(w, h);
+        let out = TransformOperation::flip_horizontal(&img, w, h, ch);
+
+        // Row 0 of input: pixels at x=0,1,2,3
+        // Row 0 of output: pixels at dst_x=3,2,1,0 (reversed)
+        for x in 0..w {
+            let src_off = (x * ch) as usize;
+            let dst_off = ((w - 1 - x) * ch) as usize;
+            assert_eq!(
+                &img[src_off..src_off + ch as usize],
+                &out[dst_off..dst_off + ch as usize],
+                "flip_horizontal row-reversal wrong at x={x}"
+            );
+        }
+    }
+
+    #[test]
+    fn test_transpose_swaps_dimensions() {
+        // A 2×4 image (width=2, height=4) transposed should be 4×2.
+        let w: u32 = 2;
+        let h: u32 = 4;
+        let ch: u32 = 3;
+        let img = make_test_image_3ch(w, h);
+        let out = TransformOperation::transpose(&img, w, h, ch);
+        // out_width = in_height = 4, out_height = in_width = 2
+        assert_eq!(
+            out.len(),
+            (4 * 2 * ch) as usize,
+            "transpose buffer size mismatch"
+        );
+        // Verify that output(x=src_y, y=src_x) == input(src_x, src_y)
+        let out_width: u32 = h; // 4
+        for src_y in 0..h {
+            for src_x in 0..w {
+                let src_off = ((src_y * w + src_x) * ch) as usize;
+                let dst_off = ((src_x * out_width + src_y) * ch) as usize;
+                assert_eq!(
+                    &img[src_off..src_off + ch as usize],
+                    &out[dst_off..dst_off + ch as usize],
+                    "transpose pixel mismatch at ({src_x},{src_y})"
+                );
+            }
+        }
     }
 }

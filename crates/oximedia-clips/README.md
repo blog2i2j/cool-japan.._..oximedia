@@ -6,7 +6,7 @@ Professional clip management and logging system for OxiMedia, providing database
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.5 — 2026-04-21 — 554 tests
+Version: 0.1.6 — 2026-04-26 — 554 tests
 
 ## Features
 
@@ -29,7 +29,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-clips = "0.1.5"
+oximedia-clips = "0.1.6"
 ```
 
 ```rust

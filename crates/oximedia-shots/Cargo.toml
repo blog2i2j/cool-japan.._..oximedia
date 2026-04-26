@@ -8,6 +8,9 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Advanced shot detection and classification engine for OxiMedia"
+keywords = ["shot-detection", "scene", "video", "multimedia", "analysis"]
+categories = ["multimedia::video", "multimedia"]
+readme = "README.md"
 
 [lints]
 workspace = true

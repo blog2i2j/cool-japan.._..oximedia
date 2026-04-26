@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Collaborative review and approval workflow for OxiMedia"
+keywords = ["collaboration", "review", "approval", "video", "multimedia"]
+categories = ["multimedia", "network-programming"]
 readme = "README.md"
 
 [lints]

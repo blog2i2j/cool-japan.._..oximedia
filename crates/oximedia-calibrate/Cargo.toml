@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Professional color calibration and matching tools for OxiMedia"
+keywords = ["color", "calibration", "grading", "video", "multimedia"]
+categories = ["multimedia::video", "multimedia"]
 readme = "README.md"
 
 [lints]

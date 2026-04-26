@@ -1,6 +1,6 @@
 # oximedia-ndi
 
-**Status: [Stable]** | Version: 0.1.5 | Tests: 480 | Updated: 2026-04-21
+**Status: [Stable]** | Version: 0.1.6 | Tests: 480 | Updated: 2026-04-26
 
 NDI (Network Device Interface) support for OxiMedia. A clean-room implementation of the NDI protocol that doesn't rely on the official NDI SDK, providing mDNS-based discovery, low-latency streaming, tally lights, and PTZ control.
 
@@ -31,7 +31,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-ndi = "0.1.5"
+oximedia-ndi = "0.1.6"
 ```
 
 ```rust

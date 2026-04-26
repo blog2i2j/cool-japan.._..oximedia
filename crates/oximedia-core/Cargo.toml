@@ -8,6 +8,9 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Core types and traits for OxiMedia"
+keywords = ["multimedia", "media", "framework", "video", "audio"]
+categories = ["multimedia"]
+readme = "README.md"
 
 [lints]
 workspace = true

@@ -1,6 +1,8 @@
 [package]
 name = "oximedia-mam"
 description = "Media Asset Management system for organizing and tracking media files"
+keywords = ["mam", "asset-management", "media", "search", "multimedia"]
+categories = ["multimedia", "data-structures"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

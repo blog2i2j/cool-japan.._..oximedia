@@ -8,6 +8,7 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Declarative media processing pipeline DSL — typed filter graph, node composition, and execution planning for OxiMedia"
+readme = "README.md"
 keywords = ["pipeline", "filter-graph", "media-processing", "dsl", "multimedia"]
 categories = ["multimedia", "data-structures", "algorithms"]
 

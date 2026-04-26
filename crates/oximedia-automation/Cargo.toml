@@ -8,6 +8,9 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Broadcast automation and control system for OxiMedia"
+keywords = ["broadcast", "automation", "control", "playout", "multimedia"]
+categories = ["multimedia", "network-programming"]
+readme = "README.md"
 
 [dependencies]
 oximedia-core = { workspace = true }

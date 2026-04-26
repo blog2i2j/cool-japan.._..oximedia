@@ -1,6 +1,9 @@
 [package]
 name = "oximedia-access"
 description = "Media accessibility tools including closed captions, audio description, and compliance"
+keywords = ["accessibility", "captions", "audio-description", "multimedia", "video"]
+categories = ["multimedia"]
+readme = "README.md"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

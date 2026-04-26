@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Music Information Retrieval (MIR) system for OxiMedia"
+keywords = ["music", "mir", "beat", "audio", "multimedia"]
+categories = ["multimedia::audio", "multimedia", "science"]
 readme = "README.md"
 
 [lints]

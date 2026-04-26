@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 authors.workspace = true
 description = "Cloud storage abstraction for S3, Azure Blob, and Google Cloud Storage"
+keywords = ["storage", "cloud", "s3", "multimedia", "media"]
+categories = ["multimedia", "filesystem"]
+readme = "README.md"
 license.workspace = true
 homepage.workspace = true
 repository.workspace = true
@@ -30,7 +33,7 @@ oxiarc-zstd = { workspace = true }
 memmap2 = { workspace = true, optional = true }
 
 # AWS S3
-aws-sdk-s3 = { version = "1.129", optional = true, default-features = false, features = ["rustls", "rt-tokio"] }
+aws-sdk-s3 = { version = "1.131", optional = true, default-features = false, features = ["rustls", "rt-tokio"] }
 aws-config = { version = "1.8", optional = true, default-features = false, features = ["rt-tokio", "credentials-process", "sso"] }
 
 # Azure Blob Storage

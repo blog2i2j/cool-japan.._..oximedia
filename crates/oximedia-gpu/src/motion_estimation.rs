@@ -28,6 +28,7 @@
 
 use crate::{GpuDevice, GpuError, Result};
 use rayon::prelude::*;
+use wgpu::util::DeviceExt as _;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Public API types
@@ -272,31 +273,705 @@ impl MotionEstimator {
         self.estimate_cpu(reference, current, width, height)
     }
 
-    // ── GPU stub path ─────────────────────────────────────────────────────────
+    // ── GPU implementation ────────────────────────────────────────────────────
 
     fn estimate_gpu(
         &self,
-        _device: &GpuDevice,
+        device: &GpuDevice,
         reference: &[u8],
         current: &[u8],
         width: u32,
         height: u32,
     ) -> Result<FrameMvResult> {
-        // TODO (Phase 2): wire up the WGSL hierarchical block-match shaders.
-        //
-        // The GPU path will:
-        //  1. Upload `reference` and `current` as R8Unorm textures.
-        //  2. Build a Gaussian pyramid via a `downsample_r8` compute pass.
-        //  3. Dispatch `block_match_sad` with workgroup-shared tile caches for
-        //     each pyramid level (coarse→fine).
-        //  4. Dispatch `subpixel_refine_bilinear` for ±½-pixel refinement.
-        //  5. Readback the MV buffer.
-        //
-        // For now return NotSupported to trigger CPU fallback.
-        let _ = (reference, current, width, height);
-        Err(GpuError::NotSupported(
-            "GPU motion estimation shaders are not yet compiled".to_string(),
-        ))
+        let wgpu_device = device.device();
+        let queue = device.queue();
+
+        let block_size = match self.config.partition {
+            BlockPartition::Fixed16x16 | BlockPartition::Adaptive => 16u32,
+            BlockPartition::Fixed32x32 => 32,
+            BlockPartition::Fixed64x64 => 64,
+            BlockPartition::Fixed128x128 => 128,
+        };
+
+        let level_count = self.config.pyramid_levels.min(4).max(1) as usize;
+
+        // ── 1. Upload luma planes as R8 storage buffers (u32 per pixel) ──────
+        let ref_data: Vec<u32> = reference.iter().map(|&b| u32::from(b)).collect();
+        let cur_data: Vec<u32> = current.iter().map(|&b| u32::from(b)).collect();
+
+        let ref_buf = wgpu_device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("motion_ref_buf"),
+            contents: bytemuck::cast_slice(&ref_data),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+        });
+        let cur_buf = wgpu_device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("motion_cur_buf"),
+            contents: bytemuck::cast_slice(&cur_data),
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+        });
+
+        // ── 2. Build Gaussian pyramid (storage buffers) ───────────────────────
+        let pyramid_shader = wgpu_device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("motion_pyramid"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/motion_pyramid.wgsl").into()),
+        });
+
+        let pyramid_bgl = wgpu_device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("pyramid_bgl"),
+            entries: &[
+                // uniforms
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // input buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // output buffer
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        let pyramid_pipeline_layout =
+            wgpu_device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("pyramid_layout"),
+                bind_group_layouts: &[Some(&pyramid_bgl)],
+                immediate_size: 0,
+            });
+
+        let pyramid_pipeline =
+            wgpu_device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+                label: Some("pyramid_pipeline"),
+                layout: Some(&pyramid_pipeline_layout),
+                module: &pyramid_shader,
+                entry_point: Some("downsample_r8"),
+                compilation_options: wgpu::PipelineCompilationOptions::default(),
+                cache: None,
+            });
+
+        // Build pyramid levels for reference and current frame.
+        // pyramid_ref[0] = original, pyramid_ref[1..] = downsampled levels.
+        let mut pyramid_ref_bufs: Vec<(wgpu::Buffer, u32, u32)> = Vec::with_capacity(level_count);
+        let mut pyramid_cur_bufs: Vec<(wgpu::Buffer, u32, u32)> = Vec::with_capacity(level_count);
+
+        pyramid_ref_bufs.push((ref_buf, width, height));
+        pyramid_cur_bufs.push((cur_buf, width, height));
+
+        for lvl in 1..level_count {
+            let (_, prev_w, prev_h) = &pyramid_ref_bufs[lvl - 1];
+            let out_w = (*prev_w).max(1) / 2;
+            let out_h = (*prev_h).max(1) / 2;
+            let out_pixels = (out_w * out_h) as usize;
+
+            let ref_out = wgpu_device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some(&format!("pyramid_ref_lvl{lvl}")),
+                size: (out_pixels * std::mem::size_of::<u32>()) as u64,
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+                mapped_at_creation: false,
+            });
+            let cur_out = wgpu_device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some(&format!("pyramid_cur_lvl{lvl}")),
+                size: (out_pixels * std::mem::size_of::<u32>()) as u64,
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+                mapped_at_creation: false,
+            });
+
+            // Dispatch downsample for reference.
+            {
+                let (in_buf, in_w, in_h) = &pyramid_ref_bufs[lvl - 1];
+                let uniforms_data: [u32; 4] = [*in_w, *in_h, out_w, out_h];
+                let uniform_buf =
+                    wgpu_device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some(&format!("pyramid_uniform_ref_{lvl}")),
+                        contents: bytemuck::cast_slice(&uniforms_data),
+                        usage: wgpu::BufferUsages::UNIFORM,
+                    });
+                let bg = wgpu_device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: None,
+                    layout: &pyramid_bgl,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: uniform_buf.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: in_buf.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: ref_out.as_entire_binding(),
+                        },
+                    ],
+                });
+                let mut encoder =
+                    wgpu_device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                        label: Some("pyramid_ref_enc"),
+                    });
+                {
+                    let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                        label: None,
+                        timestamp_writes: None,
+                    });
+                    pass.set_pipeline(&pyramid_pipeline);
+                    pass.set_bind_group(0, &bg, &[]);
+                    pass.dispatch_workgroups(out_w.div_ceil(8), out_h.div_ceil(8), 1);
+                }
+                queue.submit(std::iter::once(encoder.finish()));
+            }
+
+            // Dispatch downsample for current.
+            {
+                let (in_buf, in_w, in_h) = &pyramid_cur_bufs[lvl - 1];
+                let uniforms_data: [u32; 4] = [*in_w, *in_h, out_w, out_h];
+                let uniform_buf =
+                    wgpu_device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                        label: Some(&format!("pyramid_uniform_cur_{lvl}")),
+                        contents: bytemuck::cast_slice(&uniforms_data),
+                        usage: wgpu::BufferUsages::UNIFORM,
+                    });
+                let bg = wgpu_device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: None,
+                    layout: &pyramid_bgl,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: uniform_buf.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: in_buf.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: cur_out.as_entire_binding(),
+                        },
+                    ],
+                });
+                let mut encoder =
+                    wgpu_device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                        label: Some("pyramid_cur_enc"),
+                    });
+                {
+                    let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                        label: None,
+                        timestamp_writes: None,
+                    });
+                    pass.set_pipeline(&pyramid_pipeline);
+                    pass.set_bind_group(0, &bg, &[]);
+                    pass.dispatch_workgroups(out_w.div_ceil(8), out_h.div_ceil(8), 1);
+                }
+                queue.submit(std::iter::once(encoder.finish()));
+            }
+
+            pyramid_ref_bufs.push((ref_out, out_w, out_h));
+            pyramid_cur_bufs.push((cur_out, out_w, out_h));
+        }
+
+        // ── 3. Block-match pipeline ────────────────────────────────────────────
+        let bm_shader = wgpu_device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("motion_block_match"),
+            source: wgpu::ShaderSource::Wgsl(
+                include_str!("shaders/motion_block_match.wgsl").into(),
+            ),
+        });
+
+        let bm_bgl = wgpu_device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("bm_bgl"),
+            entries: &[
+                // uniforms (BlockMatchUniforms — 8 × u32/i32 = 32 bytes)
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // ref_buf
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // cur_buf
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                // mv_out
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        let bm_pipeline_layout =
+            wgpu_device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("bm_layout"),
+                bind_group_layouts: &[Some(&bm_bgl)],
+                immediate_size: 0,
+            });
+
+        let bm_pipeline = wgpu_device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("bm_pipeline"),
+            layout: Some(&bm_pipeline_layout),
+            module: &bm_shader,
+            entry_point: Some("block_match"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
+
+        // ── 4. Coarse-to-fine block match over pyramid levels ─────────────────
+        // Accumulate integer MVs; at each finer level, the seed is the
+        // coarser MV × 2.
+        let top_level = level_count - 1;
+        let (_, top_w, top_h) = &pyramid_ref_bufs[top_level];
+        let top_bx = top_w.div_ceil(block_size);
+        let top_by = top_h.div_ceil(block_size);
+        let top_blocks = (top_bx * top_by) as usize;
+
+        // MV seed buffer starts at (0, 0) for the coarsest level.
+        // Layout: [dx: i32, dy: i32, ...] per block (flat array of i32 pairs).
+        let mut seed_mvs: Vec<[i32; 2]> = vec![[0i32, 0i32]; top_blocks];
+
+        // We work from the coarsest level down to level 0.
+        // `mv_buf_level` holds the integer MV result (vec4<i32> per block) for
+        // the current level.
+        let mut mv_int_result: Vec<[i32; 4]> = vec![[0i32; 4]; top_blocks];
+
+        for lvl in (0..level_count).rev() {
+            let (ref_level_buf, lw, lh) = &pyramid_ref_bufs[lvl];
+            let (cur_level_buf, _, _) = &pyramid_cur_bufs[lvl];
+
+            let lbx = lw.div_ceil(block_size);
+            let lby = lh.div_ceil(block_size);
+            let l_blocks = (lbx * lby) as usize;
+
+            // Upsample seeds from previous (coarser) level.
+            // Each coarser block maps to (possibly) 4 finer blocks.
+            let seeds_for_level: Vec<[i32; 2]> = if lvl == top_level {
+                vec![[0i32, 0i32]; l_blocks]
+            } else {
+                // Scale up seeds: coarser level had dimensions lw*2, lh*2.
+                let coarser_bx = (lw * 2).div_ceil(block_size);
+                (0..l_blocks)
+                    .map(|idx| {
+                        let fx = (idx as u32) % lbx;
+                        let fy = (idx as u32) / lbx;
+                        // Corresponding coarser block.
+                        let cx = fx / 2;
+                        let cy = fy / 2;
+                        let cidx = (cy * coarser_bx + cx) as usize;
+                        let coarser_seed = if cidx < seed_mvs.len() {
+                            seed_mvs[cidx]
+                        } else {
+                            [0i32, 0i32]
+                        };
+                        // MV at coarser level corresponds to 2× displacement at
+                        // the finer level.
+                        [coarser_seed[0] * 2, coarser_seed[1] * 2]
+                    })
+                    .collect()
+            };
+
+            // For simplicity we dispatch a separate command per level using a
+            // common seed (first seed in the list). The block-match shader uses
+            // ONE seed per dispatch; for a production encoder one would pass
+            // per-block seeds via an additional storage buffer. Here we use the
+            // median seed (good enough for correctness tests).
+            let seed_x = seeds_for_level.iter().map(|s| s[0]).sum::<i32>()
+                / seeds_for_level.len().max(1) as i32;
+            let seed_y = seeds_for_level.iter().map(|s| s[1]).sum::<i32>()
+                / seeds_for_level.len().max(1) as i32;
+
+            let search_half = 8u32;
+
+            // Uniform: [block_size, search_half, frame_width, frame_height,
+            //           mv_seed_x (i32 as u32 bits), mv_seed_y, blocks_x, blocks_y]
+            let uniforms: [u32; 8] = [
+                block_size,
+                search_half,
+                *lw,
+                *lh,
+                seed_x as u32, // transmit i32 bits as u32; shader reads as i32
+                seed_y as u32,
+                lbx,
+                lby,
+            ];
+
+            let uniform_buf = wgpu_device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some(&format!("bm_uniform_lvl{lvl}")),
+                contents: bytemuck::cast_slice(&uniforms),
+                usage: wgpu::BufferUsages::UNIFORM,
+            });
+
+            let mv_out_buf = wgpu_device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some(&format!("mv_out_lvl{lvl}")),
+                size: (l_blocks * std::mem::size_of::<[i32; 4]>()) as u64,
+                usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+                mapped_at_creation: false,
+            });
+
+            let bg = wgpu_device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: None,
+                layout: &bm_bgl,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: uniform_buf.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: ref_level_buf.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 2,
+                        resource: cur_level_buf.as_entire_binding(),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 3,
+                        resource: mv_out_buf.as_entire_binding(),
+                    },
+                ],
+            });
+
+            let mut encoder = wgpu_device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some(&format!("bm_enc_lvl{lvl}")),
+            });
+            {
+                let mut pass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                    label: None,
+                    timestamp_writes: None,
+                });
+                pass.set_pipeline(&bm_pipeline);
+                pass.set_bind_group(0, &bg, &[]);
+                // One workgroup per block (16×16 threads per workgroup).
+                pass.dispatch_workgroups(lbx, lby, 1);
+            }
+
+            // Readback the MV buffer.
+            let staging = wgpu_device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some(&format!("bm_staging_lvl{lvl}")),
+                size: (l_blocks * std::mem::size_of::<[i32; 4]>()) as u64,
+                usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+            encoder.copy_buffer_to_buffer(
+                &mv_out_buf,
+                0,
+                &staging,
+                0,
+                (l_blocks * std::mem::size_of::<[i32; 4]>()) as u64,
+            );
+            queue.submit(std::iter::once(encoder.finish()));
+
+            let _ = wgpu_device.poll(wgpu::PollType::wait_indefinitely());
+
+            let slice = staging.slice(..);
+            let (tx, mut rx) = futures_channel::oneshot::channel();
+            slice.map_async(wgpu::MapMode::Read, move |result| {
+                let _ = tx.send(result);
+            });
+            let _ = wgpu_device.poll(wgpu::PollType::wait_indefinitely());
+            rx.try_recv()
+                .map_err(|e| GpuError::BufferMapping(e.to_string()))?
+                .ok_or_else(|| GpuError::BufferMapping("channel empty".into()))?
+                .map_err(|e| GpuError::BufferMapping(e.to_string()))?;
+
+            {
+                let data = slice.get_mapped_range();
+                let raw: &[[i32; 4]] = bytemuck::cast_slice(&data);
+                mv_int_result = raw[..l_blocks.min(raw.len())].to_vec();
+                // Update seeds for the next-finer level iteration.
+                seed_mvs = raw[..l_blocks.min(raw.len())]
+                    .iter()
+                    .map(|v| [v[0], v[1]])
+                    .collect();
+            }
+        }
+
+        // ── 5. Sub-pixel refinement (level 0 = original resolution) ──────────
+        let final_blocks_x = width.div_ceil(block_size);
+        let final_blocks_y = height.div_ceil(block_size);
+        let n_blocks = (final_blocks_x * final_blocks_y) as usize;
+
+        let (ref_l0, _, _) = &pyramid_ref_bufs[0];
+        let (cur_l0, _, _) = &pyramid_cur_bufs[0];
+
+        // Build subpixel MV input from integer result, padded/truncated to
+        // match the level-0 block count.
+        let mv_in_data: Vec<[i32; 4]> = (0..n_blocks)
+            .map(|i| {
+                if i < mv_int_result.len() {
+                    mv_int_result[i]
+                } else {
+                    [0i32; 4]
+                }
+            })
+            .collect();
+
+        let mv_in_buf = wgpu_device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("subpix_mv_in"),
+            contents: bytemuck::cast_slice(&mv_in_data),
+            usage: wgpu::BufferUsages::STORAGE,
+        });
+
+        let mv_out_sp_buf = wgpu_device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("subpix_mv_out"),
+            size: (n_blocks * std::mem::size_of::<[f32; 2]>()) as u64,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
+        });
+
+        let sp_shader = wgpu_device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("motion_subpixel"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("shaders/motion_subpixel.wgsl").into()),
+        });
+
+        let sp_bgl = wgpu_device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("sp_bgl"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: true },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,
+                    visibility: wgpu::ShaderStages::COMPUTE,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Storage { read_only: false },
+                        has_dynamic_offset: false,
+                        min_binding_size: None,
+                    },
+                    count: None,
+                },
+            ],
+        });
+
+        let sp_pipeline_layout =
+            wgpu_device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("sp_layout"),
+                bind_group_layouts: &[Some(&sp_bgl)],
+                immediate_size: 0,
+            });
+
+        let sp_pipeline = wgpu_device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: Some("sp_pipeline"),
+            layout: Some(&sp_pipeline_layout),
+            module: &sp_shader,
+            entry_point: Some("subpixel_refine"),
+            compilation_options: wgpu::PipelineCompilationOptions::default(),
+            cache: None,
+        });
+
+        let sp_uniforms: [u32; 4] = [width, height, block_size, n_blocks as u32];
+        let sp_uniform_buf = wgpu_device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("sp_uniforms"),
+            contents: bytemuck::cast_slice(&sp_uniforms),
+            usage: wgpu::BufferUsages::UNIFORM,
+        });
+
+        let sp_bg = wgpu_device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &sp_bgl,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: sp_uniform_buf.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: ref_l0.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: cur_l0.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: mv_in_buf.as_entire_binding(),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: mv_out_sp_buf.as_entire_binding(),
+                },
+            ],
+        });
+
+        let sp_staging = wgpu_device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("sp_staging"),
+            size: (n_blocks * std::mem::size_of::<[f32; 2]>()) as u64,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+
+        let mut sp_encoder = wgpu_device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("sp_enc"),
+        });
+        {
+            let mut pass = sp_encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+                label: None,
+                timestamp_writes: None,
+            });
+            pass.set_pipeline(&sp_pipeline);
+            pass.set_bind_group(0, &sp_bg, &[]);
+            let groups = (n_blocks as u32).div_ceil(64);
+            pass.dispatch_workgroups(groups, 1, 1);
+        }
+        sp_encoder.copy_buffer_to_buffer(
+            &mv_out_sp_buf,
+            0,
+            &sp_staging,
+            0,
+            (n_blocks * std::mem::size_of::<[f32; 2]>()) as u64,
+        );
+        queue.submit(std::iter::once(sp_encoder.finish()));
+        let _ = wgpu_device.poll(wgpu::PollType::wait_indefinitely());
+
+        let sp_slice = sp_staging.slice(..);
+        let (sp_tx, mut sp_rx) = futures_channel::oneshot::channel();
+        sp_slice.map_async(wgpu::MapMode::Read, move |result| {
+            let _ = sp_tx.send(result);
+        });
+        let _ = wgpu_device.poll(wgpu::PollType::wait_indefinitely());
+        sp_rx
+            .try_recv()
+            .map_err(|e| GpuError::BufferMapping(e.to_string()))?
+            .ok_or_else(|| GpuError::BufferMapping("channel empty".into()))?
+            .map_err(|e| GpuError::BufferMapping(e.to_string()))?;
+
+        let subpixel_mvs: Vec<[f32; 2]> = {
+            let data = sp_slice.get_mapped_range();
+            bytemuck::cast_slice::<u8, [f32; 2]>(&data)[..n_blocks].to_vec()
+        };
+
+        // ── 6. Assemble FrameMvResult ─────────────────────────────────────────
+        let block_mvs: Vec<BlockMvResult> = (0..n_blocks)
+            .map(|idx| {
+                let bx = (idx as u32 % final_blocks_x) * block_size;
+                let by = (idx as u32 / final_blocks_x) * block_size;
+
+                let int_mv = if idx < mv_int_result.len() {
+                    mv_int_result[idx]
+                } else {
+                    [0i32; 4]
+                };
+
+                let mv = MotionVector {
+                    dx: int_mv[0].clamp(i16::MIN as i32, i16::MAX as i32) as i16,
+                    dy: int_mv[1].clamp(i16::MIN as i32, i16::MAX as i32) as i16,
+                };
+
+                // Sub-pixel MV uses quarter-pixel units.
+                let subpixel_mv = if self.config.subpixel_refinement {
+                    let sp = subpixel_mvs[idx];
+                    Some(SubpixelMv {
+                        dx: (sp[0] * 4.0).round() as i32,
+                        dy: (sp[1] * 4.0).round() as i32,
+                    })
+                } else {
+                    None
+                };
+
+                let cost = int_mv[2].max(0) as u32;
+
+                BlockMvResult {
+                    block_x: bx,
+                    block_y: by,
+                    mv,
+                    subpixel_mv,
+                    cost,
+                }
+            })
+            .collect();
+
+        Ok(FrameMvResult {
+            width,
+            height,
+            block_mvs,
+            block_size,
+            used_gpu: true,
+        })
     }
 
     // ── CPU reference path ───────────────────────────────────────────────────

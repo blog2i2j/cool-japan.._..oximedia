@@ -8,6 +8,7 @@ homepage.workspace = true
 repository.workspace = true
 authors.workspace = true
 description = "Professional audio post-production suite: ADR, Foley, sound design, mixing, restoration"
+readme = "README.md"
 keywords = ["audio", "post-production", "mixing", "adr", "foley"]
 categories = ["multimedia::audio", "multimedia::encoding"]
 

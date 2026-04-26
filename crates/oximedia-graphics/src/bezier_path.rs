@@ -413,9 +413,9 @@ impl BezierPath {
                 total * i as f64 / (count - 1) as f64
             };
             // Find the segment that contains this arc length
-            let idx = match cum_lengths.binary_search_by(|v| {
-                v.partial_cmp(&target).unwrap_or(std::cmp::Ordering::Equal)
-            }) {
+            let idx = match cum_lengths
+                .binary_search_by(|v| v.partial_cmp(&target).unwrap_or(std::cmp::Ordering::Equal))
+            {
                 Ok(i) => i,
                 Err(i) => i.saturating_sub(1),
             };

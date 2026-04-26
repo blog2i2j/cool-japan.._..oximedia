@@ -1,6 +1,9 @@
 [package]
 name = "oximedia-search"
 description = "Media search and content discovery with metadata indexing"
+keywords = ["search", "metadata", "media", "indexing", "multimedia"]
+categories = ["multimedia", "algorithms"]
+readme = "README.md"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

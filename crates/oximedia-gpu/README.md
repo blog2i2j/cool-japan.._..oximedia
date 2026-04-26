@@ -1,13 +1,13 @@
 # oximedia-gpu
 
 ![Status: Stable](https://img.shields.io/badge/status-stable-green)
-![Version: 0.1.5](https://img.shields.io/badge/version-0.1.5-blue)
+![Version: 0.1.6](https://img.shields.io/badge/version-0.1.6-blue)
 
 Cross-platform GPU compute pipeline for OxiMedia using WGPU.
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.5 — 2026-04-21 — 1,237 tests
+Version: 0.1.6 — 2026-04-26 — 1,237 tests
 
 ## Backend selection
 
@@ -71,7 +71,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-gpu = "0.1.5"
+oximedia-gpu = "0.1.6"
 ```
 
 ```rust

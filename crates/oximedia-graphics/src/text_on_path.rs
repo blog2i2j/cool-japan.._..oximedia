@@ -241,8 +241,10 @@ impl TextOnPathConfig {
     ///
     /// `pixels` must be exactly `width * height * 4` bytes.  Each glyph is
     /// drawn as a filled rectangle (a "block glyph") centred at its path
-    /// position and rotated to match the path tangent.  This is a geometric
-    /// placeholder; integrate with *fontdue* for real outlines.
+    /// position and rotated to match the path tangent.
+    ///
+    /// For real outline glyph rendering pass a `fontdue::Font` to
+    /// [`render_with_font`](TextOnPathConfig::render_with_font) instead.
     ///
     /// # Panics
     ///
@@ -261,7 +263,136 @@ impl TextOnPathConfig {
         }
     }
 
+    /// Rasterise `text` along the path using real fontdue glyph outlines.
+    ///
+    /// This is the high-quality counterpart of [`render`](TextOnPathConfig::render).
+    /// Instead of drawing block rectangles it uses *fontdue* to rasterise each
+    /// character from the supplied `font`, then alpha-composites the greyscale
+    /// coverage bitmap into `pixels` at the correct path position and rotation.
+    ///
+    /// `pixels` must be exactly `width * height * 4` RGBA bytes.
+    ///
+    /// # Example
+    ///
+    /// ```no_run
+    /// use oximedia_graphics::bezier_path::BezierPath;
+    /// use oximedia_graphics::text_on_path::TextOnPathConfig;
+    ///
+    /// let font_bytes = std::fs::read("/path/to/font.ttf").unwrap();
+    /// let font = fontdue::Font::from_bytes(font_bytes.as_slice(),
+    ///     fontdue::FontSettings::default()).unwrap();
+    ///
+    /// let mut path = BezierPath::new();
+    /// path.move_to(0.0, 50.0).line_to(200.0, 50.0);
+    ///
+    /// let config = TextOnPathConfig::new(path);
+    /// let mut pixels = vec![0u8; 200 * 200 * 4];
+    /// config.render_with_font("Hello", &font, &mut pixels, 200, 200);
+    /// ```
+    ///
+    /// # Panics
+    ///
+    /// Panics in debug builds if `pixels.len() != width as usize * height as usize * 4`.
+    pub fn render_with_font(
+        &self,
+        text: &str,
+        font: &fontdue::Font,
+        pixels: &mut [u8],
+        width: u32,
+        height: u32,
+    ) {
+        debug_assert_eq!(
+            pixels.len(),
+            width as usize * height as usize * 4,
+            "pixels buffer length mismatch"
+        );
+
+        let glyphs = self.layout_glyphs(text);
+
+        for glyph in &glyphs {
+            self.render_glyph_fontdue(glyph, font, pixels, width, height);
+        }
+    }
+
     // ── Private rendering helpers ─────────────────────────────────────────────
+
+    /// Draw a single glyph using fontdue outline rasterization.
+    ///
+    /// Rasterises `glyph.ch` at `self.font_size` pixels, then for every
+    /// bitmap sample projects the bitmap coordinate through the glyph's
+    /// rotation matrix and alpha-composites it into `pixels`.
+    fn render_glyph_fontdue(
+        &self,
+        glyph: &PathGlyph,
+        font: &fontdue::Font,
+        pixels: &mut [u8],
+        width: u32,
+        height: u32,
+    ) {
+        let (metrics, bitmap) = font.rasterize(glyph.ch, self.font_size);
+
+        // Space and other zero-area glyphs produce an empty bitmap — skip.
+        if bitmap.is_empty() || metrics.width == 0 || metrics.height == 0 {
+            return;
+        }
+
+        let cx = glyph.position.0;
+        let cy = glyph.position.1;
+        let rot = glyph.rotation;
+        let cos_r = rot.cos();
+        let sin_r = rot.sin();
+
+        let half_bw = metrics.width as f32 * 0.5;
+        let half_bh = metrics.height as f32 * 0.5;
+
+        let src_r = self.color[0];
+        let src_g = self.color[1];
+        let src_b = self.color[2];
+        let src_a = self.color[3];
+
+        let img_w = width as i32;
+        let img_h = height as i32;
+
+        for by in 0..metrics.height {
+            for bx in 0..metrics.width {
+                let coverage_raw = bitmap[by * metrics.width + bx];
+                if coverage_raw == 0 {
+                    continue;
+                }
+
+                // Pixel offset from the bitmap centre.
+                let local_x = bx as f32 - half_bw;
+                let local_y = by as f32 - half_bh;
+
+                // Rotate the local offset by the glyph's path-tangent angle.
+                let world_x = cx + cos_r * local_x - sin_r * local_y;
+                let world_y = cy + sin_r * local_x + cos_r * local_y;
+
+                let px = world_x.round() as i32;
+                let py = world_y.round() as i32;
+
+                if px < 0 || px >= img_w || py < 0 || py >= img_h {
+                    continue;
+                }
+
+                let offset = (py as usize * width as usize + px as usize) * 4;
+                if offset + 3 >= pixels.len() {
+                    continue;
+                }
+
+                // Scale source alpha by fontdue coverage value.
+                let effective_alpha = (coverage_raw as u32 * src_a as u32 / 255).min(255) as u8;
+
+                blend_pixel(
+                    &mut pixels[offset..offset + 4],
+                    src_r,
+                    src_g,
+                    src_b,
+                    effective_alpha,
+                );
+            }
+        }
+    }
 
     /// Draw a single block glyph into `pixels`.
     fn render_glyph(&self, glyph: &PathGlyph, pixels: &mut [u8], width: u32, height: u32) {
@@ -320,13 +451,7 @@ impl TextOnPathConfig {
                     continue;
                 }
 
-                blend_pixel(
-                    &mut pixels[offset..offset + 4],
-                    src_r,
-                    src_g,
-                    src_b,
-                    src_a,
-                );
+                blend_pixel(&mut pixels[offset..offset + 4], src_r, src_g, src_b, src_a);
             }
         }
     }
@@ -404,7 +529,10 @@ mod tests {
         config.letter_spacing = 0.1;
 
         let glyphs = config.layout_glyphs("abcde");
-        assert!(glyphs.len() >= 2, "need at least 2 glyphs to check monotonicity");
+        assert!(
+            glyphs.len() >= 2,
+            "need at least 2 glyphs to check monotonicity"
+        );
 
         for window in glyphs.windows(2) {
             assert!(
@@ -543,7 +671,10 @@ mod tests {
         config.render("A", &mut pixels, 200, 200);
 
         let any_non_zero = pixels.chunks_exact(4).any(|px| px[3] > 0);
-        assert!(any_non_zero, "expected at least one coloured pixel after rendering");
+        assert!(
+            any_non_zero,
+            "expected at least one coloured pixel after rendering"
+        );
     }
 
     // ── Test 10: render stays within buffer bounds ────────────────────────────
@@ -606,9 +737,116 @@ mod tests {
         assert!(config.font_size > 0.0, "font_size must be positive");
         assert!(config.char_width > 0.0, "char_width must be positive");
         assert!(config.char_height > 0.0, "char_height must be positive");
-        assert!(config.letter_spacing >= 0.0, "letter_spacing must be non-negative");
+        assert!(
+            config.letter_spacing >= 0.0,
+            "letter_spacing must be non-negative"
+        );
         assert_eq!(config.start_offset, 0.0);
         assert_eq!(config.side, PathSide::Left);
         assert_eq!(config.color, [255, 255, 255, 255]);
+    }
+
+    // ── Fontdue candidate font paths ──────────────────────────────────────────
+
+    /// Returns bytes for a candidate system TTF, or `None` if no font is found.
+    ///
+    /// The function tries several well-known macOS / Linux paths in order.
+    /// Tests that need a real font early-return when this returns `None`, so
+    /// CI on systems without any of these fonts is not broken.
+    fn try_load_system_font() -> Option<Vec<u8>> {
+        const CANDIDATES: &[&str] = &[
+            // macOS Supplemental fonts
+            "/System/Library/Fonts/Supplemental/Arial.ttf",
+            "/System/Library/Fonts/Supplemental/Courier New.ttf",
+            // Linux common paths
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+            "/usr/share/fonts/TTF/DejaVuSans.ttf",
+        ];
+
+        for path in CANDIDATES {
+            if let Ok(bytes) = std::fs::read(path) {
+                return Some(bytes);
+            }
+        }
+        None
+    }
+
+    // ── Test 13: fontdue rasterises 'A' to a non-empty bitmap ────────────────
+
+    /// Load a system font with fontdue and verify that rasterizing 'A' at 16 px
+    /// produces a non-empty coverage bitmap.
+    #[test]
+    fn test_fontdue_glyph_render_returns_pixels() {
+        let bytes = match try_load_system_font() {
+            Some(b) => b,
+            None => {
+                // No suitable font found on this system — skip gracefully.
+                eprintln!(
+                    "test_fontdue_glyph_render_returns_pixels: no system font found, skipping"
+                );
+                return;
+            }
+        };
+
+        let font = fontdue::Font::from_bytes(bytes.as_slice(), fontdue::FontSettings::default())
+            .expect("valid font bytes");
+
+        let (metrics, bitmap) = font.rasterize('A', 16.0);
+
+        assert!(
+            !bitmap.is_empty(),
+            "expected non-empty coverage bitmap for 'A'"
+        );
+        assert!(metrics.width > 0, "expected non-zero glyph width");
+        assert!(metrics.height > 0, "expected non-zero glyph height");
+        assert_eq!(
+            bitmap.len(),
+            metrics.width * metrics.height,
+            "bitmap length must equal width * height"
+        );
+
+        // At least some pixels should have non-zero coverage.
+        let any_lit = bitmap.iter().any(|&c| c > 0);
+        assert!(
+            any_lit,
+            "expected at least one non-zero coverage pixel for 'A'"
+        );
+    }
+
+    // ── Test 14: render_with_font produces visible pixels ────────────────────
+
+    /// Render a short text string with a real fontdue font along a horizontal
+    /// path and verify that at least one pixel is non-zero in the output buffer.
+    #[test]
+    fn test_text_on_path_with_fontdue() {
+        let bytes = match try_load_system_font() {
+            Some(b) => b,
+            None => {
+                eprintln!("test_text_on_path_with_fontdue: no system font found, skipping");
+                return;
+            }
+        };
+
+        let font = fontdue::Font::from_bytes(bytes.as_slice(), fontdue::FontSettings::default())
+            .expect("valid font bytes");
+
+        let mut path = BezierPath::new();
+        path.move_to(10.0, 100.0).line_to(390.0, 100.0);
+
+        let mut config = TextOnPathConfig::new(path);
+        config.font_size = 24.0;
+        config.char_width = 20.0;
+        config.char_height = 24.0;
+        config.color = [255, 255, 255, 255];
+
+        let mut pixels = vec![0u8; 400 * 200 * 4];
+        config.render_with_font("Hi!", &font, &mut pixels, 400, 200);
+
+        let any_non_zero = pixels.chunks_exact(4).any(|px| px[3] > 0);
+        assert!(
+            any_non_zero,
+            "expected at least one coloured pixel after fontdue render"
+        );
     }
 }

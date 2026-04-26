@@ -6,7 +6,7 @@ Video and audio codec implementations for the OxiMedia multimedia framework. Pur
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.5 — 2026-04-21 — 3,063 tests
+Version: 0.1.6 — 2026-04-26 — 3,063 tests
 
 ## Overview
 
@@ -48,9 +48,9 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-codec = "0.1.5"
+oximedia-codec = "0.1.6"
 # or with additional codecs:
-oximedia-codec = { version = "0.1.5", features = ["av1", "vp9", "vp8", "opus"] }
+oximedia-codec = { version = "0.1.6", features = ["av1", "vp9", "vp8", "opus"] }
 ```
 
 ### AV1 / VP9 / VP8 / Theora Bitstream Parsing
@@ -76,7 +76,7 @@ let mut decoder = Av1Decoder::new(config)?;
 decoder.send_packet(&packet_bytes, pts)?;
 while let Some(_frame) = decoder.receive_frame()? {
     // Frame metadata (width/height/format/timestamp) is populated;
-    // pixel planes are not reconstructed in 0.1.5.
+    // pixel planes are not reconstructed in 0.1.6.
 }
 ```
 

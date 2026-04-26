@@ -8,6 +8,9 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "RESTful media server for OxiMedia"
+keywords = ["server", "multimedia", "api", "streaming", "http"]
+categories = ["multimedia", "web-programming"]
+readme = "README.md"
 
 [lints]
 workspace = true
@@ -22,6 +25,7 @@ cdn-all = ["cdn-aws", "cdn-azure", "cdn-gcs"]
 [dependencies]
 oximedia-core = { workspace = true }
 oximedia-io = { workspace = true }
+oxiarc-deflate = { workspace = true }
 oximedia-codec = { workspace = true, default-features = true }
 oximedia-container = { workspace = true }
 oximedia-audio = { workspace = true }

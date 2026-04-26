@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Comprehensive metadata standards support for OxiMedia (ID3v2, Vorbis, APE, iTunes, XMP, EXIF, IPTC, etc.)"
+keywords = ["metadata", "id3", "multimedia", "media", "tags"]
+categories = ["multimedia", "parser-implementations"]
 readme = "README.md"
 
 [lints]

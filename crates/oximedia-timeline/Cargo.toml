@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Multi-track timeline editor for OxiMedia"
+keywords = ["video", "timeline", "editing", "multimedia", "editor"]
+categories = ["multimedia::video", "multimedia"]
 readme = "README.md"
 
 [lints]

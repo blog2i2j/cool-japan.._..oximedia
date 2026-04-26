@@ -1,6 +1,6 @@
 # oximedia-optimize
 
-**Status: [Stable]** | Version: 0.1.5 | Tests: 758 | Updated: 2026-04-21
+**Status: [Stable]** | Version: 0.1.6 | Tests: 758 | Updated: 2026-04-26
 
 Codec optimization and tuning suite for OxiMedia. Provides advanced optimization techniques for video encoders, including rate-distortion optimization, psychovisual tuning, and adaptive quantization.
 
@@ -37,7 +37,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-optimize = "0.1.5"
+oximedia-optimize = "0.1.6"
 ```
 
 ```rust

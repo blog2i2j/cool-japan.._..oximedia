@@ -1,13 +1,13 @@
 # oximedia-edl
 
 ![Status: Stable](https://img.shields.io/badge/status-stable-green)
-![Version: 0.1.5](https://img.shields.io/badge/version-0.1.5-blue)
+![Version: 0.1.6](https://img.shields.io/badge/version-0.1.6-blue)
 
 CMX 3600 Edit Decision List (EDL) parser and generator for OxiMedia, with comprehensive support for broadcast EDL formats.
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.5 — 2026-04-21 — 659 tests
+Version: 0.1.6 — 2026-04-26 — 659 tests
 
 ## Features
 
@@ -39,7 +39,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-edl = "0.1.5"
+oximedia-edl = "0.1.6"
 ```
 
 ```rust

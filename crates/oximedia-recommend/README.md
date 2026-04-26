@@ -1,6 +1,6 @@
 # oximedia-recommend
 
-**Status: [Stable]** | Version: 0.1.5 | Tests: 969 | Updated: 2026-04-21
+**Status: [Stable]** | Version: 0.1.6 | Tests: 969 | Updated: 2026-04-26
 
 Content recommendation and discovery engine for OxiMedia. Provides comprehensive recommendation capabilities including content-based filtering, collaborative filtering, hybrid approaches, and advanced personalization.
 
@@ -39,7 +39,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-recommend = "0.1.5"
+oximedia-recommend = "0.1.6"
 ```
 
 ```rust

@@ -10,7 +10,7 @@ on:
       publish_target:
         description: 'Publish target'
         required: true
-        default: 'testpypi'
+        default: 'pypi'
         type: choice
         options:
           - testpypi

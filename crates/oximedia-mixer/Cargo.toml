@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Professional audio mixer with automation for OxiMedia"
+keywords = ["audio", "mixer", "dsp", "sound", "multimedia"]
+categories = ["multimedia::audio", "multimedia"]
 readme = "README.md"
 
 [lints]

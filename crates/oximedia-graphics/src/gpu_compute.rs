@@ -113,6 +113,363 @@ fn should_use_gpu(config: &GpuComputeConfig, width: u32, height: u32) -> bool {
 // Dispatch: Gaussian blur
 // ---------------------------------------------------------------------------
 
+/// Attempt a GPU Gaussian blur using the WGSL compute shader.
+///
+/// Returns `true` if the GPU path completed successfully and the result has
+/// been written back to `pixels`.  Returns `false` on any wgpu error so the
+/// caller can fall through to the CPU implementation.
+///
+/// The shader is a separable two-pass approach:
+/// - Pass 1 (horizontal): reads from `tex_input`, writes to `tex_mid`
+/// - Pass 2 (vertical): reads from `tex_mid`, writes to `tex_output`
+/// - Both passes use `texture_2d<f32>` + `texture_storage_2d<rgba8unorm, write>`
+///   which requires the `TEXTURE_BINDING_ARRAY` or standard `TEXTURE_BINDING`/
+///   `STORAGE_BINDING` usages plus the `STORAGE_BINDING` feature flag on the
+///   device.
+#[cfg(feature = "gpu")]
+fn try_gpu_gaussian_blur(pixels: &mut [u8], width: u32, height: u32, sigma: f32) -> bool {
+    use wgpu::util::DeviceExt;
+
+    if width == 0 || height == 0 || pixels.len() < (width as usize) * (height as usize) * 4 {
+        return false;
+    }
+
+    // kernel_radius matches crate::image_filter::build_gaussian_kernel half_width
+    let kernel_radius: u32 = ((3.0_f32 * sigma).ceil() as u32).min(50);
+
+    // ── 1. Create instance and probe for a capable adapter ──────────────────
+    let instance = wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
+
+    let adapter = match pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
+        power_preference: wgpu::PowerPreference::HighPerformance,
+        compatible_surface: None,
+        force_fallback_adapter: false,
+    })) {
+        Ok(a) => a,
+        Err(_) => return false,
+    };
+
+    // We need TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES for rgba8unorm storage.
+    // Use downlevel_defaults and add the required feature when available.
+    let required_features = wgpu::Features::TEXTURE_ADAPTER_SPECIFIC_FORMAT_FEATURES;
+    let supported = adapter.features();
+
+    // If the adapter cannot support storage textures on rgba8unorm, fall back.
+    if !supported.contains(required_features) {
+        return false;
+    }
+
+    let (device, queue) = match pollster::block_on(adapter.request_device(
+        &wgpu::DeviceDescriptor {
+            label: Some("oximedia-graphics gaussian"),
+            required_features,
+            required_limits: wgpu::Limits::downlevel_defaults(),
+            memory_hints: wgpu::MemoryHints::default(),
+            experimental_features: wgpu::ExperimentalFeatures::disabled(),
+            trace: wgpu::Trace::Off,
+        },
+    )) {
+        Ok(pair) => pair,
+        Err(_) => return false,
+    };
+
+    // ── 2. Create textures ───────────────────────────────────────────────────
+    // The WGSL shader:
+    //   binding 0: texture_2d<f32>                        → TEXTURE_BINDING + COPY_DST
+    //   binding 1: texture_storage_2d<rgba8unorm, write>  → STORAGE_BINDING + COPY_SRC
+    //   binding 2: uniform BlurParams                     → UNIFORM
+    //
+    // Three textures:
+    //   tex_input  – initial RGBA pixel data
+    //   tex_mid    – output of horizontal pass / input of vertical pass
+    //   tex_output – output of vertical pass (copied to readback buffer)
+
+    let tex_extent = wgpu::Extent3d {
+        width,
+        height,
+        depth_or_array_layers: 1,
+    };
+
+    // tex_input: upload source pixels; used as sampled texture in pass 1
+    let tex_input = device.create_texture_with_data(
+        &queue,
+        &wgpu::TextureDescriptor {
+            label: Some("gauss_input"),
+            size: tex_extent,
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8Unorm,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        },
+        wgpu::util::TextureDataOrder::LayerMajor,
+        pixels,
+    );
+
+    // tex_mid: output of pass 1, then input of pass 2
+    let tex_mid = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("gauss_mid"),
+        size: tex_extent,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::STORAGE_BINDING,
+        view_formats: &[],
+    });
+
+    // tex_output: output of pass 2 (will be copied to readback buffer)
+    let tex_output = device.create_texture(&wgpu::TextureDescriptor {
+        label: Some("gauss_output"),
+        size: tex_extent,
+        mip_level_count: 1,
+        sample_count: 1,
+        dimension: wgpu::TextureDimension::D2,
+        format: wgpu::TextureFormat::Rgba8Unorm,
+        usage: wgpu::TextureUsages::STORAGE_BINDING | wgpu::TextureUsages::COPY_SRC,
+        view_formats: &[],
+    });
+
+    // ── 3. Texture views ─────────────────────────────────────────────────────
+    let view_input = tex_input.create_view(&wgpu::TextureViewDescriptor::default());
+    let view_mid_sampled = tex_mid.create_view(&wgpu::TextureViewDescriptor::default());
+    let view_mid_storage = tex_mid.create_view(&wgpu::TextureViewDescriptor::default());
+    let view_output = tex_output.create_view(&wgpu::TextureViewDescriptor::default());
+
+    // ── 4. Uniform buffers — one per pass ────────────────────────────────────
+    // BlurParams { kernel_radius: u32, sigma: f32, horizontal: u32, _pad: u32 }
+    let make_uniform_bytes = |horizontal: u32| -> Vec<u8> {
+        let kr_bytes = kernel_radius.to_le_bytes();
+        let sigma_bytes = sigma.to_le_bytes();
+        let horiz_bytes = horizontal.to_le_bytes();
+        let pad_bytes = 0u32.to_le_bytes();
+        let mut v = Vec::with_capacity(16);
+        v.extend_from_slice(&kr_bytes);
+        v.extend_from_slice(&sigma_bytes);
+        v.extend_from_slice(&horiz_bytes);
+        v.extend_from_slice(&pad_bytes);
+        v
+    };
+
+    let uniform_h = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("gauss_uniform_h"),
+        contents: &make_uniform_bytes(1),
+        usage: wgpu::BufferUsages::UNIFORM,
+    });
+    let uniform_v = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        label: Some("gauss_uniform_v"),
+        contents: &make_uniform_bytes(0),
+        usage: wgpu::BufferUsages::UNIFORM,
+    });
+
+    // ── 5. Shader and pipeline ────────────────────────────────────────────────
+    let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+        label: Some("gaussian_blur"),
+        source: wgpu::ShaderSource::Wgsl(GAUSSIAN_BLUR_WGSL.into()),
+    });
+
+    // Bind group layout: matches the shader's @group(0) declarations
+    // binding 0: texture_2d<f32>                  → Texture { sample_type: Float, ... }
+    // binding 1: texture_storage_2d<rgba8unorm, write> → StorageTexture { write_only, ... }
+    // binding 2: var<uniform> BlurParams           → Buffer { Uniform }
+    let bgl = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        label: Some("gauss_bgl"),
+        entries: &[
+            wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Texture {
+                    sample_type: wgpu::TextureSampleType::Float { filterable: false },
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                    multisampled: false,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 1,
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::StorageTexture {
+                    access: wgpu::StorageTextureAccess::WriteOnly,
+                    format: wgpu::TextureFormat::Rgba8Unorm,
+                    view_dimension: wgpu::TextureViewDimension::D2,
+                },
+                count: None,
+            },
+            wgpu::BindGroupLayoutEntry {
+                binding: 2,
+                visibility: wgpu::ShaderStages::COMPUTE,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            },
+        ],
+    });
+
+    let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+        label: Some("gauss_pipeline_layout"),
+        bind_group_layouts: &[Some(&bgl)],
+        immediate_size: 0,
+    });
+
+    let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+        label: Some("gaussian_blur_pipeline"),
+        layout: Some(&pipeline_layout),
+        module: &shader,
+        entry_point: Some("main"),
+        compilation_options: wgpu::PipelineCompilationOptions::default(),
+        cache: None,
+    });
+
+    // ── 6. Bind groups — one per pass ─────────────────────────────────────────
+    // Pass 1 (horizontal): input=tex_input, output=tex_mid
+    let bg_h = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("gauss_bg_h"),
+        layout: &bgl,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&view_input),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::TextureView(&view_mid_storage),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: uniform_h.as_entire_binding(),
+            },
+        ],
+    });
+
+    // Pass 2 (vertical): input=tex_mid, output=tex_output
+    let bg_v = device.create_bind_group(&wgpu::BindGroupDescriptor {
+        label: Some("gauss_bg_v"),
+        layout: &bgl,
+        entries: &[
+            wgpu::BindGroupEntry {
+                binding: 0,
+                resource: wgpu::BindingResource::TextureView(&view_mid_sampled),
+            },
+            wgpu::BindGroupEntry {
+                binding: 1,
+                resource: wgpu::BindingResource::TextureView(&view_output),
+            },
+            wgpu::BindGroupEntry {
+                binding: 2,
+                resource: uniform_v.as_entire_binding(),
+            },
+        ],
+    });
+
+    // ── 7. Dispatch compute passes ────────────────────────────────────────────
+    // Workgroup size is @workgroup_size(256, 1, 1)
+    // Dispatch: x = width.div_ceil(256), y = height (each row is one dispatch)
+    let dispatch_x = width.div_ceil(256);
+    let dispatch_y = height;
+
+    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+        label: Some("gauss_encoder"),
+    });
+
+    // Pass 1: horizontal blur
+    {
+        let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            label: Some("gauss_pass_h"),
+            timestamp_writes: None,
+        });
+        cpass.set_pipeline(&pipeline);
+        cpass.set_bind_group(0, &bg_h, &[]);
+        cpass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
+    }
+
+    // Pass 2: vertical blur
+    {
+        let mut cpass = encoder.begin_compute_pass(&wgpu::ComputePassDescriptor {
+            label: Some("gauss_pass_v"),
+            timestamp_writes: None,
+        });
+        cpass.set_pipeline(&pipeline);
+        cpass.set_bind_group(0, &bg_v, &[]);
+        cpass.dispatch_workgroups(dispatch_x, dispatch_y, 1);
+    }
+
+    // ── 8. Copy output texture to readback buffer ─────────────────────────────
+    // bytes_per_row must be a multiple of COPY_BYTES_PER_ROW_ALIGNMENT (256).
+    let raw_bytes_per_row = width * 4;
+    let aligned_bytes_per_row = (raw_bytes_per_row + wgpu::COPY_BYTES_PER_ROW_ALIGNMENT - 1)
+        / wgpu::COPY_BYTES_PER_ROW_ALIGNMENT
+        * wgpu::COPY_BYTES_PER_ROW_ALIGNMENT;
+    let readback_size = (aligned_bytes_per_row * height) as u64;
+
+    let readback = device.create_buffer(&wgpu::BufferDescriptor {
+        label: Some("gauss_readback"),
+        size: readback_size,
+        usage: wgpu::BufferUsages::COPY_DST | wgpu::BufferUsages::MAP_READ,
+        mapped_at_creation: false,
+    });
+
+    encoder.copy_texture_to_buffer(
+        wgpu::TexelCopyTextureInfo {
+            texture: &tex_output,
+            mip_level: 0,
+            origin: wgpu::Origin3d::ZERO,
+            aspect: wgpu::TextureAspect::All,
+        },
+        wgpu::TexelCopyBufferInfo {
+            buffer: &readback,
+            layout: wgpu::TexelCopyBufferLayout {
+                offset: 0,
+                bytes_per_row: Some(aligned_bytes_per_row),
+                rows_per_image: Some(height),
+            },
+        },
+        tex_extent,
+    );
+
+    queue.submit(Some(encoder.finish()));
+
+    // ── 9. Map readback buffer and wait ──────────────────────────────────────
+    let buf_slice = readback.slice(..);
+    let (tx, rx) = std::sync::mpsc::channel();
+    buf_slice.map_async(wgpu::MapMode::Read, move |result| {
+        let _ = tx.send(result);
+    });
+
+    // Poll until GPU work completes
+    let _ = device.poll(wgpu::PollType::wait_indefinitely());
+
+    // Check map result
+    match rx.recv() {
+        Ok(Ok(())) => {}
+        _ => return false,
+    }
+
+    // ── 10. Copy result back to pixels (strip row padding) ────────────────────
+    {
+        let mapped = buf_slice.get_mapped_range();
+        let src_bytes = &*mapped;
+        let raw_row = raw_bytes_per_row as usize;
+        let aligned_row = aligned_bytes_per_row as usize;
+        for row in 0..(height as usize) {
+            let src_start = row * aligned_row;
+            let dst_start = row * raw_row;
+            if src_start + raw_row <= src_bytes.len()
+                && dst_start + raw_row <= pixels.len()
+            {
+                pixels[dst_start..dst_start + raw_row]
+                    .copy_from_slice(&src_bytes[src_start..src_start + raw_row]);
+            }
+        }
+    }
+    readback.unmap();
+
+    true
+}
+
 /// Dispatch a separable Gaussian blur.
 ///
 /// When the GPU path is eligible (feature enabled, hardware present, image
@@ -126,16 +483,13 @@ pub fn dispatch_gaussian_blur(
     config: &GpuComputeConfig,
 ) {
     if should_use_gpu(config, width, height) {
-        // GPU path — currently falls through to CPU while the full
-        // wgpu pipeline integration is completed.
         #[cfg(feature = "gpu")]
-        {
-            // TODO: submit GAUSSIAN_BLUR_WGSL compute pipeline
-            let _ = GAUSSIAN_BLUR_WGSL; // acknowledge the shader source
+        if try_gpu_gaussian_blur(pixels, width, height, sigma) {
+            return;
         }
     }
 
-    // CPU fallback (always reachable until GPU pipeline is wired)
+    // CPU fallback
     crate::image_filter::gaussian_blur(pixels, width, height, sigma);
 }
 
@@ -578,5 +932,48 @@ mod tests {
         let d = GpuStatus::NotAvailable("reason".into());
         assert_eq!(c, d);
         assert_ne!(a, c);
+    }
+
+    // ── New tests per task spec ────────────────────────────────────────────────
+
+    #[test]
+    fn test_dispatch_gaussian_blur_cpu_path() {
+        // Run a 64×64 RGBA blur with GPU disabled — must complete and be non-zero.
+        let (w, h) = (64u32, 64u32);
+        let mut pixels: Vec<u8> = (0u32..w * h * 4).map(|i| (i % 200 + 55) as u8).collect();
+
+        let cfg = GpuComputeConfig {
+            prefer_gpu: false,
+            min_pixels_for_gpu: 0,
+        };
+        dispatch_gaussian_blur(&mut pixels, w, h, 2.0, &cfg);
+
+        // Output must not be all-zero.
+        assert!(pixels.iter().any(|&v| v != 0), "output should not be all-zero");
+    }
+
+    #[test]
+    fn test_dispatch_gaussian_blur_gpu_path() {
+        // Run with default config (GPU preferred); must either use GPU or fall back
+        // to CPU — result must not be all-zero and must not panic.
+        let (w, h) = (64u32, 64u32);
+        let mut pixels: Vec<u8> = (0u32..w * h * 4).map(|i| (i % 200 + 55) as u8).collect();
+
+        let cfg = GpuComputeConfig::default();
+        dispatch_gaussian_blur(&mut pixels, w, h, 2.0, &cfg);
+
+        assert!(pixels.iter().any(|&v| v != 0), "output should not be all-zero");
+    }
+
+    #[test]
+    fn test_gpu_status_check() {
+        // check_gpu_status must return one of the defined variants without panicking.
+        let status = check_gpu_status();
+        // This match is exhaustive — if a new variant is added it will fail to compile.
+        match status {
+            GpuStatus::Available => {}
+            GpuStatus::NotAvailable(_) => {}
+            GpuStatus::FeatureDisabled => {}
+        }
     }
 }

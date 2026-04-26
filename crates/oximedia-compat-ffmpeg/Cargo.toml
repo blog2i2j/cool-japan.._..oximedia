@@ -8,6 +8,9 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "FFmpeg CLI argument compatibility layer for OxiMedia"
+keywords = ["ffmpeg", "compatibility", "transcoding", "multimedia", "codec"]
+categories = ["multimedia::encoding", "multimedia"]
+readme = "README.md"
 
 [lints]
 workspace = true

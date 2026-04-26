@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-04-25
+
+### Added
+- **Stub implementations across 10+ crates** — accel color-space conversion helpers (RGB↔YCbCr, HSV, linear↔sRGB), Vorbis codebook VQ decode scaffolding, ACES Output Device Transform (ODT) variants (P3-D65, Rec.709, Rec.2020, D60-sim, sRGB), DASH segment HTTP fetch skeleton, and system font directory scanning (`/System/Library/Fonts`, `~/.local/share/fonts`, Windows `C:\Windows\Fonts`). All stubs compile cleanly, are documented with `#[allow(dead_code)]` guards, and carry TODO markers pinned to specific crate milestones.
+- **Wave 3 stub resolution** — 13 previously-placeholder functions across `oximedia-codec`, `oximedia-audio`, `oximedia-image`, `oximedia-lut`, and `oximedia-caption-gen` replaced with functional implementations; total test count rose to **81,582** (up from ~80,900 at Wave 2 baseline).
+- **`oxifft` upgraded to 0.3.0** — workspace dependency bumped from 0.2.0 to 0.3.0; all 13 dependent crates (`oximedia-audio`, `oximedia-audio-analysis`, `oximedia-audiopost`, `oximedia-mir`, `oximedia-effects`, `oximedia-dedup`, `oximedia-watermark`, `oximedia-multicam`, `oximedia-cv`, `oximedia-metering`, `oximedia-restore`, `oximedia-analysis`, `oximedia-watermark`) pass `cargo check` cleanly. OxiFFT 0.3.0 delivers Makhoul-reduction DCT-II (~4× faster vs 0.2.0), plan caching for R2r/R2c solvers, and hand-optimized AVX-512 codelets for sizes 16/32/64; the `fft`/`ifft`/`Complex` surface used by OxiMedia is API-stable.
+
+### Changed
+- **`exr.rs` refactored into 9 modules** via `splitrs` — the monolithic `oximedia-image/src/exr.rs` (previously over 2000 lines) was split into: `exr/core.rs`, `exr/compression.rs`, `exr/channels.rs`, `exr/metadata.rs`, `exr/scan_lines.rs`, `exr/tiles.rs`, `exr/deep.rs`, `exr/multipart.rs`, and `exr/mod.rs`. All files are under 2000 lines; public API is unchanged.
+- **AWS SDK sub-crate version constraints updated** to match Cargo.lock actuals: `aws-sdk-s3 1.131`, `aws-sdk-mediaconvert 1.126`, `aws-sdk-medialive 1.134`, `aws-sdk-mediapackage 1.98`, `aws-sdk-cloudwatch 1.110`, `aws-sdk-sts 1.103`, `aws-sdk-kms 1.105` (cosmetic alignment; Cargo.lock was already current).
+- Workspace version bumped to **0.1.6** (was 0.1.5).
+
+### Security
+- **RUSTSEC-2026-0104 documented and ignored** (`audit.toml` + `.cargo/audit.toml`) — reachable panic in `rustls-webpki 0.101.7` CRL parsing, transitive via `aws-sdk-* → aws-smithy-runtime/tls-rustls → legacy-rustls-ring → rustls 0.21.12`. OxiMedia S3/cloud calls never perform CRL checks (standard DNS hostnames, no revocation list usage); the affected code path is unreachable at runtime. Upgrading to the patched `rustls-webpki 0.103.13` path requires `aws-lc-sys` (C dependency excluded by COOLJAPAN Pure Rust Policy). Entry mirrors the existing rationale for RUSTSEC-2026-0098 and RUSTSEC-2026-0099; `cargo audit` exits 0. Will resolve when AWS SDK migrates `aws-smithy-runtime` to rustls 0.23+.
+
+### Validated
+- `cargo check` clean for all 13 `oxifft`-dependent crates after upgrade to 0.3.0.
+- `cargo audit --no-fetch` exits 0 (no unignored vulnerabilities).
+- `splitrs`-generated `exr/` modules all under 2000 lines; no public API regressions.
+
 ## [0.1.5] - 2026-04-21
 
 ### Added

@@ -25,6 +25,8 @@
 
 use crate::{BenchError, BenchResult};
 use oximedia_codec::VideoFrame;
+use oximedia_core::PixelFormat;
+use oximedia_quality::{Frame as QualityFrame, VmafCalculator};
 use serde::{Deserialize, Serialize};
 
 // ---------------------------------------------------------------------------
@@ -578,32 +580,60 @@ fn calculate_ssim_window(
     }
 }
 
-/// Calculate VMAF (Video Multimethod Assessment Fusion) score.
+/// Convert a [`VideoFrame`] Y plane into a [`QualityFrame`] for VMAF assessment.
 ///
-/// This is a placeholder implementation. In production, you would integrate
-/// with the actual VMAF library (libvmaf).
+/// Only the luma (Y) plane is extracted, which is sufficient for the
+/// pure-Rust `VmafCalculator` implementation.
+fn video_frame_to_quality_frame(vf: &VideoFrame) -> BenchResult<QualityFrame> {
+    let y_plane = vf
+        .planes
+        .first()
+        .ok_or_else(|| BenchError::MetricFailed("Missing Y plane".to_string()))?;
+
+    let width = vf.width as usize;
+    let height = vf.height as usize;
+
+    // Build a quality Frame with only the luma plane; VMAF reads planes[0].
+    let mut qf = QualityFrame::new(width, height, PixelFormat::Yuv420p)
+        .map_err(|e| BenchError::MetricFailed(e.to_string()))?;
+
+    // Copy Y data row-by-row to handle differing strides.
+    let stride = y_plane.stride;
+    let y_dst = qf
+        .planes
+        .first_mut()
+        .ok_or_else(|| BenchError::MetricFailed("QualityFrame has no Y plane".to_string()))?;
+    for row in 0..height {
+        let src_start = row * stride;
+        let src_end = src_start + width;
+        if src_end <= y_plane.data.len() {
+            let dst_start = row * width;
+            let dst_end = dst_start + width;
+            y_dst[dst_start..dst_end].copy_from_slice(&y_plane.data[src_start..src_end]);
+        }
+    }
+
+    Ok(qf)
+}
+
+/// Calculate VMAF (Video Multimethod Assessment Fusion) score using the
+/// pure-Rust [`VmafCalculator`] from `oximedia-quality`.
+///
+/// Returns a score in the range \[0, 100\].
 fn calculate_vmaf(
-    _original: &VideoFrame,
-    _encoded: &VideoFrame,
+    original: &VideoFrame,
+    encoded: &VideoFrame,
     _model_path: Option<&str>,
 ) -> BenchResult<f64> {
-    // Placeholder: In a real implementation, this would call libvmaf
-    // For now, we'll return an estimated VMAF based on SSIM and PSNR
+    let ref_frame = video_frame_to_quality_frame(original)?;
+    let dis_frame = video_frame_to_quality_frame(encoded)?;
 
-    #[cfg(feature = "vmaf")]
-    {
-        // Real VMAF implementation would go here
-        Err(BenchError::MetricFailed(
-            "VMAF support not yet implemented".to_string(),
-        ))
-    }
+    let calc = VmafCalculator::new();
+    let score = calc
+        .calculate(&ref_frame, &dis_frame)
+        .map_err(|e| BenchError::MetricFailed(e.to_string()))?;
 
-    #[cfg(not(feature = "vmaf"))]
-    {
-        Err(BenchError::MetricFailed(
-            "VMAF feature not enabled".to_string(),
-        ))
-    }
+    Ok(score.score)
 }
 
 // ---------------------------------------------------------------------------

@@ -6,7 +6,7 @@ Comprehensive workflow orchestration engine for OxiMedia. Provides DAG-based wor
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.5 — 2026-04-21 — 1,049 tests
+Version: 0.1.6 — 2026-04-26 — 1,049 tests
 
 ## Features
 
@@ -65,7 +65,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-workflow = "0.1.5"
+oximedia-workflow = "0.1.6"
 ```
 
 ```rust

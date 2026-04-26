@@ -406,37 +406,412 @@ fn generate_synthetic_hrir(azimuth: f32, elevation: f32) -> (Vec<f32>, Vec<f32>)
     (left, right)
 }
 
-/// SOFA (Spatially Oriented Format for Acoustics) file format support
-/// This is a placeholder for future implementation
+/// SOFA (Spatially Oriented Format for Acoustics) file format support.
+///
+/// Supports the OxiMedia Simplified SOFA text format (`.sofa.txt` or `.sofa.csv`).
+/// Real SOFA/HDF5 binary files are not supported without the `hdf5` feature.
 pub struct SofaLoader {
     _phantom: std::marker::PhantomData<()>,
 }
 
 impl SofaLoader {
-    /// Load HRTF database from SOFA file
-    /// Note: This is a placeholder. Real implementation would parse SOFA files.
-    #[allow(dead_code)]
-    pub fn load_from_file(_path: &str) -> AudioResult<HrtfDatabase> {
-        Err(AudioError::UnsupportedFormat(
-            "SOFA format not yet implemented".to_string(),
-        ))
+    /// Load an HRTF database from a file.
+    ///
+    /// Accepts the **OxiMedia Simplified SOFA text format** (`.sofa.txt` or `.sofa.csv`).
+    ///
+    /// # Simplified SOFA Text Format
+    ///
+    /// ```text
+    /// # OxiMedia Simplified SOFA Format v1
+    /// # Comments start with #
+    /// DATABASE_NAME  MIT KEMAR
+    /// SAMPLE_RATE    44100
+    /// HRIR_LENGTH    128
+    /// # azimuth_deg elevation_deg left_ir_samples... right_ir_samples...
+    /// 0.0 0.0 0.001 0.002 ... 0.001 0.002 ...
+    /// 45.0 0.0 ...
+    /// ```
+    ///
+    /// Each measurement line contains: `azimuth elevation [HRIR_LENGTH left samples] [HRIR_LENGTH right samples]`
+    ///
+    /// # Errors
+    ///
+    /// - Returns [`AudioError::UnsupportedFormat`] if the path has a `.sofa` extension (real HDF5 binary).
+    /// - Returns [`AudioError::Io`] if the file cannot be opened.
+    /// - Returns [`AudioError::InvalidData`] if required headers are missing or a measurement line
+    ///   has the wrong number of values.
+    pub fn load_from_file(path: &str) -> AudioResult<HrtfDatabase> {
+        use std::io::{BufRead, BufReader};
+
+        // Dispatch on extension: reject real HDF5 .sofa files early
+        let p = std::path::Path::new(path);
+        let ext = p
+            .extension()
+            .and_then(|e| e.to_str())
+            .unwrap_or("")
+            .to_ascii_lowercase();
+        if ext == "sofa" {
+            return Err(AudioError::UnsupportedFormat(
+                "Real SOFA/HDF5 format requires the 'hdf5' feature which is not currently \
+                 enabled. Use the .sofa.txt simplified format instead."
+                    .to_string(),
+            ));
+        }
+
+        let file =
+            std::fs::File::open(path).map_err(|e| AudioError::Io(format!("{}: {}", path, e)))?;
+        let reader = BufReader::new(file);
+
+        let mut db_name = String::from("SOFA Database");
+        let mut sample_rate: u32 = 44100;
+        let mut hrir_length: usize = 0;
+        let mut db: Option<HrtfDatabase> = None;
+
+        for (line_num, line_result) in reader.lines().enumerate() {
+            let line = line_result.map_err(|e| AudioError::Io(e.to_string()))?;
+            let trimmed = line.trim();
+
+            // Skip blank lines and comments
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                continue;
+            }
+
+            // Try to parse as a key-value header first (no leading digit or sign)
+            let first_char = trimmed.chars().next().unwrap_or(' ');
+            if first_char.is_alphabetic() {
+                // Parse header key-value pair
+                let mut parts = trimmed.splitn(2, |c: char| c.is_whitespace());
+                let key = parts.next().unwrap_or("").trim();
+                let value = parts.next().unwrap_or("").trim();
+                match key {
+                    "DATABASE_NAME" => db_name = value.to_string(),
+                    "SAMPLE_RATE" => {
+                        sample_rate = value.parse::<u32>().map_err(|_| {
+                            AudioError::InvalidData(format!(
+                                "line {}: invalid SAMPLE_RATE value: {}",
+                                line_num + 1,
+                                value
+                            ))
+                        })?;
+                    }
+                    "HRIR_LENGTH" => {
+                        hrir_length = value.parse::<usize>().map_err(|_| {
+                            AudioError::InvalidData(format!(
+                                "line {}: invalid HRIR_LENGTH value: {}",
+                                line_num + 1,
+                                value
+                            ))
+                        })?;
+                    }
+                    "MEASUREMENT_COUNT" | "SOFA_VERSION" => {
+                        // Informational — no action needed
+                    }
+                    _ => {
+                        // Unknown header key — skip silently
+                    }
+                }
+                continue;
+            }
+
+            // Lazily initialise the database on the first data line
+            if db.is_none() {
+                if hrir_length == 0 {
+                    return Err(AudioError::InvalidData(
+                        "HRIR_LENGTH header must appear before measurement data".to_string(),
+                    ));
+                }
+                db = Some(HrtfDatabase::new(db_name.clone(), sample_rate));
+            }
+
+            // Parse measurement line: azimuth elevation [hrir_length left] [hrir_length right]
+            let tokens: Vec<&str> = trimmed.split_ascii_whitespace().collect();
+            let expected = 2 + 2 * hrir_length;
+            if tokens.len() != expected {
+                return Err(AudioError::InvalidData(format!(
+                    "line {}: expected {} tokens (azimuth + elevation + {} left + {} right), got {}",
+                    line_num + 1,
+                    expected,
+                    hrir_length,
+                    hrir_length,
+                    tokens.len()
+                )));
+            }
+
+            let azimuth_deg = tokens[0].parse::<f32>().map_err(|_| {
+                AudioError::InvalidData(format!(
+                    "line {}: invalid azimuth value: {}",
+                    line_num + 1,
+                    tokens[0]
+                ))
+            })?;
+            let elevation_deg = tokens[1].parse::<f32>().map_err(|_| {
+                AudioError::InvalidData(format!(
+                    "line {}: invalid elevation value: {}",
+                    line_num + 1,
+                    tokens[1]
+                ))
+            })?;
+
+            let mut left = Vec::with_capacity(hrir_length);
+            let mut right = Vec::with_capacity(hrir_length);
+
+            for i in 0..hrir_length {
+                let v = tokens[2 + i].parse::<f32>().map_err(|_| {
+                    AudioError::InvalidData(format!(
+                        "line {}: invalid left sample at index {}: {}",
+                        line_num + 1,
+                        i,
+                        tokens[2 + i]
+                    ))
+                })?;
+                left.push(v);
+            }
+            for i in 0..hrir_length {
+                let v = tokens[2 + hrir_length + i].parse::<f32>().map_err(|_| {
+                    AudioError::InvalidData(format!(
+                        "line {}: invalid right sample at index {}: {}",
+                        line_num + 1,
+                        i,
+                        tokens[2 + hrir_length + i]
+                    ))
+                })?;
+                right.push(v);
+            }
+
+            let azimuth_rad = azimuth_deg.to_radians();
+            let elevation_rad = elevation_deg.to_radians();
+            let measurement = HrirMeasurement::new(left, right, azimuth_rad, elevation_rad);
+
+            if let Some(ref mut database) = db {
+                database.add_measurement(measurement);
+            }
+        }
+
+        db.ok_or_else(|| {
+            AudioError::InvalidData("No measurement data found in SOFA file".to_string())
+        })
     }
 }
 
-/// CIPIC HRTF database loader
-/// This is a placeholder for future implementation
+/// CIPIC HRTF database loader.
+///
+/// Loads HRTF measurements in the OxiMedia simplified CIPIC text format.
+/// The file is resolved via the `OXIMEDIA_CIPIC_DATA_DIR` environment variable
+/// (or the current working directory as fallback) at the path:
+///
+/// ```text
+/// {OXIMEDIA_CIPIC_DATA_DIR}/cipic/subject_{id:03}/hrtf.cipic.txt
+/// ```
+///
+/// If the file does not exist the loader falls back to a **synthetic CIPIC-compatible**
+/// database that covers the full CIPIC azimuth/elevation grid using the built-in
+/// synthetic HRIR generator.  All other I/O and parse errors are propagated as `Err`.
 pub struct CipicLoader {
     _phantom: std::marker::PhantomData<()>,
 }
 
+/// CIPIC azimuth grid (degrees) — 25 values matching the standard CIPIC positions.
+const CIPIC_AZIMUTHS: [f32; 25] = [
+    -80.0, -65.0, -55.0, -45.0, -40.0, -35.0, -30.0, -25.0, -20.0, -15.0, -10.0, -5.0, 0.0, 5.0,
+    10.0, 15.0, 20.0, 25.0, 30.0, 35.0, 40.0, 45.0, 55.0, 65.0, 80.0,
+];
+
+/// CIPIC elevation grid (degrees) — 50 values matching the standard CIPIC positions.
+const CIPIC_ELEVATIONS: [f32; 50] = [
+    -45.0, -39.375, -33.75, -28.125, -22.5, -16.875, -11.25, -5.625, 0.0, 5.625, 11.25, 16.875,
+    22.5, 28.125, 33.75, 39.375, 45.0, 50.625, 56.25, 61.875, 67.5, 73.125, 78.75, 84.375, 90.0,
+    95.625, 101.25, 106.875, 112.5, 118.125, 123.75, 129.375, 135.0, 140.625, 146.25, 151.875,
+    157.5, 163.125, 168.75, 174.375, 180.0, 185.625, 191.25, 196.875, 202.5, 208.125, 213.75,
+    219.375, 225.0, 230.625,
+];
+
 impl CipicLoader {
-    /// Load CIPIC database
-    /// Note: This is a placeholder. Real implementation would load CIPIC data.
-    #[allow(dead_code)]
-    pub fn load_subject(_subject_id: u32) -> AudioResult<HrtfDatabase> {
-        Err(AudioError::UnsupportedFormat(
-            "CIPIC format not yet implemented".to_string(),
-        ))
+    /// Load a CIPIC HRTF database for the given subject identifier.
+    ///
+    /// The function first attempts to read the file at:
+    /// ```text
+    /// $OXIMEDIA_CIPIC_DATA_DIR/cipic/subject_{subject_id:03}/hrtf.cipic.txt
+    /// ```
+    /// (falling back to the current working directory when the env var is unset).
+    ///
+    /// If the file is **not found**, a synthetic CIPIC-compatible database covering
+    /// all 25×50 standard CIPIC grid positions is generated and returned.
+    ///
+    /// Parse errors and other I/O problems are propagated as [`Err`].
+    ///
+    /// # CIPIC Text Format
+    ///
+    /// ```text
+    /// # CIPIC HRTF Subject 1
+    /// DATABASE_NAME CIPIC Subject 1
+    /// SAMPLE_RATE 44100
+    /// HRIR_LENGTH 200
+    /// # azimuth_deg elevation_deg left_samples... right_samples...
+    /// -80.0 -45.0 0.001 -0.002 ... (200 left) 0.001 -0.002 ... (200 right)
+    /// ```
+    pub fn load_subject(subject_id: u32) -> AudioResult<HrtfDatabase> {
+        use std::io::{BufRead, BufReader};
+
+        // Resolve the base data directory from the environment or CWD
+        let base_dir = std::env::var("OXIMEDIA_CIPIC_DATA_DIR").unwrap_or_else(|_| ".".to_string());
+        let file_path = format!(
+            "{}/cipic/subject_{:03}/hrtf.cipic.txt",
+            base_dir, subject_id
+        );
+
+        let file = match std::fs::File::open(&file_path) {
+            Ok(f) => f,
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+                // Gracefully fall back to synthetic data
+                return Ok(Self::generate_synthetic(subject_id));
+            }
+            Err(e) => {
+                return Err(AudioError::Io(format!("{}: {}", file_path, e)));
+            }
+        };
+
+        let reader = BufReader::new(file);
+
+        let mut db_name = format!("CIPIC Subject {}", subject_id);
+        let mut sample_rate: u32 = 44100;
+        let mut hrir_length: usize = 0;
+        let mut db: Option<HrtfDatabase> = None;
+
+        for (line_num, line_result) in reader.lines().enumerate() {
+            let line = line_result.map_err(|e| AudioError::Io(e.to_string()))?;
+            let trimmed = line.trim();
+
+            if trimmed.is_empty() || trimmed.starts_with('#') {
+                continue;
+            }
+
+            let first_char = trimmed.chars().next().unwrap_or(' ');
+            if first_char.is_alphabetic() {
+                let mut parts = trimmed.splitn(2, |c: char| c.is_whitespace());
+                let key = parts.next().unwrap_or("").trim();
+                let value = parts.next().unwrap_or("").trim();
+                match key {
+                    "DATABASE_NAME" => db_name = value.to_string(),
+                    "SAMPLE_RATE" => {
+                        sample_rate = value.parse::<u32>().map_err(|_| {
+                            AudioError::InvalidData(format!(
+                                "line {}: invalid SAMPLE_RATE value: {}",
+                                line_num + 1,
+                                value
+                            ))
+                        })?;
+                    }
+                    "HRIR_LENGTH" => {
+                        hrir_length = value.parse::<usize>().map_err(|_| {
+                            AudioError::InvalidData(format!(
+                                "line {}: invalid HRIR_LENGTH value: {}",
+                                line_num + 1,
+                                value
+                            ))
+                        })?;
+                    }
+                    _ => {}
+                }
+                continue;
+            }
+
+            if db.is_none() {
+                if hrir_length == 0 {
+                    return Err(AudioError::InvalidData(
+                        "HRIR_LENGTH header must appear before measurement data".to_string(),
+                    ));
+                }
+                db = Some(HrtfDatabase::new(db_name.clone(), sample_rate));
+            }
+
+            let tokens: Vec<&str> = trimmed.split_ascii_whitespace().collect();
+            let expected = 2 + 2 * hrir_length;
+            if tokens.len() != expected {
+                return Err(AudioError::InvalidData(format!(
+                    "line {}: expected {} tokens, got {}",
+                    line_num + 1,
+                    expected,
+                    tokens.len()
+                )));
+            }
+
+            let azimuth_deg = tokens[0].parse::<f32>().map_err(|_| {
+                AudioError::InvalidData(format!(
+                    "line {}: invalid azimuth: {}",
+                    line_num + 1,
+                    tokens[0]
+                ))
+            })?;
+            let elevation_deg = tokens[1].parse::<f32>().map_err(|_| {
+                AudioError::InvalidData(format!(
+                    "line {}: invalid elevation: {}",
+                    line_num + 1,
+                    tokens[1]
+                ))
+            })?;
+
+            let mut left = Vec::with_capacity(hrir_length);
+            let mut right = Vec::with_capacity(hrir_length);
+
+            for i in 0..hrir_length {
+                let v = tokens[2 + i].parse::<f32>().map_err(|_| {
+                    AudioError::InvalidData(format!(
+                        "line {}: invalid left sample {}: {}",
+                        line_num + 1,
+                        i,
+                        tokens[2 + i]
+                    ))
+                })?;
+                left.push(v);
+            }
+            for i in 0..hrir_length {
+                let v = tokens[2 + hrir_length + i].parse::<f32>().map_err(|_| {
+                    AudioError::InvalidData(format!(
+                        "line {}: invalid right sample {}: {}",
+                        line_num + 1,
+                        i,
+                        tokens[2 + hrir_length + i]
+                    ))
+                })?;
+                right.push(v);
+            }
+
+            let azimuth_rad = azimuth_deg.to_radians();
+            let elevation_rad = elevation_deg.to_radians();
+            let measurement = HrirMeasurement::new(left, right, azimuth_rad, elevation_rad);
+
+            if let Some(ref mut database) = db {
+                database.add_measurement(measurement);
+            }
+        }
+
+        db.ok_or_else(|| {
+            AudioError::InvalidData("No measurement data found in CIPIC file".to_string())
+        })
+    }
+
+    /// Generate a synthetic CIPIC-compatible HRTF database for the given subject.
+    ///
+    /// Covers all positions on the standard CIPIC 25×50 azimuth/elevation grid.
+    fn generate_synthetic(subject_id: u32) -> HrtfDatabase {
+        let name = format!("CIPIC Subject {} (Synthetic)", subject_id);
+        let mut db = HrtfDatabase::new(name, 44100);
+
+        for &az_deg in CIPIC_AZIMUTHS.iter() {
+            for &el_deg in CIPIC_ELEVATIONS.iter() {
+                let azimuth_rad = az_deg.to_radians();
+                let elevation_rad = el_deg.to_radians();
+                let (left, right) = generate_synthetic_hrir(azimuth_rad, elevation_rad);
+                db.add_measurement(HrirMeasurement::new(
+                    left,
+                    right,
+                    azimuth_rad,
+                    elevation_rad,
+                ));
+            }
+        }
+
+        db
     }
 }
 
@@ -496,5 +871,137 @@ mod tests {
 
         let hrir = hrir.expect("should succeed");
         assert!(!hrir.is_empty());
+    }
+
+    // ---------------------------------------------------------------
+    // SofaLoader tests
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn test_sofa_loader_file_not_found() {
+        let result = SofaLoader::load_from_file("/nonexistent/path/to/file.sofa.txt");
+        assert!(
+            result.is_err(),
+            "Expected Err for a nonexistent file, got Ok"
+        );
+    }
+
+    #[test]
+    fn test_sofa_loader_real_hdf5_returns_unsupported() {
+        // A .sofa extension (without .txt) should be rejected as HDF5
+        let result = SofaLoader::load_from_file("/any/path/kemar.sofa");
+        match result {
+            Err(AudioError::UnsupportedFormat(_)) => {}
+            other => panic!("Expected UnsupportedFormat, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn test_sofa_loader_valid_file() {
+        use std::io::Write;
+
+        // HRIR length = 4 for brevity; 3 measurements
+        let hrir_length = 4usize;
+        let mut dir = std::env::temp_dir();
+        dir.push(format!("oximedia_sofa_test_{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("create temp dir");
+        let file_path = dir.join("test.sofa.txt");
+
+        {
+            let mut f = std::fs::File::create(&file_path).expect("create temp file");
+            writeln!(f, "# OxiMedia Simplified SOFA Format v1").expect("write");
+            writeln!(f, "DATABASE_NAME  Test DB").expect("write");
+            writeln!(f, "SAMPLE_RATE    44100").expect("write");
+            writeln!(f, "HRIR_LENGTH    {}", hrir_length).expect("write");
+
+            // Write 3 measurement lines: 2 + 2*hrir_length tokens each
+            for az in [0.0f32, 45.0, 90.0] {
+                let samples: Vec<String> = (0..hrir_length * 2)
+                    .map(|i| format!("{:.4}", 0.001 * (i + 1) as f32))
+                    .collect();
+                writeln!(f, "{} 0.0 {}", az, samples.join(" ")).expect("write");
+            }
+        }
+
+        let result = SofaLoader::load_from_file(file_path.to_str().expect("valid path"));
+        // Cleanup regardless of result
+        let _ = std::fs::remove_dir_all(&dir);
+
+        let db = result.expect("load_from_file should succeed for valid file");
+        assert_eq!(db.len(), 3, "Expected 3 measurements");
+        assert_eq!(db.sample_rate, 44100);
+        assert!(db.name().contains("Test DB"));
+    }
+
+    // ---------------------------------------------------------------
+    // CipicLoader tests
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn test_cipic_loader_returns_database() {
+        // Subject 1 with no real data on disk → synthetic fallback
+        let result = CipicLoader::load_subject(1);
+        let db = result.expect("load_subject should always succeed (synthetic fallback)");
+        assert!(
+            db.name().contains("CIPIC"),
+            "Database name should contain 'CIPIC', got: {}",
+            db.name()
+        );
+        assert!(
+            db.len() > 0,
+            "Expected at least one measurement in synthetic database"
+        );
+        // CIPIC grid: 25 azimuths × 50 elevations = 1250 measurements
+        assert_eq!(
+            db.len(),
+            CIPIC_AZIMUTHS.len() * CIPIC_ELEVATIONS.len(),
+            "Synthetic CIPIC database should cover the full 25×50 grid"
+        );
+    }
+
+    #[test]
+    fn test_cipic_loader_valid_file() {
+        use std::io::Write;
+
+        let hrir_length = 4usize;
+        let subject_id = 42u32;
+
+        // Build the expected directory structure inside a temp dir
+        let mut base = std::env::temp_dir();
+        base.push(format!("oximedia_cipic_test_{}", std::process::id()));
+        let subject_dir = base.join(format!("cipic/subject_{:03}", subject_id));
+        std::fs::create_dir_all(&subject_dir).expect("create temp dirs");
+        let file_path = subject_dir.join("hrtf.cipic.txt");
+
+        {
+            let mut f = std::fs::File::create(&file_path).expect("create temp file");
+            writeln!(f, "# CIPIC HRTF Subject {}", subject_id).expect("write");
+            writeln!(f, "DATABASE_NAME CIPIC Subject {}", subject_id).expect("write");
+            writeln!(f, "SAMPLE_RATE 44100").expect("write");
+            writeln!(f, "HRIR_LENGTH {}", hrir_length).expect("write");
+
+            // 2 measurements
+            for az in [-80.0f32, 0.0] {
+                let samples: Vec<String> = (0..hrir_length * 2)
+                    .map(|i| format!("{:.5}", 0.0005 * (i + 1) as f32))
+                    .collect();
+                writeln!(f, "{} -45.0 {}", az, samples.join(" ")).expect("write");
+            }
+        }
+
+        // Point the loader at our temp directory via the env var
+        std::env::set_var(
+            "OXIMEDIA_CIPIC_DATA_DIR",
+            base.to_str().expect("valid path"),
+        );
+        let result = CipicLoader::load_subject(subject_id);
+        // Always remove env var and temp dir, regardless of result
+        std::env::remove_var("OXIMEDIA_CIPIC_DATA_DIR");
+        let _ = std::fs::remove_dir_all(&base);
+
+        let db = result.expect("load_subject should succeed for valid CIPIC file");
+        assert_eq!(db.len(), 2, "Expected 2 measurements from file");
+        assert_eq!(db.sample_rate, 44100);
+        assert!(db.name().contains("CIPIC"));
     }
 }

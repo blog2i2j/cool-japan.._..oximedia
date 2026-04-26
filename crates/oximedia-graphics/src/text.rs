@@ -4,9 +4,82 @@ use crate::color::Color;
 use crate::error::{GraphicsError, Result};
 use crate::primitives::{Point, Rect};
 use ab_glyph::{Font, FontRef, PxScale, ScaleFont};
+use fontdue::FontSettings;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
+
+/// Well-known system font paths searched in order on macOS.
+#[cfg(target_os = "macos")]
+const SYSTEM_FONT_PATHS: &[&str] = &[
+    "/System/Library/Fonts/Helvetica.ttc",
+    "/System/Library/Fonts/Arial.ttf",
+    "/Library/Fonts/Arial.ttf",
+    "/System/Library/Fonts/SFNS.ttf",
+];
+
+/// Well-known system font paths searched in order on Linux.
+#[cfg(target_os = "linux")]
+const SYSTEM_FONT_PATHS: &[&str] = &[
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
+    "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
+    "/usr/share/fonts/TTF/DejaVuSans.ttf",
+];
+
+/// Well-known system font paths searched in order on Windows.
+#[cfg(target_os = "windows")]
+const SYSTEM_FONT_PATHS: &[&str] = &[
+    "C:\\Windows\\Fonts\\arial.ttf",
+    "C:\\Windows\\Fonts\\segoeui.ttf",
+];
+
+/// Fallback empty list for platforms that don't match the above.
+#[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+const SYSTEM_FONT_PATHS: &[&str] = &[];
+
+/// Try to parse font bytes with `fontdue` as a validity check.
+///
+/// Returns `Ok(bytes)` if the bytes constitute a parseable font, or an
+/// error describing why the bytes were rejected.
+pub(crate) fn validate_font_bytes(bytes: Vec<u8>) -> Result<Vec<u8>> {
+    fontdue::Font::from_bytes(bytes.as_slice(), FontSettings::default())
+        .map(|_| bytes)
+        .map_err(|e| GraphicsError::FontError(format!("Font parse error: {e}")))
+}
+
+/// Search the platform's well-known font directories and the `OXIMEDIA_SYSTEM_FONT`
+/// environment variable for a usable font file.
+///
+/// Returns `Ok(Vec<u8>)` containing the raw font bytes of the first valid font
+/// found, or a [`GraphicsError::FontError`] if no font could be loaded.
+fn find_system_font_bytes() -> Result<Vec<u8>> {
+    // 1. Try each platform-specific path in declaration order.
+    for path in SYSTEM_FONT_PATHS {
+        match std::fs::read(path) {
+            Ok(bytes) => match validate_font_bytes(bytes) {
+                Ok(valid) => return Ok(valid),
+                Err(_) => continue, // unreadable or invalid format — try next
+            },
+            Err(_) => continue,
+        }
+    }
+
+    // 2. Honour the OXIMEDIA_SYSTEM_FONT environment variable as a final override.
+    if let Ok(env_path) = std::env::var("OXIMEDIA_SYSTEM_FONT") {
+        let bytes = std::fs::read(&env_path).map_err(|e| {
+            GraphicsError::FontError(format!(
+                "OXIMEDIA_SYSTEM_FONT path '{env_path}' is not readable: {e}",
+            ))
+        })?;
+        return validate_font_bytes(bytes);
+    }
+
+    Err(GraphicsError::FontError(
+        "No system font found: searched platform paths and OXIMEDIA_SYSTEM_FONT env var"
+            .to_string(),
+    ))
+}
 
 /// Font family
 #[derive(Debug, Clone)]
@@ -93,12 +166,21 @@ impl FontManager {
         self.families.get(name)
     }
 
-    /// Load system font (simplified - would use platform-specific APIs)
+    /// Load a system font and register it under `name`.
+    ///
+    /// Searches well-known platform font directories in order, then falls back
+    /// to the `OXIMEDIA_SYSTEM_FONT` environment variable.  Pure-Rust only —
+    /// no fontconfig FFI, no CoreText FFI.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`GraphicsError::FontError`] if no valid system font can be
+    /// found or parsed.
     pub fn load_system_font(&mut self, name: &str) -> Result<()> {
-        // This is a placeholder - real implementation would use fontconfig/DirectWrite/CoreText
-        Err(GraphicsError::FontError(format!(
-            "System font loading not implemented: {name}"
-        )))
+        let bytes = find_system_font_bytes()?;
+        let family = FontFamily::from_regular(bytes);
+        self.add_family(name.to_string(), family);
+        Ok(())
     }
 }
 
@@ -538,5 +620,117 @@ mod tests {
         let style = TextStyle::default();
         let segment = TextSegment::new("Test".to_string(), style);
         assert_eq!(segment.text, "Test");
+    }
+
+    /// `load_system_font` either succeeds (finds a platform font) or returns a
+    /// `FontError`.  It must never panic.
+    ///
+    /// This test validates the complete execution path through `load_system_font`
+    /// including the `find_system_font_bytes` search loop and the `FontFamily`
+    /// registration, on whatever host fonts are available.
+    #[test]
+    fn test_load_system_font_no_panic() {
+        let mut manager = FontManager::new();
+        let result = manager.load_system_font("SysFont");
+        match result {
+            Ok(()) => {
+                // A platform font was found and registered.
+                assert!(
+                    manager.get_family("SysFont").is_some(),
+                    "font family should be present after Ok result"
+                );
+            }
+            Err(GraphicsError::FontError(_)) => {
+                // No font on this host — correct error variant, no panic.
+            }
+            Err(other) => {
+                panic!("Unexpected error variant from load_system_font: {other}");
+            }
+        }
+    }
+
+    /// `validate_font_bytes` rejects garbage bytes and returns a descriptive `FontError`.
+    ///
+    /// We write known-invalid bytes to `temp_dir()`, read them back, and then
+    /// call `validate_font_bytes` — exactly mirroring what `find_system_font_bytes`
+    /// does when it reads a corrupt or non-font file.
+    #[test]
+    fn test_validate_font_bytes_rejects_garbage() {
+        // Write known-garbage bytes to a temp dir file.
+        let mut tmp = std::env::temp_dir();
+        tmp.push("oximedia_test_garbage_font_xyz987.ttf");
+
+        let garbage: Vec<u8> = vec![0xDE, 0xAD, 0xBE, 0xEF, 0x00, 0x00, 0x00, 0x00];
+        std::fs::write(&tmp, &garbage).expect("failed to write garbage font bytes to temp_dir");
+
+        // Read back (mirrors what find_system_font_bytes does).
+        let read_back = std::fs::read(&tmp).expect("temp file should be readable");
+
+        // validate_font_bytes must return FontError for garbage.
+        let result = validate_font_bytes(read_back);
+
+        let _ = std::fs::remove_file(&tmp);
+
+        assert!(
+            result.is_err(),
+            "validate_font_bytes must reject known-garbage bytes"
+        );
+        assert!(
+            matches!(result, Err(GraphicsError::FontError(_))),
+            "error must be GraphicsError::FontError"
+        );
+    }
+
+    /// When a valid font is available on the system, copying it to `temp_dir()`
+    /// and passing those bytes through `validate_font_bytes` must succeed, and the
+    /// resulting bytes must produce a valid `FontFamily`.
+    ///
+    /// Gracefully skipped (early return) on hosts with no system fonts so CI
+    /// does not fail in a minimal environment.
+    #[test]
+    fn test_font_family_from_valid_font_bytes_via_temp_dir() {
+        // Locate a real, validate_font_bytes-parseable font from the platform list.
+        let mut source_bytes: Option<Vec<u8>> = None;
+        for path in SYSTEM_FONT_PATHS {
+            if let Ok(bytes) = std::fs::read(path) {
+                if validate_font_bytes(bytes.clone()).is_ok() {
+                    source_bytes = Some(bytes);
+                    break;
+                }
+            }
+        }
+
+        let bytes = match source_bytes {
+            Some(b) => b,
+            None => return, // no font on this host — skip gracefully
+        };
+
+        // Round-trip: write to temp dir then read back.
+        let mut tmp = std::env::temp_dir();
+        tmp.push("oximedia_test_valid_roundtrip_font.ttf");
+        std::fs::write(&tmp, &bytes).expect("failed to write font to temp_dir");
+        let read_back = std::fs::read(&tmp).expect("failed to read font from temp_dir");
+        let _ = std::fs::remove_file(&tmp);
+
+        // validate_font_bytes must accept the round-tripped bytes.
+        let validated = validate_font_bytes(read_back);
+        assert!(
+            validated.is_ok(),
+            "validate_font_bytes must accept round-tripped valid font bytes"
+        );
+
+        // Build a FontFamily from the validated bytes and verify registration.
+        let family = FontFamily::from_regular(validated.expect("already checked Ok"));
+        assert!(
+            !family.regular.is_empty(),
+            "FontFamily::regular must hold the font bytes"
+        );
+
+        let mut manager = FontManager::new();
+        manager.add_family("RoundTrip".to_string(), family);
+        assert!(
+            manager.get_family("RoundTrip").is_some(),
+            "FontFamily must be retrievable by name after add_family"
+        );
     }
 }

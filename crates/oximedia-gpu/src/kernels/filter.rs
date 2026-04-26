@@ -183,6 +183,8 @@ impl ConvolutionKernel {
 pub struct FilterKernel {
     filter_type: FilterType,
     sigma: f32,
+    /// Range (colour) sigma for the bilateral filter. Unused by other filter types.
+    sigma_range: f32,
     kernel_size: u32,
 }
 
@@ -193,6 +195,7 @@ impl FilterKernel {
         Self {
             filter_type,
             sigma,
+            sigma_range: 50.0, // sensible default for bilateral; irrelevant for others
             kernel_size,
         }
     }
@@ -225,9 +228,14 @@ impl FilterKernel {
 
     /// Create a bilateral filter
     #[must_use]
-    pub fn bilateral(sigma_spatial: f32, _sigma_range: f32) -> Self {
+    pub fn bilateral(sigma_spatial: f32, sigma_range: f32) -> Self {
         let kernel_size = Self::gaussian_kernel_size(sigma_spatial);
-        Self::new(FilterType::Bilateral, sigma_spatial, kernel_size)
+        Self {
+            filter_type: FilterType::Bilateral,
+            sigma: sigma_spatial,
+            sigma_range,
+            kernel_size,
+        }
     }
 
     /// Execute the filter operation
@@ -261,10 +269,57 @@ impl FilterKernel {
             FilterType::Sobel | FilterType::Scharr | FilterType::Laplacian => {
                 crate::ops::FilterOperation::edge_detect(device, input, output, width, height)
             }
-            _ => Err(crate::GpuError::NotSupported(format!(
-                "Filter type {:?} not yet implemented",
-                self.filter_type
-            ))),
+            FilterType::BoxBlur => {
+                // Derive radius from kernel_size (kernel_size = 2*radius+1).
+                let radius = self.kernel_size / 2;
+                let result = crate::ops::box_blur(input, width, height, 4, radius)?;
+                if result.len() != output.len() {
+                    return Err(crate::GpuError::InvalidBufferSize {
+                        expected: output.len(),
+                        actual: result.len(),
+                    });
+                }
+                output.copy_from_slice(&result);
+                Ok(())
+            }
+            FilterType::Median => {
+                let radius = self.kernel_size / 2;
+                let result = crate::ops::median_filter(input, width, height, 4, radius)?;
+                if result.len() != output.len() {
+                    return Err(crate::GpuError::InvalidBufferSize {
+                        expected: output.len(),
+                        actual: result.len(),
+                    });
+                }
+                output.copy_from_slice(&result);
+                Ok(())
+            }
+            FilterType::Bilateral => {
+                let result = crate::ops::bilateral_filter(
+                    input,
+                    width,
+                    height,
+                    4,
+                    self.sigma,
+                    self.sigma_range,
+                )?;
+                if result.len() != output.len() {
+                    return Err(crate::GpuError::InvalidBufferSize {
+                        expected: output.len(),
+                        actual: result.len(),
+                    });
+                }
+                output.copy_from_slice(&result);
+                Ok(())
+            }
+            FilterType::Custom => {
+                // FilterType::Custom carries no embedded kernel data; the kernel-bearing
+                // path uses ConvolutionKernel::apply() directly. Return a descriptive
+                // error so callers know to switch to that API.
+                Err(crate::GpuError::NotSupported(
+                    "FilterType::Custom requires a ConvolutionKernel — use ConvolutionKernel::apply() instead of FilterKernel::execute()".to_string(),
+                ))
+            }
         }
     }
 

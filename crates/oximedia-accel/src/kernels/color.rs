@@ -1,8 +1,10 @@
 //! Color conversion kernel implementations.
 
 use crate::buffer::BufferManager;
+use crate::cpu_fallback::CpuAccel;
 use crate::error::{AccelError, AccelResult};
 use crate::shaders::color::{rgb_to_yuv420p, yuv420p_to_rgb};
+use crate::traits::HardwareAccel;
 use oximedia_core::PixelFormat;
 use std::sync::Arc;
 use vulkano::buffer::BufferUsage;
@@ -125,6 +127,9 @@ impl ColorKernel {
 
     /// Converts color format.
     ///
+    /// GPU-accelerated paths are used for Rgb24<->Yuv420p.
+    /// All other supported conversions fall back to the CPU implementation.
+    ///
     /// # Errors
     ///
     /// Returns an error if the conversion fails or format is unsupported.
@@ -138,11 +143,12 @@ impl ColorKernel {
         dst_format: PixelFormat,
     ) -> AccelResult<Vec<u8>> {
         match (src_format, dst_format) {
+            // GPU-accelerated paths
             (PixelFormat::Rgb24, PixelFormat::Yuv420p) => self.rgb_to_yuv420p(input, width, height),
             (PixelFormat::Yuv420p, PixelFormat::Rgb24) => self.yuv420p_to_rgb(input, width, height),
-            _ => Err(AccelError::Unsupported(format!(
-                "Color conversion from {src_format:?} to {dst_format:?} not implemented"
-            ))),
+
+            // CPU fallback paths for formats without dedicated GPU shaders
+            (src, dst) => CpuAccel::new().convert_color(input, width, height, src, dst),
         }
     }
 

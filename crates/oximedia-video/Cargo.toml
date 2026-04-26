@@ -8,6 +8,9 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Professional video processing operations for OxiMedia — motion compensation, frame interpolation, and deinterlacing"
+keywords = ["video", "multimedia", "processing", "frame", "filter"]
+categories = ["multimedia::video", "multimedia"]
+readme = "README.md"
 
 [lints]
 workspace = true

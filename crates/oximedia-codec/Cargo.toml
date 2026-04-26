@@ -8,6 +8,9 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Video codec implementations for OxiMedia"
+keywords = ["codec", "encoding", "decoding", "video", "audio"]
+categories = ["multimedia::encoding", "multimedia"]
+readme = "README.md"
 
 [lints.rust]
 unsafe_code = "deny"

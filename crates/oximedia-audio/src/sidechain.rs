@@ -319,8 +319,8 @@ impl SidechainProcessor {
 
 /// Simplified sidechain compressor with a minimal API.
 ///
-/// Wraps [`SidechainProcessor`] to expose the interface required by the
-/// TODO task:
+/// Wraps [`SidechainProcessor`] to expose a simplified API for applying
+/// gain reduction to a main signal based on the level of a separate key (sidechain) input.
 ///
 /// ```rust
 /// use oximedia_audio::sidechain::SidechainCompressor;

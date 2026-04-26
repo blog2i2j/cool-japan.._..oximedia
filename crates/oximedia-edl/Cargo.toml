@@ -1,6 +1,8 @@
 [package]
 name = "oximedia-edl"
 description = "Edit Decision List (EDL) parser and generator for media workflows"
+keywords = ["edl", "editorial", "post-production", "multimedia", "video"]
+categories = ["multimedia", "parser-implementations"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

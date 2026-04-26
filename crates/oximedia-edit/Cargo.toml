@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Video timeline editor for OxiMedia"
+keywords = ["video", "timeline", "editing", "multimedia", "editor"]
+categories = ["multimedia::video", "multimedia"]
 readme = "README.md"
 
 [lints]
@@ -23,6 +25,8 @@ bytes.workspace = true
 async-trait.workspace = true
 tracing.workspace = true
 rayon = { workspace = true }
+serde_json.workspace = true
+quick-xml = { version = "0.39", features = ["serialize"] }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 tokio = { workspace = true, features = ["sync", "time"] }

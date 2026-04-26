@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Quality control and validation for OxiMedia"
+keywords = ["quality", "video", "metrics", "multimedia", "broadcast"]
+categories = ["multimedia::video", "multimedia"]
 readme = "README.md"
 
 [lints]

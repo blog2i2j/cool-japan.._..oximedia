@@ -8,6 +8,9 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Job queue and worker management for OxiMedia video transcoding"
+keywords = ["workflow", "batch", "processing", "multimedia", "pipeline"]
+categories = ["multimedia", "algorithms"]
+readme = "README.md"
 
 [lints]
 workspace = true

@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "GPU compute pipeline using WGPU for OxiMedia - cross-platform acceleration"
+keywords = ["gpu", "wgpu", "compute", "acceleration", "multimedia"]
+categories = ["multimedia", "graphics"]
 readme = "README.md"
 
 # WGPU uses unsafe internally for GPU API FFI, but we write safe wrappers only

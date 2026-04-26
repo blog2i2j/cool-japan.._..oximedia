@@ -1,6 +1,8 @@
 [package]
 name = "oximedia-audio-analysis"
 description = "Audio analysis tools for media including loudness, spectrum, and speech detection"
+keywords = ["audio", "loudness", "spectrum", "analysis", "multimedia"]
+categories = ["multimedia::audio", "multimedia"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

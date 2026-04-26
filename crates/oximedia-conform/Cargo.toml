@@ -8,6 +8,9 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Professional media conforming system for OxiMedia - EDL/XML/AAF timeline reconstruction"
+keywords = ["edl", "editorial", "post-production", "multimedia", "video"]
+categories = ["multimedia", "parser-implementations"]
+readme = "README.md"
 
 [lints]
 workspace = true

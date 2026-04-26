@@ -51,22 +51,22 @@ pub enum SimdColorMatrix {
 /// Pre-computed integer-scaled YUV → RGB conversion coefficients.
 ///
 /// All coefficients are scaled by 2^14 (16384) to allow fast integer arithmetic.
-struct YuvCoeffs {
+pub(crate) struct YuvCoeffs {
     /// Y scale factor.
-    y_scale: i32,
+    pub(crate) y_scale: i32,
     /// Cr (V) → R coefficient.
-    cr_to_r: i32,
+    pub(crate) cr_to_r: i32,
     /// Cb (U) → G coefficient.
-    cb_to_g: i32,
+    pub(crate) cb_to_g: i32,
     /// Cr (V) → G coefficient.
-    cr_to_g: i32,
+    pub(crate) cr_to_g: i32,
     /// Cb (U) → B coefficient.
-    cb_to_b: i32,
+    pub(crate) cb_to_b: i32,
 }
 
 impl YuvCoeffs {
     #[allow(clippy::cast_possible_truncation)]
-    fn for_matrix(matrix: SimdColorMatrix) -> Self {
+    pub(crate) fn for_matrix(matrix: SimdColorMatrix) -> Self {
         // Coefficients from ITU standards, scaled to fixed-point 2^14.
         // Formula: R = Y_scale*(Y-16) + cr_to_r*(V-128)
         //          G = Y_scale*(Y-16) + cb_to_g*(U-128) + cr_to_g*(V-128)
@@ -142,21 +142,32 @@ pub fn nv12_to_rgb24(
     debug_assert_eq!(y_plane.len(), width * height);
     debug_assert_eq!(uv_plane.len(), (width / 2) * (height / 2) * 2);
 
-    // TODO: when a real SSE4.1 implementation is added, gate it behind
-    // `#[cfg(target_arch = "x86_64")]` + `has_sse41()` and use
-    // `#[allow(unsafe_code)]` at crate level for that module only.
-    nv12_to_rgb24_scalar(y_plane, uv_plane, width, height, matrix)
+    let coeffs = YuvCoeffs::for_matrix(matrix);
+
+    #[cfg(target_arch = "x86_64")]
+    if is_x86_feature_detected!("sse4.1") {
+        let mut rgb = vec![0u8; width * height * 3];
+        // SAFETY: sse4.1 confirmed at runtime by is_x86_feature_detected!.
+        #[allow(unsafe_code)]
+        unsafe {
+            super::simd_pixel_sse41::nv12_to_rgb24_sse41(
+                y_plane, uv_plane, &mut rgb, width, height, &coeffs,
+            );
+        }
+        return rgb;
+    }
+
+    nv12_to_rgb24_scalar_with_coeffs(y_plane, uv_plane, width, height, &coeffs)
 }
 
-/// Portable scalar implementation of NV12 → RGB24.
-fn nv12_to_rgb24_scalar(
+/// Portable scalar implementation of NV12 → RGB24 (takes pre-computed coefficients).
+fn nv12_to_rgb24_scalar_with_coeffs(
     y_plane: &[u8],
     uv_plane: &[u8],
     width: usize,
     height: usize,
-    matrix: SimdColorMatrix,
+    c: &YuvCoeffs,
 ) -> Vec<u8> {
-    let c = YuvCoeffs::for_matrix(matrix);
     let mut rgb = vec![0u8; width * height * 3];
     for row in 0..height {
         for col in 0..width {
@@ -165,7 +176,7 @@ fn nv12_to_rgb24_scalar(
             let y = y_plane[y_idx];
             let u = uv_plane[uv_idx];
             let v = uv_plane[uv_idx + 1];
-            let (r, g, b) = yuv_to_rgb_scalar(y, u, v, &c);
+            let (r, g, b) = yuv_to_rgb_scalar(y, u, v, c);
             let out = y_idx * 3;
             rgb[out] = r;
             rgb[out + 1] = g;

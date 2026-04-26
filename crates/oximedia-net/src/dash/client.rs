@@ -54,6 +54,8 @@ use super::segment::{DashSegment, SegmentGenerator, SegmentInfo};
 use crate::abr::{AbrDecision, AdaptiveBitrateController, QualityLevel};
 use crate::error::{NetError, NetResult};
 use bytes::Bytes;
+use parking_lot::Mutex;
+use reqwest::Client;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -377,6 +379,10 @@ pub struct DashClient {
     total_bytes_downloaded: u64,
     /// Total download time.
     total_download_time: Duration,
+    /// Lazily-initialised HTTP client. Using `Mutex<Option<Client>>` so that
+    /// `fetch_http_segment` can initialise the client on first use without
+    /// requiring `&mut self`.
+    http_client: Mutex<Option<Client>>,
 }
 
 impl DashClient {
@@ -390,6 +396,7 @@ impl DashClient {
             abr_controller: None,
             total_bytes_downloaded: 0,
             total_download_time: Duration::ZERO,
+            http_client: Mutex::new(None),
         }
     }
 
@@ -771,33 +778,80 @@ impl DashClient {
         Err(last_error.unwrap_or_else(|| NetError::segment("Unknown fetch error")))
     }
 
-    /// Fetches a segment via HTTP (stub implementation).
+    /// Returns a clone of the lazily-initialised HTTP client.
     ///
-    /// This is a stub implementation. In a real application, this would use
-    /// an HTTP client like `reqwest` or `hyper` to fetch the segment data.
+    /// The client is built on the first call and reused for all subsequent
+    /// requests via `Clone` (reqwest's `Client` is cheaply cloneable — it
+    /// shares the underlying connection pool through an `Arc`).
+    fn get_or_init_http_client(&self) -> NetResult<Client> {
+        let mut guard = self.http_client.lock();
+        if guard.is_none() {
+            let client = Client::builder()
+                .timeout(self.config.timeout)
+                .build()
+                .map_err(|e| NetError::connection(format!("Failed to build HTTP client: {e}")))?;
+            *guard = Some(client);
+        }
+        guard
+            .clone()
+            .ok_or_else(|| NetError::connection("HTTP client failed to initialise"))
+    }
+
+    /// Fetches a segment via HTTP.
+    ///
+    /// Sends a GET request for `url`, optionally adding an HTTP `Range` header
+    /// when `byte_range` is supplied.  Non-2xx responses are mapped to
+    /// [`NetError::Http`]; transport-level failures to the appropriate
+    /// [`NetError`] variant.  The overall request is subject to
+    /// `self.config.timeout`.
     async fn fetch_http_segment(
         &self,
         url: &str,
         byte_range: Option<(u64, u64)>,
     ) -> NetResult<Bytes> {
-        // Stub implementation - would use actual HTTP client in production
-        let _range_header = byte_range.map(|(start, end)| format!("bytes={start}-{end}"));
+        let client = self.get_or_init_http_client()?;
+        let timeout = self.config.timeout;
+        let max_segment_size = self.config.max_segment_size;
+        let range_header = byte_range.map(|(start, end)| format!("bytes={start}-{end}"));
+        let url_owned = url.to_owned();
 
-        // Simulate timeout
-        tokio::time::timeout(self.config.timeout, async {
-            // In real implementation:
-            // let client = reqwest::Client::new();
-            // let mut request = client.get(url);
-            // if let Some(range) = range_header {
-            //     request = request.header("Range", range);
-            // }
-            // let response = request.send().await?;
-            // let bytes = response.bytes().await?;
-            // Ok(bytes)
+        tokio::time::timeout(timeout, async move {
+            let mut request = client.get(&url_owned);
+            if let Some(range) = range_header {
+                request = request.header("Range", range);
+            }
 
-            Err(NetError::not_found(format!(
-                "HTTP client not implemented: {url}"
-            )))
+            let response = request.send().await.map_err(|e| {
+                if e.is_timeout() {
+                    NetError::timeout(format!("Request timed out: {url_owned}"))
+                } else if e.is_connect() {
+                    NetError::connection(format!("Connection failed: {e}"))
+                } else {
+                    NetError::connection(format!("Request failed: {e}"))
+                }
+            })?;
+
+            let status = response.status();
+            if !status.is_success() {
+                return Err(NetError::http(
+                    status.as_u16(),
+                    format!("HTTP {status} fetching segment: {url_owned}"),
+                ));
+            }
+
+            // Guard against pathologically large responses.
+            if let Some(content_length) = response.content_length() {
+                if content_length > max_segment_size as u64 {
+                    return Err(NetError::segment(format!(
+                        "Segment too large: {content_length} bytes exceeds limit of {max_segment_size} bytes",
+                    )));
+                }
+            }
+
+            response
+                .bytes()
+                .await
+                .map_err(|e| NetError::connection(format!("Failed to read response body: {e}")))
         })
         .await
         .map_err(|_| NetError::timeout("Segment fetch timed out"))?

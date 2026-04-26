@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Professional color management system for OxiMedia - ICC profiles, ACES, HDR"
+keywords = ["color", "lut", "grading", "video", "multimedia"]
+categories = ["multimedia::video", "multimedia"]
 readme = "README.md"
 
 [lints]

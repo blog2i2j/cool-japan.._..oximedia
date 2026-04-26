@@ -1,13 +1,13 @@
 # oximedia-dolbyvision
 
 ![Status: Stable](https://img.shields.io/badge/status-stable-green)
-![Version: 0.1.5](https://img.shields.io/badge/version-0.1.5-blue)
+![Version: 0.1.6](https://img.shields.io/badge/version-0.1.6-blue)
 
 Dolby Vision RPU (Reference Processing Unit) metadata parser and writer for OxiMedia. Provides metadata-only support, respecting Dolby's intellectual property.
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.5 — 2026-04-21 — 637 tests
+Version: 0.1.6 — 2026-04-26 — 637 tests
 
 ## Features
 
@@ -34,9 +34,9 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-dolbyvision = "0.1.5"
+oximedia-dolbyvision = "0.1.6"
 # With serde support:
-oximedia-dolbyvision = { version = "0.1.5", features = ["serde"] }
+oximedia-dolbyvision = { version = "0.1.6", features = ["serde"] }
 ```
 
 ```rust

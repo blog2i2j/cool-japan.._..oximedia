@@ -2,7 +2,7 @@
 
 Sovereign ML pipelines for OxiMedia — Pure-Rust ONNX inference (OxiONNX)
 
-**Status: [Stable]** | Version: 0.1.5 | Updated: 2026-04-21
+**Status: [Stable]** | Version: 0.1.6 | Updated: 2026-04-26
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
@@ -16,13 +16,13 @@ The default build pulls in **zero** ONNX symbols; enable the `onnx` feature to o
 
 ```toml
 [dependencies]
-oximedia-ml = { version = "0.1.5", features = ["scene-classifier"] }
+oximedia-ml = { version = "0.1.6", features = ["scene-classifier"] }
 ```
 
 To enable all pipelines:
 
 ```toml
-oximedia-ml = { version = "0.1.5", features = ["all-pipelines"] }
+oximedia-ml = { version = "0.1.6", features = ["all-pipelines"] }
 ```
 
 ## Quick Start

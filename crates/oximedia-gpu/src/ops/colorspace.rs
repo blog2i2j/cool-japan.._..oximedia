@@ -297,6 +297,316 @@ impl ColorSpaceConversion {
 }
 
 // =============================================================================
+// CPU-side HSV / Lab / sRGB↔Linear color conversions
+// =============================================================================
+
+impl ColorSpaceConversion {
+    /// Convert interleaved RGBA pixels from RGB to HSV encoding.
+    ///
+    /// Input layout: 4 bytes per pixel — R, G, B, A.
+    /// Output layout: 4 bytes per pixel — H_enc, S_enc, V_enc, A (pass-through).
+    ///
+    /// Encoding:
+    /// * H → `(H / 360.0 * 255.0) as u8`  (hue 0°–360° mapped to 0–255)
+    /// * S → `(S * 255.0) as u8`           (saturation 0.0–1.0)
+    /// * V → `(V * 255.0) as u8`           (value 0.0–1.0)
+    ///
+    /// # Panics
+    ///
+    /// Does not panic; invalid pixel counts are handled by truncating to complete
+    /// 4-byte pixels.
+    #[must_use]
+    pub fn rgb_to_hsv(data: &[u8], width: u32, height: u32) -> Vec<u8> {
+        let pixel_count = (width as usize) * (height as usize);
+        let mut out = vec![0u8; pixel_count * 4];
+
+        for i in 0..pixel_count {
+            let base = i * 4;
+            if base + 3 >= data.len() {
+                break;
+            }
+            let r = f64::from(data[base]) / 255.0;
+            let g = f64::from(data[base + 1]) / 255.0;
+            let b = f64::from(data[base + 2]) / 255.0;
+            let alpha = data[base + 3];
+
+            let max = r.max(g).max(b);
+            let min = r.min(g).min(b);
+            let delta = max - min;
+
+            let v = max;
+            let s = if max > 0.0 { delta / max } else { 0.0 };
+
+            let h = if delta < 1e-10 {
+                0.0_f64
+            } else if (max - r).abs() < 1e-10 {
+                let sector = (g - b) / delta;
+                // fmod equivalent for f64 — keep in [0, 6)
+                let sector = sector - (sector / 6.0).floor() * 6.0;
+                60.0 * sector
+            } else if (max - g).abs() < 1e-10 {
+                60.0 * ((b - r) / delta + 2.0)
+            } else {
+                60.0 * ((r - g) / delta + 4.0)
+            };
+            let h = if h < 0.0 { h + 360.0 } else { h };
+
+            out[base] = (h / 360.0 * 255.0).clamp(0.0, 255.0).round() as u8;
+            out[base + 1] = (s * 255.0).clamp(0.0, 255.0).round() as u8;
+            out[base + 2] = (v * 255.0).clamp(0.0, 255.0).round() as u8;
+            out[base + 3] = alpha;
+        }
+        out
+    }
+
+    /// Convert interleaved RGBA pixels from HSV to RGB encoding.
+    ///
+    /// Input layout: 4 bytes per pixel — H_enc, S_enc, V_enc, A.
+    /// Output layout: 4 bytes per pixel — R, G, B, A (pass-through).
+    ///
+    /// Decoding: H = byte × 360 / 255, S = byte / 255, V = byte / 255.
+    #[must_use]
+    pub fn hsv_to_rgb(data: &[u8], width: u32, height: u32) -> Vec<u8> {
+        let pixel_count = (width as usize) * (height as usize);
+        let mut out = vec![0u8; pixel_count * 4];
+
+        for i in 0..pixel_count {
+            let base = i * 4;
+            if base + 3 >= data.len() {
+                break;
+            }
+            let h = f64::from(data[base]) * 360.0 / 255.0; // 0.0 .. 360.0
+            let s = f64::from(data[base + 1]) / 255.0; // 0.0 .. 1.0
+            let v = f64::from(data[base + 2]) / 255.0; // 0.0 .. 1.0
+            let alpha = data[base + 3];
+
+            let c = v * s;
+            let h_prime = h / 60.0;
+            // |h_prime mod 2 - 1|
+            let h_mod2 = h_prime - (h_prime / 2.0).floor() * 2.0;
+            let x = c * (1.0 - (h_mod2 - 1.0).abs());
+            let m = v - c;
+
+            let sector = (h_prime as u32) % 6;
+            let (r1, g1, b1) = match sector {
+                0 => (c, x, 0.0),
+                1 => (x, c, 0.0),
+                2 => (0.0, c, x),
+                3 => (0.0, x, c),
+                4 => (x, 0.0, c),
+                _ => (c, 0.0, x),
+            };
+
+            out[base] = ((r1 + m) * 255.0).clamp(0.0, 255.0).round() as u8;
+            out[base + 1] = ((g1 + m) * 255.0).clamp(0.0, 255.0).round() as u8;
+            out[base + 2] = ((b1 + m) * 255.0).clamp(0.0, 255.0).round() as u8;
+            out[base + 3] = alpha;
+        }
+        out
+    }
+
+    /// Convert interleaved RGBA pixels from sRGB to CIE L*a*b*.
+    ///
+    /// Input layout: 4 bytes per pixel — R, G, B, A.
+    /// Output layout: 4 bytes per pixel:
+    /// * L*  (0–100) → byte = `(L * 255.0 / 100.0) as u8`
+    /// * a*  (−128–127) → byte = `(a + 128.0) as u8` (clamped 0–255)
+    /// * b*  (−128–127) → byte = `(b + 128.0) as u8` (clamped 0–255)
+    /// * A: pass-through
+    #[must_use]
+    pub fn rgb_to_lab(data: &[u8], width: u32, height: u32) -> Vec<u8> {
+        // D65 reference white
+        const XN: f64 = 0.95047;
+        const YN: f64 = 1.00000;
+        const ZN: f64 = 1.08883;
+
+        let pixel_count = (width as usize) * (height as usize);
+        let mut out = vec![0u8; pixel_count * 4];
+
+        for i in 0..pixel_count {
+            let base = i * 4;
+            if base + 3 >= data.len() {
+                break;
+            }
+            let r_lin = Self::srgb_channel_to_linear(f64::from(data[base]) / 255.0);
+            let g_lin = Self::srgb_channel_to_linear(f64::from(data[base + 1]) / 255.0);
+            let b_lin = Self::srgb_channel_to_linear(f64::from(data[base + 2]) / 255.0);
+            let alpha = data[base + 3];
+
+            // Linear sRGB → CIE XYZ (D65, IEC 61966-2-1 matrix)
+            let x = 0.4124564 * r_lin + 0.3575761 * g_lin + 0.1804375 * b_lin;
+            let y = 0.2126729 * r_lin + 0.7151522 * g_lin + 0.0721750 * b_lin;
+            let z = 0.0193339 * r_lin + 0.1191920 * g_lin + 0.9503041 * b_lin;
+
+            // XYZ → Lab (using the standard cube-root / linear piece-wise f)
+            let fx = Self::lab_f(x / XN);
+            let fy = Self::lab_f(y / YN);
+            let fz = Self::lab_f(z / ZN);
+
+            let l_star = 116.0 * fy - 16.0;
+            let a_star = 500.0 * (fx - fy);
+            let b_star = 200.0 * (fy - fz);
+
+            // Encode to u8
+            out[base] = (l_star * 255.0 / 100.0).clamp(0.0, 255.0).round() as u8;
+            out[base + 1] = (a_star + 128.0).clamp(0.0, 255.0).round() as u8;
+            out[base + 2] = (b_star + 128.0).clamp(0.0, 255.0).round() as u8;
+            out[base + 3] = alpha;
+        }
+        out
+    }
+
+    /// Convert interleaved RGBA pixels from CIE L*a*b* back to sRGB.
+    ///
+    /// Input layout: 4 bytes per pixel — L_enc, a_enc, b_enc, A.
+    /// Output layout: 4 bytes per pixel — R, G, B, A (pass-through).
+    #[must_use]
+    pub fn lab_to_rgb(data: &[u8], width: u32, height: u32) -> Vec<u8> {
+        const XN: f64 = 0.95047;
+        const YN: f64 = 1.00000;
+        const ZN: f64 = 1.08883;
+
+        let pixel_count = (width as usize) * (height as usize);
+        let mut out = vec![0u8; pixel_count * 4];
+
+        for i in 0..pixel_count {
+            let base = i * 4;
+            if base + 3 >= data.len() {
+                break;
+            }
+            let l_star = f64::from(data[base]) * 100.0 / 255.0;
+            let a_star = f64::from(data[base + 1]) - 128.0;
+            let b_star = f64::from(data[base + 2]) - 128.0;
+            let alpha = data[base + 3];
+
+            // Lab → XYZ
+            let fy = (l_star + 16.0) / 116.0;
+            let fx = a_star / 500.0 + fy;
+            let fz = fy - b_star / 200.0;
+
+            let x = Self::lab_f_inv(fx) * XN;
+            let y = Self::lab_f_inv(fy) * YN;
+            let z = Self::lab_f_inv(fz) * ZN;
+
+            // XYZ → Linear sRGB (inverse of the IEC 61966-2-1 matrix)
+            let r_lin = 3.2404542 * x - 1.5371385 * y - 0.4985314 * z;
+            let g_lin = -0.9692660 * x + 1.8760108 * y + 0.0415560 * z;
+            let b_lin = 0.0556434 * x - 0.2040259 * y + 1.0572252 * z;
+
+            // Linear sRGB → sRGB (gamma encoding)
+            let r_srgb = Self::linear_channel_to_srgb(r_lin);
+            let g_srgb = Self::linear_channel_to_srgb(g_lin);
+            let b_srgb = Self::linear_channel_to_srgb(b_lin);
+
+            out[base] = (r_srgb * 255.0).clamp(0.0, 255.0).round() as u8;
+            out[base + 1] = (g_srgb * 255.0).clamp(0.0, 255.0).round() as u8;
+            out[base + 2] = (b_srgb * 255.0).clamp(0.0, 255.0).round() as u8;
+            out[base + 3] = alpha;
+        }
+        out
+    }
+
+    /// Convert interleaved RGBA pixels from sRGB to linear light (remove gamma).
+    ///
+    /// Input/output: 4 bytes per pixel — R, G, B, A.  Alpha is passed through.
+    /// The linear value (0.0–1.0 f64) is scaled back to u8 (0–255).
+    #[must_use]
+    pub fn srgb_to_linear(data: &[u8], width: u32, height: u32) -> Vec<u8> {
+        let pixel_count = (width as usize) * (height as usize);
+        let mut out = vec![0u8; pixel_count * 4];
+
+        for i in 0..pixel_count {
+            let base = i * 4;
+            if base + 3 >= data.len() {
+                break;
+            }
+            for ch in 0..3 {
+                let c = f64::from(data[base + ch]) / 255.0;
+                let lin = Self::srgb_channel_to_linear(c);
+                out[base + ch] = (lin * 255.0).clamp(0.0, 255.0).round() as u8;
+            }
+            out[base + 3] = data[base + 3];
+        }
+        out
+    }
+
+    /// Convert interleaved RGBA pixels from linear light to sRGB (apply gamma).
+    ///
+    /// Input/output: 4 bytes per pixel — R, G, B, A.  Alpha is passed through.
+    #[must_use]
+    pub fn linear_to_srgb(data: &[u8], width: u32, height: u32) -> Vec<u8> {
+        let pixel_count = (width as usize) * (height as usize);
+        let mut out = vec![0u8; pixel_count * 4];
+
+        for i in 0..pixel_count {
+            let base = i * 4;
+            if base + 3 >= data.len() {
+                break;
+            }
+            for ch in 0..3 {
+                let c = f64::from(data[base + ch]) / 255.0;
+                let enc = Self::linear_channel_to_srgb(c);
+                out[base + ch] = (enc * 255.0).clamp(0.0, 255.0).round() as u8;
+            }
+            out[base + 3] = data[base + 3];
+        }
+        out
+    }
+
+    // ── Private helpers ──────────────────────────────────────────────────────
+
+    /// sRGB electro-optical transfer function (inverse gamma): sRGB → linear.
+    ///
+    /// IEC 61966-2-1: for `c ≤ 0.04045` → `c / 12.92`, else `((c+0.055)/1.055)^2.4`.
+    #[inline]
+    fn srgb_channel_to_linear(c: f64) -> f64 {
+        if c <= 0.04045 {
+            c / 12.92
+        } else {
+            ((c + 0.055) / 1.055).powf(2.4)
+        }
+    }
+
+    /// sRGB opto-electronic transfer function (gamma): linear → sRGB.
+    ///
+    /// IEC 61966-2-1: for `c ≤ 0.0031308` → `c * 12.92`, else `1.055*c^(1/2.4) - 0.055`.
+    #[inline]
+    fn linear_channel_to_srgb(c: f64) -> f64 {
+        let c = c.clamp(0.0, 1.0);
+        if c <= 0.0031308 {
+            c * 12.92
+        } else {
+            1.055 * c.powf(1.0 / 2.4) - 0.055
+        }
+    }
+
+    /// CIE Lab piecewise cube-root function `f(t)`.
+    ///
+    /// `f(t) = t^(1/3)` if `t > ε`, else `(7.787 * t) + 16/116`.
+    #[inline]
+    fn lab_f(t: f64) -> f64 {
+        // ε = (6/29)^3 ≈ 0.008856
+        if t > 0.008_856 {
+            t.cbrt()
+        } else {
+            7.787 * t + 16.0 / 116.0
+        }
+    }
+
+    /// Inverse of `lab_f`.
+    #[inline]
+    fn lab_f_inv(t: f64) -> f64 {
+        // δ = 6/29 ≈ 0.2069
+        const DELTA: f64 = 6.0 / 29.0;
+        if t > DELTA {
+            t * t * t
+        } else {
+            3.0 * DELTA * DELTA * (t - 16.0 / 116.0)
+        }
+    }
+}
+
+// =============================================================================
 // CPU-side reference color conversions (BT.601, BT.709, BT.2020, BT.2100)
 // =============================================================================
 
@@ -877,6 +1187,126 @@ mod tests {
                 dr <= 5 && dg <= 5 && db <= 5,
                 "BT.709 roundtrip ({r},{g},{b}) → ({ro},{go},{bo}): diff=({dr},{dg},{db})"
             );
+        }
+    }
+
+    // ─── HSV conversion tests ────────────────────────────────────────────────
+
+    /// Helper: build a single RGBA pixel as a 4-element array.
+    fn rgba_pixel(r: u8, g: u8, b: u8) -> Vec<u8> {
+        vec![r, g, b, 255u8]
+    }
+
+    /// Pure red (255, 0, 0) in HSV should give H≈0, S≈255, V≈255.
+    #[test]
+    fn test_rgb_to_hsv_red() {
+        let data = rgba_pixel(255, 0, 0);
+        let out = ColorSpaceConversion::rgb_to_hsv(&data, 1, 1);
+        // H encoded: 0/360*255 = 0
+        assert!(out[0] <= 2, "H for pure red should be ~0, got {}", out[0]);
+        // S = 255
+        let diff_s = (out[1] as i32 - 255).unsigned_abs();
+        assert!(diff_s <= 2, "S for pure red should be ~255, got {}", out[1]);
+        // V = 255
+        let diff_v = (out[2] as i32 - 255).unsigned_abs();
+        assert!(diff_v <= 2, "V for pure red should be ~255, got {}", out[2]);
+        // Alpha pass-through
+        assert_eq!(out[3], 255);
+    }
+
+    /// Round-trip: RGB → HSV → RGB should be within ±2 per channel.
+    #[test]
+    fn test_hsv_round_trip() {
+        let test_colours: &[(u8, u8, u8)] = &[
+            (255, 0, 0),
+            (0, 255, 0),
+            (0, 0, 255),
+            (128, 64, 192),
+            (200, 150, 100),
+        ];
+        for &(r, g, b) in test_colours {
+            let data = rgba_pixel(r, g, b);
+            let hsv = ColorSpaceConversion::rgb_to_hsv(&data, 1, 1);
+            let rgb = ColorSpaceConversion::hsv_to_rgb(&hsv, 1, 1);
+            let dr = (r as i32 - rgb[0] as i32).unsigned_abs();
+            let dg = (g as i32 - rgb[1] as i32).unsigned_abs();
+            let db = (b as i32 - rgb[2] as i32).unsigned_abs();
+            assert!(
+                dr <= 2 && dg <= 2 && db <= 2,
+                "HSV round-trip ({r},{g},{b}) → ({},{},{}) diff=({dr},{dg},{db})",
+                rgb[0],
+                rgb[1],
+                rgb[2]
+            );
+        }
+    }
+
+    // ─── Lab conversion tests ────────────────────────────────────────────────
+
+    /// Near-grey (127,127,127) → L≈50, a≈0, b≈0.
+    ///
+    /// Encoding: L byte = L*255/100, a byte = a+128, b byte = b+128.
+    #[test]
+    fn test_rgb_to_lab_gray() {
+        let data = rgba_pixel(127, 127, 127);
+        let out = ColorSpaceConversion::rgb_to_lab(&data, 1, 1);
+
+        // L* ≈ 50 for mid-grey → encoded as 50*255/100 ≈ 127
+        let l_decoded = f64::from(out[0]) * 100.0 / 255.0;
+        assert!(
+            (l_decoded - 50.0).abs() < 4.0,
+            "L* for mid-grey should be ~50, got {l_decoded:.2}"
+        );
+
+        // a* ≈ 0 → encoded as ≈128
+        let a_decoded = f64::from(out[1]) - 128.0;
+        assert!(
+            a_decoded.abs() < 4.0,
+            "a* for grey should be ~0, got {a_decoded:.2}"
+        );
+
+        // b* ≈ 0 → encoded as ≈128
+        let b_decoded = f64::from(out[2]) - 128.0;
+        assert!(
+            b_decoded.abs() < 4.0,
+            "b* for grey should be ~0, got {b_decoded:.2}"
+        );
+    }
+
+    // ─── sRGB ↔ Linear round-trip tests ─────────────────────────────────────
+
+    /// Convert 10 representative values through sRGB→Linear→sRGB within 0.01.
+    #[test]
+    fn test_srgb_linear_round_trip() {
+        let test_values: &[u8] = &[0, 10, 30, 64, 100, 128, 180, 200, 230, 255];
+        for &v in test_values {
+            let data = vec![v, v, v, 255u8];
+            // sRGB → Linear
+            let linear = ColorSpaceConversion::srgb_to_linear(&data, 1, 1);
+            // Linear → sRGB
+            let recovered = ColorSpaceConversion::linear_to_srgb(&linear, 1, 1);
+            let diff = (v as i32 - recovered[0] as i32).unsigned_abs();
+            assert!(
+                diff <= 3,
+                "sRGB↔Linear round-trip failed for v={v}: recovered={}, diff={diff}",
+                recovered[0]
+            );
+        }
+    }
+
+    /// Verify that `srgb_to_linear` monotonically increases.
+    #[test]
+    fn test_srgb_to_linear_monotone() {
+        let mut prev = 0u8;
+        for v in 1u8..=255 {
+            let data = vec![v, v, v, 255u8];
+            let lin = ColorSpaceConversion::srgb_to_linear(&data, 1, 1);
+            assert!(
+                lin[0] >= prev,
+                "sRGB→Linear not monotone at v={v}: prev={prev}, got={}",
+                lin[0]
+            );
+            prev = lin[0];
         }
     }
 }

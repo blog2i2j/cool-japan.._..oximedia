@@ -1,6 +1,6 @@
 # oximedia-plugin
 
-**Status: [Stable]** | Version: 0.1.5 | Tests: 162 | Updated: 2026-04-21
+**Status: [Stable]** | Version: 0.1.6 | Tests: 162 | Updated: 2026-04-26
 
 Plugin system for [OxiMedia](https://github.com/cool-japan/oximedia) -- dynamic codec loading.
 

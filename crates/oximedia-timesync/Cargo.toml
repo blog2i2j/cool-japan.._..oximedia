@@ -1,6 +1,8 @@
 [package]
 name = "oximedia-timesync"
 description = "Time synchronization and media clock management"
+keywords = ["timesync", "clock", "synchronization", "media", "multimedia"]
+categories = ["multimedia", "algorithms"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

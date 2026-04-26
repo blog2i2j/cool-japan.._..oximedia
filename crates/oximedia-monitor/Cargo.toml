@@ -1,6 +1,9 @@
 [package]
 name = "oximedia-monitor"
 description = "Real-time media pipeline monitoring and health checking"
+keywords = ["monitoring", "pipeline", "health", "multimedia", "broadcast"]
+categories = ["multimedia", "development-tools"]
+readme = "README.md"
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

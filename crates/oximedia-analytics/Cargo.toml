@@ -8,6 +8,7 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Media engagement analytics — viewer behavior, A/B testing, retention curves, and engagement scoring for OxiMedia"
+readme = "README.md"
 keywords = ["analytics", "engagement", "multimedia", "metrics", "viewership"]
 categories = ["multimedia", "web-programming", "data-structures"]
 

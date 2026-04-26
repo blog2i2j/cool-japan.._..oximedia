@@ -39,3 +39,7 @@ reason = "Transitive via aws-sdk-* → aws-smithy-http-client → hyper-rustls �
 [[advisories.ignore]]
 id = "RUSTSEC-2026-0099"
 reason = "Transitive via the same aws-sdk-* → rustls-webpki 0.101.7 chain as RUSTSEC-2026-0098. Wildcard-name certificate constraints are not relied upon by OxiMedia code. Will resolve when AWS SDK upgrades its rustls stack."
+
+[[advisories.ignore]]
+id = "RUSTSEC-2026-0104"
+reason = "Transitive via aws-sdk-* → aws-smithy-runtime/tls-rustls → legacy-rustls-ring → rustls 0.21.12 → rustls-webpki 0.101.7 (reachable panic in CRL parsing). OxiMedia S3/cloud calls never perform certificate revocation list checks; the affected code path is unreachable. No Cargo.toml-only fix exists: the newer-rustls path requires aws-lc-sys (C dependency, excluded per COOLJAPAN Pure Rust policy). The workspace already uses rustls-webpki 0.103.13 via reqwest/hyper-rustls. Will resolve when AWS SDK migrates aws-smithy-runtime to rustls 0.23+."

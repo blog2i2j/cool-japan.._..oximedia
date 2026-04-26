@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Proxy and offline editing workflow system for OxiMedia"
+keywords = ["proxy", "offline", "editing", "video", "multimedia"]
+categories = ["multimedia::video", "multimedia"]
 readme = "README.md"
 
 [lints]

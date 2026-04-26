@@ -56,7 +56,7 @@ pub async fn handle_conform_command(command: ConformSubcommand, json_output: boo
             input,
             output,
             issues,
-        } => cmd_fix(&input, &output, &issues, json_output),
+        } => cmd_fix(&input, &output, &issues, json_output).await,
         ConformSubcommand::Report { input, output } => cmd_report(&input, &output, json_output),
     }
 }
@@ -149,7 +149,9 @@ fn cmd_check(input: &PathBuf, profile: &str, json_output: bool) -> Result<()> {
 
 // ── Fix ───────────────────────────────────────────────────────────────────────
 
-fn cmd_fix(input: &PathBuf, output: &PathBuf, issues: &str, json_output: bool) -> Result<()> {
+async fn cmd_fix(input: &PathBuf, output: &PathBuf, issues: &str, json_output: bool) -> Result<()> {
+    use oximedia_transcode::{LoudnessStandard, NormalizationConfig, TranscodePipeline};
+
     let issue_list: Vec<&str> = if issues.is_empty() {
         Vec::new()
     } else {
@@ -180,14 +182,72 @@ fn cmd_fix(input: &PathBuf, output: &PathBuf, issues: &str, json_output: bool) -
         }
     }
 
-    // Perform the copy (stub: a real implementation would apply transforms)
-    std::fs::copy(input, output).with_context(|| {
-        format!(
-            "Failed to copy '{}' to '{}'",
-            input.display(),
-            output.display()
-        )
-    })?;
+    // Validate output extension: TranscodePipeline only supports mkv/webm and ogg outputs.
+    let out_ext = output
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_lowercase)
+        .unwrap_or_default();
+
+    let pipeline_supported = matches!(out_ext.as_str(), "mkv" | "webm" | "ogg" | "oga" | "opus");
+
+    // Determine whether loudness normalization was requested.
+    let needs_norm = applied.contains(&"loudness".to_string());
+
+    let (output_size, pipeline_used) = if pipeline_supported {
+        // Use the transcode pipeline: stream-copy with optional loudness normalization.
+        let mut builder = TranscodePipeline::builder()
+            .input(input.clone())
+            .output(output.clone())
+            .track_progress(false);
+
+        if needs_norm {
+            // Wire EBU R128 normalization: the pipeline runs a two-pass analysis
+            // and applies computed gain in-band to audio packets.
+            let norm_config = NormalizationConfig::new(LoudnessStandard::EbuR128);
+            builder = builder.normalization(norm_config);
+        }
+
+        let mut pipeline = builder
+            .build()
+            .context("Failed to build conform fix pipeline")?;
+
+        match pipeline.execute().await {
+            Ok(result) => (result.file_size, true),
+            Err(e) => {
+                // Pipeline failed; fall back to a byte-level copy so the caller
+                // still gets an output file rather than a hard failure.
+                if !json_output {
+                    println!("  Note: conform pipeline failed ({}); byte copy used.", e);
+                }
+                let sz = std::fs::copy(input, output).with_context(|| {
+                    format!(
+                        "Failed to copy '{}' to '{}'",
+                        input.display(),
+                        output.display()
+                    )
+                })?;
+                (sz, false)
+            }
+        }
+    } else {
+        // Output format not supported by the pipeline; use a direct copy.
+        if !json_output {
+            println!(
+                "  Note: output format '.{}' is not supported by the transcode pipeline; \
+                 byte copy used. Use .mkv or .webm for pipeline-based fixes.",
+                out_ext
+            );
+        }
+        let sz = std::fs::copy(input, output).with_context(|| {
+            format!(
+                "Failed to copy '{}' to '{}'",
+                input.display(),
+                output.display()
+            )
+        })?;
+        (sz, false)
+    };
 
     if json_output {
         let json = serde_json::json!({
@@ -196,6 +256,8 @@ fn cmd_fix(input: &PathBuf, output: &PathBuf, issues: &str, json_output: bool) -
             "fixes_requested": issue_list,
             "fixes_applied": applied,
             "fixes_unsupported": unsupported,
+            "output_size_bytes": output_size,
+            "pipeline_remux": pipeline_used,
         });
         println!("{}", serde_json::to_string_pretty(&json)?);
     } else {
@@ -212,8 +274,17 @@ fn cmd_fix(input: &PathBuf, output: &PathBuf, issues: &str, json_output: bool) -
             println!("   Fixes unsupported: {}", unsupported.join(", ").yellow());
         }
         if issue_list.is_empty() {
-            println!("   No specific issues requested — file copied as-is.");
+            println!("   No specific issues requested — file remuxed/copied as-is.");
         }
+        println!(
+            "   Pipeline remux:    {}",
+            if pipeline_used {
+                "yes"
+            } else {
+                "no (byte copy)"
+            }
+        );
+        println!("   Output size:       {} bytes", output_size);
     }
 
     Ok(())

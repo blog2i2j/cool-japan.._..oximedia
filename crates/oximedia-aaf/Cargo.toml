@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Advanced Authoring Format (AAF) support for OxiMedia - SMPTE ST 377-1 compliant"
+keywords = ["aaf", "editorial", "post-production", "multimedia", "video"]
+categories = ["multimedia", "parser-implementations"]
 readme = "README.md"
 
 [lints]

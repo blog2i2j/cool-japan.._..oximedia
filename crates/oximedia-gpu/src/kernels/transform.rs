@@ -78,7 +78,11 @@ impl TransformKernel {
         Self::new(transform_type)
     }
 
-    /// Execute the transform operation
+    /// Execute the transform operation (frequency-domain, f32 data).
+    ///
+    /// Handles DCT and IDCT which operate on `f32` frequency-domain data.
+    /// For pixel-level geometric transforms (rotate, flip, transpose) use
+    /// [`TransformKernel::execute_u8`] instead.
     ///
     /// # Arguments
     ///
@@ -90,7 +94,7 @@ impl TransformKernel {
     ///
     /// # Errors
     ///
-    /// Returns an error if the operation fails.
+    /// Returns an error if the operation fails or is not supported for f32 data.
     pub fn execute(
         &self,
         device: &GpuDevice,
@@ -106,10 +110,81 @@ impl TransformKernel {
             TransformType::IDCT => {
                 crate::ops::TransformOperation::idct_2d(device, input, output, width, height)
             }
-            _ => Err(crate::GpuError::NotSupported(format!(
+            TransformType::FFT
+            | TransformType::IFFT
+            | TransformType::Affine
+            | TransformType::Perspective => Err(crate::GpuError::NotSupported(format!(
                 "Transform type {:?} not yet implemented",
                 self.transform_type
             ))),
+            _ => Err(crate::GpuError::NotSupported(format!(
+                "Transform type {:?} requires u8 pixel data — use execute_u8()",
+                self.transform_type
+            ))),
+        }
+    }
+
+    /// Execute a geometric pixel transform on an interleaved `u8` image buffer.
+    ///
+    /// Handles `Rotate90`, `Rotate180`, `Rotate270`, `FlipHorizontal`,
+    /// `FlipVertical`, and `Transpose`.  `FFT`, `IFFT`, `Affine`, and
+    /// `Perspective` are deliberately left as `NotSupported`.
+    ///
+    /// The `_device` parameter is accepted for API symmetry but is not used
+    /// by the CPU-side implementations (the geometric ops are fully pure-Rust).
+    ///
+    /// # Arguments
+    ///
+    /// * `_device` - GPU device (unused; present for API consistency)
+    /// * `input` - Input pixel buffer (`width * height * channels` bytes)
+    /// * `width` - Image width in pixels
+    /// * `height` - Image height in pixels
+    /// * `channels` - Bytes per pixel (e.g. 3 for RGB, 4 for RGBA)
+    ///
+    /// # Errors
+    ///
+    /// Returns [`crate::GpuError::NotSupported`] for frequency-domain,
+    /// `Affine`, and `Perspective` transform types.
+    pub fn execute_u8(
+        &self,
+        _device: &GpuDevice,
+        input: &[u8],
+        width: u32,
+        height: u32,
+        channels: u32,
+    ) -> Result<Vec<u8>> {
+        match self.transform_type {
+            TransformType::Rotate90 => Ok(crate::ops::TransformOperation::rotate90(
+                input, width, height, channels,
+            )),
+            TransformType::Rotate180 => Ok(crate::ops::TransformOperation::rotate180(
+                input, width, height, channels,
+            )),
+            TransformType::Rotate270 => Ok(crate::ops::TransformOperation::rotate270(
+                input, width, height, channels,
+            )),
+            TransformType::FlipHorizontal => Ok(crate::ops::TransformOperation::flip_horizontal(
+                input, width, height, channels,
+            )),
+            TransformType::FlipVertical => Ok(crate::ops::TransformOperation::flip_vertical(
+                input, width, height, channels,
+            )),
+            TransformType::Transpose => Ok(crate::ops::TransformOperation::transpose(
+                input, width, height, channels,
+            )),
+            TransformType::FFT
+            | TransformType::IFFT
+            | TransformType::Affine
+            | TransformType::Perspective => Err(crate::GpuError::NotSupported(format!(
+                "Transform type {:?} not yet implemented",
+                self.transform_type
+            ))),
+            TransformType::DCT | TransformType::IDCT => {
+                Err(crate::GpuError::NotSupported(format!(
+                    "Transform type {:?} operates on f32 data — use execute()",
+                    self.transform_type
+                )))
+            }
         }
     }
 

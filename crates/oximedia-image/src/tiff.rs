@@ -749,8 +749,96 @@ fn read_stripped_image(file: &mut File, info: &TiffInfo, _endian: Endian) -> Ima
     Ok(output)
 }
 
-fn read_tiled_image(_file: &mut File, _info: &TiffInfo, _endian: Endian) -> ImageResult<Vec<u8>> {
-    Err(ImageError::unsupported("Tiled TIFF not yet implemented"))
+fn read_tiled_image(file: &mut File, info: &TiffInfo, endian: Endian) -> ImageResult<Vec<u8>> {
+    let width = info.width as usize;
+    let height = info.height as usize;
+    let tile_width = info.tile_width as usize;
+    let tile_height = info.tile_height as usize;
+
+    if tile_width == 0 || tile_height == 0 {
+        return Err(ImageError::invalid_format(
+            "Tiled TIFF has zero tile dimension",
+        ));
+    }
+
+    let bits_total: u16 = info.bits_per_sample.iter().sum();
+    let bytes_per_pixel = (bits_total / 8) as usize;
+
+    if bytes_per_pixel == 0 {
+        return Err(ImageError::invalid_format(
+            "Tiled TIFF: zero bytes per pixel",
+        ));
+    }
+
+    let total_size = width * height * bytes_per_pixel;
+    let mut output = vec![0u8; total_size];
+
+    // Compute tile grid dimensions (ceiling division)
+    let tiles_across = width.div_ceil(tile_width);
+    let tiles_down = height.div_ceil(tile_height);
+
+    let tile_count = tiles_across * tiles_down;
+    if info.tile_offsets.len() < tile_count || info.tile_byte_counts.len() < tile_count {
+        return Err(ImageError::invalid_format(
+            "Tiled TIFF: insufficient tile offset/bytecount entries",
+        ));
+    }
+
+    for tile_row in 0..tiles_down {
+        for tile_col in 0..tiles_across {
+            let tile_idx = tile_row * tiles_across + tile_col;
+
+            let tile_offset = u64::from(info.tile_offsets[tile_idx]);
+            let tile_bytes = info.tile_byte_counts[tile_idx] as usize;
+
+            file.seek(SeekFrom::Start(tile_offset))?;
+
+            let mut compressed = vec![0u8; tile_bytes];
+            file.read_exact(&mut compressed)?;
+
+            let decompressed = decompress_strip(&compressed, info)?;
+
+            // Compute tile position in the output image
+            let x_start = tile_col * tile_width;
+            let y_start = tile_row * tile_height;
+
+            // Actual tile size may be smaller at image edges
+            let actual_tile_w = tile_width.min(width.saturating_sub(x_start));
+            let actual_tile_h = tile_height.min(height.saturating_sub(y_start));
+
+            // The tile data is laid out as full tile_width rows in the compressed stream.
+            // We copy only actual_tile_w pixels per row, skipping any padding bytes.
+            let src_row_stride = tile_width * bytes_per_pixel;
+            let dst_row_stride = width * bytes_per_pixel;
+            let copy_len = actual_tile_w * bytes_per_pixel;
+
+            for tile_y in 0..actual_tile_h {
+                let src_offset = tile_y * src_row_stride;
+                let dst_offset = (y_start + tile_y) * dst_row_stride + x_start * bytes_per_pixel;
+
+                if src_offset + copy_len > decompressed.len() {
+                    break;
+                }
+                if dst_offset + copy_len > output.len() {
+                    break;
+                }
+
+                output[dst_offset..dst_offset + copy_len]
+                    .copy_from_slice(&decompressed[src_offset..src_offset + copy_len]);
+            }
+        }
+    }
+
+    // Endian-swap 16-bit samples when data is stored in big-endian and we are on little-endian
+    // (mirrors the behaviour expected for multi-byte pixel types)
+    let bits_first = info.bits_per_sample.first().copied().unwrap_or(8);
+    if bits_first == 16 && endian == Endian::Big {
+        for chunk in output.chunks_exact_mut(2) {
+            chunk.swap(0, 1);
+        }
+    }
+
+    Ok(output)
 }
 
 fn decompress_strip(data: &[u8], info: &TiffInfo) -> ImageResult<Vec<u8>> {
@@ -1126,4 +1214,164 @@ fn write_software_tag(file: &mut File, endian: Endian) -> ImageResult<()> {
     }
 
     Ok(())
+}
+
+// ===========================================================================
+// Tests
+// ===========================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use byteorder::{LittleEndian, WriteBytesExt};
+    use std::io::Write;
+
+    /// Builds a minimal tiled TIFF binary (little-endian, RGB 8-bit, no compression).
+    ///
+    /// Image:  4 × 4 pixels
+    /// Tiles:  2 × 2 pixels → 2 tiles across × 2 tiles down = 4 tiles
+    ///
+    /// Tile fill values (R,G,B for every pixel in that tile):
+    ///   Tile 0 (top-left):     0x01, 0x02, 0x03
+    ///   Tile 1 (top-right):    0x04, 0x05, 0x06
+    ///   Tile 2 (bottom-left):  0x07, 0x08, 0x09
+    ///   Tile 3 (bottom-right): 0x0A, 0x0B, 0x0C
+    fn build_tiled_tiff() -> Vec<u8> {
+        let mut buf: Vec<u8> = Vec::new();
+
+        // ---- TIFF header ----
+        buf.write_u16::<LittleEndian>(TIFF_MAGIC_LE).expect("magic");
+        buf.write_u16::<LittleEndian>(TIFF_VERSION)
+            .expect("version");
+        // IFD offset placeholder at bytes 4..8 — patched below.
+        buf.write_u32::<LittleEndian>(0)
+            .expect("ifd offset placeholder");
+
+        // ---- Raw tile pixel data (no compression) ----
+        // 4 tiles × 2×2 pixels × 3 bytes/pixel = 48 bytes
+        // Each tile is 12 bytes (4 pixels × 3 channels)
+        let tile_data_base: u32 = buf.len() as u32; // = 8
+
+        let tiles: &[(u8, u8, u8)] = &[
+            (0x01, 0x02, 0x03),
+            (0x04, 0x05, 0x06),
+            (0x07, 0x08, 0x09),
+            (0x0A, 0x0B, 0x0C),
+        ];
+
+        // Per-tile byte offsets within the file
+        let tile_offsets: Vec<u32> = (0..4u32).map(|i| tile_data_base + i * 12).collect();
+
+        for &(r, g, b) in tiles {
+            for _ in 0..4u8 {
+                buf.push(r);
+                buf.push(g);
+                buf.push(b);
+            }
+        }
+
+        // ---- Out-of-line arrays ----
+
+        // BitsPerSample: [8, 8, 8] stored out-of-line (3 × u16 = 6 bytes > 4)
+        let bits_per_sample_pos: u32 = buf.len() as u32;
+        for _ in 0..3u8 {
+            buf.write_u16::<LittleEndian>(8)
+                .expect("bits_per_sample entry");
+        }
+
+        // TileOffsets: 4 × u32
+        let tile_offsets_arr_pos: u32 = buf.len() as u32;
+        for &off in &tile_offsets {
+            buf.write_u32::<LittleEndian>(off)
+                .expect("tile offset entry");
+        }
+
+        // TileByteCounts: 4 × u32 (all = 12)
+        let tile_byte_counts_arr_pos: u32 = buf.len() as u32;
+        for _ in 0..4u32 {
+            buf.write_u32::<LittleEndian>(12)
+                .expect("tile byte count entry");
+        }
+
+        // ---- IFD ----
+        let ifd_pos: u32 = buf.len() as u32;
+        // 10 tags
+        buf.write_u16::<LittleEndian>(10).expect("tag count");
+
+        // Inline macro to write one 12-byte IFD entry (LE).
+        macro_rules! tag {
+            ($tag:expr, $dtype:expr, $count:expr, $val:expr) => {{
+                buf.write_u16::<LittleEndian>($tag).expect("ifd tag");
+                buf.write_u16::<LittleEndian>($dtype).expect("ifd dtype");
+                buf.write_u32::<LittleEndian>($count).expect("ifd count");
+                buf.write_u32::<LittleEndian>($val).expect("ifd value");
+            }};
+        }
+
+        tag!(256, 4, 1, 4); // ImageWidth = 4
+        tag!(257, 4, 1, 4); // ImageLength = 4
+                            // BitsPerSample: count=3 (one per channel), offset→bits_per_sample_pos
+                            // total size = 3×2=6 > 4 → stored out-of-line
+        tag!(258, 3, 3, bits_per_sample_pos); // BitsPerSample = [8,8,8]
+        tag!(259, 3, 1, 1); // Compression = 1 (None)
+        tag!(262, 3, 1, 2); // PhotometricInterpretation = 2 (RGB)
+        tag!(277, 3, 1, 3); // SamplesPerPixel = 3
+        tag!(322, 3, 1, 2); // TileWidth = 2
+        tag!(323, 3, 1, 2); // TileLength = 2
+        tag!(324, 4, 4, tile_offsets_arr_pos); // TileOffsets
+        tag!(325, 4, 4, tile_byte_counts_arr_pos); // TileByteCounts
+
+        // Next-IFD pointer = 0 (end)
+        buf.write_u32::<LittleEndian>(0).expect("next ifd");
+
+        // Patch IFD offset at header bytes [4..8]
+        buf[4..8].copy_from_slice(&ifd_pos.to_le_bytes());
+
+        buf
+    }
+
+    #[test]
+    fn test_read_tiled_tiff_2x2_tiles() {
+        let tiff_bytes = build_tiled_tiff();
+
+        let mut temp_path = std::env::temp_dir();
+        temp_path.push("oximedia_test_tiled_tiff_2x2.tif");
+
+        {
+            let mut f = std::fs::File::create(&temp_path).expect("should create temp file");
+            f.write_all(&tiff_bytes).expect("should write TIFF bytes");
+        }
+
+        let frame = read_tiff(&temp_path, 0).expect("should read tiled TIFF");
+
+        assert_eq!(frame.width, 4, "width mismatch");
+        assert_eq!(frame.height, 4, "height mismatch");
+
+        let data = frame.data.as_slice().expect("data should be interleaved");
+        // 4 × 4 × 3 bytes = 48
+        assert_eq!(data.len(), 48, "data length mismatch");
+
+        // Stride = 4 cols × 3 bytes = 12 bytes/row
+        // Tile 0 (top-left):  pixel (col=0, row=0) → byte offset = 0
+        assert_eq!(data[0], 0x01, "R at (0,0)");
+        assert_eq!(data[1], 0x02, "G at (0,0)");
+        assert_eq!(data[2], 0x03, "B at (0,0)");
+
+        // Tile 1 (top-right): pixel (col=2, row=0) → byte offset = 2*3 = 6
+        assert_eq!(data[6], 0x04, "R at (2,0)");
+        assert_eq!(data[7], 0x05, "G at (2,0)");
+        assert_eq!(data[8], 0x06, "B at (2,0)");
+
+        // Tile 2 (bottom-left): pixel (col=0, row=2) → byte offset = 2*12 = 24
+        assert_eq!(data[24], 0x07, "R at (0,2)");
+        assert_eq!(data[25], 0x08, "G at (0,2)");
+        assert_eq!(data[26], 0x09, "B at (0,2)");
+
+        // Tile 3 (bottom-right): pixel (col=2, row=2) → byte offset = 2*12 + 2*3 = 30
+        assert_eq!(data[30], 0x0A, "R at (2,2)");
+        assert_eq!(data[31], 0x0B, "G at (2,2)");
+        assert_eq!(data[32], 0x0C, "B at (2,2)");
+
+        let _ = std::fs::remove_file(&temp_path);
+    }
 }

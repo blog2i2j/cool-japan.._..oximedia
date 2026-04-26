@@ -143,6 +143,8 @@ pub mod auth_middleware;
 pub mod cache;
 /// Circuit breaker pattern for protecting downstream services.
 pub mod circuit_breaker;
+/// Gzip HTTP response compression middleware (via `oxiarc-deflate`).
+pub mod compression;
 pub mod config;
 /// Hierarchical server configuration loader with typed values and validation.
 pub mod config_loader;
@@ -612,9 +614,11 @@ impl Server {
                     )
                     // CORS
                     .layer(CorsLayer::permissive())
-                    // TODO(oxiarc-gzip): restore compression via oxiarc middleware per COOLJAPAN Pure Rust Policy
-                    // tower-http's compression-gzip feature pulls flate2 (C dep), so the layer was removed.
-                    // .layer(CompressionLayer::new())
+                    // Gzip response compression via oxiarc-deflate (pure Rust, no C deps).
+                    // Compresses only compressible content-types (JSON/XML/text/*) and only
+                    // when the client sends `Accept-Encoding: gzip`.  Binary media (video,
+                    // audio, images) is skipped to avoid OOM-inducing body buffering.
+                    .layer(compression::GzipLayer::new())
                     // Body size limit (configurable, default 5GB for chunked uploads)
                     .layer(DefaultBodyLimit::max(5 * 1024 * 1024 * 1024)),
             )

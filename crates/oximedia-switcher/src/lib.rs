@@ -64,6 +64,7 @@ pub mod aux_routing;
 pub mod bus;
 pub mod chroma;
 pub mod clip_delay;
+pub(crate) mod composite;
 pub mod crosspoint;
 pub mod downstream_key;
 pub mod dve;

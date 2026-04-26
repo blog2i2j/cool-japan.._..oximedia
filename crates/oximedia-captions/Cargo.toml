@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Professional closed captioning and subtitle authoring system for OxiMedia"
+keywords = ["captions", "subtitle", "srt", "vtt", "multimedia"]
+categories = ["multimedia", "parser-implementations"]
 readme = "README.md"
 
 [lints]

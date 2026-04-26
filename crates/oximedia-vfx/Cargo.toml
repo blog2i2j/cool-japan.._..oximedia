@@ -1,6 +1,8 @@
 [package]
 name = "oximedia-vfx"
 description = "Visual effects processing pipeline for media production"
+keywords = ["vfx", "effects", "video", "pipeline", "multimedia"]
+categories = ["multimedia::video", "multimedia"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

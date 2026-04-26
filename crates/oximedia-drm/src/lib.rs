@@ -47,6 +47,7 @@ pub mod key_lifecycle;
 pub mod key_management;
 pub mod key_rotation;
 pub mod key_rotation_schedule;
+pub mod key_wrap;
 pub mod license_chain;
 pub mod license_server;
 pub mod license_validator;

@@ -49,6 +49,13 @@ impl LutGenerator {
 
     /// Generate a 3D calibration LUT from `ColorChecker` measurements.
     ///
+    /// Uses inverse-distance-weighted (IDW) interpolation to compute a per-grid-point
+    /// correction from the measured patches. Each grid point's output is the input
+    /// plus a weighted average of `(reference_rgb - measured_rgb)` corrections,
+    /// where the weight for each patch is `1 / (distance² + ε)`.
+    ///
+    /// If no patches are present, returns an identity LUT (output == input).
+    ///
     /// # Arguments
     ///
     /// * `colorchecker` - `ColorChecker` with measured and reference colors
@@ -58,18 +65,54 @@ impl LutGenerator {
     ///
     /// Returns an error if generation fails.
     pub fn from_colorchecker(
-        _colorchecker: &ColorChecker,
-        _lut_size: LutSize,
+        colorchecker: &ColorChecker,
+        lut_size: LutSize,
     ) -> CalibrationResult<Lut3d> {
-        // This is a placeholder implementation
-        // A real implementation would:
-        // 1. Create a 3D grid of RGB values
-        // 2. For each grid point, find the correction based on ColorChecker
-        // 3. Build the LUT
+        // No patches: return an identity LUT so output == input everywhere.
+        if colorchecker.patches.is_empty() {
+            return Ok(Lut3d::identity(lut_size));
+        }
 
-        Err(CalibrationError::LutGenerationFailed(
-            "ColorChecker-based LUT generation not yet implemented".to_string(),
-        ))
+        let n = lut_size.as_usize();
+        let mut lut = Lut3d::new(lut_size);
+
+        for ri in 0..n {
+            for gi in 0..n {
+                for bi in 0..n {
+                    // Normalize grid indices to [0, 1].
+                    let r = ri as f64 / (n - 1) as f64;
+                    let g = gi as f64 / (n - 1) as f64;
+                    let b = bi as f64 / (n - 1) as f64;
+
+                    // IDW: accumulate weighted corrections from every patch.
+                    // weight_k = 1 / (dist_k² + ε), correction = ref - measured.
+                    let mut weight_sum = 0.0_f64;
+                    let mut correction = [0.0_f64; 3];
+
+                    for patch in &colorchecker.patches {
+                        let dr = r - patch.measured_rgb[0];
+                        let dg = g - patch.measured_rgb[1];
+                        let db = b - patch.measured_rgb[2];
+                        let dist_sq = dr * dr + dg * dg + db * db;
+                        let weight = 1.0 / (dist_sq + 1e-10);
+
+                        correction[0] += weight * (patch.reference_rgb[0] - patch.measured_rgb[0]);
+                        correction[1] += weight * (patch.reference_rgb[1] - patch.measured_rgb[1]);
+                        correction[2] += weight * (patch.reference_rgb[2] - patch.measured_rgb[2]);
+                        weight_sum += weight;
+                    }
+
+                    // Normalise by total weight and clamp to valid range.
+                    let out_r = (r + correction[0] / weight_sum).clamp(0.0, 1.0);
+                    let out_g = (g + correction[1] / weight_sum).clamp(0.0, 1.0);
+                    let out_b = (b + correction[2] / weight_sum).clamp(0.0, 1.0);
+
+                    lut.set(ri, gi, bi, [out_r, out_g, out_b]);
+                }
+            }
+        }
+
+        Ok(lut)
     }
 
     /// Generate a 3D LUT from a color transformation matrix.
@@ -234,5 +277,81 @@ mod tests {
         assert!((result[0] - 1.0).abs() < 1e-10);
         assert!((result[1] - 1.2).abs() < 1e-10);
         assert!((result[2] - 1.4).abs() < 1e-10);
+    }
+
+    // ------------------------------------------------------------------
+    // from_colorchecker tests
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn test_from_colorchecker_empty_patches() {
+        use crate::camera::{ColorChecker, ColorCheckerType};
+
+        let checker = ColorChecker {
+            checker_type: ColorCheckerType::Classic24,
+            patches: vec![],
+            bounding_box: None,
+            confidence: 1.0,
+        };
+
+        let result = LutGenerator::from_colorchecker(&checker, LutSize::Size17);
+        assert!(result.is_ok(), "expected Ok for empty patches");
+
+        let lut = result.expect("lut Ok");
+        // Identity LUT: midpoint of the grid should map to itself.
+        let mid = 8; // index 8 of 17 → 8/16 = 0.5
+        let val = lut.get(mid, mid, mid);
+        assert!(
+            (val[0] - 0.5).abs() < 1e-6,
+            "identity R mismatch: {}",
+            val[0]
+        );
+        assert!(
+            (val[1] - 0.5).abs() < 1e-6,
+            "identity G mismatch: {}",
+            val[1]
+        );
+        assert!(
+            (val[2] - 0.5).abs() < 1e-6,
+            "identity B mismatch: {}",
+            val[2]
+        );
+    }
+
+    #[test]
+    fn test_from_colorchecker_two_patches() {
+        use crate::camera::{ColorChecker, ColorCheckerType, PatchColor};
+
+        let patches = vec![
+            PatchColor {
+                index: 0,
+                measured_rgb: [0.2, 0.2, 0.2],
+                reference_rgb: [0.25, 0.25, 0.25],
+                reference_lab: [0.0, 0.0, 0.0],
+                reference_xyz: [0.0, 0.0, 0.0],
+                name: "Patch A".to_string(),
+            },
+            PatchColor {
+                index: 1,
+                measured_rgb: [0.8, 0.8, 0.8],
+                reference_rgb: [0.75, 0.75, 0.75],
+                reference_lab: [0.0, 0.0, 0.0],
+                reference_xyz: [0.0, 0.0, 0.0],
+                name: "Patch B".to_string(),
+            },
+        ];
+
+        let checker = ColorChecker {
+            checker_type: ColorCheckerType::Classic24,
+            patches,
+            bounding_box: None,
+            confidence: 1.0,
+        };
+
+        let result = LutGenerator::from_colorchecker(&checker, LutSize::Size17);
+        assert!(result.is_ok(), "expected Ok with two patches");
+
+        let lut = result.expect("lut Ok");
+        assert_eq!(lut.size(), LutSize::Size17.as_usize());
     }
 }

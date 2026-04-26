@@ -8,6 +8,9 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Container demuxer/muxer for OxiMedia"
+keywords = ["container", "muxer", "demuxer", "mp4", "mkv"]
+categories = ["multimedia", "parser-implementations"]
+readme = "README.md"
 
 [lints]
 workspace = true

@@ -8,6 +8,7 @@ homepage.workspace = true
 repository.workspace = true
 authors.workspace = true
 description = "Broadcast loudness normalization: EBU R128, ATSC A/85, streaming platforms, ReplayGain"
+readme = "README.md"
 keywords = ["audio", "normalization", "loudness", "broadcast", "ebu-r128"]
 categories = ["multimedia::audio", "multimedia::encoding"]
 

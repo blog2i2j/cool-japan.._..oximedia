@@ -105,6 +105,10 @@ pub mod logo_bug;
 pub mod stinger_transition;
 pub mod template_variables;
 
+// Text-on-path rendering (fontdue integration)
+pub mod bezier_path;
+pub mod text_on_path;
+
 #[cfg(all(feature = "server", not(target_arch = "wasm32")))]
 pub mod control;
 

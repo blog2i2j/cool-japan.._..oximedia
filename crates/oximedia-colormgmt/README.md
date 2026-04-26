@@ -6,7 +6,7 @@ Professional color management system for OxiMedia, providing ICC profiles, ACES 
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.5 — 2026-04-21 — 1,026 tests
+Version: 0.1.6 — 2026-04-26 — 1,026 tests
 
 ## Features
 
@@ -30,9 +30,9 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-colormgmt = "0.1.5"
+oximedia-colormgmt = "0.1.6"
 # Optional features:
-oximedia-colormgmt = { version = "0.1.5", features = ["lut-integration", "gpu-accel"] }
+oximedia-colormgmt = { version = "0.1.6", features = ["lut-integration", "gpu-accel"] }
 ```
 
 ```rust

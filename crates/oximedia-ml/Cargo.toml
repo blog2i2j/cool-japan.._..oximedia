@@ -8,6 +8,7 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Sovereign ML pipelines for media — Pure-Rust ONNX inference with typed pipelines (scene classification, shot boundary detection, aesthetic scoring, object detection, face embedding) built atop OxiONNX."
+readme = "README.md"
 keywords = ["machine-learning", "onnx", "media", "inference", "pipeline"]
 categories = ["multimedia", "science", "algorithms"]
 

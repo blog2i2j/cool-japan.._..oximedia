@@ -1,6 +1,8 @@
 [package]
 name = "oximedia-denoise"
 description = "Video and audio denoising algorithms for media processing"
+keywords = ["restoration", "denoising", "video", "multimedia", "quality"]
+categories = ["multimedia::video", "multimedia"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

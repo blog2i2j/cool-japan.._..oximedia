@@ -22,7 +22,7 @@ pub enum ImageCommand {
         format: String,
     },
 
-    /// Convert image format (DPX, EXR, TIFF, PNG, etc.)
+    /// Convert image format (DPX, EXR, TIFF, PNG, JPEG, WebP)
     Convert {
         /// Input image file
         #[arg(short, long)]
@@ -43,6 +43,10 @@ pub enum ImageCommand {
         /// Compression method (none, rle, zip, zips, piz, lzw, packbits)
         #[arg(long)]
         compression: Option<String>,
+
+        /// JPEG output quality 1-100 (default: 95, only used for JPEG output)
+        #[arg(long, default_value = "95")]
+        quality: u8,
     },
 
     /// Process image sequence
@@ -133,7 +137,8 @@ pub async fn handle_image_command(command: ImageCommand, json_output: bool) -> R
             bit_depth,
             colorspace,
             compression,
-        } => convert_image(&input, &output, bit_depth, colorspace, compression).await,
+            quality,
+        } => convert_image(&input, &output, bit_depth, colorspace, compression, quality).await,
         ImageCommand::Sequence {
             input,
             start,
@@ -162,30 +167,6 @@ pub async fn handle_image_command(command: ImageCommand, json_output: bool) -> R
             width,
             height,
         } => generate_histogram(&input, output, &mode, width, height, json_output).await,
-    }
-}
-
-// ---------------------------------------------------------------------------
-// Helper: detect format and read metadata from file header
-// ---------------------------------------------------------------------------
-
-fn detect_format_from_path(path: &PathBuf) -> String {
-    let ext = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .unwrap_or("")
-        .to_ascii_lowercase();
-    match ext.as_str() {
-        "dpx" => "DPX".to_string(),
-        "exr" => "OpenEXR".to_string(),
-        "tif" | "tiff" => "TIFF".to_string(),
-        "png" => "PNG".to_string(),
-        "jpg" | "jpeg" => "JPEG".to_string(),
-        "bmp" => "BMP".to_string(),
-        "gif" => "GIF".to_string(),
-        "webp" => "WebP".to_string(),
-        "cin" | "cineon" => "Cineon".to_string(),
-        other => other.to_uppercase(),
     }
 }
 
@@ -422,13 +403,24 @@ async fn convert_image(
     bit_depth: Option<u32>,
     colorspace: Option<String>,
     compression: Option<String>,
+    quality: u8,
 ) -> Result<()> {
     if !input.exists() {
         return Err(anyhow::anyhow!("Input file not found: {}", input.display()));
     }
 
-    let input_format = detect_format_from_path(input);
-    let output_format = detect_format_from_path(output);
+    // Detect input format via magic bytes
+    let file_size = std::fs::metadata(input)
+        .context("Failed to read file metadata")?
+        .len();
+    let header_bytes = {
+        let mut buf = vec![0u8; 2048.min(file_size as usize)];
+        let mut f = std::fs::File::open(input).context("Failed to open input file")?;
+        std::io::Read::read(&mut f, &mut buf).context("Failed to read file header")?;
+        buf
+    };
+    let in_fmt = oximedia_image::format_detect::FormatDetector::detect(&header_bytes);
+    let out_fmt = output_format_from_path(output);
 
     // Parse optional settings
     let target_depth = if let Some(d) = bit_depth {
@@ -436,13 +428,11 @@ async fn convert_image(
     } else {
         None
     };
-
     let target_cs = if let Some(ref cs) = colorspace {
         Some(parse_colorspace(cs)?)
     } else {
         None
     };
-
     let target_compression = if let Some(ref c) = compression {
         Some(parse_compression(c)?)
     } else {
@@ -451,9 +441,8 @@ async fn convert_image(
 
     println!("{}", "Image Conversion".green().bold());
     println!("{}", "=".repeat(60));
-    println!("{:20} {} ({})", "Input:", input.display(), input_format);
-    println!("{:20} {} ({})", "Output:", output.display(), output_format);
-
+    println!("{:20} {} ({})", "Input:", input.display(), in_fmt.name());
+    println!("{:20} {} ({})", "Output:", output.display(), out_fmt.name());
     if let Some(ref pt) = target_depth {
         println!("{:20} {}-bit", "Target bit depth:", pt.bit_depth());
     }
@@ -463,19 +452,243 @@ async fn convert_image(
     if let Some(ref c) = target_compression {
         println!("{:20} {}", "Compression:", compression_name(*c));
     }
-
     println!();
-    println!(
-        "{}",
-        "Note: Full conversion pipeline requires frame decoding integration.".yellow()
-    );
-    println!(
-        "{}",
-        "Format parsers and pixel type converters are ready; pipeline integration pending."
-            .dimmed()
-    );
 
+    // Read input frame
+    let mut frame = read_input_frame(input, &in_fmt)?;
+
+    // Apply bit depth conversion
+    if let Some(target_pt) = target_depth {
+        frame = convert_bit_depth(frame, target_pt)?;
+    }
+
+    // Apply color space label (metadata only, no gamut transform)
+    if let Some(cs) = target_cs {
+        frame.color_space = cs;
+    }
+
+    // Write output
+    write_output_frame(output, &frame, &out_fmt, target_compression, quality)?;
+
+    println!("{}", "✓ Conversion complete.".green().bold());
     Ok(())
+}
+
+fn output_format_from_path(path: &PathBuf) -> oximedia_image::format_detect::ImageFormat {
+    use oximedia_image::format_detect::ImageFormat;
+    let ext = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or("")
+        .to_ascii_lowercase();
+    match ext.as_str() {
+        "dpx" => ImageFormat::Dpx,
+        "exr" => ImageFormat::Exr,
+        "tif" | "tiff" => ImageFormat::Tiff,
+        "png" => ImageFormat::Png,
+        "jpg" | "jpeg" => ImageFormat::Jpeg,
+        "webp" => ImageFormat::WebP,
+        "heic" | "heif" | "avif" => ImageFormat::Heif,
+        _ => ImageFormat::Unknown,
+    }
+}
+
+fn read_input_frame(
+    path: &PathBuf,
+    fmt: &oximedia_image::format_detect::ImageFormat,
+) -> Result<oximedia_image::ImageFrame> {
+    use oximedia_image::format_detect::ImageFormat;
+    match fmt {
+        ImageFormat::Jpeg => oximedia_image::jpeg::read_jpeg(path).context("Failed to read JPEG"),
+        ImageFormat::Png => oximedia_image::png::read_png_frame(path).context("Failed to read PNG"),
+        ImageFormat::Tiff => {
+            oximedia_image::tiff::read_tiff(path, 1).context("Failed to read TIFF")
+        }
+        ImageFormat::Exr => {
+            oximedia_image::exr::read_exr(path, 1).context("Failed to read OpenEXR")
+        }
+        ImageFormat::Dpx => oximedia_image::dpx::read_dpx(path, 1).context("Failed to read DPX"),
+        ImageFormat::WebP => {
+            oximedia_image::webp::read_webp(path, 1).context("Failed to read WebP")
+        }
+        ImageFormat::Heif => Err(anyhow::anyhow!(
+            "HEIC/AVIF pixel decoding is not supported.\n\
+             HEVC (H.265) is patent-encumbered; OxiMedia uses only royalty-free codecs."
+        )),
+        other => Err(anyhow::anyhow!(
+            "Unsupported input format: {}. Supported: JPEG, PNG, TIFF, EXR, DPX, WebP",
+            other.name()
+        )),
+    }
+}
+
+fn write_output_frame(
+    path: &PathBuf,
+    frame: &oximedia_image::ImageFrame,
+    fmt: &oximedia_image::format_detect::ImageFormat,
+    compression: Option<oximedia_image::Compression>,
+    jpeg_quality: u8,
+) -> Result<()> {
+    use oximedia_image::exr::ExrCompression;
+    use oximedia_image::format_detect::ImageFormat;
+    use oximedia_image::tiff::TiffCompression;
+    use oximedia_image::Endian;
+
+    match fmt {
+        ImageFormat::Jpeg => oximedia_image::jpeg::write_jpeg(path, frame, jpeg_quality)
+            .context("Failed to write JPEG"),
+        ImageFormat::Png => {
+            let pixels = frame
+                .data
+                .as_slice()
+                .ok_or_else(|| anyhow::anyhow!("PNG encoder requires interleaved pixel data"))?
+                .to_vec();
+            let color_type = match frame.components {
+                1 => oximedia_image::png::PngColorType::Grayscale,
+                2 => oximedia_image::png::PngColorType::GrayscaleAlpha,
+                3 => oximedia_image::png::PngColorType::Rgb,
+                _ => oximedia_image::png::PngColorType::Rgba,
+            };
+            let png = oximedia_image::png::PngImage {
+                width: frame.width,
+                height: frame.height,
+                bit_depth: frame.pixel_type.bit_depth(),
+                color_type,
+                pixels,
+                metadata: std::collections::HashMap::new(),
+            };
+            oximedia_image::png::write_png(path, &png).context("Failed to write PNG")
+        }
+        ImageFormat::Tiff => {
+            let tiff_comp = match compression {
+                Some(oximedia_image::Compression::Lzw) => TiffCompression::Lzw,
+                Some(oximedia_image::Compression::Zip)
+                | Some(oximedia_image::Compression::ZipScanline) => TiffCompression::Deflate,
+                Some(oximedia_image::Compression::Rle)
+                | Some(oximedia_image::Compression::PackBits) => TiffCompression::PackBits,
+                _ => TiffCompression::None,
+            };
+            oximedia_image::tiff::write_tiff(path, frame, tiff_comp).context("Failed to write TIFF")
+        }
+        ImageFormat::Exr => {
+            let exr_comp = match compression {
+                Some(oximedia_image::Compression::None) => ExrCompression::None,
+                Some(oximedia_image::Compression::Rle) => ExrCompression::Rle,
+                Some(oximedia_image::Compression::ZipScanline) => ExrCompression::Zips,
+                Some(oximedia_image::Compression::Piz) => ExrCompression::Piz,
+                Some(oximedia_image::Compression::Pxr24) => ExrCompression::Pxr24,
+                Some(oximedia_image::Compression::B44) => ExrCompression::B44,
+                Some(oximedia_image::Compression::B44a) => ExrCompression::B44a,
+                Some(oximedia_image::Compression::Dwaa) => ExrCompression::Dwaa,
+                Some(oximedia_image::Compression::Dwab) => ExrCompression::Dwab,
+                _ => ExrCompression::Zip,
+            };
+            oximedia_image::exr::write_exr(path, frame, exr_comp).context("Failed to write OpenEXR")
+        }
+        ImageFormat::Dpx => {
+            oximedia_image::dpx::write_dpx(path, frame, Endian::Big).context("Failed to write DPX")
+        }
+        ImageFormat::WebP => {
+            oximedia_image::webp::write_webp(path, frame).context("Failed to write WebP")
+        }
+        other => Err(anyhow::anyhow!(
+            "Unsupported output format: {}. Supported: JPEG, PNG, TIFF, EXR, DPX, WebP",
+            other.name()
+        )),
+    }
+}
+
+fn convert_bit_depth(
+    frame: oximedia_image::ImageFrame,
+    target: oximedia_image::PixelType,
+) -> Result<oximedia_image::ImageFrame> {
+    use oximedia_image::{ImageData, PixelType};
+
+    if frame.pixel_type == target {
+        return Ok(frame);
+    }
+
+    let pixels = frame
+        .data
+        .as_slice()
+        .ok_or_else(|| anyhow::anyhow!("Bit depth conversion requires interleaved pixel data"))?;
+
+    let converted = match (frame.pixel_type, target) {
+        (PixelType::U8, PixelType::U16) => {
+            let mut out = Vec::with_capacity(pixels.len() * 2);
+            for &p in pixels {
+                let v = (p as u16) * 257; // 0-255 → 0-65535
+                out.extend_from_slice(&v.to_ne_bytes());
+            }
+            out
+        }
+        (PixelType::U16, PixelType::U8) => {
+            let mut out = Vec::with_capacity(pixels.len() / 2);
+            for chunk in pixels.chunks_exact(2) {
+                let v = u16::from_ne_bytes([chunk[0], chunk[1]]);
+                out.push((v / 257) as u8);
+            }
+            out
+        }
+        // 8-bit integer → 32-bit float (normalise 0–255 to 0.0–1.0)
+        (PixelType::U8, PixelType::F32) => {
+            let mut out = Vec::with_capacity(pixels.len() * 4);
+            for &p in pixels {
+                let v: f32 = p as f32 / 255.0;
+                out.extend_from_slice(&v.to_ne_bytes());
+            }
+            out
+        }
+        // 16-bit integer → 32-bit float (normalise 0–65535 to 0.0–1.0)
+        (PixelType::U16, PixelType::F32) => {
+            let mut out = Vec::with_capacity(pixels.len() * 2);
+            for chunk in pixels.chunks_exact(2) {
+                let v = u16::from_ne_bytes([chunk[0], chunk[1]]);
+                let f: f32 = v as f32 / 65535.0;
+                out.extend_from_slice(&f.to_ne_bytes());
+            }
+            out
+        }
+        // 32-bit float → 8-bit integer (clamp then quantise)
+        (PixelType::F32, PixelType::U8) => {
+            let mut out = Vec::with_capacity(pixels.len() / 4);
+            for chunk in pixels.chunks_exact(4) {
+                let v = f32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+                out.push((v.clamp(0.0, 1.0) * 255.0) as u8);
+            }
+            out
+        }
+        // 32-bit float → 16-bit integer (clamp then quantise)
+        (PixelType::F32, PixelType::U16) => {
+            let mut out = Vec::with_capacity(pixels.len() * 2);
+            for chunk in pixels.chunks_exact(4) {
+                let v = f32::from_ne_bytes([chunk[0], chunk[1], chunk[2], chunk[3]]);
+                let q: u16 = (v.clamp(0.0, 1.0) * 65535.0) as u16;
+                out.extend_from_slice(&q.to_ne_bytes());
+            }
+            out
+        }
+        // Same-to-same: identity copy (frame.pixel_type == target was checked above,
+        // but this arm keeps the match exhaustive for any new variants).
+        (src, dst) if src == dst => pixels.to_vec(),
+        _ => {
+            return Err(anyhow::anyhow!(
+                "Bit depth conversion from {}-bit to {}-bit is not yet implemented",
+                frame.pixel_type.bit_depth(),
+                target.bit_depth()
+            ));
+        }
+    };
+
+    Ok(oximedia_image::ImageFrame::new(
+        frame.frame_number,
+        frame.width,
+        frame.height,
+        target,
+        frame.components,
+        frame.color_space,
+        ImageData::interleaved(converted),
+    ))
 }
 
 // ---------------------------------------------------------------------------
@@ -769,18 +982,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_detect_format_from_path() {
-        assert_eq!(detect_format_from_path(&PathBuf::from("test.dpx")), "DPX");
-        assert_eq!(
-            detect_format_from_path(&PathBuf::from("test.exr")),
-            "OpenEXR"
-        );
-        assert_eq!(detect_format_from_path(&PathBuf::from("test.tiff")), "TIFF");
-        assert_eq!(detect_format_from_path(&PathBuf::from("test.png")), "PNG");
-        assert_eq!(detect_format_from_path(&PathBuf::from("test.jpg")), "JPEG");
-    }
-
-    #[test]
     fn test_parse_colorspace_valid() {
         assert_eq!(
             parse_colorspace("srgb").ok(),
@@ -868,5 +1069,123 @@ mod tests {
     fn test_compression_name() {
         assert_eq!(compression_name(oximedia_image::Compression::None), "None");
         assert_eq!(compression_name(oximedia_image::Compression::Zip), "ZIP");
+    }
+
+    // Helper: build a minimal 1×1 ImageFrame with given pixel data.
+    fn make_frame(
+        pixel_type: oximedia_image::PixelType,
+        data: Vec<u8>,
+    ) -> oximedia_image::ImageFrame {
+        oximedia_image::ImageFrame::new(
+            0,
+            1,
+            1,
+            pixel_type,
+            1,
+            oximedia_image::ColorSpace::Srgb,
+            oximedia_image::ImageData::interleaved(data),
+        )
+    }
+
+    #[test]
+    fn test_convert_bit_depth_u8_to_u16() {
+        use oximedia_image::PixelType;
+        let frame = make_frame(PixelType::U8, vec![0, 128, 255]);
+        let out = convert_bit_depth(frame, PixelType::U16).expect("conversion should succeed");
+        assert_eq!(out.pixel_type, PixelType::U16);
+        let raw = out.data.as_slice().expect("interleaved data");
+        let v0 = u16::from_ne_bytes([raw[0], raw[1]]);
+        let v1 = u16::from_ne_bytes([raw[2], raw[3]]);
+        let v2 = u16::from_ne_bytes([raw[4], raw[5]]);
+        assert_eq!(v0, 0);
+        assert_eq!(v1, 128 * 257);
+        assert_eq!(v2, 65535);
+    }
+
+    #[test]
+    fn test_convert_bit_depth_u16_to_u8() {
+        use oximedia_image::PixelType;
+        let mut data = Vec::new();
+        let v: u16 = 65535;
+        data.extend_from_slice(&v.to_ne_bytes());
+        let v2: u16 = 0;
+        data.extend_from_slice(&v2.to_ne_bytes());
+        let frame = make_frame(PixelType::U16, data);
+        let out = convert_bit_depth(frame, PixelType::U8).expect("conversion should succeed");
+        assert_eq!(out.pixel_type, PixelType::U8);
+        let raw = out.data.as_slice().expect("interleaved data");
+        assert_eq!(raw[0], 255);
+        assert_eq!(raw[1], 0);
+    }
+
+    #[test]
+    fn test_convert_bit_depth_u8_to_f32() {
+        use oximedia_image::PixelType;
+        let frame = make_frame(PixelType::U8, vec![0, 255]);
+        let out = convert_bit_depth(frame, PixelType::F32).expect("conversion should succeed");
+        assert_eq!(out.pixel_type, PixelType::F32);
+        let raw = out.data.as_slice().expect("interleaved data");
+        let f0 = f32::from_ne_bytes([raw[0], raw[1], raw[2], raw[3]]);
+        let f1 = f32::from_ne_bytes([raw[4], raw[5], raw[6], raw[7]]);
+        assert!((f0 - 0.0_f32).abs() < 1e-6);
+        assert!((f1 - 1.0_f32).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_convert_bit_depth_u16_to_f32() {
+        use oximedia_image::PixelType;
+        let mut data = Vec::new();
+        let v: u16 = 65535;
+        data.extend_from_slice(&v.to_ne_bytes());
+        let frame = make_frame(PixelType::U16, data);
+        let out = convert_bit_depth(frame, PixelType::F32).expect("conversion should succeed");
+        let raw = out.data.as_slice().expect("interleaved data");
+        let f = f32::from_ne_bytes([raw[0], raw[1], raw[2], raw[3]]);
+        assert!((f - 1.0_f32).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_convert_bit_depth_f32_to_u8() {
+        use oximedia_image::PixelType;
+        let mut data = Vec::new();
+        for v in [0.0_f32, 1.0_f32, 0.5_f32, -0.1_f32, 1.5_f32] {
+            data.extend_from_slice(&v.to_ne_bytes());
+        }
+        let frame = make_frame(PixelType::F32, data);
+        let out = convert_bit_depth(frame, PixelType::U8).expect("conversion should succeed");
+        let raw = out.data.as_slice().expect("interleaved data");
+        assert_eq!(raw[0], 0);
+        assert_eq!(raw[1], 255);
+        // 0.5 * 255.0 = 127.5, truncated to 127
+        assert_eq!(raw[2], 127);
+        // clamped: -0.1 → 0 → 0
+        assert_eq!(raw[3], 0);
+        // clamped: 1.5 → 1.0 → 255
+        assert_eq!(raw[4], 255);
+    }
+
+    #[test]
+    fn test_convert_bit_depth_f32_to_u16() {
+        use oximedia_image::PixelType;
+        let mut data = Vec::new();
+        for v in [0.0_f32, 1.0_f32] {
+            data.extend_from_slice(&v.to_ne_bytes());
+        }
+        let frame = make_frame(PixelType::F32, data);
+        let out = convert_bit_depth(frame, PixelType::U16).expect("conversion should succeed");
+        let raw = out.data.as_slice().expect("interleaved data");
+        let v0 = u16::from_ne_bytes([raw[0], raw[1]]);
+        let v1 = u16::from_ne_bytes([raw[2], raw[3]]);
+        assert_eq!(v0, 0);
+        assert_eq!(v1, 65535);
+    }
+
+    #[test]
+    fn test_convert_bit_depth_same_type_identity() {
+        use oximedia_image::PixelType;
+        let frame = make_frame(PixelType::U8, vec![10, 20, 30]);
+        let out = convert_bit_depth(frame, PixelType::U8).expect("same-type should be identity");
+        let raw = out.data.as_slice().expect("interleaved data");
+        assert_eq!(raw, &[10, 20, 30]);
     }
 }

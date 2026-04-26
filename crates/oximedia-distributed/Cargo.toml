@@ -8,6 +8,9 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Distributed encoding coordinator for OxiMedia"
+keywords = ["workflow", "batch", "processing", "multimedia", "pipeline"]
+categories = ["multimedia", "algorithms"]
+readme = "README.md"
 
 [lints]
 workspace = true

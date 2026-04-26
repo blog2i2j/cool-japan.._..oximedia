@@ -6,7 +6,7 @@ Production-ready RESTful media server for OxiMedia with comprehensive media mana
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.5 | Tests: 1,028 — 2026-04-21
+Version: 0.1.6 | Tests: 1,028 — 2026-04-26
 
 ## Features
 

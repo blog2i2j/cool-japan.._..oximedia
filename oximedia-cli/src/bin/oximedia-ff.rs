@@ -32,7 +32,11 @@ async fn main() {
     // Skip argv[0] (the binary name itself).
     let args: Vec<String> = std::env::args().skip(1).collect();
 
-    if args.is_empty() || args.iter().any(|a| a == "--help" || a == "-h") {
+    if args.is_empty() {
+        print_help();
+        std::process::exit(1);
+    }
+    if args.iter().any(|a| a == "--help" || a == "-h") {
         print_help();
         std::process::exit(0);
     }

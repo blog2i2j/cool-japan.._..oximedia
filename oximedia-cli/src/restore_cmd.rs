@@ -186,14 +186,23 @@ pub async fn run_restore_audio(opts: RestoreAudioOptions, json_output: bool) -> 
 }
 
 /// Run the `restore video` subcommand.
+///
+/// For supported container formats (MKV, WebM, Ogg, WAV, FLAC), the input is
+/// remuxed through a stream-copy pipeline into the output container.  This
+/// re-wraps the container (which can fix container-level corruption) and serves
+/// as the foundation for further per-frame restoration passes.
+///
+/// Frame-level restoration (deinterlace, upscale, stabilize, color-correct)
+/// requires decode→filter→encode which is not yet wired into the pipeline;
+/// those steps are recorded in the output metadata but not yet applied at the
+/// pixel level.
 pub async fn run_restore_video(opts: RestoreVideoOptions, json_output: bool) -> Result<()> {
-    let data = std::fs::read(&opts.input)
-        .with_context(|| format!("Failed to read input: {}", opts.input.display()))?;
+    use oximedia_transcode::TranscodePipeline;
 
     let width = opts.width.unwrap_or(1920);
     let height = opts.height.unwrap_or(1080);
 
-    // Determine which video restoration steps to apply
+    // Determine which restoration steps are requested.
     let steps_applied: Vec<&str> = match opts.mode.to_lowercase().as_str() {
         "deinterlace" => vec!["deinterlace"],
         "upscale" => vec!["upscale"],
@@ -203,13 +212,59 @@ pub async fn run_restore_video(opts: RestoreVideoOptions, json_output: bool) -> 
         _ => vec!["deinterlace"],
     };
 
-    // For video, we use the restore crate's video-oriented modules
-    // (deband, deflicker, upscale, scan_line, etc.)
-    let input_size = data.len();
+    // Validate output extension: TranscodePipeline only supports mkv/webm and ogg outputs.
+    let out_ext = opts
+        .output
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_lowercase)
+        .unwrap_or_default();
 
-    // Write through (placeholder: real video restoration would decode frames)
-    std::fs::write(&opts.output, &data)
-        .with_context(|| format!("Failed to write output: {}", opts.output.display()))?;
+    let (output_size, pipeline_used) =
+        if matches!(out_ext.as_str(), "mkv" | "webm" | "ogg" | "oga" | "opus") {
+            // Run real stream-copy pipeline: re-wraps the container, which fixes
+            // container-level errors (truncated headers, bad timecodes, etc.).
+            let mut pipeline = TranscodePipeline::builder()
+                .input(opts.input.clone())
+                .output(opts.output.clone())
+                .track_progress(false)
+                .build()
+                .context("Failed to build video restore pipeline")?;
+
+            match pipeline.execute().await {
+                Ok(result) => (result.file_size, true),
+                Err(e) => {
+                    // Pipeline failed (e.g. unsupported input container). Fall back
+                    // to byte-level copy so the caller at least gets a file.
+                    let data = std::fs::read(&opts.input).with_context(|| {
+                        format!("Failed to read input: {}", opts.input.display())
+                    })?;
+                    let sz = data.len() as u64;
+                    std::fs::write(&opts.output, &data).with_context(|| {
+                        format!("Failed to write output: {}", opts.output.display())
+                    })?;
+                    if !json_output {
+                        println!("  Note: pipeline remux failed ({}); byte copy used.", e);
+                    }
+                    (sz, false)
+                }
+            }
+        } else {
+            // Output format not supported by the pipeline; fall back to byte copy.
+            let data = std::fs::read(&opts.input)
+                .with_context(|| format!("Failed to read input: {}", opts.input.display()))?;
+            let sz = data.len() as u64;
+            std::fs::write(&opts.output, &data)
+                .with_context(|| format!("Failed to write output: {}", opts.output.display()))?;
+            if !json_output {
+                println!(
+                    "  Note: output format '.{}' is not supported by the remux pipeline; \
+                 byte copy used. Use .mkv or .webm for full pipeline support.",
+                    out_ext
+                );
+            }
+            (sz, false)
+        };
 
     if json_output {
         let obj = serde_json::json!({
@@ -217,17 +272,33 @@ pub async fn run_restore_video(opts: RestoreVideoOptions, json_output: bool) -> 
             "output": opts.output.to_string_lossy(),
             "mode": opts.mode,
             "target_resolution": format!("{width}x{height}"),
-            "input_size_bytes": input_size,
+            "output_size_bytes": output_size,
             "steps_applied": steps_applied,
+            "pipeline_remux": pipeline_used,
+            "note": if pipeline_used {
+                "Container remuxed; frame-level restoration (deinterlace/upscale/stabilize) \
+                 requires decode→filter→encode (not yet wired)."
+            } else {
+                "Byte copy used; pipeline remux not available for this format."
+            },
         });
         println!("{}", serde_json::to_string_pretty(&obj)?);
     } else {
         println!("{}", "Video Restoration Complete".green().bold());
-        println!("  Input:      {}", opts.input.display());
-        println!("  Output:     {}", opts.output.display());
-        println!("  Mode:       {}", opts.mode);
-        println!("  Resolution: {}x{}", width, height);
-        println!("  Steps:      {}", steps_applied.join(", "));
+        println!("  Input:          {}", opts.input.display());
+        println!("  Output:         {}", opts.output.display());
+        println!("  Mode:           {}", opts.mode);
+        println!("  Resolution:     {}x{}", width, height);
+        println!("  Steps:          {}", steps_applied.join(", "));
+        println!("  Output size:    {} bytes", output_size);
+        println!(
+            "  Pipeline remux: {}",
+            if pipeline_used {
+                "yes"
+            } else {
+                "no (byte copy)"
+            }
+        );
     }
 
     Ok(())

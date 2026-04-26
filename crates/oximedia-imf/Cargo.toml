@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "IMF (Interoperable Master Format) support for OxiMedia"
+keywords = ["edl", "editorial", "post-production", "multimedia", "video"]
+categories = ["multimedia", "parser-implementations"]
 readme = "README.md"
 
 [lints]

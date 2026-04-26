@@ -8,6 +8,7 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "360° VR video processing — equirectangular/cubemap projections, stereo 3D, spatial metadata for OxiMedia"
+readme = "README.md"
 keywords = ["360-video", "vr", "equirectangular", "cubemap", "spatial-media"]
 categories = ["multimedia", "mathematics", "rendering"]
 

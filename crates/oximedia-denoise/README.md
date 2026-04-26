@@ -1,13 +1,13 @@
 # oximedia-denoise
 
 ![Status: Stable](https://img.shields.io/badge/status-stable-green)
-![Version: 0.1.5](https://img.shields.io/badge/version-0.1.5-blue)
+![Version: 0.1.6](https://img.shields.io/badge/version-0.1.6-blue)
 
 Professional video and audio denoising for OxiMedia, with spatial, temporal, hybrid, and frequency-domain algorithms.
 
 Part of the [oximedia](https://github.com/cool-japan/oximedia) workspace — a comprehensive pure-Rust media processing framework.
 
-Version: 0.1.5 — 2026-04-21 — 517 tests
+Version: 0.1.6 — 2026-04-26 — 517 tests
 
 ## Features
 
@@ -32,7 +32,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-oximedia-denoise = "0.1.5"
+oximedia-denoise = "0.1.6"
 ```
 
 ```rust

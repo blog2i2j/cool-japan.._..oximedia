@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Hardware acceleration layer for OxiMedia using Vulkan compute"
+keywords = ["acceleration", "vulkan", "gpu", "hardware", "multimedia"]
+categories = ["multimedia", "algorithms"]
 readme = "README.md"
 
 # Note: vulkano_shaders macro uses unsafe internally for FFI with Vulkan,

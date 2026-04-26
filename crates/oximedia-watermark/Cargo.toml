@@ -8,6 +8,9 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Professional audio watermarking and steganography for OxiMedia"
+keywords = ["watermark", "steganography", "audio", "multimedia", "media"]
+categories = ["multimedia", "algorithms"]
+readme = "README.md"
 
 [lints]
 workspace = true

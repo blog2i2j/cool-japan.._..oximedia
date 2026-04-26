@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Professional audio effects suite for OxiMedia"
+keywords = ["audio", "effects", "reverb", "dsp", "multimedia"]
+categories = ["multimedia::audio", "multimedia"]
 readme = "README.md"
 
 [lints]

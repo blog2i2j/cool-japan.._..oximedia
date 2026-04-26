@@ -8,6 +8,9 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "High-level transcoding pipeline for OxiMedia"
+keywords = ["transcoding", "encoding", "video", "audio", "multimedia"]
+categories = ["multimedia::encoding", "multimedia"]
+readme = "README.md"
 
 [lints]
 workspace = true

@@ -8,6 +8,7 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "High-performance caching infrastructure for OxiMedia: LRU, tiered multi-level, and predictive cache warming"
+readme = "README.md"
 keywords = ["cache", "lru", "tiered", "multimedia", "performance"]
 categories = ["caching", "multimedia", "memory-management"]
 

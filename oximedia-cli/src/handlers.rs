@@ -712,7 +712,24 @@ pub(crate) async fn handle_preset_command(command: PresetCommand, json_output: b
 }
 
 /// Display OxiMedia version, build info, and feature set.
-pub(crate) fn show_version() {
+pub(crate) fn show_version(json: bool) {
+    if json {
+        let val = serde_json::json!({
+            "version": env!("CARGO_PKG_VERSION"),
+            "rust_version": rustc_version_str(),
+            "license": env!("CARGO_PKG_LICENSE"),
+            "copyright": "COOLJAPAN OU (Team Kitasan)",
+            "homepage": env!("CARGO_PKG_HOMEPAGE"),
+            "repository": env!("CARGO_PKG_REPOSITORY"),
+            "features": ["audio","video","graph","subtitle","lut","filter","scene","qc","workflow",
+                         "batch","monitor","restore","captions","streaming","image","graphics",
+                         "multicam","vfx","ndi","videoip","distributed","farm","renderfarm",
+                         "plugin","forensics","package","watermark","drm","dedup","archive"],
+            "nmos": ["IS-04 v1.3","IS-05 v1.1","IS-07 v1.0","IS-08 v1.0","IS-09 v1.0","IS-11 v1.0"],
+        });
+        println!("{}", serde_json::to_string_pretty(&val).unwrap_or_default());
+        return;
+    }
     println!(
         "{}",
         format!("OxiMedia {}", env!("CARGO_PKG_VERSION"))

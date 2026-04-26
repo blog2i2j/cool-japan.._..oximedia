@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Professional archive and digital preservation system for OxiMedia"
+keywords = ["archive", "preservation", "digital", "multimedia", "video"]
+categories = ["multimedia", "filesystem"]
 readme = "README.md"
 
 [lints]

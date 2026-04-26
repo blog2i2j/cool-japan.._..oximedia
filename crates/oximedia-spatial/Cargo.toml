@@ -8,6 +8,7 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Spatial audio processing for OxiMedia — Ambisonics, binaural rendering, and room acoustics simulation"
+readme = "README.md"
 keywords = ["spatial-audio", "ambisonics", "binaural", "hrtf", "room-acoustics"]
 categories = ["multimedia::audio", "science"]
 

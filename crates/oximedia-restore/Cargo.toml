@@ -1,6 +1,8 @@
 [package]
 name = "oximedia-restore"
 description = "Media restoration tools for damaged or degraded content"
+keywords = ["restoration", "denoising", "video", "multimedia", "quality"]
+categories = ["multimedia::video", "multimedia"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true

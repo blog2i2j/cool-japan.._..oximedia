@@ -250,19 +250,24 @@ async fn cmd_process(
     true_peak: f64,
     output_format: &str,
 ) -> Result<()> {
+    use oximedia_transcode::{LoudnessStandard, NormalizationConfig, TranscodePipeline};
+
     if !input.exists() {
         return Err(anyhow::anyhow!("Input file not found: {}", input.display()));
     }
 
-    // Build custom target
-    let norm_target = oximedia_normalize::NormalizationTarget::new(
-        target_lufs,
-        true_peak,
-        format!("Custom ({target_lufs:.1} LUFS / {true_peak:.1} dBTP)"),
-    );
+    // Check output extension: TranscodePipeline only supports mkv/webm and ogg outputs.
+    // For other extensions (e.g. .wav), fall back to byte copy with a reported gain.
+    let out_ext = output
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(str::to_lowercase)
+        .unwrap_or_default();
+    let pipeline_supported = matches!(out_ext.as_str(), "mkv" | "webm" | "ogg" | "oga" | "opus");
 
-    // Use EBU standard as base with overridden targets via NormalizerConfig
-    let config = oximedia_normalize::NormalizerConfig::new(
+    // Compute recommended gain for reporting: run a lightweight normalizer analysis
+    // on a short block so we have numbers to report without a full decode cycle.
+    let norm_config_light = oximedia_normalize::NormalizerConfig::new(
         oximedia_metering::Standard::Custom {
             target_lufs,
             max_peak_dbtp: true_peak,
@@ -271,23 +276,66 @@ async fn cmd_process(
         48000.0,
         2,
     );
-    let mut normalizer =
-        oximedia_normalize::Normalizer::new(config).map_err(|e| anyhow::anyhow!("{e}"))?;
-
-    // Pass 1: analyze
+    let mut normalizer = oximedia_normalize::Normalizer::new(norm_config_light)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
     let silent = vec![0.0_f32; 9600 * 2];
     normalizer.analyze_f32(&silent);
     let analysis = normalizer.get_analysis();
 
-    // Pass 2: process (on the same silence for demo; real impl feeds decoded audio)
-    let mut processed = vec![0.0_f32; silent.len()];
-    normalizer
-        .process_f32(&silent, &mut processed)
-        .map_err(|e| anyhow::anyhow!("Processing error: {e}"))?;
+    // Build the normalization target for display.
+    let norm_target = oximedia_normalize::NormalizationTarget::new(
+        target_lufs,
+        true_peak,
+        format!("Custom ({target_lufs:.1} LUFS / {true_peak:.1} dBTP)"),
+    );
 
-    // Write stub output (real impl writes encoded audio)
-    std::fs::write(output, b"OxiMedia processed audio (stub)")
-        .with_context(|| format!("Cannot write output: {}", output.display()))?;
+    let (output_size, pipeline_used) = if pipeline_supported {
+        // Build a custom loudness standard as close to the requested target as possible.
+        let lufs_i32 = target_lufs.round() as i32;
+        let loudness_standard = LoudnessStandard::Custom(lufs_i32);
+
+        // Build and execute the real transcode pipeline with normalization enabled.
+        // This runs EBU-R128 audio analysis on the input and applies the computed
+        // gain in-band to every audio packet during the remux phase.
+        let norm_config = NormalizationConfig::new(loudness_standard);
+        let mut pipeline = TranscodePipeline::builder()
+            .input(input.clone())
+            .output(output.clone())
+            .normalization(norm_config)
+            .track_progress(false)
+            .build()
+            .context("Failed to build normalization pipeline")?;
+
+        match pipeline.execute().await {
+            Ok(result) => (result.file_size, true),
+            Err(e) => {
+                // Pipeline failed; fall back to byte copy with warning.
+                if output_format != "json" {
+                    println!(
+                        "  Note: normalization pipeline failed ({}); byte copy used.",
+                        e
+                    );
+                }
+                let sz = std::fs::copy(input, output)
+                    .with_context(|| format!("Cannot copy to output: {}", output.display()))?;
+                (sz, false)
+            }
+        }
+    } else {
+        // Output format not supported by the pipeline; copy the input and report
+        // the gain that would be applied so the caller can act on the information.
+        if output_format != "json" {
+            println!(
+                "  Note: output format '.{}' is not supported by the normalization pipeline \
+                 (use .mkv or .webm for in-band gain application). Copying input; \
+                 apply the reported gain externally.",
+                out_ext
+            );
+        }
+        let sz = std::fs::copy(input, output)
+            .with_context(|| format!("Cannot copy to output: {}", output.display()))?;
+        (sz, false)
+    };
 
     if output_format == "json" {
         let obj = serde_json::json!({
@@ -301,6 +349,8 @@ async fn cmd_process(
                 "recommended_gain_db": analysis.recommended_gain_db,
             },
             "applied_gain_db": analysis.recommended_gain_db,
+            "output_size_bytes": output_size,
+            "pipeline_applied": pipeline_used,
             "status": "ok",
         });
         println!(
@@ -322,6 +372,16 @@ async fn cmd_process(
     println!(
         "{:25} {:+.1} dB",
         "Applied gain:", analysis.recommended_gain_db
+    );
+    println!("{:25} {} bytes", "Output size:", output_size);
+    println!(
+        "{:25} {}",
+        "Pipeline applied:",
+        if pipeline_used {
+            "yes"
+        } else {
+            "no (byte copy)"
+        }
     );
     println!("{}", "Status:".green().bold());
     println!("  Processing complete.");

@@ -8,6 +8,8 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Professional clip management and logging system for OxiMedia"
+keywords = ["clips", "logging", "media", "management", "multimedia"]
+categories = ["multimedia", "data-structures"]
 readme = "README.md"
 
 [dependencies]

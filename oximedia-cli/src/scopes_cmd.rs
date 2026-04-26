@@ -280,31 +280,11 @@ pub async fn handle_scopes_command(command: ScopesCommand, json_output: bool) ->
 
 /// Extract a single frame as RGB24 data from a video file.
 ///
-/// For now this creates a placeholder gradient frame when the full demux/decode
-/// pipeline is not yet wired, while still exercising the scopes engine.  When
-/// OxiMedia I/O integration is complete, this function should open the container,
-/// seek to `_frame_num`, decode, and return raw RGB24 bytes plus dimensions.
-fn extract_frame_rgb(input: &std::path::Path, _frame_num: u64) -> Result<(Vec<u8>, u32, u32)> {
-    // Verify the input path exists so the user gets a clear error early.
-    if !input.exists() {
-        bail!("Input file not found: {}", input.display());
-    }
-
-    // Placeholder: create a 256x256 colour-ramp frame that gives interesting
-    // scope output (diagonal gradient with varying R/G/B channels).
-    let w: u32 = 256;
-    let h: u32 = 256;
-    let mut data = vec![0u8; (w * h * 3) as usize];
-    for y in 0..h {
-        for x in 0..w {
-            let idx = ((y * w + x) * 3) as usize;
-            data[idx] = (x & 0xFF) as u8; // R
-            data[idx + 1] = (y & 0xFF) as u8; // G
-            data[idx + 2] = (((x + y) / 2) & 0xFF) as u8; // B
-        }
-    }
-
-    Ok((data, w, h))
+/// Delegates to [`crate::frame_extract::extract_video_frame_rgb`] which
+/// supports Y4M natively.  For other formats it returns a descriptive error
+/// directing the user to convert first.
+fn extract_frame_rgb(input: &std::path::Path, frame_num: u64) -> Result<(Vec<u8>, u32, u32)> {
+    crate::frame_extract::extract_video_frame_rgb(input, frame_num)
 }
 
 // ---------------------------------------------------------------------------
@@ -907,14 +887,20 @@ async fn run_stats(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::io::Write;
 
     fn temp_input() -> PathBuf {
-        let dir = std::env::temp_dir();
-        let path = dir.join("oximedia_scopes_test_input.bin");
-        if let Ok(mut f) = std::fs::File::create(&path) {
-            let _ = f.write_all(b"dummy");
+        let path = std::env::temp_dir().join("oximedia_scopes_test_input.y4m");
+        // Minimal 64×64 YUV420 Y4M with three black frames (run_stats needs up to 3)
+        let mut data = b"YUV4MPEG2 W64 H64 F25:1 Ip A0:0 C420\n".to_vec();
+        for _ in 0..3 {
+            data.extend_from_slice(b"FRAME\n");
+            // Y plane: 64*64 = 4096 bytes (black = 16 in studio swing)
+            data.extend(std::iter::repeat(16u8).take(64 * 64));
+            // U and V planes: 32*32 = 1024 bytes each (neutral = 128)
+            data.extend(std::iter::repeat(128u8).take(32 * 32));
+            data.extend(std::iter::repeat(128u8).take(32 * 32));
         }
+        std::fs::write(&path, &data).expect("failed to write Y4M temp file");
         path
     }
 

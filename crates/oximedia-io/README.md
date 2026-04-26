@@ -1,8 +1,8 @@
 # oximedia-io
 
-![Version: 0.1.5](https://img.shields.io/badge/version-0.1.5-blue)
+![Version: 0.1.6](https://img.shields.io/badge/version-0.1.6-blue)
 ![Tests: 607](https://img.shields.io/badge/tests-607-brightgreen)
-![Updated: 2026-04-21](https://img.shields.io/badge/updated-2026--04--20-blue)
+![Updated: 2026-04-26](https://img.shields.io/badge/updated-2026--04--20-blue)
 
 > I/O layer for the OxiMedia multimedia framework.
 
@@ -37,7 +37,7 @@ Part of the [OxiMedia](https://github.com/cool-japan/oximedia) multimedia framew
 
 ```toml
 [dependencies]
-oximedia-io = "0.1.5"
+oximedia-io = "0.1.6"
 ```
 
 ### Detect media format

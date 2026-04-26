@@ -8,6 +8,9 @@ rust-version.workspace = true
 homepage.workspace = true
 repository.workspace = true
 description = "Computer vision for OxiMedia"
+keywords = ["computer-vision", "video", "tracking", "multimedia", "image"]
+categories = ["multimedia::images", "multimedia", "science"]
+readme = "README.md"
 
 [lints]
 workspace = true

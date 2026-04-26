@@ -1,6 +1,8 @@
 [package]
 name = "oximedia-multicam"
 description = "Multi-camera editing and synchronization tools"
+keywords = ["multi-camera", "synchronization", "video", "editing", "multimedia"]
+categories = ["multimedia::video", "multimedia"]
 version.workspace = true
 authors.workspace = true
 edition.workspace = true
